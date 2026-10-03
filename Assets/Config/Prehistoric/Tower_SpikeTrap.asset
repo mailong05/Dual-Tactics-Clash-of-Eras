@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fd77451a1bc87348a5f0b14fc7eb45f, type: 3}
+  m_Name: Tower_SpikeTrap
+  m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Config.TowerSO
+  <Type>k__BackingField: 0
+  <ArmorType>k__BackingField: {fileID: 0}
+  <Prefab>k__BackingField: {fileID: 0}
+  <Health>k__BackingField: 0
+  <HealthToCostRatio>k__BackingField: 0.2
+  <AttackConfig>k__BackingField: {fileID: 0}
+  <Upgrade>k__BackingField: {fileID: 0}
+  <DisplayName>k__BackingField: "H\u1ED1 Ch\xF4ng Gai G\u1ED7"
+  <Description>k__BackingField: 
+  <Sprite>k__BackingField: {fileID: 0}
+  <Cost>k__BackingField: 30
+  <Hotkey>k__BackingField: 46
+  <IsWall>k__BackingField: 0
+  <CanTargetFlying>k__BackingField: 1
+  <PlacementRadius>k__BackingField: 1.2

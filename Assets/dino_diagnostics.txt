@@ -1,0 +1,32 @@
+=== DINO DIAGNOSTICS REPORT ===
+
+--- MODEL: Assets/velociraptor.glb ---
+  Head Bone: 'head_26' at (0.00, -1.09, 0.02), Hips: 'hip_64' at (0.00, -1.09, -0.06)
+  Forward Direction Vector: (0.00, 0.00, 0.08)
+  Computed Rotation: (0.00, 0.00, 0.00)
+  Foot Bone: 'IK.foot.L_73' at (-0.02, -1.19, -0.07), Y diff (Head - Foot): 0.09786475
+  Identity Bounds: Size=(0.14w, 0.15h, 0.29d), Min=(-0.10, -1.21, -0.22)
+  -90 deg X Bounds: Size=(0.14w, 0.29h, 0.15d), Min=(-0.10, -0.22, 1.06)
+
+--- MODEL: Assets/pterodactyl_1.glb ---
+  Head Bone: 'head.15_15' at (0.00, 0.06, 0.08), Hips: 'pelvis.91_91' at (0.00, 0.03, -0.05)
+  Forward Direction Vector: (0.00, 0.03, 0.13)
+  Computed Rotation: (0.00, 0.00, 0.00)
+  Identity Bounds: Size=(0.99w, 0.18h, 0.38d), Min=(-0.49, -0.01, -0.19)
+  -90 deg X Bounds: Size=(0.99w, 0.38h, 0.18d), Min=(-0.49, -0.19, -0.17)
+
+--- MODEL: Assets/ankylosaurus_updated.glb ---
+  Head Bone: 'Head_12' at (0.00, 4.74, 6.27), Hips: 'Hips_21' at (0.00, 6.36, -1.21)
+  Forward Direction Vector: (0.00, -1.62, 7.47)
+  Computed Rotation: (0.00, 0.00, 0.00)
+  Foot Bone: 'BackFoot.R_29' at (1.93, 0.17, -3.11), Y diff (Head - Foot): 4.566121
+  Identity Bounds: Size=(10.84w, 10.11h, 25.54d), Min=(-5.42, -0.67, -15.41)
+  -90 deg X Bounds: Size=(10.84w, 25.54h, 10.11d), Min=(-5.42, -15.41, -9.44)
+
+--- MODEL: Assets/animated_t-rex_dinosaur_biting_attack_loop.glb ---
+  Head Bone: 'bn_Head.10_10' at (0.00, 1.40, 1.03), Hips: 'bn_Spine.4_4' at (0.00, 1.12, 0.04)
+  Forward Direction Vector: (0.00, 0.28, 1.00)
+  Computed Rotation: (0.00, 0.00, 0.00)
+  Foot Bone: 'bn_LeftFoot.47_47' at (-0.23, 0.32, -0.06), Y diff (Head - Foot): 1.079077
+  Identity Bounds: Size=(0.95w, 1.69h, 3.53d), Min=(-0.48, -0.03, -1.89)
+  -90 deg X Bounds: Size=(0.95w, 3.53h, 1.69d), Min=(-0.48, -1.89, -1.67)
