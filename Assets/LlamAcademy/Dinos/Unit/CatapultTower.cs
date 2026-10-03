@@ -69,6 +69,7 @@ namespace LlamAcademy.Dinos.Unit
             for (int i = 0; i < count; i++)
             {
                 if (OverlapBuffer[i] == null) continue;
+                if (!IsEnemyTarget(OverlapBuffer[i])) continue;
                 float dist = Vector3.Distance(transform.position, OverlapBuffer[i].transform.position);
                 if (dist < MinRange) continue; // Inside deadzone
 
@@ -83,6 +84,20 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             return bestTarget;
+        }
+
+        private bool IsEnemyTarget(Collider col)
+        {
+            if (col == null || !col.gameObject.activeInHierarchy) return false;
+            if (col.TryGetComponent(out Unit u))
+            {
+                if (u is Wall || u is ArcherTower || u is BallistaTower || u is CatapultTower 
+                    || u is TeslaTower || u is FrostTower || u is GroundTrap)
+                {
+                    return false;
+                }
+            }
+            return col.TryGetComponent(out IDamageable d) && d.Health > 0;
         }
 
         private IEnumerator LaunchSequence(Vector3 targetPosition)
@@ -194,6 +209,7 @@ namespace LlamAcademy.Dinos.Unit
                 for (int i = 0; i < hitCount; i++)
                 {
                     if (OverlapBuffer[i] == null) continue;
+                    if (!IsEnemyTarget(OverlapBuffer[i])) continue;
                     if (OverlapBuffer[i].TryGetComponent(out IDamageable damageable))
                     {
                         float dist = Vector3.Distance(impactPos, OverlapBuffer[i].transform.position);

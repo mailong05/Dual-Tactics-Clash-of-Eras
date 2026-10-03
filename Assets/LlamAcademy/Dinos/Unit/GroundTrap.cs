@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace LlamAcademy.Dinos.Unit
 {
-    [RequireComponent(typeof(Collider))]
+    [RequireComponent(typeof(BoxCollider))]
     public class GroundTrap : Unit
     {
         [Header("Trap Settings")]

@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &8797508769222803654
+--- !u!1 &2040864352737381065
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,8 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1162510262898041042}
-  - component: {fileID: 117512339124679387}
+  - component: {fileID: 614191709030364391}
+  - component: {fileID: 8664426210463504759}
+  - component: {fileID: 4691885056975725009}
   m_Layer: 0
   m_Name: Prefab_SpikeTrap
   m_TagString: Untagged
@@ -17,29 +18,29 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1162510262898041042
+--- !u!4 &614191709030364391
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8797508769222803654}
+  m_GameObject: {fileID: 2040864352737381065}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 3927111683442364206}
+  - {fileID: 6857672042349816271}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &117512339124679387
+--- !u!65 &8664426210463504759
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8797508769222803654}
+  m_GameObject: {fileID: 2040864352737381065}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -54,13 +55,38 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.4, y: 0.4, z: 2.4}
   m_Center: {x: 0, y: 0.2, z: 0}
---- !u!1001 &1224950445064378590
+--- !u!114 &4691885056975725009
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2040864352737381065}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73940e747add03f40962ee48c8d8c686, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Unit.GroundTrap
+  <MaxHealth>k__BackingField: 0
+  <Health>k__BackingField: 0
+  <UnitType>k__BackingField: {fileID: 0}
+  AttackRadius: {fileID: 0}
+  HealthBar: {fileID: 0}
+  TrapDamage: 40
+  RearmCooldown: 4
+  MaxTriggers: 5
+  TargetLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  TriggerVFX: {fileID: 0}
+  TrapAnimator: {fileID: 0}
+--- !u!1001 &8767200983151935039
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 1162510262898041042}
+    m_TransformParent: {fileID: 614191709030364391}
     m_Modifications:
     - target: {fileID: -6689036041284674117, guid: b141de795521a7b47962dea3ad1d4cad, type: 3}
       propertyPath: m_Name
@@ -123,8 +149,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: b141de795521a7b47962dea3ad1d4cad, type: 3}
---- !u!4 &3927111683442364206 stripped
+--- !u!4 &6857672042349816271 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2774220344278030320, guid: b141de795521a7b47962dea3ad1d4cad, type: 3}
-  m_PrefabInstance: {fileID: 1224950445064378590}
+  m_PrefabInstance: {fileID: 8767200983151935039}
   m_PrefabAsset: {fileID: 0}

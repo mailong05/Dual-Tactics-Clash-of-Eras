@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &1867609805645240685
+--- !u!1 &3551768507051562438
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 4189735943419571743}
-  - component: {fileID: 3690207026689230471}
-  - component: {fileID: 2358441736358910237}
+  - component: {fileID: 6158928049620226145}
+  - component: {fileID: 6967347801406373980}
+  - component: {fileID: 4270721446837516054}
   m_Layer: 0
   m_Name: Prefab_ShamanTotem
   m_TagString: Untagged
@@ -18,30 +18,30 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &4189735943419571743
+--- !u!4 &6158928049620226145
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1867609805645240685}
+  m_GameObject: {fileID: 3551768507051562438}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 5808388090435066061}
-  - {fileID: 7276678130500113044}
+  - {fileID: 4956436323107152207}
+  - {fileID: 9127856481034922512}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3690207026689230471
+--- !u!114 &6967347801406373980
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1867609805645240685}
+  m_GameObject: {fileID: 3551768507051562438}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 41353449f8572f843b5916d55ab45833, type: 3}
@@ -62,13 +62,13 @@ MonoBehaviour:
     m_Bits: 0
   LightningLinePrefab: {fileID: 0}
   FirePoint: {fileID: 0}
---- !u!65 &2358441736358910237
+--- !u!65 &4270721446837516054
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1867609805645240685}
+  m_GameObject: {fileID: 3551768507051562438}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -83,7 +83,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.6, y: 4.2, z: 1.6}
   m_Center: {x: 0, y: 2.1, z: 0}
---- !u!1 &5714530595968473522
+--- !u!1 &7144184877174266579
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -91,7 +91,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 7276678130500113044}
+  - component: {fileID: 9127856481034922512}
   m_Layer: 0
   m_Name: FirePoint
   m_TagString: Untagged
@@ -99,28 +99,28 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &7276678130500113044
+--- !u!4 &9127856481034922512
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5714530595968473522}
+  m_GameObject: {fileID: 7144184877174266579}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 3.9, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 4189735943419571743}
+  m_Father: {fileID: 6158928049620226145}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &8510546029058674493
+--- !u!1001 &7082137081811547839
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 4189735943419571743}
+    m_TransformParent: {fileID: 6158928049620226145}
     m_Modifications:
     - target: {fileID: -6689036041284674117, guid: 1a3a1041dd4be2a469f17bb21827b158, type: 3}
       propertyPath: m_Name
@@ -183,8 +183,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 1a3a1041dd4be2a469f17bb21827b158, type: 3}
---- !u!4 &5808388090435066061 stripped
+--- !u!4 &4956436323107152207 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2774220344278030320, guid: 1a3a1041dd4be2a469f17bb21827b158, type: 3}
-  m_PrefabInstance: {fileID: 8510546029058674493}
+  m_PrefabInstance: {fileID: 7082137081811547839}
   m_PrefabAsset: {fileID: 0}

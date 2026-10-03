@@ -68,6 +68,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 Collider col = OverlapBuffer[i];
                 if (col == null || !col.gameObject.activeInHierarchy) continue;
+                if (col.TryGetComponent(out Unit u) && (u is Wall || u is ArcherTower || u is BallistaTower || u is CatapultTower || u is TeslaTower || u is FrostTower || u is GroundTrap)) continue;
                 if (col.TryGetComponent(out IDamageable d) && d.Health > 0)
                 {
                     float dist = (col.transform.position - transform.position).sqrMagnitude;

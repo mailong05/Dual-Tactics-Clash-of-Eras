@@ -110,9 +110,22 @@ namespace LlamAcademy.Dinos.Editor
                         needsFix = true;
                     }
 
+                    // 5. Check if any TowerSO has a missing/null Prefab reference (e.g. Spike Trap)
+                    string[] towerCheckNames = new string[] { "Tower_Watchtower", "Tower_Ballista", "Tower_Catapult", "Tower_ShamanTotem", "Tower_TarPit", "Tower_SpikeTrap", "Tower_Barricade" };
+                    foreach (string tName in towerCheckNames)
+                    {
+                        string soPath = $"{CONFIG_DIR}/{tName}.asset";
+                        TowerSO so = AssetDatabase.LoadAssetAtPath<TowerSO>(soPath);
+                        if (so == null || so.Prefab == null)
+                        {
+                            needsFix = true;
+                            break;
+                        }
+                    }
+
                     if (needsFix)
                     {
-                        Debug.Log("<color=yellow>[Prehistoric TD]</color> Detected uncalibrated dinosaur orientation or missing Dual-Mode Manager. Auto-standing upright all dinosaurs & defenses...");
+                        Debug.Log("<color=yellow>[Prehistoric TD]</color> Detected uncalibrated models, missing Dual-Mode Manager, or unassigned tower prefabs. Auto-configuring now...");
                         FixAllModelScales(false);
                     }
                 }
@@ -215,7 +228,7 @@ namespace LlamAcademy.Dinos.Editor
             List<DinoSO> dinoSOs = CreateDinoDataAssets(prefabs);
 
             SetupSceneManagers(towerSOs, dinoSOs, prefabs);
-            PlaceStarterDefenses(prefabs);
+            PlaceStarterDefenses(prefabs, towerSOs);
             SetupInGameHUD(towerSOs);
 
             AssetDatabase.SaveAssets();
@@ -334,9 +347,9 @@ namespace LlamAcademy.Dinos.Editor
                 DimensionMode.HorizontalWidth,
                 go =>
                 {
-                    if (!go.TryGetComponent(out GroundTrap _)) go.AddComponent<GroundTrap>();
                     BoxCollider col = EnsureBoxCollider(go, new Vector3(2.4f, 0.4f, 2.4f), new Vector3(0, 0.2f, 0));
                     col.isTrigger = true;
+                    if (!go.TryGetComponent(out GroundTrap _)) go.AddComponent<GroundTrap>();
                 });
 
             // 7. Rào Cọc Gỗ Cản Đường (Barricade - Width across road 3.0m, Upright -90 deg X)
@@ -831,6 +844,11 @@ namespace LlamAcademy.Dinos.Editor
                 Unit.Unit unitComp = prefab.GetComponent<Unit.Unit>();
                 SerializedProperty prefabProp = serialized.FindProperty("<Prefab>k__BackingField");
                 if (prefabProp != null) prefabProp.objectReferenceValue = unitComp;
+                if (unitComp != null && unitComp.UnitType == null)
+                {
+                    unitComp.UnitType = so;
+                    EditorUtility.SetDirty(prefab);
+                }
             }
 
             serialized.ApplyModifiedProperties();
@@ -859,6 +877,11 @@ namespace LlamAcademy.Dinos.Editor
                 Unit.Unit unitComp = prefab.GetComponent<Unit.Unit>();
                 SerializedProperty prefabProp = serialized.FindProperty("<Prefab>k__BackingField");
                 if (prefabProp != null) prefabProp.objectReferenceValue = unitComp;
+                if (unitComp != null && unitComp.UnitType == null)
+                {
+                    unitComp.UnitType = so;
+                    EditorUtility.SetDirty(prefab);
+                }
             }
 
             serialized.ApplyModifiedProperties();
@@ -1001,7 +1024,7 @@ namespace LlamAcademy.Dinos.Editor
             elem.FindPropertyRelative("GoldRewardOnDeath").intValue = gold;
         }
 
-        private static void PlaceStarterDefenses(Dictionary<string, GameObject> prefabs)
+        private static void PlaceStarterDefenses(Dictionary<string, GameObject> prefabs, List<TowerSO> towerSOs)
         {
             GameObject defensesGroup = GameObject.Find("Starter_Defenses");
             if (defensesGroup != null)
@@ -1033,36 +1056,54 @@ namespace LlamAcademy.Dinos.Editor
             // 1. Place 2 Watchtowers guarding front left & right
             if (prefabs.TryGetValue("Watchtower", out GameObject wt) && wt != null)
             {
-                Instantiate(wt, basePos + new Vector3(-7f, 0, 11f), Quaternion.identity, defensesGroup.transform);
-                Instantiate(wt, basePos + new Vector3(7f, 0, 11f), Quaternion.identity, defensesGroup.transform);
+                TowerSO wtSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Watchtower")) : null;
+                GameObject w1 = Instantiate(wt, basePos + new Vector3(-7f, 0, 11f), Quaternion.identity, defensesGroup.transform);
+                GameObject w2 = Instantiate(wt, basePos + new Vector3(7f, 0, 11f), Quaternion.identity, defensesGroup.transform);
+                if (wtSO != null)
+                {
+                    if (w1.TryGetComponent(out Unit.Unit u1)) u1.UnitType = wtSO;
+                    if (w2.TryGetComponent(out Unit.Unit u2)) u2.UnitType = wtSO;
+                }
             }
 
             // 2. Place 1 Catapult on high ground behind
             if (prefabs.TryGetValue("Catapult", out GameObject cat) && cat != null)
             {
-                Instantiate(cat, basePos + new Vector3(0, 0, 17f), Quaternion.identity, defensesGroup.transform);
+                TowerSO catSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Catapult")) : null;
+                GameObject c = Instantiate(cat, basePos + new Vector3(0, 0, 17f), Quaternion.identity, defensesGroup.transform);
+                if (catSO != null && c.TryGetComponent(out Unit.Unit uc)) uc.UnitType = catSO;
             }
 
             // 3. Place 1 Shaman Totem
             if (prefabs.TryGetValue("ShamanTotem", out GameObject tot) && tot != null)
             {
-                Instantiate(tot, basePos + new Vector3(-4f, 0, 8f), Quaternion.identity, defensesGroup.transform);
+                TowerSO totSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("ShamanTotem")) : null;
+                GameObject t = Instantiate(tot, basePos + new Vector3(-4f, 0, 8f), Quaternion.identity, defensesGroup.transform);
+                if (totSO != null && t.TryGetComponent(out Unit.Unit ut)) ut.UnitType = totSO;
             }
 
             // 4. Place 2 Wooden Barricades forming a funnel chokepoint
             if (prefabs.TryGetValue("Barricade", out GameObject bar) && bar != null)
             {
-                Instantiate(bar, basePos + new Vector3(-3.5f, 0, 12f), Quaternion.Euler(0, 25f, 0), defensesGroup.transform);
-                Instantiate(bar, basePos + new Vector3(3.5f, 0, 12f), Quaternion.Euler(0, -25f, 0), defensesGroup.transform);
+                TowerSO barSO = towerSOs != null ? towerSOs.Find(t => t.IsWall) : null;
+                GameObject b1 = Instantiate(bar, basePos + new Vector3(-3.5f, 0, 12f), Quaternion.Euler(0, 25f, 0), defensesGroup.transform);
+                GameObject b2 = Instantiate(bar, basePos + new Vector3(3.5f, 0, 12f), Quaternion.Euler(0, -25f, 0), defensesGroup.transform);
+                if (barSO != null)
+                {
+                    if (b1.TryGetComponent(out Unit.Unit ub1)) ub1.UnitType = barSO;
+                    if (b2.TryGetComponent(out Unit.Unit ub2)) ub2.UnitType = barSO;
+                }
             }
 
             // 5. Place 1 Spike Trap in the funnel bottleneck
             if (prefabs.TryGetValue("SpikeTrap", out GameObject st) && st != null)
             {
-                Instantiate(st, basePos + new Vector3(0, 0, 11f), Quaternion.identity, defensesGroup.transform);
+                TowerSO stSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("SpikeTrap")) : null;
+                GameObject s = Instantiate(st, basePos + new Vector3(0, 0, 11f), Quaternion.identity, defensesGroup.transform);
+                if (stSO != null && s.TryGetComponent(out Unit.Unit us)) us.UnitType = stSO;
             }
 
-            Debug.Log("<color=cyan>[Prehistoric TD]</color> Placed Starter Defenses with proper scaling and upright orientation!");
+            Debug.Log("<color=cyan>[Prehistoric TD]</color> Placed Starter Defenses with proper scaling, upright orientation, and assigned UnitTypes!");
         }
 
         private static void SetupInGameHUD(List<TowerSO> towerSOs)

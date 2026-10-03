@@ -68,6 +68,10 @@ namespace LlamAcademy.Dinos.Unit
                 if (OverlapBuffer[i] == null) continue;
                 if (OverlapBuffer[i].TryGetComponent(out Unit enemyUnit))
                 {
+                    if (enemyUnit is Wall || enemyUnit is ArcherTower || enemyUnit is BallistaTower 
+                        || enemyUnit is CatapultTower || enemyUnit is TeslaTower || enemyUnit is FrostTower 
+                        || enemyUnit is GroundTrap) continue;
+
                     // Ballista prioritizes high-health armored targets or boss units
                     if (enemyUnit.Health > highestHp)
                     {

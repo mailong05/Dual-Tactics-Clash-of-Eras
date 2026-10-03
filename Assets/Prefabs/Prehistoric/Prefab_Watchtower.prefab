@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &4930939176513114031
+--- !u!1 &5853331403735034636
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3500550492177244362}
-  - component: {fileID: 677991935444230887}
-  - component: {fileID: 3142937103650069613}
+  - component: {fileID: 7027427068869024234}
+  - component: {fileID: 2664896869871585677}
+  - component: {fileID: 2960811377413492419}
   m_Layer: 0
   m_Name: Prefab_Watchtower
   m_TagString: Untagged
@@ -18,29 +18,29 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3500550492177244362
+--- !u!4 &7027427068869024234
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4930939176513114031}
+  m_GameObject: {fileID: 5853331403735034636}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1743097097078630196}
+  - {fileID: 6205865352420722957}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &677991935444230887
+--- !u!114 &2664896869871585677
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4930939176513114031}
+  m_GameObject: {fileID: 5853331403735034636}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c70403803a1978642aa61770d3a504d1, type: 3}
@@ -61,13 +61,13 @@ MonoBehaviour:
   BowPivot: {fileID: 0}
   FirePoint: {fileID: 0}
   ArrowPrefab: {fileID: 0}
---- !u!65 &3142937103650069613
+--- !u!65 &2960811377413492419
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4930939176513114031}
+  m_GameObject: {fileID: 5853331403735034636}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -82,13 +82,13 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.6, y: 5.8, z: 2.6}
   m_Center: {x: 0, y: 2.9, z: 0}
---- !u!1001 &4517316204397359300
+--- !u!1001 &8115393190488153853
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 3500550492177244362}
+    m_TransformParent: {fileID: 7027427068869024234}
     m_Modifications:
     - target: {fileID: -6689036041284674117, guid: 15e6e8de166203d4c9eafd5017282a55, type: 3}
       propertyPath: m_Name
@@ -151,8 +151,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 15e6e8de166203d4c9eafd5017282a55, type: 3}
---- !u!4 &1743097097078630196 stripped
+--- !u!4 &6205865352420722957 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2774220344278030320, guid: 15e6e8de166203d4c9eafd5017282a55, type: 3}
-  m_PrefabInstance: {fileID: 4517316204397359300}
+  m_PrefabInstance: {fileID: 8115393190488153853}
   m_PrefabAsset: {fileID: 0}

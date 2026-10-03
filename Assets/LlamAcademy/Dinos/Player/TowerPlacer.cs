@@ -146,14 +146,16 @@ namespace LlamAcademy.Dinos.Player
                 // Snap slightly to ground
                 Visualization.transform.position = hit.point;
 
-                bool hasEnoughGold = Gold >= SelectedTower.Cost;
+                bool hasPrefab = SelectedTower != null && SelectedTower.Prefab != null;
+                bool hasEnoughGold = SelectedTower != null && Gold >= SelectedTower.Cost;
                 bool isPathBlocked = CheckIfPlacementBlocksPath(hit.point);
 
-                Visualization.ValidatePlacement(hasEnoughGold, isPathBlocked);
+                Visualization.ValidatePlacement(hasEnoughGold && hasPrefab, isPathBlocked);
 
                 // Place tower on Left Click
                 if (Mouse.current.leftButton.wasReleasedThisFrame
                     && Visualization.IsValidPlacementLocation
+                    && hasPrefab
                     && !EventSystem.current.IsPointerOverGameObject())
                 {
                     PlaceTowerAt(hit.point);
@@ -163,6 +165,12 @@ namespace LlamAcademy.Dinos.Player
 
         private void PlaceTowerAt(Vector3 position)
         {
+            if (SelectedTower == null || SelectedTower.Prefab == null)
+            {
+                Debug.LogWarning($"[TowerPlacer] Cannot place tower '{SelectedTower?.DisplayName}': Prefab is not assigned or null!");
+                return;
+            }
+
             if (!TrySpendGold(SelectedTower.Cost)) return;
 
             Unit.Unit towerUnit = Instantiate(SelectedTower.Prefab, position, Quaternion.identity);

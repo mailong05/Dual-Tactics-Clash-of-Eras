@@ -201,7 +201,10 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (State == GameState.Running)
             {
-                DinoSpawner.Instance.ResourcesToSpend += Mathf.FloorToInt(wall.UnitType.Cost / 2f);
+                if (DinoSpawner.Instance != null && wall != null && wall.UnitType != null)
+                {
+                    DinoSpawner.Instance.ResourcesToSpend += Mathf.FloorToInt(wall.UnitType.Cost / 2f);
+                }
             }
         }
 
