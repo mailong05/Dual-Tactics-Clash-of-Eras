@@ -990,6 +990,30 @@ namespace LlamAcademy.Dinos.Editor
             AddArchetype(catalogProp, 3, "T-Rex Apex Boss", dinoSOs[3], 0.3f, AdaptiveWaveManager.ArchetypeRole.Boss, 120);
 
             waveSerialized.ApplyModifiedProperties();
+
+            // 6. IO Cloud Integration Manager (Docker & Cloud telemetry)
+            if (!managersRoot.TryGetComponent(out LlamAcademy.Dinos.Cloud.IOCloudManager _))
+            {
+                managersRoot.AddComponent<LlamAcademy.Dinos.Cloud.IOCloudManager>();
+            }
+
+            // 7. 2D Tactical Minimap / Radar System (Unity 2D requirement)
+            if (!managersRoot.TryGetComponent(out LlamAcademy.Dinos.Tactical2D.TacticalMinimap2D _))
+            {
+                managersRoot.AddComponent<LlamAcademy.Dinos.Tactical2D.TacticalMinimap2D>();
+            }
+
+            // 8. Mobile Touch Controller (Mobile deployment requirement)
+            if (!managersRoot.TryGetComponent(out LlamAcademy.Dinos.Mobile.MobileTouchController _))
+            {
+                managersRoot.AddComponent<LlamAcademy.Dinos.Mobile.MobileTouchController>();
+            }
+
+            // 9. AR Tabletop Controller (AR requirement)
+            if (!managersRoot.TryGetComponent(out LlamAcademy.Dinos.AR.ARTabletopController _))
+            {
+                managersRoot.AddComponent<LlamAcademy.Dinos.AR.ARTabletopController>();
+            }
         }
 
         private static Transform[] SetupSpawnPoints()

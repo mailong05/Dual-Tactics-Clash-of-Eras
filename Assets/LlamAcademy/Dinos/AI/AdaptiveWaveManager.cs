@@ -111,10 +111,18 @@ namespace LlamAcademy.Dinos.AI
             // Step 3: Compute Wave Budget with Dynamic Difficulty Scaling
             int waveBudget = Mathf.CeilToInt(BaseWaveBudget * Mathf.Pow(BudgetGrowthMultiplier, CurrentWave - 1));
 
-            // Log AI Decision
-            LastDecisionLog = $"Wave {CurrentWave} Budget: {waveBudget}g. " +
-                $"Audit: Arch={audit.SingleTargetTowers}, Cann={audit.SplashTowers}, Wall={audit.WallCount}.";
-            Debug.Log($"<color=#00FFAA>[Adaptive AI]</color> {LastDecisionLog}");
+            // Query IO Cloud Deep Learning AI Director if connected
+            if (LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.IsCloudConnected)
+            {
+                LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.RequestDeepLearningWave(CurrentWave);
+                LastDecisionLog = $"Wave {CurrentWave} [IO Cloud Deep Learning Active]: {LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.LastTacticalRationale}";
+            }
+            else
+            {
+                LastDecisionLog = $"Wave {CurrentWave} Budget: {waveBudget}g. Audit: Arch={audit.SingleTargetTowers}, Cann={audit.SplashTowers}, Wall={audit.WallCount}.";
+            }
+
+            Debug.Log($"<color=#00FFAA>[Adaptive AI Director]</color> {LastDecisionLog}");
 
             ActiveWaveUnits.Clear();
 
@@ -205,11 +213,17 @@ namespace LlamAcademy.Dinos.AI
                 {
                     audit.WallCount++;
                 }
-                else if (unit is Defender defender)
+                else if (unit is ArcherTower || unit is BallistaTower)
                 {
-                    if (defender.UnitType.Type == UnitType.Archer) audit.SingleTargetTowers++;
-                    else if (defender.UnitType.Type == UnitType.Cannoneer) audit.SplashTowers++;
-                    else if (defender.UnitType.Type == UnitType.Mage) audit.MagicTowers++;
+                    audit.SingleTargetTowers++;
+                }
+                else if (unit is CatapultTower)
+                {
+                    audit.SplashTowers++;
+                }
+                else if (unit is TeslaTower || unit is FrostTower)
+                {
+                    audit.MagicTowers++;
                 }
             }
 
