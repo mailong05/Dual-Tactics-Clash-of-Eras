@@ -46,6 +46,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void Start()
         {
+            EnsureAvailableDinos();
             ApplyModeConfiguration(_CurrentMode);
         }
 
@@ -165,17 +166,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                     : CameraPerspective.Front_DinoAssault);
             }
 
-            // 5. Mode-Specific UI Visibility (Toggle RuntimeUI / UIDocument)
+            // 5. Mode-Specific UI Visibility
             RuntimeUI runtimeUI = FindFirstObjectByType<RuntimeUI>(FindObjectsInactive.Include);
             if (runtimeUI != null)
             {
-                runtimeUI.SetVisible(mode == PrehistoricGameMode.DinoAssault);
-                runtimeUI.gameObject.SetActive(mode == PrehistoricGameMode.DinoAssault);
+                runtimeUI.SetVisible(false);
+                runtimeUI.gameObject.SetActive(false);
             }
         }
 
         private void HandleDinoHotkeys()
         {
+            EnsureAvailableDinos();
             if (Keyboard.current == null || AvailableDinos == null || AvailableDinos.Count == 0) return;
 
             if (Keyboard.current.digit1Key.wasPressedThisFrame && AvailableDinos.Count > 0) SelectDino(AvailableDinos[0]);
@@ -211,14 +213,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
 
-            // 3. Mode-Specific Controls
+            // 3. Mode-Specific Controls: Luôn hiển thị thanh chọn khủng long khi ở chế độ Công Thành
             if (_CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                RuntimeUI rUI = FindFirstObjectByType<RuntimeUI>();
-                if (rUI == null || !rUI.gameObject.activeInHierarchy)
-                {
-                    DrawDinoAssaultHUD();
-                }
+                DrawDinoAssaultHUD();
             }
             else
             {
@@ -230,15 +228,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             float width = 360f;
             float height = 45f;
-            float x = (Screen.width - width) / 2f;
-            float y = 12f;
+            float x = Screen.width - width - 20f; // Đặt bên phải màn hình để không bao giờ bị đè lên khung Thức Ăn bên trái
+            float y = 15f;
 
             GUILayout.BeginArea(new Rect(x, y, width, height), GUI.skin.box);
             GUILayout.BeginHorizontal();
 
             string modeText = _CurrentMode == PrehistoricGameMode.TowerDefense
                 ? "<b><color=#55FF55>🛡️ CHẾ ĐỘ: THỦ THÁP (TD)</color></b>"
-                : "<b><color=#FF5555>🦖 CHẾ ĐỘ: KHỦNG LONG CÔNG THÀNH</color></b>";
+                : "<b><color=#FF5555>🦖 CHẾ ĐỘ: CÔNG THÀNH</color></b>";
 
             GUILayout.Label(modeText, GUILayout.Height(35));
 
@@ -247,13 +245,13 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 GUI.enabled = false;
                 GUI.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-                GUILayout.Button("<b>[🔒 ĐANG CHIẾN ĐẤU]</b>", GUILayout.Width(145), GUILayout.Height(35));
+                GUILayout.Button("<b>[🔒 ĐANG ĐẤU]</b>", GUILayout.Width(115), GUILayout.Height(35));
                 GUI.enabled = true;
             }
             else
             {
                 GUI.backgroundColor = new Color(1f, 0.85f, 0.3f);
-                if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(130), GUILayout.Height(35)))
+                if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(125), GUILayout.Height(35)))
                 {
                     ShowModeSelectModal = !ShowModeSelectModal;
                 }
@@ -315,53 +313,110 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.EndArea();
         }
 
+        private void EnsureAvailableDinos()
+        {
+            if (AvailableDinos == null) AvailableDinos = new List<DinoSO>();
+            if (AvailableDinos.Count > 0) return;
+
+            // 1. Quét tìm từ AdaptiveWaveManager MonsterCatalog
+            AdaptiveWaveManager waveMgr = AdaptiveWaveManager.Instance != null ? AdaptiveWaveManager.Instance : FindFirstObjectByType<AdaptiveWaveManager>();
+            if (waveMgr != null && waveMgr.Catalog != null)
+            {
+                foreach (var arch in waveMgr.Catalog)
+                {
+                    if (arch != null && arch.UnitSO != null && !AvailableDinos.Contains(arch.UnitSO))
+                    {
+                        AvailableDinos.Add(arch.UnitSO);
+                    }
+                }
+            }
+
+            // 2. Tìm tất cả các DinoSO đã load trong bộ nhớ Resources
+            if (AvailableDinos.Count == 0)
+            {
+                DinoSO[] allDinos = Resources.FindObjectsOfTypeAll<DinoSO>();
+                foreach (var d in allDinos)
+                {
+                    if (d != null && !AvailableDinos.Contains(d))
+                    {
+                        AvailableDinos.Add(d);
+                    }
+                }
+            }
+
+#if UNITY_EDITOR
+            // 3. Fallback: Quét tìm toàn bộ asset DinoSO trong thư mục Config của dự án
+            if (AvailableDinos.Count == 0)
+            {
+                string[] guids = UnityEditor.AssetDatabase.FindAssets("t:DinoSO");
+                foreach (string g in guids)
+                {
+                    string path = UnityEditor.AssetDatabase.GUIDToAssetPath(g);
+                    DinoSO d = UnityEditor.AssetDatabase.LoadAssetAtPath<DinoSO>(path);
+                    if (d != null && !AvailableDinos.Contains(d))
+                    {
+                        AvailableDinos.Add(d);
+                    }
+                }
+            }
+#endif
+
+            // Sắp xếp thứ tự theo lượng thịt (Velociraptor -> Pterodactyl -> Ankylosaurus -> T-Rex)
+            AvailableDinos.Sort((a, b) => a.Cost.CompareTo(b.Cost));
+        }
+
+        private static string GetDinoDisplayName(DinoSO d)
+        {
+            if (d == null) return "Dino";
+            string n = d.name.ToLower();
+            if (n.Contains("trex") || n.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
+            if (n.Contains("ptero")) return "🦅 Thằn Lằn Bay";
+            if (n.Contains("ankyl")) return "🛡️ Khủng Long Giáp";
+            if (n.Contains("raptor")) return "🦖 Velociraptor";
+            return d.name;
+        }
+
         private void DrawDinoAssaultHUD()
         {
+            EnsureAvailableDinos();
+
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             int food = spawner != null ? spawner.ResourcesToSpend : 0;
 
             // 1. Top-Left Food & Command Banner
-            GUILayout.BeginArea(new Rect(20, 20, 320, 115), GUI.skin.box);
-            GUILayout.Label($"<b><size=18><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
+            GUILayout.BeginArea(new Rect(20, 20, 360, 130), GUI.skin.box);
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
+            if (GUILayout.Button("+100 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
+            {
+                if (spawner != null) spawner.ResourcesToSpend += 100;
+            }
+            GUILayout.EndHorizontal();
+
             if (SelectedDino != null)
             {
-                GUILayout.Label($"<color=#55FF55>Đang chọn: {SelectedDino.name} (Tốn {SelectedDino.Cost} thịt)</color>");
-                GUILayout.Label("<size=11><i>[Click chuột trái] Thả khủng long | [ESC] Hủy</i></size>");
+                string dName = GetDinoDisplayName(SelectedDino);
+                GUILayout.Label($"<color=#55FF55><b>Đang chọn:</b> {dName} ({SelectedDino.Cost} thịt)</color>");
+                GUILayout.Label("<size=11><i>[Click chuột trái] Thả quân vào đường | [ESC] Hủy</i></size>");
             }
             else
             {
-                GUILayout.Label("<color=#CCCCCC>Chọn loài khủng long bên dưới để thả quân</color>");
+                GUILayout.Label("<color=#CCCCCC>Chọn một loài khủng long bên dưới (hoặc bấm 1-4) để thả quân:</color>");
             }
+            GUILayout.EndVertical();
             GUILayout.EndArea();
 
-            // 2. Start Assault Button
-            float btnWidth = 220f;
-            float btnHeight = 55f;
-            float btnX = Screen.width - btnWidth - 25f;
-            float btnY = Screen.height - btnHeight - 25f;
-
-            bool isSetupPhase = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup;
-            if (isSetupPhase)
-            {
-                GUI.backgroundColor = new Color(1f, 0.35f, 0.2f);
-                if (GUI.Button(new Rect(btnX, btnY, btnWidth, btnHeight), "<b><size=15>⚔️ XUẤT QUÂN\n(START ASSAULT)</size></b>"))
-                {
-                    if (RoundManager.Instance != null)
-                    {
-                        RoundManager.Instance.StartRound();
-                    }
-                }
-                GUI.backgroundColor = Color.white;
-            }
-
-            // 3. Bottom Dino Selection Bar
+            // 2. Bottom Unified Dino Command Dock (Thanh điều khiển khủng long & Xuất quân thống nhất)
             if (AvailableDinos != null && AvailableDinos.Count > 0)
             {
-                float barWidth = AvailableDinos.Count * 145f;
-                float startX = (Screen.width - barWidth) / 2f;
-                float startY = Screen.height - 75f;
+                float cardWidth = 145f;
+                float actionBtnWidth = 175f;
+                float totalWidth = AvailableDinos.Count * cardWidth + actionBtnWidth + 24f;
+                float startX = (Screen.width - totalWidth) / 2f;
+                float startY = Screen.height - 85f;
 
-                GUILayout.BeginArea(new Rect(startX, startY, barWidth, 65), GUI.skin.box);
+                GUILayout.BeginArea(new Rect(startX, startY, totalWidth, 75), GUI.skin.box);
                 GUILayout.BeginHorizontal();
 
                 for (int i = 0; i < AvailableDinos.Count; i++)
@@ -372,19 +427,37 @@ namespace LlamAcademy.Dinos.RoundManagement
                     bool canAfford = food >= d.Cost;
                     bool isSelected = SelectedDino == d;
 
-                    GUI.enabled = canAfford;
-                    string btnLabel = $"[{i + 1}] {d.name}\n<b>{d.Cost} thịt</b>";
+                    string displayName = GetDinoDisplayName(d);
+                    string btnLabel = $"<b>[{i + 1}] {displayName}</b>\n<color={(canAfford ? "#FFD700" : "#FFAAAA")}>{d.Cost} thịt</color>";
 
-                    if (isSelected) GUI.backgroundColor = Color.red;
-                    else GUI.backgroundColor = canAfford ? Color.white : new Color(0.5f, 0.5f, 0.5f);
+                    if (isSelected) GUI.backgroundColor = new Color(1f, 0.3f, 0.2f);
+                    else GUI.backgroundColor = canAfford ? new Color(0.2f, 0.25f, 0.3f, 0.95f) : new Color(0.4f, 0.4f, 0.4f, 0.6f);
 
-                    if (GUILayout.Button(btnLabel, GUILayout.Height(50), GUILayout.Width(135)))
+                    if (GUILayout.Button(btnLabel, GUILayout.Height(55), GUILayout.Width(cardWidth)))
                     {
                         SelectDino(isSelected ? null : d);
                     }
                 }
 
-                GUI.enabled = true;
+                // Nút Xuất Quân đặt ngay bên phải thanh chọn quân, loại bỏ 100% tình trạng chồng chéo
+                bool isSetupPhase = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup;
+                if (isSetupPhase)
+                {
+                    GUI.backgroundColor = new Color(1f, 0.4f, 0.15f);
+                    if (GUILayout.Button("<b><size=14>⚔️ XUẤT QUÂN\n(START ASSAULT)</size></b>", GUILayout.Height(55), GUILayout.Width(actionBtnWidth)))
+                    {
+                        if (RoundManager.Instance != null)
+                        {
+                            RoundManager.Instance.StartRound();
+                        }
+                    }
+                }
+                else
+                {
+                    GUI.backgroundColor = new Color(0.18f, 0.45f, 0.22f);
+                    GUILayout.Box("<b><size=12><color=#55FF55>🔥 ĐANG TẤN CÔNG\n(IN COMBAT)</color></size></b>", GUILayout.Height(55), GUILayout.Width(actionBtnWidth));
+                }
+
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
                 GUILayout.EndArea();

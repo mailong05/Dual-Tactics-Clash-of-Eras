@@ -39,6 +39,7 @@ namespace LlamAcademy.Dinos.AI
         [Header("Spawn Configuration")]
         [SerializeField] private Transform[] SpawnPoints;
         [SerializeField] private List<MonsterArchetype> MonsterCatalog = new();
+        public List<MonsterArchetype> Catalog => MonsterCatalog;
         [SerializeField] private int BaseWaveBudget = 150;
         [SerializeField] private float BudgetGrowthMultiplier = 1.35f;
 

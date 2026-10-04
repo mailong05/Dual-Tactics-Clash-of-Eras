@@ -112,17 +112,11 @@ namespace LlamAcademy.Dinos.Player
 
             if (dinoSO == null)
             {
-                if (SafeZone != null && SafeZone.activeSelf && SafeZone.TryGetComponent(out Renderer r))
-                {
-                    StartCoroutine(FadeOut(r.material));
-                }
+                if (SafeZone != null && SafeZone.activeSelf) SafeZone.SetActive(false);
                 return;
             }
 
-            if (SafeZone != null && !SafeZone.activeSelf && SafeZone.TryGetComponent(out Renderer safeR))
-            {
-                StartCoroutine(FadeIn(safeR.material));
-            }
+            if (SafeZone != null && SafeZone.activeSelf) SafeZone.SetActive(false);
 
             for (int i = 0; i < Count; i++)
             {
@@ -131,7 +125,8 @@ namespace LlamAcademy.Dinos.Player
                 {
                     rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - transform.position).normalized);
                 }
-                Unit.Unit dino = Instantiate(dinoSO.Prefab, transform.position, rot, transform);
+                Unit.Unit dino = Instantiate(dinoSO.Prefab, transform.position, rot);
+                dino.transform.SetParent(transform, true);
                 dino.enabled = false; // Vô hiệu hóa để không bị coi là unit chiến đấu thật
 
                 foreach (Collider collider in dino.GetComponentsInChildren<Collider>())
@@ -171,13 +166,15 @@ namespace LlamAcademy.Dinos.Player
                 }
 
                 bool canAfford = DinoSpawner.Instance != null && DinoSpawner.Instance.ResourcesToSpend >= Dino.Cost;
-                bool isBlocked = Physics.OverlapSphereNonAlloc(
-                    Visualizations[i].transform.position,
-                    0.25f,
-                    Hits,
-                    UnsafeLayers) > 0;
+                
+                // Đảm bảo khủng long được triệu hồi trên hoặc gần đường di chuyển NavMesh
+                bool onNavMesh = NavMesh.SamplePosition(Visualizations[i].transform.position, out _, 3.0f, NavMesh.AllAreas);
 
-                bool isValid = canAfford && !isBlocked;
+                // Khủng long bay có thể triệu hồi thoải mái hơn, khủng long bộ cần trên NavMesh
+                bool isAerial = Dino != null && Dino.name.ToLower().Contains("ptero");
+                bool validPath = onNavMesh || isAerial;
+
+                bool isValid = canAfford && validPath;
                 IsValidPlacementLocation = isValid;
 
                 if (i < Renderers.Count && Renderers[i] != null)

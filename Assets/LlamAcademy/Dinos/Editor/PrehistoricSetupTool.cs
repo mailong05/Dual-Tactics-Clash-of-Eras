@@ -1503,45 +1503,45 @@ namespace LlamAcademy.Dinos.Editor
             Transform targetBase = RoundManager.Instance != null ? RoundManager.Instance.DinoTarget : null;
             Vector3 basePos = targetBase != null ? targetBase.position : new Vector3(-2.23f, 0, -38.26f);
 
-            // Starter Defenses positioned tactically at Fortress Gate Chokepoint (Gate line at Z = -11.0f)
-            // 1. Place 1 Catapult on high wooden platform overlooking the gate
+            // Starter Defenses positioned tactically on ground beside the road (Y = 0)
+            // 1. Place 1 Catapult on left flank ground
             if (prefabs.TryGetValue("Catapult", out GameObject cat) && cat != null)
             {
                 TowerSO catSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Catapult")) : null;
-                Vector3 catPos = SnapToGround(new Vector3(-3.9f, 0, -14.7f), basePos.y);
+                Vector3 catPos = new Vector3(-5.5f, 0f, -6.0f);
                 GameObject c = Instantiate(cat, catPos, Quaternion.identity, defensesGroup.transform);
                 if (catSO != null && c.TryGetComponent(out Unit.Unit uc)) uc.UnitType = catSO;
-                AlignObjectToGround(c, catPos.y);
+                AlignObjectToGround(c, 0f);
             }
 
-            // 2. Place 1 Shaman Totem inside gate on left flank
+            // 2. Place 1 Shaman Totem on left road edge ground
             if (prefabs.TryGetValue("ShamanTotem", out GameObject tot) && tot != null)
             {
                 TowerSO totSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("ShamanTotem")) : null;
-                Vector3 totPos = SnapToGround(new Vector3(-4.5f, 0, -13.0f), basePos.y);
+                Vector3 totPos = new Vector3(-5.5f, 0f, -1.0f);
                 GameObject t = Instantiate(tot, totPos, Quaternion.identity, defensesGroup.transform);
                 if (totSO != null && t.TryGetComponent(out Unit.Unit ut)) ut.UnitType = totSO;
-                AlignObjectToGround(t, totPos.y);
+                AlignObjectToGround(t, 0f);
             }
 
-            // 3. Place 1 Watchtower overlooking gate on right flank
+            // 3. Place 1 Watchtower on right flank ground
             if (prefabs.TryGetValue("Watchtower", out GameObject wt) && wt != null)
             {
                 TowerSO wtSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Watchtower")) : null;
-                Vector3 wtPos = SnapToGround(new Vector3(4.5f, 0, -14.7f), basePos.y);
+                Vector3 wtPos = new Vector3(5.0f, 0f, -6.0f);
                 GameObject w = Instantiate(wt, wtPos, Quaternion.identity, defensesGroup.transform);
                 if (wtSO != null && w.TryGetComponent(out Unit.Unit uw)) uw.UnitType = wtSO;
-                AlignObjectToGround(w, wtPos.y);
+                AlignObjectToGround(w, 0f);
             }
 
-            // 4. Place 1 Spike Trap in the funnel bottleneck
+            // 4. Place 1 Spike Trap on the road funnel
             if (prefabs.TryGetValue("SpikeTrap", out GameObject st) && st != null)
             {
                 TowerSO stSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("SpikeTrap")) : null;
-                Vector3 stPos = SnapToGround(new Vector3(-2.2f, 0, -8.5f), basePos.y);
+                Vector3 stPos = new Vector3(-2.2f, 0f, -8.5f);
                 GameObject s = Instantiate(st, stPos, Quaternion.identity, defensesGroup.transform);
                 if (stSO != null && s.TryGetComponent(out Unit.Unit us)) us.UnitType = stSO;
-                AlignObjectToGround(s, stPos.y);
+                AlignObjectToGround(s, 0f);
             }
 
             Debug.Log("<color=cyan>[Prehistoric TD]</color> Placed Starter Defenses guarding fortress gate chokepoint!");

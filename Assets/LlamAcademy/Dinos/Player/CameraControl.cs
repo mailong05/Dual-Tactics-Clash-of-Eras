@@ -103,20 +103,28 @@ namespace LlamAcademy.Dinos.Player
         {
             _CurrentPerspective = perspective;
             if (_FollowComponent == null) _FollowComponent = GetComponent<CinemachineFollow>();
+            if (CinemachineCamera == null) CinemachineCamera = GetComponent<CinemachineCamera>();
 
             if (_FollowComponent != null)
             {
                 if (_CurrentPerspective == CameraPerspective.Front_DinoAssault)
                 {
-                    // Camera trước làng (nhìn theo hướng Nam về phía cổng làng)
-                    _FollowComponent.FollowOffset = new Vector3(0f, 22f, 12f);
-                    transform.rotation = Quaternion.Euler(58f, 180f, 0f);
+                    // Camera chế độ Công Thành: đặt cao ở phía Bắc nhìn bao quát về phía Nam (về cổng làng)
+                    _FollowComponent.FollowOffset = new Vector3(0f, 26f, 22f);
+                    if (CinemachineCamera != null && CinemachineCamera.Follow != null)
+                    {
+                        CinemachineCamera.Follow.position = new Vector3(0f, 0f, 4f);
+                    }
                 }
                 else
                 {
-                    // Camera sau làng (nhìn theo hướng Bắc ra ngoài cổng và chiến trường)
-                    _FollowComponent.FollowOffset = new Vector3(0f, 22f, -14f);
-                    transform.rotation = Quaternion.Euler(48f, 0f, 0f);
+                    // Camera chế độ Thủ Thành: lùi sâu về phía sau làng (Nam) và nâng cao lên
+                    // bao quát 100% toàn bộ ngôi làng, nhà cửa, căn cứ/trứng, các tháp canh và cổng làng
+                    _FollowComponent.FollowOffset = new Vector3(0f, 35f, -26f);
+                    if (CinemachineCamera != null && CinemachineCamera.Follow != null)
+                    {
+                        CinemachineCamera.Follow.position = new Vector3(0f, 0f, -18f);
+                    }
                 }
             }
         }

@@ -33,6 +33,8 @@ namespace LlamAcademy.Dinos.Utility
 
         private Dictionary<Unit.Unit, HealthBar> HealthBars = new();
 
+        private Canvas _canvas;
+
         private void Awake()
         {
             if (_Instance != null && _Instance != this)
@@ -43,10 +45,22 @@ namespace LlamAcademy.Dinos.Utility
             }
 
             _Instance = this;
+            _canvas = GetComponent<Canvas>();
+            if (_canvas != null && _canvas.worldCamera == null)
+            {
+                _canvas.worldCamera = Camera.main;
+            }
         }
 
         private void Update()
         {
+            Camera cam = Camera.main;
+            if (_canvas != null && _canvas.worldCamera == null && cam != null)
+            {
+                _canvas.worldCamera = cam;
+            }
+            Quaternion camRot = cam != null ? cam.transform.rotation : Quaternion.identity;
+
             bool missedCleaningAUnit = false;
             foreach (KeyValuePair<Unit.Unit, HealthBar> keyValuePair in HealthBars)
             {
@@ -57,6 +71,10 @@ namespace LlamAcademy.Dinos.Utility
                 else if (keyValuePair.Value != null)
                 {
                     keyValuePair.Value.transform.position = keyValuePair.Key.Transform.position + keyValuePair.Value.FollowOffset;
+                    if (cam != null)
+                    {
+                        keyValuePair.Value.transform.rotation = camRot;
+                    }
                 }
             }
 
@@ -91,8 +109,58 @@ namespace LlamAcademy.Dinos.Utility
 
             healthBar.transform.SetParent(transform);
             healthBar.transform.localRotation = Quaternion.identity;
+
+            // Thiết lập tên hiển thị của đối tượng trên thanh máu
+            string displayName = GetUnitDisplayName(unit);
+            Collider unitCol = unit.GetComponentInChildren<Collider>();
+            bool isHostile = unitCol != null && Unit.Unit.IsHostileMonster(unitCol);
+            Color nameColor = isHostile ? new Color(1f, 0.45f, 0.35f) : new Color(0.45f, 1f, 0.55f);
+            if (displayName.Contains("T-Rex"))
+            {
+                nameColor = new Color(1f, 0.85f, 0.2f);
+            }
+            healthBar.SetUnitName(displayName, nameColor);
+
             unit.OnDeath -= HandleUnitDeath;
             unit.OnDeath += HandleUnitDeath;
+        }
+
+        public static string GetUnitDisplayName(Unit.Unit unit)
+        {
+            if (unit == null) return "";
+
+            if (unit.UnitType is Config.TowerSO tower && !string.IsNullOrEmpty(tower.DisplayName))
+            {
+                return tower.DisplayName;
+            }
+
+            if (unit is Enemy.Defender def)
+            {
+                return def.Role == Enemy.DefenderRole.Archer ? "Cung Thủ Làng" : "Chiến Binh Phóng Giáo";
+            }
+
+            if (unit is ArcherTower) return "Chòi Cung Thủ Gỗ";
+            if (unit is BallistaTower) return "Tháp Nỏ Khổng Lồ";
+            if (unit is CatapultTower) return "Máy Bắn Đá";
+            if (unit is TeslaTower) return "Trụ Sấm Sét";
+            if (unit is FrostTower) return "Tháp Băng Tiền Sử";
+            if (unit is Wall) return "Rào Cọc Gỗ";
+
+            string lower = unit.gameObject.name.ToLower();
+            if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
+            if (lower.Contains("ptero")) return "🦅 Thằn Lằn Bay";
+            if (lower.Contains("ankyl")) return "🛡️ Khủng Long Thiết Giáp";
+            if (lower.Contains("raptor")) return "🦖 Velociraptor";
+            if (lower.Contains("mud") || lower.Contains("tar")) return "Vũng Lầy Tiền Sử";
+            if (lower.Contains("spike")) return "Bẫy Chông Độc";
+            if (lower.Contains("egg") || lower.Contains("base") || lower.Contains("village")) return "Trứng Rồng Căn Cứ";
+
+            if (unit.UnitType != null && !string.IsNullOrEmpty(unit.UnitType.name))
+            {
+                return unit.UnitType.name.Replace("Unit_", "").Replace("Dino_", "").Replace("Tower_", "");
+            }
+
+            return unit.gameObject.name.Replace("(Clone)", "").Trim();
         }
 
         public void Unregister(Unit.Unit unit)

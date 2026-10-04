@@ -13,6 +13,7 @@ namespace LlamAcademy.Dinos.Player
         [SerializeField] private LayerMask ObstacleLayers;
         [SerializeField] private Material PreviewMaterial;
         [SerializeField] private LineRenderer RangeIndicator;
+        private LineRenderer FootprintIndicator;
 
         private GameObject CurrentPreviewInstance;
         private List<Renderer> Renderers = new();
@@ -37,6 +38,27 @@ namespace LlamAcademy.Dinos.Player
                 RangeIndicator.loop = true;
                 RangeIndicator.enabled = false;
             }
+
+            EnsureFootprintIndicator();
+        }
+
+        private void EnsureFootprintIndicator()
+        {
+            if (FootprintIndicator != null) return;
+
+            GameObject fpObj = new GameObject("FootprintIndicator");
+            fpObj.transform.SetParent(transform, false);
+            FootprintIndicator = fpObj.AddComponent<LineRenderer>();
+            FootprintIndicator.useWorldSpace = false;
+            FootprintIndicator.loop = true;
+            FootprintIndicator.startWidth = 0.08f;
+            FootprintIndicator.endWidth = 0.08f;
+            FootprintIndicator.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            FootprintIndicator.receiveShadows = false;
+
+            Shader unlit = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+            if (unlit != null) FootprintIndicator.material = new Material(unlit);
+            FootprintIndicator.enabled = false;
         }
 
         public void ChangeTower(TowerSO towerSO)
@@ -53,11 +75,16 @@ namespace LlamAcademy.Dinos.Player
             if (towerSO == null || towerSO.Prefab == null)
             {
                 if (RangeIndicator != null) RangeIndicator.enabled = false;
+                if (FootprintIndicator != null) FootprintIndicator.enabled = false;
                 return;
             }
 
-            // Instantiate ghost preview
-            CurrentPreviewInstance = Instantiate(towerSO.Prefab.gameObject, transform.position, Quaternion.identity, transform);
+            EnsureFootprintIndicator();
+
+            // Instantiate ghost preview — dùng SetParent(true) để giữ nguyên world scale gốc của prefab,
+            // tránh bị phóng to/thu nhỏ sai nếu parent transform có scale khác (1,1,1)
+            CurrentPreviewInstance = Instantiate(towerSO.Prefab.gameObject, transform.position, Quaternion.identity);
+            CurrentPreviewInstance.transform.SetParent(transform, true);
             CurrentPreviewInstance.transform.localPosition = Vector3.zero;
 
             // Disable all colliders and NavMeshAgents on ghost
@@ -86,6 +113,9 @@ namespace LlamAcademy.Dinos.Player
 
             // Setup Range Indicator circle
             SetupRangeIndicator(towerSO);
+
+            // Setup Footprint Indicator circle
+            SetupFootprintIndicator(towerSO);
         }
 
         private void SetupRangeIndicator(TowerSO towerSO)
@@ -118,6 +148,25 @@ namespace LlamAcademy.Dinos.Player
             }
         }
 
+        private void SetupFootprintIndicator(TowerSO towerSO)
+        {
+            if (FootprintIndicator == null) return;
+
+            float radius = towerSO.PlacementRadius > 0 ? towerSO.PlacementRadius : 0.8f;
+            FootprintIndicator.enabled = true;
+            int segments = 36;
+            FootprintIndicator.positionCount = segments;
+            float angleStep = 360f / segments;
+
+            for (int i = 0; i < segments; i++)
+            {
+                float angle = Mathf.Deg2Rad * (i * angleStep);
+                float x = Mathf.Sin(angle) * radius;
+                float z = Mathf.Cos(angle) * radius;
+                FootprintIndicator.SetPosition(i, new Vector3(x, 0.05f, z));
+            }
+        }
+
         public void ValidatePlacement(bool playerHasEnoughGold, bool pathIsBlocked)
         {
             if (CurrentTower == null)
@@ -127,15 +176,25 @@ namespace LlamAcademy.Dinos.Player
             }
 
             float checkRadius = CurrentTower.PlacementRadius > 0 ? CurrentTower.PlacementRadius : 0.8f;
-            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, checkRadius, OverlapHits, ObstacleLayers);
+            int hitCount = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up * 0.3f, checkRadius * 0.85f, OverlapHits, ObstacleLayers);
 
-            // Must have enough gold, no overlapping obstacles, and must NOT block the entire maze path
+            // Must have enough gold, no overlapping obstacles, and valid surface
             bool isPhysicsClear = hitCount == 0;
-            bool onNavMesh = NavMesh.SamplePosition(transform.position, out _, 1.0f, NavMesh.AllAreas);
+            bool validSurface = true;
+            if (CurrentTower.IsWall)
+            {
+                // Rào cọc gỗ cần nằm trên hoặc gần đường di chuyển NavMesh
+                validSurface = NavMesh.SamplePosition(transform.position, out _, 1.5f, NavMesh.AllAreas);
+            }
+            else
+            {
+                // Các tháp nỏ, chòi canh, máy bắn đá có thể đặt thoải mái trên mặt đất bên lề đường
+                validSurface = true;
+            }
 
-            IsValidPlacementLocation = playerHasEnoughGold && isPhysicsClear && onNavMesh && !pathIsBlocked;
+            IsValidPlacementLocation = playerHasEnoughGold && isPhysicsClear && validSurface && (!CurrentTower.IsWall || !pathIsBlocked);
 
-            Color targetColor = IsValidPlacementLocation ? new Color(0.2f, 0.9f, 0.3f, 0.6f) : new Color(0.9f, 0.2f, 0.2f, 0.6f);
+            Color targetColor = IsValidPlacementLocation ? new Color(0.2f, 0.95f, 0.35f, 0.8f) : new Color(0.95f, 0.2f, 0.2f, 0.8f);
 
             SetGhostColor(targetColor);
         }
@@ -157,6 +216,12 @@ namespace LlamAcademy.Dinos.Player
             {
                 RangeIndicator.startColor = color;
                 RangeIndicator.endColor = color;
+            }
+
+            if (FootprintIndicator != null && FootprintIndicator.enabled)
+            {
+                FootprintIndicator.startColor = color;
+                FootprintIndicator.endColor = color;
             }
         }
     }

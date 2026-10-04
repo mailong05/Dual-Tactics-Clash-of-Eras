@@ -37,6 +37,13 @@ namespace LlamAcademy.Dinos.Player
         public List<TowerSO> AvailableTowers => _AvailableTowers;
         [SerializeField] private Transform[] MonsterSpawnPoints;
 
+        [Header("Placement Assist")]
+        [SerializeField] private bool _UseGridSnap = true;
+        [SerializeField] private float _GridSnapSize = 1.5f;
+        public bool UseGridSnap { get => _UseGridSnap; set => _UseGridSnap = value; }
+        public float GridSnapSize { get => _GridSnapSize; set => _GridSnapSize = value; }
+        private float _CurrentRotationY = 0f;
+
         private TowerSO SelectedTower;
         public TowerSO ActiveTower => SelectedTower;
         private NavMeshPath PathCheckBuffer;
@@ -104,7 +111,7 @@ namespace LlamAcademy.Dinos.Player
 
             if (GroundLayer.value == 0)
             {
-                GroundLayer = ~LayerMask.GetMask("Ignore Raycast");
+                GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius");
             }
 
             OnGoldChanged?.Invoke(Gold);
@@ -161,7 +168,28 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            // Number keys 1-9 to select tower
+            // G key: Bật/Tắt Lưới Căn Chỉnh Tự Động (Grid Snapping)
+            if (Keyboard.current.gKey.wasReleasedThisFrame)
+            {
+                _UseGridSnap = !_UseGridSnap;
+            }
+
+            // R key: Xoay góc công trình 45 độ (Giữ Shift để xoay ngược)
+            if (Keyboard.current.rKey.wasReleasedThisFrame)
+            {
+                float step = (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed) ? -45f : 45f;
+                _CurrentRotationY = (_CurrentRotationY + step + 360f) % 360f;
+            }
+
+            // Cuộn chuột giữa để xoay góc nhanh
+            if (SelectedTower != null && Mouse.current != null)
+            {
+                float scroll = Mouse.current.scroll.ReadValue().y;
+                if (scroll > 0.1f) _CurrentRotationY = (_CurrentRotationY + 45f) % 360f;
+                else if (scroll < -0.1f) _CurrentRotationY = (_CurrentRotationY - 45f + 360f) % 360f;
+            }
+
+            // Phím số 1-9 để chọn tháp phòng thủ
             for (int i = 0; i < AvailableTowers.Count && i < 9; i++)
             {
                 Key key = Key.Digit1 + i;
@@ -180,22 +208,40 @@ namespace LlamAcademy.Dinos.Player
             Ray ray = PlayerCamera.ScreenPointToRay(Mouse.current.position.ReadValue());
             if (Physics.Raycast(ray, out RaycastHit hit, float.MaxValue, GroundLayer))
             {
-                // Snap slightly to ground
-                Visualization.transform.position = hit.point;
+                Vector3 placePos = hit.point;
+
+                // Căn chỉnh vị trí theo Lưới Thông Minh (Grid Snapping) nếu đang bật
+                if (_UseGridSnap)
+                {
+                    placePos.x = Mathf.Round(placePos.x / _GridSnapSize) * _GridSnapSize;
+                    placePos.z = Mathf.Round(placePos.z / _GridSnapSize) * _GridSnapSize;
+
+                    // Đo lại độ cao mặt đất chính xác tại tọa độ ô lưới đã làm tròn
+                    if (Physics.Raycast(new Vector3(placePos.x, hit.point.y + 10f, placePos.z), Vector3.down, out RaycastHit snapHit, 20f, GroundLayer))
+                    {
+                        placePos.y = snapHit.point.y;
+                    }
+                }
+
+                // Khống chế độ cao tiếp đất trong khoảng mặt đất tự nhiên (tránh bị nhảy lên không trung hay nóc tường)
+                placePos.y = Mathf.Clamp(placePos.y, -0.5f, 1.5f);
+
+                Visualization.transform.position = placePos;
+                Visualization.transform.rotation = Quaternion.Euler(0f, _CurrentRotationY, 0f);
 
                 bool hasPrefab = SelectedTower != null && SelectedTower.Prefab != null;
                 bool hasEnoughGold = SelectedTower != null && Gold >= SelectedTower.Cost;
-                bool isPathBlocked = CheckIfPlacementBlocksPath(hit.point);
+                bool isPathBlocked = CheckIfPlacementBlocksPath(placePos);
 
                 Visualization.ValidatePlacement(hasEnoughGold && hasPrefab, isPathBlocked);
 
-                // Place tower on Left Click
+                // Click chuột trái để hoàn tất đặt công trình
                 if (Mouse.current.leftButton.wasReleasedThisFrame
                     && Visualization.IsValidPlacementLocation
                     && hasPrefab
                     && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
                 {
-                    PlaceTowerAt(hit.point);
+                    PlaceTowerAt(placePos);
                 }
             }
         }
@@ -210,7 +256,10 @@ namespace LlamAcademy.Dinos.Player
 
             if (!TrySpendGold(SelectedTower.Cost)) return;
 
-            Unit.Unit towerUnit = Instantiate(SelectedTower.Prefab, position, Quaternion.identity);
+            Quaternion targetRotation = Quaternion.Euler(0f, _CurrentRotationY, 0f);
+            Unit.Unit towerUnit = Instantiate(SelectedTower.Prefab, position, targetRotation);
+            towerUnit.transform.rotation = targetRotation;
+            towerUnit.transform.localScale = SelectedTower.Prefab.transform.localScale; // Đảm bảo scale đúng 100% theo prefab gốc
             towerUnit.UnitType = SelectedTower;
 
             // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không
@@ -295,6 +344,29 @@ namespace LlamAcademy.Dinos.Player
             {
                 towerObj.transform.position += Vector3.up * (targetGroundY - lowestY);
             }
+        }
+
+        private void OnGUI()
+        {
+            if (SelectedTower == null) return;
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense) return;
+
+            float w = 580f;
+            float h = 60f;
+            float x = (Screen.width - w) / 2f;
+            float y = Screen.height - 110f;
+
+            GUI.backgroundColor = new Color(0.12f, 0.16f, 0.22f, 0.92f);
+            GUILayout.BeginArea(new Rect(x, y, w, h), GUI.skin.box);
+            GUILayout.BeginVertical();
+
+            string snapStatus = _UseGridSnap ? "<color=#55FF55>BẬT (1.5m)</color>" : "<color=#FF7777>TẮT</color>";
+            GUILayout.Label($"<b><size=13><color=#FFD700>🏗️ ĐANG ĐẶT: {SelectedTower.DisplayName}</color> (Chi phí: {SelectedTower.Cost} Vàng)</size></b>");
+            GUILayout.Label($"<size=11>[Chuột Trái]: Đặt | [R/Cuộn chuột]: Xoay ({_CurrentRotationY}°) | [G]: Lưới Snap [{snapStatus}] | [Giữ Shift]: Đặt liên tục | [ESC/Chuột Phải]: Hủy</size>");
+
+            GUILayout.EndVertical();
+            GUILayout.EndArea();
+            GUI.backgroundColor = Color.white;
         }
     }
 }

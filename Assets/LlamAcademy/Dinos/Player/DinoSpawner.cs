@@ -83,6 +83,8 @@ namespace LlamAcademy.Dinos.Player
             }
         }
 
+        private float _PassiveFoodTimer = 0f;
+
         public void Update()
         {
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.DinoAssault)
@@ -90,9 +92,20 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            if (RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running)
+            // Hồi phục lượng thịt định kỳ để người chơi thoải mái thử nghiệm triệu hồi quân
+            _PassiveFoodTimer += Time.deltaTime;
+            if (_PassiveFoodTimer >= 1.0f)
             {
-                if (Physics.Raycast(
+                _PassiveFoodTimer = 0f;
+                ResourcesToSpend += 8;
+            }
+
+            bool canPlace = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running;
+            if (canPlace)
+            {
+                if (Camera == null) Camera = Camera.main;
+
+                if (Camera != null && Physics.Raycast(
                            Camera.ScreenPointToRay(Mouse.current.position.ReadValue()),
                            out RaycastHit hit,
                            float.MaxValue,
@@ -102,49 +115,69 @@ namespace LlamAcademy.Dinos.Player
                     {
                         Visualization.transform.position = hit.point;
                     }
-                }
 
-                if (Mouse.current.leftButton.wasReleasedThisFrame
-                     && SpawnDino != null
-                     && HasResourcesToSpawn(SpawnDino)
-                     && Visualization != null
-                     && Visualization.IsValidPlacementLocation
-                     && hit.collider != null
-                     && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
-                {
-                    ResourcesToSpend -= SpawnDino.Cost;
-                    Quaternion rot = Quaternion.identity;
-                    if (RoundManager.Instance.DinoTarget != null)
+                    if (Mouse.current.leftButton.wasReleasedThisFrame
+                         && SpawnDino != null
+                         && HasResourcesToSpawn(SpawnDino)
+                         && Visualization != null
+                         && Visualization.IsValidPlacementLocation
+                         && hit.collider != null
+                         && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
                     {
-                        rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - hit.point).normalized);
-                    }
-                    Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, hit.point, rot);
-                    spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
-                    spawnedDino.UnitType = SpawnDino;
-                    spawnedDino.enabled = true;
-
-                    // Nếu đang trong trận chiến, lập tức dẫn quân tiến công mục tiêu
-                    if (RoundManager.Instance.State == GameState.Running)
-                    {
-                        if (spawnedDino is Unit.Dino dinoComp)
+                        ResourcesToSpend -= SpawnDino.Cost;
+                        Quaternion rot = Quaternion.identity;
+                        Transform targetT = (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+                            ? RoundManager.Instance.DinoTarget
+                            : null;
+                        if (targetT != null)
                         {
-                            if (RoundManager.Instance.DinoTarget != null)
+                            Vector3 dir = targetT.position - hit.point;
+                            dir.y = 0;
+                            if (dir.sqrMagnitude > 0.01f) rot = Quaternion.LookRotation(dir);
+                        }
+
+                        Vector3 spawnPos = hit.point;
+                        if (UnityEngine.AI.NavMesh.SamplePosition(hit.point, out UnityEngine.AI.NavMeshHit navHit, 3.0f, UnityEngine.AI.NavMesh.AllAreas))
+                        {
+                            spawnPos = navHit.position;
+                        }
+
+                        Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, spawnPos, rot);
+                        spawnedDino.transform.localScale = SpawnDino.Prefab.transform.localScale;
+                        spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
+                        spawnedDino.UnitType = SpawnDino;
+                        spawnedDino.enabled = true;
+
+                        // Định vị NavMeshAgent chính xác trên NavMesh để khủng long di chuyển ngay
+                        UnityEngine.AI.NavMeshAgent agent = spawnedDino.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                        if (agent != null)
+                        {
+                            agent.enabled = true;
+                            agent.Warp(spawnPos);
+                        }
+
+                        // Lập tức dẫn quân tiến công mục tiêu
+                        if (targetT != null)
+                        {
+                            if (spawnedDino is Unit.Dino dinoComp)
                             {
-                                dinoComp.SetDestination(RoundManager.Instance.DinoTarget.position);
+                                dinoComp.SetDestination(targetT.position);
+                            }
+                            else if (spawnedDino is Unit.PrehistoricDinoBase dinoBase)
+                            {
+                                dinoBase.SetDestination(targetT.position);
                             }
                         }
-                        else if (spawnedDino is Unit.PrehistoricDinoBase dinoBase)
+
+                        OnSpawnDino?.Invoke(spawnedDino);
+
+                        // Nếu không giữ Shift, hủy chọn sau khi đặt
+                        if (!Keyboard.current.leftShiftKey.isPressed && !Keyboard.current.rightShiftKey.isPressed)
                         {
-                            if (RoundManager.Instance.DinoTarget != null)
-                            {
-                                dinoBase.SetDestination(RoundManager.Instance.DinoTarget.position);
-                            }
+                            SpawnDino = null;
+                            if (Visualization != null) Visualization.ChangeDino(null);
                         }
                     }
-
-                    OnSpawnDino?.Invoke(spawnedDino);
-                    SpawnDino = null;
-                    if (Visualization != null) Visualization.ChangeDino(null);
                 }
 
                 if (Keyboard.current.escapeKey.wasReleasedThisFrame)
@@ -158,12 +191,9 @@ namespace LlamAcademy.Dinos.Player
         public void ChangeActiveDino(DinoSO Dino)
         {
             SpawnDino = Dino;
-            if (RoundManager.Instance != null && (RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running))
+            if (Visualization != null)
             {
-                if (Visualization != null)
-                {
-                    Visualization.ChangeDino(Dino);
-                }
+                Visualization.ChangeDino(Dino);
             }
         }
 

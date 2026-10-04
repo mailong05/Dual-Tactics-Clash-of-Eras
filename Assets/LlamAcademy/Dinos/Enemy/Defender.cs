@@ -160,17 +160,40 @@ namespace LlamAcademy.Dinos.Enemy
             return null;
         }
 
+        private static Material CreateSafeWeaponMaterial(Color color, float smoothness = 0.2f)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+
+            Material mat;
+            if (shader != null)
+            {
+                mat = new Material(shader);
+            }
+            else
+            {
+                GameObject tempPrimitive = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Material defaultMat = tempPrimitive.GetComponent<Renderer>().sharedMaterial;
+                DestroyImmediate(tempPrimitive);
+                mat = defaultMat != null ? new Material(defaultMat) : new Material(Shader.Find("Sprites/Default"));
+            }
+
+            mat.color = color;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
+            return mat;
+        }
+
         private GameObject CreateBowVisual()
         {
             GameObject bow = new GameObject("Weapon_Bow");
             bow.transform.localPosition = new Vector3(0.05f, 0.05f, 0.05f);
             bow.transform.localRotation = Quaternion.Euler(0f, 85f, 80f);
 
-            Material woodMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            woodMat.color = new Color(0.42f, 0.25f, 0.12f);
-
-            Material stringMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            stringMat.color = new Color(0.92f, 0.88f, 0.80f);
+            Material woodMat = CreateSafeWeaponMaterial(new Color(0.42f, 0.25f, 0.12f), 0.15f);
+            Material stringMat = CreateSafeWeaponMaterial(new Color(0.92f, 0.88f, 0.80f), 0.05f);
 
             // Cán cầm trung tâm
             GameObject grip = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -220,14 +243,9 @@ namespace LlamAcademy.Dinos.Enemy
             spear.transform.localPosition = new Vector3(0.02f, 0f, 0.05f);
             spear.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
 
-            Material woodMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            woodMat.color = new Color(0.36f, 0.20f, 0.08f);
-
-            Material flintMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            flintMat.color = new Color(0.22f, 0.24f, 0.26f);
-
-            Material gripMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            gripMat.color = new Color(0.65f, 0.38f, 0.18f);
+            Material woodMat = CreateSafeWeaponMaterial(new Color(0.36f, 0.20f, 0.08f), 0.15f);
+            Material flintMat = CreateSafeWeaponMaterial(new Color(0.22f, 0.24f, 0.26f), 0.35f);
+            Material gripMat = CreateSafeWeaponMaterial(new Color(0.65f, 0.38f, 0.18f), 0.1f);
 
             // Cán giáo dài bằng gỗ
             GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -439,8 +457,7 @@ namespace LlamAcademy.Dinos.Enemy
             shaft.transform.localScale = new Vector3(0.04f, 0.45f, 0.04f);
             shaft.transform.localRotation = Quaternion.Euler(90f, 0, 0);
 
-            Material mat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            mat.color = new Color(0.48f, 0.30f, 0.15f);
+            Material mat = CreateSafeWeaponMaterial(new Color(0.48f, 0.30f, 0.15f), 0.15f);
             shaft.GetComponent<Renderer>().sharedMaterial = mat;
 
             return arrow;
@@ -452,11 +469,8 @@ namespace LlamAcademy.Dinos.Enemy
             spear.transform.position = pos;
             spear.transform.rotation = Quaternion.LookRotation(dir);
 
-            Material woodMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            woodMat.color = new Color(0.38f, 0.22f, 0.10f);
-
-            Material flintMat = new Material(Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit"));
-            flintMat.color = new Color(0.20f, 0.22f, 0.24f);
+            Material woodMat = CreateSafeWeaponMaterial(new Color(0.38f, 0.22f, 0.10f), 0.15f);
+            Material flintMat = CreateSafeWeaponMaterial(new Color(0.20f, 0.22f, 0.24f), 0.35f);
 
             GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             DestroyImmediate(shaft.GetComponent<Collider>());
