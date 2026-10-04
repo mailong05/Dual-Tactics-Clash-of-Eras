@@ -52,6 +52,17 @@ namespace LlamAcademy.Dinos.Unit
                 AttackRadius.OnTargetExit += OnTargetExit;
             }
 
+            EnsureHealthBarAttached();
+
+            if (UnitType != null)
+            {
+                MaxHealth = UnitType.Health;
+                Health = UnitType.Health;
+            }
+        }
+
+        public virtual void EnsureHealthBarAttached()
+        {
             if (HealthBar == null)
             {
                 HealthBar = GetComponentInChildren<HealthBar>();
@@ -64,11 +75,9 @@ namespace LlamAcademy.Dinos.Unit
             {
                 HealthBarCanvas.Instance.Register(HealthBar, this);
             }
-
-            if (UnitType != null)
+            if (HealthBar != null && MaxHealth > 0)
             {
-                MaxHealth = UnitType.Health;
-                Health = UnitType.Health;
+                HealthBar.SetProgress((float)Health / MaxHealth);
             }
         }
 

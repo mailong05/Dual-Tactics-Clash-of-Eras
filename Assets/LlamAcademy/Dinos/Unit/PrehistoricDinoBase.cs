@@ -1,5 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using GLTFast;
 using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.UI;
@@ -31,8 +33,31 @@ namespace LlamAcademy.Dinos.Unit
         protected IDamageable CurrentTarget;
         protected Collider[] ScanBuffer = new Collider[15];
 
+        // GLB Animation Cache & Clips
+        private static readonly Dictionary<string, AnimationClip[]> s_ClipsCache = new();
+        private string _WalkClipName;
+        private string _AttackClipName;
+
+        // Skeletal Bone Rig
+        private Transform _LeftLegBone;
+        private Transform _RightLegBone;
+        private Quaternion _LeftLegBaseRot;
+        private Quaternion _RightLegBaseRot;
+
+        private Transform _HeadBone;
+        private Transform _NeckBone;
+        private Transform _JawBone;
+        private Quaternion _HeadBaseRot;
+        private Quaternion _NeckBaseRot;
+        private Quaternion _JawBaseRot;
+
+        private readonly List<Transform> _TailBones = new();
+        private readonly List<Quaternion> _TailBaseRots = new();
+
         // Procedural Locomotion State
-        private float _StrideTimer;
+        private float _GaitTimer;
+        private float _CurrentSpeed;
+        private float _AttackAnimProgress = -1f;
         private Vector3 _BaseModelLocalPos;
         private Quaternion _BaseModelLocalRot;
         private bool _HasBaseModelTransform;
@@ -44,6 +69,8 @@ namespace LlamAcademy.Dinos.Unit
             if (Agent == null) Agent = GetComponent<NavMeshAgent>();
 
             InitializeVisualAndAnimation();
+            DiscoverSkeletalBones();
+            TryLoadGlbAnimations();
         }
 
         protected virtual void InitializeVisualAndAnimation()
@@ -101,6 +128,153 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
+        private void DiscoverSkeletalBones()
+        {
+            if (VisualModel == null) return;
+
+            Transform[] allBones = VisualModel.GetComponentsInChildren<Transform>(true);
+            foreach (Transform t in allBones)
+            {
+                if (t == VisualModel) continue;
+                string n = t.name.ToLower();
+
+                // Left Leg / Thigh / BackLeg
+                if (_LeftLegBone == null && (n.Contains("leg.001.l") || n.Contains("leftupleg") || n.Contains("backleg.l") || n.Contains("backupleg.l") || n.Contains("leg.l") || n.Contains("thigh.l") || n.Contains("upleg.l")))
+                {
+                    _LeftLegBone = t;
+                    _LeftLegBaseRot = t.localRotation;
+                }
+                // Right Leg / Thigh / BackLeg
+                else if (_RightLegBone == null && (n.Contains("leg.001.r") || n.Contains("rightupleg") || n.Contains("backleg.r") || n.Contains("backupleg.r") || n.Contains("leg.r") || n.Contains("thigh.r") || n.Contains("upleg.r")))
+                {
+                    _RightLegBone = t;
+                    _RightLegBaseRot = t.localRotation;
+                }
+                // Head
+                else if (_HeadBone == null && (n.Contains("head") || n.Contains("skull")))
+                {
+                    _HeadBone = t;
+                    _HeadBaseRot = t.localRotation;
+                }
+                // Neck
+                else if (_NeckBone == null && n.Contains("neck"))
+                {
+                    _NeckBone = t;
+                    _NeckBaseRot = t.localRotation;
+                }
+                // Jaw / Mouth
+                else if (_JawBone == null && (n.Contains("jaw") || n.Contains("mouth")))
+                {
+                    _JawBone = t;
+                    _JawBaseRot = t.localRotation;
+                }
+                // Tail segments
+                else if (n.Contains("tail") && _TailBones.Count < 8)
+                {
+                    _TailBones.Add(t);
+                    _TailBaseRots.Add(t.localRotation);
+                }
+            }
+        }
+
+        protected virtual string GetModelGlbFileName()
+        {
+            string n = gameObject.name.ToLower();
+            if (n.Contains("trex") || n.Contains("t-rex") || this is BossDino)
+                return "animated_t-rex_dinosaur_biting_attack_loop.glb";
+            if (n.Contains("ankyl") || this is SiegeDino)
+                return "ankylosaurus_updated.glb";
+            if (n.Contains("ptero") || this is FlyingUnit)
+                return "pterodactyl_1.glb";
+            return "velociraptor.glb";
+        }
+
+        private async void TryLoadGlbAnimations()
+        {
+            string glbName = GetModelGlbFileName();
+            if (s_ClipsCache.TryGetValue(glbName, out var cachedClips))
+            {
+                ApplyAnimationClips(cachedClips);
+                return;
+            }
+
+            string filePath = Path.Combine(Application.dataPath, glbName);
+            if (!File.Exists(filePath)) return;
+
+            try
+            {
+                var gltf = new GltfImport();
+                var importSettings = new ImportSettings
+                {
+                    AnimationMethod = AnimationMethod.Legacy
+                };
+                bool success = await gltf.LoadFile(filePath, importSettings: importSettings);
+                if (success)
+                {
+                    var clips = gltf.GetAnimationClips();
+                    if (clips != null && clips.Length > 0)
+                    {
+                        s_ClipsCache[glbName] = clips;
+                        ApplyAnimationClips(clips);
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[DinoAnim] Error loading {glbName}: {ex.Message}");
+            }
+        }
+
+        private void ApplyAnimationClips(AnimationClip[] clips)
+        {
+            if (clips == null || clips.Length == 0 || VisualModel == null) return;
+
+            if (ModelLegacyAnimation == null)
+            {
+                ModelLegacyAnimation = VisualModel.GetComponent<Animation>();
+                if (ModelLegacyAnimation == null)
+                {
+                    ModelLegacyAnimation = VisualModel.gameObject.AddComponent<Animation>();
+                }
+            }
+
+            if (ModelLegacyAnimation != null)
+            {
+                ModelLegacyAnimation.playAutomatically = true;
+                foreach (var clip in clips)
+                {
+                    if (clip == null) continue;
+                    clip.legacy = true;
+                    clip.wrapMode = WrapMode.Loop;
+                    if (ModelLegacyAnimation[clip.name] == null)
+                    {
+                        ModelLegacyAnimation.AddClip(clip, clip.name);
+                    }
+                }
+
+                foreach (var clip in clips)
+                {
+                    string cn = clip.name.ToLower();
+                    if (_WalkClipName == null && (cn.Contains("walk") || cn.Contains("run") || cn.Contains("anim") || cn.Contains("fly")))
+                        _WalkClipName = clip.name;
+                    if (_AttackClipName == null && (cn.Contains("roar") || cn.Contains("eat") || cn.Contains("attack") || cn.Contains("bite")))
+                        _AttackClipName = clip.name;
+                }
+
+                if (_WalkClipName != null && ModelLegacyAnimation[_WalkClipName] != null)
+                {
+                    ModelLegacyAnimation.clip = ModelLegacyAnimation[_WalkClipName].clip;
+                    ModelLegacyAnimation.Play(_WalkClipName);
+                }
+                else if (clips.Length > 0)
+                {
+                    _WalkClipName = clips[0].name;
+                    ModelLegacyAnimation.clip = clips[0];
+                    ModelLegacyAnimation.Play(_WalkClipName);
+                }
+            }
+        }
+
         protected override void Start()
         {
             base.Start();
@@ -123,21 +297,9 @@ namespace LlamAcademy.Dinos.Unit
             EnsureHealthBarAttached();
         }
 
-        protected virtual void EnsureHealthBarAttached()
+        public override void EnsureHealthBarAttached()
         {
-            if (HealthBar == null)
-            {
-                HealthBar = GetComponentInChildren<HealthBar>();
-            }
-
-            if (HealthBar == null && HealthBarCanvas.Instance != null)
-            {
-                HealthBar = HealthBarCanvas.Instance.CreateHealthBarForUnit(this);
-            }
-            else if (HealthBar != null && HealthBarCanvas.Instance != null)
-            {
-                HealthBarCanvas.Instance.Register(HealthBar, this);
-            }
+            base.EnsureHealthBarAttached();
         }
 
         public void SetDestination(Vector3 destination)
@@ -259,9 +421,10 @@ namespace LlamAcademy.Dinos.Unit
 
         protected virtual void UpdateAnimation(float currentSpeed)
         {
+            _CurrentSpeed = currentSpeed;
             bool isMoving = currentSpeed > 0.15f;
 
-            // 1. Mecanim Animator
+            // 1. Mecanim Animator Parameters
             if (ModelAnimator != null)
             {
                 SetAnimatorFloatIfExists(ModelAnimator, "Speed", currentSpeed);
@@ -271,45 +434,123 @@ namespace LlamAcademy.Dinos.Unit
                 SetAnimatorBoolIfExists(ModelAnimator, "Run", currentSpeed > 3.0f);
             }
 
-            // 2. Legacy Animation
-            if (ModelLegacyAnimation != null && ModelLegacyAnimation.clip != null)
+            // 2. Legacy Animation Clip Playback
+            if (ModelLegacyAnimation != null)
             {
-                string clipName = ModelLegacyAnimation.clip.name;
-                if (ModelLegacyAnimation[clipName] != null)
+                string activeClip = _WalkClipName;
+                if (string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation.clip != null)
+                {
+                    activeClip = ModelLegacyAnimation.clip.name;
+                }
+
+                if (!string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation[activeClip] != null)
                 {
                     if (isMoving)
                     {
-                        if (!ModelLegacyAnimation.isPlaying) ModelLegacyAnimation.Play(clipName);
-                        float animSpeed = Mathf.Clamp(currentSpeed / Mathf.Max(MoveSpeed, 1f), 0.7f, 2.0f);
-                        ModelLegacyAnimation[clipName].speed = animSpeed;
+                        if (!ModelLegacyAnimation.isPlaying || !ModelLegacyAnimation.IsPlaying(activeClip))
+                        {
+                            ModelLegacyAnimation.CrossFade(activeClip, 0.2f);
+                        }
+                        float animSpeed = Mathf.Clamp(currentSpeed / Mathf.Max(MoveSpeed * 0.7f, 1f), 0.6f, 1.8f);
+                        ModelLegacyAnimation[activeClip].speed = animSpeed;
                     }
                     else
                     {
-                        ModelLegacyAnimation[clipName].speed = 0.2f;
+                        ModelLegacyAnimation[activeClip].speed = 0.2f;
                     }
                 }
             }
 
-            // 3. Procedural Gait (Step bobbing, body sway, breathing)
+            // 3. Root Visual Stride Bob & Rolling Sway
             if (_HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
             {
                 if (isMoving)
                 {
-                    float strideRate = Mathf.Max(currentSpeed * 2.2f, 2.5f);
-                    _StrideTimer += Time.deltaTime * strideRate;
+                    float strideRate = Mathf.Max(currentSpeed * 2.5f, 2.5f);
+                    _GaitTimer += Time.deltaTime * strideRate;
 
-                    float bobY = Mathf.Abs(Mathf.Sin(_StrideTimer * 2f)) * 0.06f;
-                    float swayRoll = Mathf.Sin(_StrideTimer) * 3.5f;
-                    float pitch = Mathf.Cos(_StrideTimer * 2f) * 1.5f;
+                    float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.08f;
+                    float swayRoll = Mathf.Sin(_GaitTimer) * 3.5f;
+                    float pitch = Mathf.Cos(_GaitTimer * 2f) * 1.5f;
 
                     VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
                     VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitch, 0f, swayRoll);
                 }
                 else
                 {
-                    float breathe = Mathf.Sin(Time.time * 2.0f) * 0.015f;
+                    float breathe = Mathf.Sin(Time.time * 2.0f) * 0.02f;
                     VisualModel.localPosition = Vector3.Lerp(VisualModel.localPosition, _BaseModelLocalPos + new Vector3(0f, breathe, 0f), Time.deltaTime * 4f);
                     VisualModel.localRotation = Quaternion.Slerp(VisualModel.localRotation, _BaseModelLocalRot, Time.deltaTime * 4f);
+                }
+            }
+        }
+
+        protected virtual void LateUpdate()
+        {
+            if (VisualModel == null) return;
+
+            bool isMoving = _CurrentSpeed > 0.15f;
+
+            // 1. Chân bước đi / chạy nhịp nhàng (Alternating Leg Swings)
+            if (isMoving)
+            {
+                float legSwing = Mathf.Sin(_GaitTimer) * 26f;
+                if (_LeftLegBone != null)
+                {
+                    _LeftLegBone.localRotation = _LeftLegBaseRot * Quaternion.Euler(legSwing, 0f, 0f);
+                }
+                if (_RightLegBone != null)
+                {
+                    _RightLegBone.localRotation = _RightLegBaseRot * Quaternion.Euler(-legSwing, 0f, 0f);
+                }
+            }
+            else
+            {
+                if (_LeftLegBone != null)
+                {
+                    _LeftLegBone.localRotation = Quaternion.Slerp(_LeftLegBone.localRotation, _LeftLegBaseRot, Time.deltaTime * 6f);
+                }
+                if (_RightLegBone != null)
+                {
+                    _RightLegBone.localRotation = Quaternion.Slerp(_RightLegBone.localRotation, _RightLegBaseRot, Time.deltaTime * 6f);
+                }
+            }
+
+            // 2. Đuôi uốn lượn hình sin mềm mại theo nhịp di chuyển (Multi-Joint Tail Sway)
+            for (int i = 0; i < _TailBones.Count; i++)
+            {
+                if (_TailBones[i] == null) continue;
+                float phase = isMoving ? (_GaitTimer - (i * 0.45f)) : (Time.time * 2.2f - (i * 0.35f));
+                float amp = isMoving ? 6.5f : 3.0f;
+                float sway = Mathf.Sin(phase) * amp;
+                _TailBones[i].localRotation = _TailBaseRots[i] * Quaternion.Euler(0f, sway, 0f);
+            }
+
+            // 3. Đầu & Cổ lắc lư theo nhịp bước chân (Head & Neck Rhythm)
+            if (isMoving)
+            {
+                float headBob = Mathf.Cos(_GaitTimer * 2f) * 3.5f;
+                if (_HeadBone != null)
+                {
+                    _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(headBob, 0f, 0f);
+                }
+                if (_NeckBone != null)
+                {
+                    _NeckBone.localRotation = _NeckBaseRot * Quaternion.Euler(-headBob * 0.5f, 0f, 0f);
+                }
+            }
+
+            // 4. Hàm há to & cắn mạnh khi tấn công (Attack Jaw Bite Animation)
+            if (_AttackAnimProgress >= 0f)
+            {
+                float jawAngle = Mathf.Sin(_AttackAnimProgress * Mathf.PI) * 32f;
+                if (_JawBone != null)
+                {
+                    _JawBone.localRotation = _JawBaseRot * Quaternion.Euler(jawAngle, 0f, 0f);
+                }
+                if (_HeadBone != null)
+                {
+                    _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(jawAngle * 0.4f, 0f, 0f);
                 }
             }
         }
@@ -346,48 +587,36 @@ namespace LlamAcademy.Dinos.Unit
                 SetAnimatorTriggerIfExists(ModelAnimator, "Bite");
             }
 
+            if (ModelLegacyAnimation != null && !string.IsNullOrEmpty(_AttackClipName) && ModelLegacyAnimation[_AttackClipName] != null)
+            {
+                ModelLegacyAnimation.CrossFade(_AttackClipName, 0.15f);
+            }
+
             StartCoroutine(AttackMotionRoutine());
         }
 
         protected virtual IEnumerator AttackMotionRoutine()
         {
             _IsAttackingAnim = true;
+            _AttackAnimProgress = 0f;
             Vector3 origPos = _HasBaseModelTransform && VisualModel != null ? _BaseModelLocalPos : Vector3.zero;
             Quaternion origRot = _HasBaseModelTransform && VisualModel != null ? _BaseModelLocalRot : Quaternion.identity;
 
-            // Wind up
-            float t = 0f;
-            while (t < 0.12f && VisualModel != null)
+            float totalDuration = 0.42f;
+            float elapsed = 0f;
+            while (elapsed < totalDuration && VisualModel != null)
             {
-                t += Time.deltaTime;
-                float p = t / 0.12f;
-                VisualModel.localPosition = origPos - new Vector3(0f, -0.05f, 0.15f) * p;
-                VisualModel.localRotation = origRot * Quaternion.Euler(-8f * p, 0f, 0f);
+                elapsed += Time.deltaTime;
+                _AttackAnimProgress = Mathf.Clamp01(elapsed / totalDuration);
+
+                // Lunge forward curve
+                float lunge = Mathf.Sin(_AttackAnimProgress * Mathf.PI);
+                VisualModel.localPosition = origPos + new Vector3(0f, -0.06f * lunge, 0.45f * lunge);
+                VisualModel.localRotation = origRot * Quaternion.Euler(12f * lunge, 0f, 0f);
                 yield return null;
             }
 
-            // Snap forward
-            t = 0f;
-            while (t < 0.12f && VisualModel != null)
-            {
-                t += Time.deltaTime;
-                float p = t / 0.12f;
-                VisualModel.localPosition = origPos + new Vector3(0f, -0.05f, 0.45f) * p;
-                VisualModel.localRotation = origRot * Quaternion.Euler(12f * p, 0f, 0f);
-                yield return null;
-            }
-
-            // Return to stance
-            t = 0f;
-            while (t < 0.2f && VisualModel != null)
-            {
-                t += Time.deltaTime;
-                float p = t / 0.2f;
-                VisualModel.localPosition = Vector3.Lerp(origPos + new Vector3(0f, -0.05f, 0.45f), origPos, p);
-                VisualModel.localRotation = Quaternion.Slerp(origRot * Quaternion.Euler(12f, 0f, 0f), origRot, p);
-                yield return null;
-            }
-
+            _AttackAnimProgress = -1f;
             if (VisualModel != null)
             {
                 VisualModel.localPosition = origPos;

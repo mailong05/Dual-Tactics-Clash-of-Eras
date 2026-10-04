@@ -24,8 +24,8 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = 720;
-            Health = 720;
+            MaxHealth = 140;
+            Health = 140;
 
             Transform modelChild = transform.Find("Model");
             VisualModel = modelChild != null ? modelChild : (transform.childCount > 0 ? transform.GetChild(0) : transform);
@@ -33,6 +33,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 _BaseModelLocalPos = VisualModel.localPosition;
                 _BaseModelLocalRot = VisualModel.localRotation;
+                InitializeWingBones();
             }
 
             _LegacyAnimation = GetComponentInChildren<Animation>(true);
@@ -44,6 +45,31 @@ namespace LlamAcademy.Dinos.Unit
                     state.wrapMode = WrapMode.Loop;
                 }
                 _LegacyAnimation.Play();
+            }
+        }
+
+        private Transform _LeftWing;
+        private Transform _RightWing;
+        private Quaternion _LeftWingBaseRot;
+        private Quaternion _RightWingBaseRot;
+
+        private void InitializeWingBones()
+        {
+            if (VisualModel == null) return;
+            Transform[] allChildren = VisualModel.GetComponentsInChildren<Transform>(true);
+            foreach (var t in allChildren)
+            {
+                string n = t.name.ToLower();
+                if (_LeftWing == null && (n.Contains("lupperarm") || n.Contains("lwing01") || n.Contains("wing.l")))
+                {
+                    _LeftWing = t;
+                    _LeftWingBaseRot = t.localRotation;
+                }
+                else if (_RightWing == null && (n.Contains("rupperarm") || n.Contains("rwing01") || n.Contains("wing.r")))
+                {
+                    _RightWing = t;
+                    _RightWingBaseRot = t.localRotation;
+                }
             }
         }
 
@@ -64,21 +90,9 @@ namespace LlamAcademy.Dinos.Unit
             EnsureHealthBarAttached();
         }
 
-        protected virtual void EnsureHealthBarAttached()
+        public override void EnsureHealthBarAttached()
         {
-            if (HealthBar == null)
-            {
-                HealthBar = GetComponentInChildren<HealthBar>();
-            }
-
-            if (HealthBar == null && HealthBarCanvas.Instance != null)
-            {
-                HealthBar = HealthBarCanvas.Instance.CreateHealthBarForUnit(this);
-            }
-            else if (HealthBar != null && HealthBarCanvas.Instance != null)
-            {
-                HealthBarCanvas.Instance.Register(HealthBar, this);
-            }
+            base.EnsureHealthBarAttached();
         }
 
         protected override void Update()
@@ -107,6 +121,17 @@ namespace LlamAcademy.Dinos.Unit
                 float pitchOscillation = Mathf.Cos(flapTime) * 4.0f;
                 VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, verticalBob, 0f);
                 VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitchOscillation, 0f, 0f);
+
+                if (_LeftWing != null)
+                {
+                    float wingFlap = Mathf.Sin(flapTime) * 25.0f;
+                    _LeftWing.localRotation = _LeftWingBaseRot * Quaternion.Euler(0f, 0f, wingFlap);
+                }
+                if (_RightWing != null)
+                {
+                    float wingFlap = Mathf.Sin(flapTime) * 25.0f;
+                    _RightWing.localRotation = _RightWingBaseRot * Quaternion.Euler(0f, 0f, -wingFlap);
+                }
             }
 
             // Reached base

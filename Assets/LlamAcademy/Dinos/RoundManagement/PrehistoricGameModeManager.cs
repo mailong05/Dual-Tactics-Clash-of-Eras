@@ -123,7 +123,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
                     int food = spawner != null ? spawner.ResourcesToSpend : 0;
 
-                    if (livingDinos == 0 && food < 20)
+                    if (livingDinos == 0 && food < 15)
                     {
                         _DefeatCheckTimer += Time.deltaTime;
                         if (_DefeatCheckTimer >= 5.0f)
@@ -181,10 +181,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    // Ensure food resources available for player to summon dinos (at least 250 so T-Rex can be summoned)
-                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < 250)
+                    // Khởi tạo lượng thịt ban đầu cân bằng (60 thịt)
+                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < 60)
                     {
-                        dinoSpawner.ResourcesToSpend = 250;
+                        dinoSpawner.ResourcesToSpend = 60;
                     }
                 }
             }
@@ -467,9 +467,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
-            if (GUILayout.Button("+100 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
+            if (GUILayout.Button("+30 Thịt", GUILayout.Width(75), GUILayout.Height(26)))
             {
-                if (spawner != null) spawner.ResourcesToSpend += 100;
+                if (spawner != null) spawner.ResourcesToSpend += 30;
             }
             GUILayout.EndHorizontal();
 
@@ -683,34 +683,177 @@ namespace LlamAcademy.Dinos.RoundManagement
             Debug.Log($"<color=red>[Assault Defeat]</color> Toàn bộ khủng long đã tử trận màn {AssaultLevel}!");
         }
 
-        public void NextAssaultLevel()
+        private struct DefenseSpawnSpec
         {
-            AssaultLevel++;
-            ClearAllDinos();
+            public string PrefabName;
+            public Vector3 Position;
+            public Quaternion Rotation;
+            public int MinLevel;
 
-            // Tăng viện quân phòng thủ NPC của làng
-            EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
-            if (enemyAI != null)
+            public DefenseSpawnSpec(string prefabName, Vector3 pos, Quaternion rot, int minLevel)
             {
-                enemyAI.ClearAllDefenders();
-                enemyAI.EnsureDefendersAlive(4 + (AssaultLevel - 1) * 2);
+                PrefabName = prefabName;
+                Position = pos;
+                Rotation = rot;
+                MinLevel = minLevel;
+            }
+        }
+
+        private static readonly DefenseSpawnSpec[] VillageDefenseSpecs = new DefenseSpawnSpec[]
+        {
+            // Level 1: Tiền đồn mở đầu, Máy bắn đá, Cột sét Shaman & Bẫy chông
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-5.5f, 0f, -6f), Quaternion.Euler(0, 45, 0), 1),
+            new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(-5.5f, 0f, -1f), Quaternion.identity, 1),
+            new DefenseSpawnSpec("Prefab_Watchtower", new Vector3(5.0f, 0f, -6f), Quaternion.identity, 1),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.1f, -8.5f), Quaternion.identity, 1),
+            new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -12.0f), Quaternion.Euler(0, 90, 0), 1),
+
+            // Level 2: Tăng cường Tháp nỏ tầm xa (Ballista), thêm Máy bắn đá & Cột sét
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(5.5f, 0f, -14.0f), Quaternion.Euler(0, -45, 0), 2),
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-6.5f, 0f, -18.0f), Quaternion.Euler(0, 35, 0), 2),
+            new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(6.0f, 0f, -22.0f), Quaternion.identity, 2),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.1f, -16.0f), Quaternion.identity, 2),
+            new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -20.0f), Quaternion.Euler(0, 90, 0), 2),
+
+            // Level 3: Pháo đài lõi - Tháp nỏ khổng lồ, Chòi canh, Cột bão sét & Máy bắn đá
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(-6.5f, 0f, -26.0f), Quaternion.Euler(0, 40, 0), 3),
+            new DefenseSpawnSpec("Prefab_Watchtower", new Vector3(6.5f, 0f, -28.0f), Quaternion.identity, 3),
+            new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(-5.0f, 0f, -32.0f), Quaternion.identity, 3),
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(5.0f, 0f, -34.0f), Quaternion.Euler(0, -35, 0), 3),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.1f, -25.0f), Quaternion.identity, 3),
+            new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -30.0f), Quaternion.Euler(0, 90, 0), 3)
+        };
+
+        public void SetupVillageDefensesForLevel(int level)
+        {
+            // 1. Hồi phục 100% máu toàn bộ công trình phòng thủ làng đang còn trên sân
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
+            foreach (var u in allUnits)
+            {
+                if (u == null) continue;
+                if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
+
+                if (u.MaxHealth > 0)
+                {
+                    u.Health = u.MaxHealth;
+                    u.EnsureHealthBarAttached();
+                }
             }
 
-            // Tăng máu nhà chính làng
+            // 2. Hồi phục và nâng cấp máu căn cứ làng
             EnsureVillageBase();
             if (VillageBase != null)
             {
                 VillageBase.gameObject.SetActive(true);
-                int newHp = 1000 + (AssaultLevel - 1) * 350;
-                VillageBase.SetBaseStats(newHp);
+                int baseHp = 1000 + (level - 1) * 350;
+                VillageBase.SetBaseStats(baseHp);
                 VillageBase.EnsureHealthBarAttached();
             }
 
-            // Thưởng thịt cho người chơi
+            // 3. Tái lập & Bổ sung vũ khí phòng thủ (Máy bắn đá, Tháp nỏ, Cột sét, Bẫy chông, Rào cản)
+            foreach (var spec in VillageDefenseSpecs)
+            {
+                if (level < spec.MinLevel) continue;
+
+                Collider[] hits = Physics.OverlapSphere(spec.Position, 2.0f);
+                bool hasActiveStructure = false;
+                foreach (var hit in hits)
+                {
+                    if (hit.TryGetComponent(out Unit.Unit existingUnit) && !(existingUnit is Unit.PrehistoricDinoBase) && !(existingUnit is Unit.Dino) && !(existingUnit is Unit.FlyingUnit))
+                    {
+                        if (existingUnit.Health > 0)
+                        {
+                            hasActiveStructure = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hasActiveStructure)
+                {
+                    GameObject prefab = Resources.Load<GameObject>($"Prefabs/Prehistoric/{spec.PrefabName}");
+#if UNITY_EDITOR
+                    if (prefab == null)
+                    {
+                        prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Prefabs/Prehistoric/{spec.PrefabName}.prefab");
+                    }
+#endif
+                    if (prefab != null)
+                    {
+                        GameObject spawned = Instantiate(prefab, spec.Position, spec.Rotation);
+                        if (spawned.TryGetComponent(out Unit.Unit unitComp))
+                        {
+                            unitComp.EnsureHealthBarAttached();
+                            if (Utility.HealthBarCanvas.Instance != null)
+                            {
+                                Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(unitComp);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Bổ sung NPC Thợ săn / Cung thủ phòng thủ làng
+            EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
+            if (enemyAI != null)
+            {
+                enemyAI.EnsureDefendersAlive(4 + (level - 1) * 3);
+            }
+
+            // 5. Cập nhật NavMesh
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.RecalculateTriangulation(true);
+            }
+        }
+
+        public void NextAssaultLevel()
+        {
+            AssaultLevel++;
+
+            // GIỮ NGUYÊN ĐỘI QUÂN KHỦNG LONG: Hồi máu +40% cho các khủng long sống sót và dừng lại chờ xuất quân
+            var dinoBases = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
+            foreach (var d in dinoBases)
+            {
+                if (d != null && d.Health > 0)
+                {
+                    d.Health = Mathf.Min(d.MaxHealth, d.Health + Mathf.RoundToInt(d.MaxHealth * 0.4f));
+                    d.EnsureHealthBarAttached();
+                    var agent = d.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+                }
+            }
+
+            var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
+            foreach (var d in stdDinos)
+            {
+                if (d != null && d.Health > 0)
+                {
+                    d.Health = Mathf.Min(d.MaxHealth, d.Health + Mathf.RoundToInt(d.MaxHealth * 0.4f));
+                    d.EnsureHealthBarAttached();
+                    var agent = d.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+                }
+            }
+
+            var flyingUnits = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
+            foreach (var f in flyingUnits)
+            {
+                if (f != null && f.Health > 0)
+                {
+                    f.Health = Mathf.Min(f.MaxHealth, f.Health + Mathf.RoundToInt(f.MaxHealth * 0.4f));
+                    f.EnsureHealthBarAttached();
+                }
+            }
+
+            // Khôi phục và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
+            SetupVillageDefensesForLevel(AssaultLevel);
+
+            // Thưởng thịt cân bằng cho màn kế tiếp (+60 thịt)
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend += 250;
+                spawner.ResourcesToSpend += 60;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -719,36 +862,21 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RoundManager.Instance.State = GameState.Setup;
             }
 
-            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel} thành công! NPC phòng thủ tăng, Máu Làng tăng, nhận +250 Thịt!");
+            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Giữ nguyên đội quân sống sót (+40% HP), Làng tăng cường phòng tuyến, nhận +60 Thịt!");
         }
 
         public void RetryCurrentAssaultLevel()
         {
             ClearAllDinos();
 
-            // Hồi sinh quân phòng thủ của màn này
-            EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
-            if (enemyAI != null)
-            {
-                enemyAI.ClearAllDefenders();
-                enemyAI.EnsureDefendersAlive(4 + (AssaultLevel - 1) * 2);
-            }
+            // Tái thiết lập phòng tuyến làng cho màn hiện tại
+            SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Hồi phục 100% máu nhà chính
-            EnsureVillageBase();
-            if (VillageBase != null)
-            {
-                VillageBase.gameObject.SetActive(true);
-                int baseHp = 1000 + (AssaultLevel - 1) * 350;
-                VillageBase.SetBaseStats(baseHp);
-                VillageBase.EnsureHealthBarAttached();
-            }
-
-            // Hồi phục lượng thịt tối thiểu để người chơi thử nghiệm lại
+            // Hồi phục lượng thịt ban đầu cân bằng (60 thịt)
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
-            if (spawner != null && spawner.ResourcesToSpend < 250)
+            if (spawner != null && spawner.ResourcesToSpend < 60)
             {
-                spawner.ResourcesToSpend = 250;
+                spawner.ResourcesToSpend = 60;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -770,6 +898,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 if (d != null) Destroy(d.gameObject);
             }
+            var flyDinos = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
+            foreach (var d in flyDinos)
+            {
+                if (d != null) Destroy(d.gameObject);
+            }
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ClearActiveDinos();
@@ -781,7 +914,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.Box(new Rect(0, 0, Screen.width, Screen.height), GUIContent.none);
 
             float width = 640f;
-            float height = 370f;
+            float height = 390f;
             float x = (Screen.width - width) / 2f;
             float y = (Screen.height - height) / 2f;
 
@@ -793,9 +926,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label("<size=14><b><color=#55FF55>📊 THÔNG SỐ ĐỘ KHÓ MÀN TIẾP THEO (MÀN " + (AssaultLevel + 1) + "):</color></b></size>");
-            GUILayout.Label($"• <b>Quân phòng thủ Làng (NPC)</b>: +2 Thợ săn / Cung thủ (Tổng: {4 + AssaultLevel * 2} quân)\n" +
+            GUILayout.Label($"• <b>Bảo toàn quân lực</b>: Giữ nguyên bầy khủng long còn sống sót (+ hồi phục 40% HP)!\n" +
+                            $"• <b>Phòng tuyến Làng củng cố</b>: Tái lập & bổ sung Máy bắn đá, Tháp nỏ, Cột sét, Bẫy gai!\n" +
+                            $"• <b>Quân phòng thủ Làng (NPC)</b>: {4 + AssaultLevel * 3} quân (+3 quân chi viện)\n" +
                             $"• <b>Máu Căn Cứ Làng</b>: {1000 + AssaultLevel * 350} HP (+350 HP)\n" +
-                            $"• <b>Chi viện lương thực</b>: +250 Thịt chiêu mộ bầy khủng long!");
+                            $"• <b>Chi viện lương thực</b>: +60 Thịt chiêu mộ thêm khủng long!");
             GUILayout.EndVertical();
 
             GUILayout.Space(16);

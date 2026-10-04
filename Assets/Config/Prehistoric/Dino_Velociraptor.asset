@@ -15,10 +15,10 @@ MonoBehaviour:
   <Type>k__BackingField: 0
   <ArmorType>k__BackingField: {fileID: 0}
   <Prefab>k__BackingField: {fileID: 6175418372017880941, guid: 07db05b56738b9d4fac2539405dfaa8b, type: 3}
-  <Health>k__BackingField: 480
+  <Health>k__BackingField: 110
   <HealthToCostRatio>k__BackingField: 0.2
   <AttackConfig>k__BackingField: {fileID: 0}
   <Upgrade>k__BackingField: {fileID: 0}
   <Sprite>k__BackingField: {fileID: 0}
-  <Cost>k__BackingField: 20
+  <Cost>k__BackingField: 15
   <Hotkey>k__BackingField: 41

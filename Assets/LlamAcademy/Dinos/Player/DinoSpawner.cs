@@ -99,12 +99,12 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            // Hồi phục lượng thịt định kỳ để người chơi thoải mái thử nghiệm triệu hồi quân
+            // Hồi phục lượng thịt định kỳ chậm rãi và cân bằng (+2 thịt mỗi 2.5 giây)
             _PassiveFoodTimer += Time.deltaTime;
-            if (_PassiveFoodTimer >= 1.0f)
+            if (_PassiveFoodTimer >= 2.5f)
             {
                 _PassiveFoodTimer = 0f;
-                ResourcesToSpend += 8;
+                ResourcesToSpend += 2;
             }
 
             bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
