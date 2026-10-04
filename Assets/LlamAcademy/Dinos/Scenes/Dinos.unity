@@ -475,10 +475,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  EnableMousePan: 0
-  EdgeScrollWidth: 100
+  EnableMousePan: 1
+  EdgeScrollWidth: 25
   WorldBounds: {fileID: 175153525}
-  KeyboardSpeed: 10
+  KeyboardSpeed: 16
 --- !u!114 &102170654
 MonoBehaviour:
   m_ObjectHideFlags: 0

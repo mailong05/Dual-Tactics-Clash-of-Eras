@@ -49,7 +49,7 @@ Root 'Dino Egg Spawn': pos=(-2.23, -0.10, -38.26), bounds size=(3.24, 1.14, 1.54
 Root 'Runtime UI': pos=(0.00, 0.00, 0.00)
 Root '[Prehistoric TD Systems]': pos=(0.00, 0.00, 0.00)
 Root 'Prehistoric_SpawnPoints': pos=(0.00, 0.00, 0.00)
-Root 'Starter_Defenses': pos=(0.00, 0.00, 0.00), bounds size=(18.20, 5.90, 10.28), center=(-2.58, -1.28, -3.93), min=(-11.68, -4.23, -9.07), max=(6.52, 1.67, 1.21)
+Root 'Starter_Defenses': pos=(0.00, 0.00, 0.00), bounds size=(16.73, 5.81, 4.66), center=(-1.73, 3.06, -7.53), min=(-10.09, 0.16, -9.86), max=(6.63, 5.97, -5.20)
   Child 'Starter_Defenses' (parent: ) at (0.00, 0.00, 0.00)
   Child 'FirePoint' (parent: Prefab_ShamanTotem(Clone)) at (-5.50, 3.90, -1.00)
   Child 'Prefab_Watchtower(Clone)' (parent: Starter_Defenses) at (5.00, 0.00, -6.00)
