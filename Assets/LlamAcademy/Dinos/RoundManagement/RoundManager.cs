@@ -36,7 +36,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public GameState State
         {
             get => _State;
-            private set
+            set
             {
                 OnGameStateChange?.Invoke(_State, value);
                 _State = value;
@@ -51,6 +51,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public event GameStateChangeEvent OnGameStateChange;
 
         private List<Unit.Unit> ActiveDinos = new();
+        public void ClearActiveDinos() => ActiveDinos.Clear();
         private List<Defender> AliveDefenders = new();
         private bool IsEndingRound;
 
@@ -112,6 +113,13 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void StartRound()
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                State = GameState.Running;
+                PrehistoricGameModeManager.Instance.LaunchAssault();
+                return;
+            }
+
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.BuildingPhase)
             {
                 PrehistoricGameplayManager.Instance.StartNextWave();
@@ -161,6 +169,17 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void HandleDinoEnterEggRadius(IDamageable target)
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                if (PrehistoricGameModeManager.Instance.VillageBase != null && target is Unit.Unit dinoUnit)
+                {
+                    int dmg = 25;
+                    if (target is Unit.PrehistoricDinoBase pd) dmg = Mathf.Max(25, pd.AttackDamage);
+                    PrehistoricGameModeManager.Instance.VillageBase.TakeDamage(dmg);
+                }
+                return;
+            }
+
             if (PrehistoricGameplayManager.Instance != null && target is Unit.Unit u)
             {
                 PrehistoricGameplayManager.Instance.OnDinoReachedBase(u, 10);
@@ -227,6 +246,13 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (deadDino == null) return;
             ActiveDinos.Remove(deadDino);
             if (DinoSupplyResource != null) DinoSupplyResource.Amount = ActiveDinos.Count;
+
+            // Trong chế độ Công Thành (Dino Assault), người chơi được quyền liên tục triệu hồi quân tiếp viện từ lượng thịt
+            // Tuyệt đối không tự động kết thúc round khi hết khủng long tạm thời trên sân!
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
 
             if (ActiveDinos.Count == 0 && !IsEndingRound)
             {

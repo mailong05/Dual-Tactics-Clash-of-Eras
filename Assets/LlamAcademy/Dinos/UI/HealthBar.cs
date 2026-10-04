@@ -19,6 +19,17 @@ namespace LlamAcademy.Dinos.UI
             Destroy
         }
 
+        private void Awake()
+        {
+            // Đảm bảo thanh máu luôn có tỉ lệ dương, tránh lật mặt polygon gây culling tàng hình
+            transform.localScale = Vector3.one;
+
+            foreach (var cr in GetComponentsInChildren<CanvasRenderer>(true))
+            {
+                cr.cullTransparentMesh = false;
+            }
+        }
+
         public void SetUnitName(string unitName, Color? customColor = null)
         {
             _CurrentUnitName = unitName;
@@ -43,22 +54,22 @@ namespace LlamAcademy.Dinos.UI
             GameObject labelObj = new GameObject("UnitNameLabel");
             labelObj.transform.SetParent(transform, false);
 
-            // CanvasRenderer bắt buộc phải có để render UI trên world-space Canvas
-            if (!labelObj.TryGetComponent<CanvasRenderer>(out _))
-                labelObj.AddComponent<CanvasRenderer>();
+            CanvasRenderer cr = labelObj.AddComponent<CanvasRenderer>();
+            cr.cullTransparentMesh = false;
 
             NameLabel = labelObj.AddComponent<Text>();
 
-            // Tải font từ Resources hoặc tạo dynamic font từ OS
+            // Tải font dự phòng đa tầng đảm bảo không bao giờ bị null
             Font font = Resources.Load<Font>("DefaultFont");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             if (font == null)
             {
-                try { font = Font.CreateDynamicFontFromOSFont(new[] { "Arial", "Segoe UI", "Tahoma" }, 22); } catch { }
+                try { font = Font.CreateDynamicFontFromOSFont(new[] { "Arial", "Segoe UI", "Tahoma" }, 24); } catch { }
             }
             if (font != null) NameLabel.font = font;
 
-            NameLabel.fontSize = 20;
+            NameLabel.fontSize = 24;
             NameLabel.fontStyle = FontStyle.Bold;
             NameLabel.alignment = TextAnchor.MiddleCenter;
             NameLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -71,25 +82,40 @@ namespace LlamAcademy.Dinos.UI
             outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
             outline.effectDistance = new Vector2(1.5f, -1.5f);
 
-            // QUAN TRỌNG: Trong world-space Canvas, 1 unit sizeDelta = 1 MÉT thực!
-            // → localScale rất nhỏ (0.005) để chuyển pixel → mét hợp lý
-            // → fontSize 20 * 0.005 = 0.1m (10cm) mỗi ký tự — đọc rõ từ camera TD
-            // → sizeDelta (400, 50) * 0.005 = 2m × 0.25m vùng hiển thị
-            // → Parent HealthBar có localScale.y = -1 (lật trục Y)
-            //   nên child cần Y âm để bù: -1 * -0.005 = +0.005 (chữ đúng chiều)
+            // Căn chỉnh vị trí chữ nổi lên trên thanh máu chuẩn xác
             RectTransform rect = labelObj.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(400f, 50f);
-            rect.anchoredPosition = new Vector2(0f, -1.4f);
-            rect.localScale = new Vector3(0.005f, -0.005f, 1f);
+            rect.sizeDelta = new Vector2(400f, 60f);
+            rect.anchoredPosition = new Vector2(0f, 1.4f);
+            rect.localScale = new Vector3(0.007f, 0.007f, 1f);
         }
 
         public void SetProgress(float progress)
         {
+            if (FillImage == null)
+            {
+                FillImage = GetComponentInChildren<Image>();
+                if (FillImage == null) return;
+            }
+
             FillImage.fillAmount = Mathf.Clamp01(progress);
-            FillImage.color = Gradient.Evaluate(FillImage.fillAmount);
+
+            if (Gradient != null)
+            {
+                Color evalColor = Gradient.Evaluate(FillImage.fillAmount);
+                if (evalColor.a < 0.2f) evalColor.a = 1.0f; // Đảm bảo không bị trong suốt
+                FillImage.color = evalColor;
+            }
+            else
+            {
+                // Fallback: Xanh lá -> Vàng -> Đỏ
+                float p = FillImage.fillAmount;
+                FillImage.color = p > 0.5f
+                    ? Color.Lerp(Color.yellow, Color.green, (p - 0.5f) * 2f)
+                    : Color.Lerp(Color.red, Color.yellow, p * 2f);
+            }
         }
     }
 }

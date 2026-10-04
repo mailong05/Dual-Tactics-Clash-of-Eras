@@ -16,7 +16,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] protected float MoveSpeed = 3.5f;
         [SerializeField] protected float AttackRange = 2.2f;
         [SerializeField] protected float AttackInterval = 1.2f;
-        [SerializeField] protected int AttackDamage = 25;
+        [SerializeField] public int AttackDamage = 25;
         [SerializeField] protected float BuildingDamageMultiplier = 1.0f;
         [SerializeField] protected int GoldReward = 15;
         [SerializeField] protected LayerMask TargetLayers;
@@ -180,8 +180,15 @@ namespace LlamAcademy.Dinos.Unit
 
             if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running)
             {
-                if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
-                return;
+                bool isAssaultCombat = PrehistoricGameModeManager.Instance != null 
+                    && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault 
+                    && PrehistoricGameModeManager.Instance.IsAssaultActive;
+
+                if (!isAssaultCombat)
+                {
+                    if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
+                    return;
+                }
             }
 
             if (TargetBase == null)
@@ -226,13 +233,22 @@ namespace LlamAcademy.Dinos.Unit
 
                 // Check if reached base
                 float distToBase = Vector3.Distance(transform.position, TargetBase.position);
-                if (distToBase <= AttackRange + 1.2f)
+                if (distToBase <= AttackRange + 1.5f)
                 {
-                    if (PrehistoricGameplayManager.Instance != null)
+                    if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+                    {
+                        if (PrehistoricGameModeManager.Instance.VillageBase != null && PrehistoricGameModeManager.Instance.VillageBase.Health > 0)
+                        {
+                            CurrentTarget = PrehistoricGameModeManager.Instance.VillageBase;
+                            return;
+                        }
+                    }
+                    else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
                     {
                         PrehistoricGameplayManager.Instance.OnDinoReachedBase(this, AttackDamage);
                         return;
                     }
+
                     if (TargetBase.TryGetComponent(out IDamageable baseDamageable))
                     {
                         CurrentTarget = baseDamageable;

@@ -110,13 +110,23 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // Reached base
-            if (Vector3.Distance(transform.position, targetDestination) < 2.5f)
+            if (Vector3.Distance(transform.position, targetDestination) < 3.0f)
             {
-                if (PrehistoricGameplayManager.Instance != null)
+                if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+                {
+                    if (PrehistoricGameModeManager.Instance.VillageBase != null)
+                    {
+                        PrehistoricGameModeManager.Instance.VillageBase.TakeDamage(DamageToBase);
+                    }
+                    Die();
+                    return;
+                }
+                else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
                 {
                     PrehistoricGameplayManager.Instance.OnDinoReachedBase(this, DamageToBase);
                     return;
                 }
+
                 if (TargetBase.TryGetComponent(out IDamageable baseDamageable))
                 {
                     baseDamageable.TakeDamage(DamageToBase);

@@ -75,6 +75,10 @@ namespace LlamAcademy.Dinos.Utility
                     {
                         keyValuePair.Value.transform.rotation = camRot;
                     }
+                    if (keyValuePair.Key.MaxHealth > 0)
+                    {
+                        keyValuePair.Value.SetProgress((float)keyValuePair.Key.Health / keyValuePair.Key.MaxHealth);
+                    }
                 }
             }
 
@@ -119,6 +123,7 @@ namespace LlamAcademy.Dinos.Utility
 
             HealthBar hb = Instantiate(HealthBarPrefab, transform);
             hb.name = $"HealthBar_{unit.gameObject.name}";
+            hb.transform.localScale = Vector3.one;
 
             // Tự động căn độ cao hiển thị thanh máu chuẩn xác theo kích thước từng loài khủng long
             float height = 2.2f;
@@ -139,6 +144,10 @@ namespace LlamAcademy.Dinos.Utility
             {
                 height = 1.8f;
             }
+            else if (unit is PrehistoricVillageBase || unitNameLower.Contains("base") || unitNameLower.Contains("egg"))
+            {
+                height = 3.8f;
+            }
             else if (unit.TryGetComponent(out Collider col))
             {
                 height = col.bounds.size.y + 0.8f;
@@ -146,6 +155,7 @@ namespace LlamAcademy.Dinos.Utility
 
             hb.FollowOffset = new Vector3(0f, height, 0f);
             Register(hb, unit);
+            hb.SetProgress(1.0f);
             return hb;
         }
 
@@ -163,6 +173,7 @@ namespace LlamAcademy.Dinos.Utility
             }
 
             healthBar.transform.SetParent(transform);
+            healthBar.transform.localScale = Vector3.one;
             healthBar.transform.localRotation = Quaternion.identity;
 
             // Thiết lập tên hiển thị của đối tượng trên thanh máu
@@ -174,7 +185,14 @@ namespace LlamAcademy.Dinos.Utility
             {
                 nameColor = new Color(1f, 0.85f, 0.2f);
             }
+            else if (displayName.Contains("Căn Cứ") || displayName.Contains("Làng"))
+            {
+                nameColor = new Color(1f, 0.85f, 0.2f);
+            }
             healthBar.SetUnitName(displayName, nameColor);
+
+            float initialProgress = unit.MaxHealth > 0 ? (float)unit.Health / unit.MaxHealth : 1.0f;
+            healthBar.SetProgress(initialProgress);
 
             unit.OnDeath -= HandleUnitDeath;
             unit.OnDeath += HandleUnitDeath;
@@ -184,6 +202,8 @@ namespace LlamAcademy.Dinos.Utility
         {
             if (unit == null) return "";
 
+            if (unit is PrehistoricVillageBase) return "🏛️ Căn Cứ Làng Bộ Lạc";
+
             if (unit.UnitType is Config.TowerSO tower && !string.IsNullOrEmpty(tower.DisplayName))
             {
                 return tower.DisplayName;
@@ -191,15 +211,15 @@ namespace LlamAcademy.Dinos.Utility
 
             if (unit is Enemy.Defender def)
             {
-                return def.Role == Enemy.DefenderRole.Archer ? "Cung Thủ Làng" : "Chiến Binh Phóng Giáo";
+                return def.Role == Enemy.DefenderRole.Archer ? "🏹 Cung Thủ Làng" : "🗡️ Chiến Binh Phóng Giáo";
             }
 
-            if (unit is ArcherTower) return "Chòi Cung Thủ Gỗ";
-            if (unit is BallistaTower) return "Tháp Nỏ Khổng Lồ";
-            if (unit is CatapultTower) return "Máy Bắn Đá";
-            if (unit is TeslaTower) return "Trụ Sấm Sét";
-            if (unit is FrostTower) return "Tháp Băng Tiền Sử";
-            if (unit is Wall) return "Rào Cọc Gỗ";
+            if (unit is ArcherTower) return "🏹 Chòi Cung Thủ Gỗ";
+            if (unit is BallistaTower) return "🏹 Tháp Nỏ Khổng Lồ";
+            if (unit is CatapultTower) return "☄️ Máy Bắn Đá";
+            if (unit is TeslaTower) return "⚡ Trụ Sấm Sét";
+            if (unit is FrostTower) return "❄️ Tháp Băng Tiền Sử";
+            if (unit is Wall) return "🪵 Rào Cọc Gỗ";
 
             string lower = unit.gameObject.name.ToLower();
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
@@ -208,7 +228,7 @@ namespace LlamAcademy.Dinos.Utility
             if (lower.Contains("raptor")) return "🦖 Velociraptor";
             if (lower.Contains("mud") || lower.Contains("tar")) return "Vũng Lầy Tiền Sử";
             if (lower.Contains("spike")) return "Bẫy Chông Độc";
-            if (lower.Contains("egg") || lower.Contains("base") || lower.Contains("village")) return "Trứng Rồng Căn Cứ";
+            if (lower.Contains("egg") || lower.Contains("base") || lower.Contains("village")) return "🏛️ Căn Cứ Làng Bộ Lạc";
 
             if (unit.UnitType != null && !string.IsNullOrEmpty(unit.UnitType.name))
             {

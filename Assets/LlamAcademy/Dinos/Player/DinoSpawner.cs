@@ -43,6 +43,12 @@ namespace LlamAcademy.Dinos.Player
             }
             Instance = this;
             ResourcesToSpend = 0;
+
+            // Mở rộng GroundLayer quét toàn bộ bề mặt địa hình/đường đi/sàn (trừ Ignore Raycast và UI)
+            if (GroundLayer.value == 0 || GroundLayer.value == 64)
+            {
+                GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI");
+            }
         }
 
         private void Start()
@@ -67,7 +73,8 @@ namespace LlamAcademy.Dinos.Player
 
         private void Instance_OnGameStateChange(GameState oldState, GameState newState)
         {
-            if (newState == GameState.Setup || newState == GameState.Running)
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+            if (newState == GameState.Setup || newState == GameState.Running || isAssault)
             {
                 if (SpawnDino != null && Visualization != null)
                 {
@@ -100,7 +107,8 @@ namespace LlamAcademy.Dinos.Player
                 ResourcesToSpend += 8;
             }
 
-            bool canPlace = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running;
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+            bool canPlace = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running || isAssault;
             if (canPlace)
             {
                 if (Camera == null) Camera = Camera.main;
@@ -129,6 +137,11 @@ namespace LlamAcademy.Dinos.Player
                         Transform targetT = (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
                             ? RoundManager.Instance.DinoTarget
                             : null;
+                        if (targetT == null && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
+                        {
+                            targetT = PrehistoricGameModeManager.Instance.VillageBase.transform;
+                        }
+
                         if (targetT != null)
                         {
                             Vector3 dir = targetT.position - hit.point;
@@ -144,9 +157,20 @@ namespace LlamAcademy.Dinos.Player
 
                         Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, spawnPos, rot);
                         spawnedDino.transform.localScale = SpawnDino.Prefab.transform.localScale;
-                        spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
                         spawnedDino.UnitType = SpawnDino;
+                        if (spawnedDino.MaxHealth <= 0)
+                        {
+                            spawnedDino.MaxHealth = SpawnDino.Health;
+                            spawnedDino.Health = SpawnDino.Health;
+                        }
+                        spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
                         spawnedDino.enabled = true;
+
+                        // Khởi tạo thanh máu và tên đơn vị ngay lập tức
+                        if (Utility.HealthBarCanvas.Instance != null)
+                        {
+                            Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(spawnedDino);
+                        }
 
                         // Định vị NavMeshAgent chính xác trên NavMesh để khủng long di chuyển ngay
                         UnityEngine.AI.NavMeshAgent agent = spawnedDino.GetComponent<UnityEngine.AI.NavMeshAgent>();
@@ -156,16 +180,30 @@ namespace LlamAcademy.Dinos.Player
                             agent.Warp(spawnPos);
                         }
 
-                        // Lập tức dẫn quân tiến công mục tiêu
-                        if (targetT != null)
+                        bool isCombatActive = isAssault && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.IsAssaultActive;
+                        if (isCombatActive)
                         {
-                            if (spawnedDino is Unit.Dino dinoComp)
+                            // Đang trong trận: xuất kích xông thẳng vào căn cứ địch!
+                            if (agent != null && agent.isOnNavMesh)
                             {
-                                dinoComp.SetDestination(targetT.position);
+                                agent.isStopped = false;
+                                if (targetT != null) agent.SetDestination(targetT.position);
                             }
-                            else if (spawnedDino is Unit.PrehistoricDinoBase dinoBase)
+                            if (spawnedDino is Unit.PrehistoricDinoBase dinoBase)
                             {
-                                dinoBase.SetDestination(targetT.position);
+                                if (targetT != null) dinoBase.SetDestination(targetT.position);
+                            }
+                            else if (spawnedDino is Unit.Dino dinoComp)
+                            {
+                                if (targetT != null) dinoComp.SetDestination(targetT.position);
+                            }
+                        }
+                        else
+                        {
+                            // Đang ở giai đoạn Setup (dàn trận): giữ nguyên vị trí, hướng mặt về phía mục tiêu
+                            if (agent != null && agent.isOnNavMesh)
+                            {
+                                agent.isStopped = true;
                             }
                         }
 
