@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using LlamAcademy.Dinos.Config;
 using LlamAcademy.Dinos.Player;
@@ -44,8 +44,24 @@ namespace LlamAcademy.Dinos.UI
                 ResourcesContainer.Add(resourceElement);
             }
 
+            // Ensure T-Rex is included in Dinos list if missing
+            if (Dinos != null && System.Array.Find(Dinos, d => d != null && d.name.Contains("TRex")) == null)
+            {
+                DinoSO trexSO = null;
+#if UNITY_EDITOR
+                trexSO = UnityEditor.AssetDatabase.LoadAssetAtPath<DinoSO>("Assets/Config/Prehistoric/Dino_TRexBoss.asset");
+#endif
+                if (trexSO != null)
+                {
+                    var list = new List<DinoSO>(Dinos);
+                    list.Add(trexSO);
+                    Dinos = list.ToArray();
+                }
+            }
+
             foreach (DinoSO dino in Dinos)
             {
+                if (dino == null) continue;
                 VisualElement dinoElement = new();
                 dinoElement.AddToClassList("dino-button-container");
                 DinoTemplate.CloneTree(dinoElement);
@@ -57,15 +73,40 @@ namespace LlamAcademy.Dinos.UI
 
                 DinoToButtonDictionary.Add(dino, dinoElement);
             }
+
+            // Check initial game mode visibility
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                SetVisible(PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault);
+            }
+        }
+
+        public void SetVisible(bool visible)
+        {
+            if (Document != null && Document.rootVisualElement != null)
+            {
+                Document.rootVisualElement.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        private void HandleGameModeChanged(PrehistoricGameMode newMode)
+        {
+            SetVisible(newMode == PrehistoricGameMode.DinoAssault);
         }
 
         private IEnumerator Start()
         {
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                PrehistoricGameModeManager.Instance.OnGameModeChanged += HandleGameModeChanged;
+                SetVisible(PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault);
+            }
+
             RoundManager.Instance.OnGameStateChange += OnGameStateChange;
             DinoSpawner.Instance.OnSpawnDino += HandleDinoSpawnOrDeath;
             DinoSpawner.Instance.OnDinoDeath += HandleDinoSpawnOrDeath;
             yield return new WaitForSeconds(2);
-            Logo.AddToClassList("out");
+            if (Logo != null) Logo.AddToClassList("out");
         }
 
         private void Update()
@@ -82,9 +123,16 @@ namespace LlamAcademy.Dinos.UI
 
         private void OnDisable()
         {
-            RoundManager.Instance.OnGameStateChange -= OnGameStateChange;
-            DinoSpawner.Instance.OnSpawnDino -= HandleDinoSpawnOrDeath;
-            DinoSpawner.Instance.OnDinoDeath -= HandleDinoSpawnOrDeath;
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                PrehistoricGameModeManager.Instance.OnGameModeChanged -= HandleGameModeChanged;
+            }
+            if (RoundManager.Instance != null) RoundManager.Instance.OnGameStateChange -= OnGameStateChange;
+            if (DinoSpawner.Instance != null)
+            {
+                DinoSpawner.Instance.OnSpawnDino -= HandleDinoSpawnOrDeath;
+                DinoSpawner.Instance.OnDinoDeath -= HandleDinoSpawnOrDeath;
+            }
         }
 
         private void HandleDinoSpawnOrDeath(Unit.Unit _)

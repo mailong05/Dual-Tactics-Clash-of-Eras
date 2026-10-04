@@ -13,9 +13,9 @@ namespace LlamAcademy.Dinos.Unit
             BuildingDamageMultiplier = 3.5f;
             AttackDamage = 25;
             MoveSpeed = 2.4f;
-            MaxHealth = 350;
-            Health = 350;
-            GoldReward = 30;
+            MaxHealth = 850;
+            Health = 850;
+            GoldReward = 40;
         }
 
         protected override IDamageable ScanForBlockers()

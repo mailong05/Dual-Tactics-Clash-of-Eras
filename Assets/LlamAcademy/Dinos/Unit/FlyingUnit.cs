@@ -15,6 +15,13 @@ namespace LlamAcademy.Dinos.Unit
 
         private Transform TargetBase;
 
+        protected override void Awake()
+        {
+            base.Awake();
+            MaxHealth = 240;
+            Health = 240;
+        }
+
         protected override void Start()
         {
             base.Start();

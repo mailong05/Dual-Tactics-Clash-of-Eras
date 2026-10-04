@@ -1,0 +1,2 @@
+Auto-relocated raw Blender file out of Assets: bow.blend -> Backup_Blend_Files/bow.blend
+Auto-relocated raw Blender file out of Assets: staff01.blend -> Backup_Blend_Files/staff01.blend

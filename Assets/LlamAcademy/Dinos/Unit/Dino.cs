@@ -127,14 +127,23 @@ namespace LlamAcademy.Dinos.Unit
 
         private void OnEnable()
         {
-            Agent.Warp(transform.position);
-            Agent.enabled = true;
+            if (Agent != null)
+            {
+                Agent.Warp(transform.position);
+                Agent.enabled = true;
+            }
         }
 
         private void OnDisable()
         {
-            Agent.enabled = false;
-            RoundManager.Instance.OnGameStateChange -= InstanceOnOnGameStateChange;
+            if (Agent != null)
+            {
+                Agent.enabled = false;
+            }
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange -= InstanceOnOnGameStateChange;
+            }
         }
 
         public override void Die()

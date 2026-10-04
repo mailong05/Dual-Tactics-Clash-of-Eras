@@ -103,10 +103,34 @@ namespace LlamAcademy.Dinos.Enemy
 
         private IEnumerator Start()
         {
-            RoundManager.Instance.OnGameStateChange += Instance_OnGameStateChange;
-            NavMeshManager.Instance.OnNavMeshUpdated += Instance_OnNavMeshUpdated;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange += Instance_OnGameStateChange;
+            }
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.OnNavMeshUpdated += Instance_OnNavMeshUpdated;
+            }
             yield return null; // allow all other units to get set up before we do turn (such as walls)
             yield return DoTurn();
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange -= Instance_OnGameStateChange;
+            }
+
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.OnNavMeshUpdated -= Instance_OnNavMeshUpdated;
+            }
         }
 
         private void Instance_OnNavMeshUpdated()

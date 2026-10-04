@@ -47,7 +47,22 @@ namespace LlamAcademy.Dinos.Player
 
         private void Start()
         {
-            RoundManager.Instance.OnGameStateChange += Instance_OnGameStateChange;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange += Instance_OnGameStateChange;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange -= Instance_OnGameStateChange;
+            }
         }
 
         private void Instance_OnGameStateChange(GameState oldState, GameState newState)
@@ -109,11 +124,21 @@ namespace LlamAcademy.Dinos.Player
                     spawnedDino.enabled = true;
 
                     // Nếu đang trong trận chiến, lập tức dẫn quân tiến công mục tiêu
-                    if (RoundManager.Instance.State == GameState.Running && spawnedDino is Unit.Dino dinoComp)
+                    if (RoundManager.Instance.State == GameState.Running)
                     {
-                        if (RoundManager.Instance.DinoTarget != null)
+                        if (spawnedDino is Unit.Dino dinoComp)
                         {
-                            dinoComp.SetDestination(RoundManager.Instance.DinoTarget.position);
+                            if (RoundManager.Instance.DinoTarget != null)
+                            {
+                                dinoComp.SetDestination(RoundManager.Instance.DinoTarget.position);
+                            }
+                        }
+                        else if (spawnedDino is Unit.PrehistoricDinoBase dinoBase)
+                        {
+                            if (RoundManager.Instance.DinoTarget != null)
+                            {
+                                dinoBase.SetDestination(RoundManager.Instance.DinoTarget.position);
+                            }
                         }
                     }
 

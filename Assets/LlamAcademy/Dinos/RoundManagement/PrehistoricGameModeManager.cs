@@ -129,10 +129,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    // Ensure food resources available for player to summon dinos
-                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < 100)
+                    // Ensure food resources available for player to summon dinos (at least 250 so T-Rex can be summoned)
+                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < 250)
                     {
-                        dinoSpawner.ResourcesToSpend = 150;
+                        dinoSpawner.ResourcesToSpend = 250;
                     }
                 }
             }
@@ -155,6 +155,22 @@ namespace LlamAcademy.Dinos.RoundManagement
                 // In Tower Defense mode, starter defenses act as initial base protection.
                 // In Dino Assault mode, starter defenses act as enemy defenses for player's dinos to smash!
                 starterDefenses.SetActive(true);
+            }
+
+            // 4. Dual Camera Perspectives
+            if (CameraControl.Instance != null)
+            {
+                CameraControl.Instance.SetPerspective(mode == PrehistoricGameMode.TowerDefense
+                    ? CameraPerspective.Rear_TowerDefense
+                    : CameraPerspective.Front_DinoAssault);
+            }
+
+            // 5. Mode-Specific UI Visibility (Toggle RuntimeUI / UIDocument)
+            RuntimeUI runtimeUI = FindFirstObjectByType<RuntimeUI>(FindObjectsInactive.Include);
+            if (runtimeUI != null)
+            {
+                runtimeUI.SetVisible(mode == PrehistoricGameMode.DinoAssault);
+                runtimeUI.gameObject.SetActive(mode == PrehistoricGameMode.DinoAssault);
             }
         }
 
@@ -198,7 +214,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 3. Mode-Specific Controls
             if (_CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                DrawDinoAssaultHUD();
+                RuntimeUI rUI = FindFirstObjectByType<RuntimeUI>();
+                if (rUI == null || !rUI.gameObject.activeInHierarchy)
+                {
+                    DrawDinoAssaultHUD();
+                }
             }
             else
             {

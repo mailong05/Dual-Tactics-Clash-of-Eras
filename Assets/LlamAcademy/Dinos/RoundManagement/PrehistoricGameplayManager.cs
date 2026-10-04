@@ -28,8 +28,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         public static PrehistoricGameplayManager Instance { get; private set; }
 
         [Header("=== Village Base Defense Stats ===")]
-        [SerializeField] private int _MaxBaseHealth = 100;
-        [SerializeField] private int _CurrentBaseHealth = 100;
+        [SerializeField] private int _MaxBaseHealth = 1000;
+        [SerializeField] private int _CurrentBaseHealth = 1000;
         public int MaxBaseHealth => _MaxBaseHealth;
         public int CurrentBaseHealth => _CurrentBaseHealth;
         public Transform BaseTarget { get; private set; }
@@ -158,10 +158,37 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
+            // Hotkey F11 hoặc Alt+Enter để chuyển đổi Fullscreen / Toàn màn hình
+            if (Keyboard.current != null)
+            {
+                bool isF11Pressed = Keyboard.current.f11Key.wasPressedThisFrame;
+                bool isAltEnter = (Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed) && Keyboard.current.enterKey.wasPressedThisFrame;
+
+                if (isF11Pressed || isAltEnter)
+                {
+                    ToggleFullscreen();
+                }
+            }
+
             // In Wave 10, track Boss health
             if (_CurrentWave == _MaxWaves && ActiveBossInstance == null && _CurrentPhase == PrehistoricWavePhase.CombatPhase)
             {
                 ActiveBossInstance = FindFirstObjectByType<BossDino>();
+            }
+        }
+
+        public void ToggleFullscreen()
+        {
+            Screen.fullScreen = !Screen.fullScreen;
+            if (Screen.fullScreen)
+            {
+                Resolution currentRes = Screen.currentResolution;
+                Screen.SetResolution(currentRes.width, currentRes.height, FullScreenMode.FullScreenWindow);
+                ShowAnnouncement("🖥 ĐÃ BẬT CHẾ ĐỘ TOÀN MÀN HÌNH (FULLSCREEN)", 2.5f);
+            }
+            else
+            {
+                ShowAnnouncement("🪟 ĐÃ CHUYỂN VỀ CHẾ ĐỘ CỬA SỔ (WINDOWED)", 2.5f);
             }
         }
 
@@ -552,12 +579,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             ActiveMonsters.Clear();
 
-            // Quét dọn triệt để CHỈ các Unit khủng long/quái vật còn sót lại trên scene (TUYỆT ĐỐI KHÔNG XÓA DEFENDER, TƯỜNG HAY THÁP)
+            // Quét dọn triệt để CHỈ các Unit khủng long/quái vật còn sót lại trên scene (TUYỆT ĐỐI KHÔNG XÓA DEFENDER, TƯỜNG, THÁP HAY GHOST PREVIEW)
             var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
             foreach (var unit in allUnits)
             {
-                if (unit != null && (unit is Dino || unit is PrehistoricDinoBase || unit is RunnerDino || unit is FlyingUnit || unit is SiegeDino || unit is BossDino))
+                if (unit != null && unit.enabled && (unit is Dino || unit is PrehistoricDinoBase || unit is RunnerDino || unit is FlyingUnit || unit is SiegeDino || unit is BossDino))
                 {
+                    // Bỏ qua các ghost unit đang preview đặt quân
+                    if (unit.transform.parent != null && unit.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        continue;
+                    }
+
                     unit.OnDeath -= HandleMonsterDeath;
                     if (unit.gameObject != null)
                     {
@@ -685,6 +718,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnGUI()
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense)
+            {
+                return;
+            }
+
             DrawTopLeftStatusBanner();
             DrawWaveActionControl();
             DrawScreenAnnouncement();
@@ -848,6 +886,19 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GUI.Box(new Rect(x, y, boxWidth, boxHeight), $"<b><size=15><color=white>⚔ ĐANG CHIẾN ĐẤU ⚔\nQuái còn lại: {MonstersAliveCount}</color></size></b>");
                 GUI.backgroundColor = Color.white;
             }
+
+            // Nút chuyển đổi Toàn Màn Hình nhanh [F11]
+            float fsBtnW = 160f;
+            float fsBtnH = 32f;
+            float fsX = Screen.width - fsBtnW - 25f;
+            float fsY = (_CurrentPhase == PrehistoricWavePhase.BuildingPhase) ? 92f : 82f;
+            GUI.backgroundColor = Screen.fullScreen ? new Color(0.2f, 0.7f, 0.9f, 0.85f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+            string fsLabel = Screen.fullScreen ? "<b>⛶ CỬA SỔ [F11]</b>" : "<b>⛶ FULLSCREEN [F11]</b>";
+            if (GUI.Button(new Rect(fsX, fsY, fsBtnW, fsBtnH), fsLabel))
+            {
+                ToggleFullscreen();
+            }
+            GUI.backgroundColor = Color.white;
         }
 
         private void DrawScreenAnnouncement()

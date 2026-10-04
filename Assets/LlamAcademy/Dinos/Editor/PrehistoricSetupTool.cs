@@ -29,6 +29,67 @@ namespace LlamAcademy.Dinos.Editor
             HorizontalWidth  // Scale so Mathf.Max(size.x, size.z) == target
         }
 
+        static PrehistoricSetupTool()
+        {
+            FixBlenderImportIssue();
+        }
+
+        public static void FixBlenderImportIssue()
+        {
+            try
+            {
+                string assetsPath = Application.dataPath;
+                if (!Directory.Exists(assetsPath)) return;
+
+                List<string> blendFiles = new List<string>();
+                string[] files = Directory.GetFiles(assetsPath, "*.*", SearchOption.AllDirectories);
+                foreach (string f in files)
+                {
+                    string ext = Path.GetExtension(f).ToLower();
+                    if ((ext == ".blend" || ext == ".blend1") && !f.EndsWith(".meta"))
+                    {
+                        blendFiles.Add(f);
+                    }
+                }
+
+                if (blendFiles.Count > 0)
+                {
+                    string projectRoot = Directory.GetParent(assetsPath).FullName;
+                    string backupDir = Path.Combine(projectRoot, "Backup_Blend_Files");
+                    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
+                    List<string> logs = new List<string>();
+                    foreach (string bf in blendFiles)
+                    {
+                        string fileName = Path.GetFileName(bf);
+                        string destPath = Path.Combine(backupDir, fileName);
+                        File.Copy(bf, destPath, true);
+                        File.Delete(bf);
+
+                        string meta = bf + ".meta";
+                        if (File.Exists(meta)) File.Delete(meta);
+
+                        logs.Add($"Auto-relocated raw Blender file out of Assets: {fileName} -> Backup_Blend_Files/{fileName}");
+                        Debug.Log($"<color=cyan>[Prehistoric TD]</color> Đã tự động di chuyển file '{fileName}' ra ngoài Assets/ vào thư mục 'Backup_Blend_Files' để khắc phục triệt để lỗi Blender not found.");
+                    }
+
+                    File.WriteAllLines(Path.Combine(projectRoot, "blender_fix_log.txt"), logs);
+                    AssetDatabase.Refresh();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning("[Prehistoric TD] FixBlenderImportIssue: " + ex.Message);
+            }
+        }
+
+        [MenuItem("Prehistoric TD/Khắc Phục Lỗi Blender (.blend)")]
+        public static void MenuFixBlender()
+        {
+            FixBlenderImportIssue();
+            EditorUtility.DisplayDialog("Xử Lý File Blender", "Đã quét và di chuyển an toàn toàn bộ file .blend ra thư mục Backup_Blend_Files ngoài Assets!", "OK");
+        }
+
         [InitializeOnLoadMethod]
         private static void AutoSetupOnLoad()
         {
@@ -198,6 +259,13 @@ namespace LlamAcademy.Dinos.Editor
         {
             try
             {
+                // 0. Find any .blend files causing Unity Blender import error
+                string[] blendFiles = Directory.GetFiles("Assets", "*.blend", SearchOption.AllDirectories);
+                string[] blend1Files = Directory.GetFiles("Assets", "*.blend1", SearchOption.AllDirectories);
+                List<string> allBlends = new List<string>(blendFiles);
+                allBlends.AddRange(blend1Files);
+                File.WriteAllLines("Assets/blend_files_found.txt", allBlends);
+
                 // 1. Diagnostics on wooden__barricade_low.glb
                 System.Text.StringBuilder sbBar = new System.Text.StringBuilder();
                 sbBar.AppendLine("=== BARRICADE MODEL REPORT ===");
@@ -1122,13 +1190,13 @@ namespace LlamAcademy.Dinos.Editor
         {
             List<TowerSO> list = new();
 
-            list.Add(GetOrCreateTowerSO("Tower_Watchtower", "Chòi Cung Thủ Gỗ", 40, UnityEngine.InputSystem.Key.Digit1, prefabs["Watchtower"], false, 1.5f));
-            list.Add(GetOrCreateTowerSO("Tower_Ballista", "Tháp Nỏ Bắn Lao", 80, UnityEngine.InputSystem.Key.Digit2, prefabs["Ballista"], false, 1.4f));
-            list.Add(GetOrCreateTowerSO("Tower_Catapult", "Máy Bắn Đá Lửa", 100, UnityEngine.InputSystem.Key.Digit3, prefabs["Catapult"], false, 1.8f));
-            list.Add(GetOrCreateTowerSO("Tower_ShamanTotem", "Cột Vật Tổ Sét", 120, UnityEngine.InputSystem.Key.Digit4, prefabs["ShamanTotem"], false, 1.4f));
-            list.Add(GetOrCreateTowerSO("Tower_TarPit", "Vũng Hắc Ín (Chậm 50%)", 50, UnityEngine.InputSystem.Key.Digit5, prefabs["TarPit"], false, 1.8f));
-            list.Add(GetOrCreateTowerSO("Tower_SpikeTrap", "Hố Chông Gai Gỗ", 30, UnityEngine.InputSystem.Key.Digit6, prefabs["SpikeTrap"], false, 1.2f));
-            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f));
+            list.Add(GetOrCreateTowerSO("Tower_Watchtower", "Chòi Cung Thủ Gỗ", 40, UnityEngine.InputSystem.Key.Digit1, prefabs["Watchtower"], false, 1.5f, 600));
+            list.Add(GetOrCreateTowerSO("Tower_Ballista", "Tháp Nỏ Bắn Lao", 80, UnityEngine.InputSystem.Key.Digit2, prefabs["Ballista"], false, 1.4f, 550));
+            list.Add(GetOrCreateTowerSO("Tower_Catapult", "Máy Bắn Đá Lửa", 100, UnityEngine.InputSystem.Key.Digit3, prefabs["Catapult"], false, 1.8f, 700));
+            list.Add(GetOrCreateTowerSO("Tower_ShamanTotem", "Cột Vật Tổ Sét", 120, UnityEngine.InputSystem.Key.Digit4, prefabs["ShamanTotem"], false, 1.4f, 650));
+            list.Add(GetOrCreateTowerSO("Tower_TarPit", "Vũng Hắc Ín (Chậm 50%)", 50, UnityEngine.InputSystem.Key.Digit5, prefabs["TarPit"], false, 1.8f, 400));
+            list.Add(GetOrCreateTowerSO("Tower_SpikeTrap", "Hố Chông Gai Gỗ", 30, UnityEngine.InputSystem.Key.Digit6, prefabs["SpikeTrap"], false, 1.2f, 350));
+            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 450));
 
             return list;
         }
@@ -1137,15 +1205,15 @@ namespace LlamAcademy.Dinos.Editor
         {
             List<DinoSO> list = new();
 
-            list.Add(GetOrCreateDinoSO("Dino_Velociraptor", 20, prefabs["Velociraptor"], 85));
-            list.Add(GetOrCreateDinoSO("Dino_Pterodactyl", 35, prefabs["Pterodactyl"], 120));
-            list.Add(GetOrCreateDinoSO("Dino_Ankylosaurus", 50, prefabs["Ankylosaurus"], 350));
-            list.Add(GetOrCreateDinoSO("Dino_TRexBoss", 200, prefabs["TRexBoss"], 1200));
+            list.Add(GetOrCreateDinoSO("Dino_Velociraptor", 20, prefabs["Velociraptor"], 160));
+            list.Add(GetOrCreateDinoSO("Dino_Pterodactyl", 35, prefabs["Pterodactyl"], 240));
+            list.Add(GetOrCreateDinoSO("Dino_Ankylosaurus", 50, prefabs["Ankylosaurus"], 850));
+            list.Add(GetOrCreateDinoSO("Dino_TRexBoss", 100, prefabs["TRexBoss"], 3500));
 
             return list;
         }
 
-        private static TowerSO GetOrCreateTowerSO(string fileName, string displayName, int cost, UnityEngine.InputSystem.Key hotkey, GameObject prefab, bool isWall, float radius)
+        private static TowerSO GetOrCreateTowerSO(string fileName, string displayName, int cost, UnityEngine.InputSystem.Key hotkey, GameObject prefab, bool isWall, float radius, int health = 0)
         {
             string path = $"{CONFIG_DIR}/{fileName}.asset";
             TowerSO so = AssetDatabase.LoadAssetAtPath<TowerSO>(path);
@@ -1166,6 +1234,8 @@ namespace LlamAcademy.Dinos.Editor
             if (isWallProp != null) isWallProp.boolValue = isWall;
             SerializedProperty radiusProp = serialized.FindProperty("<PlacementRadius>k__BackingField");
             if (radiusProp != null) radiusProp.floatValue = radius;
+            SerializedProperty healthProp = serialized.FindProperty("<Health>k__BackingField");
+            if (healthProp != null && health > 0) healthProp.intValue = health;
 
             if (prefab != null)
             {
@@ -1441,6 +1511,7 @@ namespace LlamAcademy.Dinos.Editor
                 Vector3 catPos = SnapToGround(new Vector3(-3.9f, 0, -14.7f), basePos.y);
                 GameObject c = Instantiate(cat, catPos, Quaternion.identity, defensesGroup.transform);
                 if (catSO != null && c.TryGetComponent(out Unit.Unit uc)) uc.UnitType = catSO;
+                AlignObjectToGround(c, catPos.y);
             }
 
             // 2. Place 1 Shaman Totem inside gate on left flank
@@ -1450,6 +1521,7 @@ namespace LlamAcademy.Dinos.Editor
                 Vector3 totPos = SnapToGround(new Vector3(-4.5f, 0, -13.0f), basePos.y);
                 GameObject t = Instantiate(tot, totPos, Quaternion.identity, defensesGroup.transform);
                 if (totSO != null && t.TryGetComponent(out Unit.Unit ut)) ut.UnitType = totSO;
+                AlignObjectToGround(t, totPos.y);
             }
 
             // 3. Place 1 Watchtower overlooking gate on right flank
@@ -1459,6 +1531,7 @@ namespace LlamAcademy.Dinos.Editor
                 Vector3 wtPos = SnapToGround(new Vector3(4.5f, 0, -14.7f), basePos.y);
                 GameObject w = Instantiate(wt, wtPos, Quaternion.identity, defensesGroup.transform);
                 if (wtSO != null && w.TryGetComponent(out Unit.Unit uw)) uw.UnitType = wtSO;
+                AlignObjectToGround(w, wtPos.y);
             }
 
             // 4. Place 1 Spike Trap in the funnel bottleneck
@@ -1468,6 +1541,7 @@ namespace LlamAcademy.Dinos.Editor
                 Vector3 stPos = SnapToGround(new Vector3(-2.2f, 0, -8.5f), basePos.y);
                 GameObject s = Instantiate(st, stPos, Quaternion.identity, defensesGroup.transform);
                 if (stSO != null && s.TryGetComponent(out Unit.Unit us)) us.UnitType = stSO;
+                AlignObjectToGround(s, stPos.y);
             }
 
             Debug.Log("<color=cyan>[Prehistoric TD]</color> Placed Starter Defenses guarding fortress gate chokepoint!");
@@ -1504,11 +1578,43 @@ namespace LlamAcademy.Dinos.Editor
             }
         }
 
+        private static void AlignObjectToGround(GameObject obj, float targetY)
+        {
+            if (obj == null) return;
+            Renderer[] rends = obj.GetComponentsInChildren<Renderer>();
+            if (rends == null || rends.Length == 0) return;
+
+            float lowestY = float.MaxValue;
+            foreach (Renderer r in rends)
+            {
+                if (r == null || !r.enabled) continue;
+                if (r.bounds.size.magnitude < 0.001f) continue;
+                lowestY = Mathf.Min(lowestY, r.bounds.min.y);
+            }
+
+            if (lowestY < float.MaxValue && Mathf.Abs(lowestY - targetY) > 0.02f)
+            {
+                obj.transform.position += Vector3.up * (targetY - lowestY);
+            }
+        }
+
         private static Vector3 SnapToGround(Vector3 pos, float fallbackY = 0f)
         {
-            if (Physics.Raycast(new Vector3(pos.x, 50f, pos.z), Vector3.down, out RaycastHit hit, 100f))
+            RaycastHit[] hits = Physics.RaycastAll(new Vector3(pos.x, 20f, pos.z), Vector3.down, 40f);
+            if (hits != null && hits.Length > 0)
             {
-                return hit.point;
+                RaycastHit bestHit = hits[0];
+                float minDiff = Mathf.Abs(hits[0].point.y - fallbackY);
+                for (int i = 1; i < hits.Length; i++)
+                {
+                    float diff = Mathf.Abs(hits[i].point.y - fallbackY);
+                    if (diff < minDiff)
+                    {
+                        minDiff = diff;
+                        bestHit = hits[i];
+                    }
+                }
+                return bestHit.point;
             }
             return new Vector3(pos.x, fallbackY, pos.z);
         }

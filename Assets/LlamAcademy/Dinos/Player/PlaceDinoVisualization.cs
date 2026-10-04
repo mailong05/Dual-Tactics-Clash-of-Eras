@@ -44,12 +44,18 @@ namespace LlamAcademy.Dinos.Player
             //     // Assume default layer is unsafe, so good enough.
             // }
 
-            RoundManager.Instance.OnGameStateChange += OnGameStateChange;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange += OnGameStateChange;
+            }
         }
 
         private void OnDestroy()
         {
-            RoundManager.Instance.OnGameStateChange -= OnGameStateChange;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange -= OnGameStateChange;
+            }
         }
 
         private void OnGameStateChange(GameState oldState, GameState newState)
@@ -120,41 +126,69 @@ namespace LlamAcademy.Dinos.Player
 
             for (int i = 0; i < Count; i++)
             {
-                Unit.Unit dino = Instantiate(dinoSO.Prefab, transform.position, Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - transform.position).normalized), transform);
+                Quaternion rot = Quaternion.identity;
+                if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+                {
+                    rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - transform.position).normalized);
+                }
+                Unit.Unit dino = Instantiate(dinoSO.Prefab, transform.position, rot, transform);
+                dino.enabled = false; // Vô hiệu hóa để không bị coi là unit chiến đấu thật
+
                 foreach (Collider collider in dino.GetComponentsInChildren<Collider>())
                 {
                     collider.enabled = false;
                 }
-                dino.GetComponent<NavMeshAgent>().enabled = false;
+                if (dino.TryGetComponent(out NavMeshAgent agent))
+                {
+                    agent.enabled = false;
+                }
                 dino.transform.localPosition = Vector3.zero;
                 Visualizations.Add(dino.gameObject);
                 Renderer renderer = dino.GetComponentInChildren<Renderer>();
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                Renderers.Add(renderer);
+                if (renderer != null)
+                {
+                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    Renderers.Add(renderer);
+                }
             }
         }
 
         private void Update()
         {
-            for (int i = 0; i < Visualizations.Count; i++)
+            if (Dino == null || Visualizations.Count == 0)
             {
-                if (Dino != null &&
-                    DinoSpawner.Instance.ResourcesToSpend < Dino.Cost
-                    || Physics.OverlapSphereNonAlloc(
-                        Visualizations[i].transform.position,
-                        0.25f, // small leniency since on Start we handle spawning objects to block
-                        Hits,
-                        UnsafeLayers) > 0)
+                IsValidPlacementLocation = false;
+                return;
+            }
+
+            for (int i = Visualizations.Count - 1; i >= 0; i--)
+            {
+                if (Visualizations[i] == null)
                 {
-                    IsValidPlacementLocation = false;
-                    Renderers[i].material.SetColor(TINT, Color.red);
-                    Renderers[i].material.SetColor(FRESNEL_COLOR, Color.red);
+                    Visualizations.RemoveAt(i);
+                    if (i < Renderers.Count) Renderers.RemoveAt(i);
+                    continue;
                 }
-                else
+
+                bool canAfford = DinoSpawner.Instance != null && DinoSpawner.Instance.ResourcesToSpend >= Dino.Cost;
+                bool isBlocked = Physics.OverlapSphereNonAlloc(
+                    Visualizations[i].transform.position,
+                    0.25f,
+                    Hits,
+                    UnsafeLayers) > 0;
+
+                bool isValid = canAfford && !isBlocked;
+                IsValidPlacementLocation = isValid;
+
+                if (i < Renderers.Count && Renderers[i] != null)
                 {
-                    IsValidPlacementLocation = true;
-                    Renderers[i].material.SetColor(TINT, Color.cyan);
-                    Renderers[i].material.SetColor(FRESNEL_COLOR, Color.cyan);
+                    Color targetColor = isValid ? Color.cyan : Color.red;
+                    Material mat = Renderers[i].material;
+                    if (mat != null)
+                    {
+                        if (mat.HasProperty(TINT)) mat.SetColor(TINT, targetColor);
+                        if (mat.HasProperty(FRESNEL_COLOR)) mat.SetColor(FRESNEL_COLOR, targetColor);
+                    }
                 }
             }
         }

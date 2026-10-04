@@ -213,6 +213,9 @@ namespace LlamAcademy.Dinos.Player
             Unit.Unit towerUnit = Instantiate(SelectedTower.Prefab, position, Quaternion.identity);
             towerUnit.UnitType = SelectedTower;
 
+            // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không
+            AlignTowerToGround(towerUnit.gameObject, position.y);
+
             // Recalculate NavMesh if placing a wall or obstacle structure
             if (SelectedTower.IsWall && NavMeshManager.Instance != null)
             {
@@ -272,6 +275,26 @@ namespace LlamAcademy.Dinos.Player
             float t = Mathf.Clamp01(Vector3.Dot(point - a, ab) / lengthSq);
             Vector3 projection = a + t * ab;
             return Vector3.Distance(point, projection);
+        }
+
+        private static void AlignTowerToGround(GameObject towerObj, float targetGroundY)
+        {
+            if (towerObj == null) return;
+            Renderer[] rends = towerObj.GetComponentsInChildren<Renderer>();
+            if (rends == null || rends.Length == 0) return;
+
+            float lowestY = float.MaxValue;
+            foreach (Renderer r in rends)
+            {
+                if (r == null || !r.enabled) continue;
+                if (r.bounds.size.magnitude < 0.001f) continue;
+                lowestY = Mathf.Min(lowestY, r.bounds.min.y);
+            }
+
+            if (lowestY < float.MaxValue && Mathf.Abs(lowestY - targetGroundY) > 0.02f)
+            {
+                towerObj.transform.position += Vector3.up * (targetGroundY - lowestY);
+            }
         }
     }
 }

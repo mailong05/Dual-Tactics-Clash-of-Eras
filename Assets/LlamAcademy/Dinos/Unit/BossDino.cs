@@ -17,12 +17,12 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = 1200;
-            Health = 1200;
+            MaxHealth = 3500;
+            Health = 3500;
             MoveSpeed = 2.6f;
-            AttackDamage = 50;
+            AttackDamage = 65;
             BuildingDamageMultiplier = 2.5f;
-            GoldReward = 120;
+            GoldReward = 150;
         }
 
         public override void TakeDamage(int damage)

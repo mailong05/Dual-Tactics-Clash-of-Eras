@@ -50,7 +50,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public delegate void GameStateChangeEvent(GameState oldState, GameState newState);
         public event GameStateChangeEvent OnGameStateChange;
 
-        private List<Dino> ActiveDinos = new();
+        private List<Unit.Unit> ActiveDinos = new();
         private List<Defender> AliveDefenders = new();
         private bool IsEndingRound;
 
@@ -122,9 +122,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                 State = GameState.Running;
                 if (DinoTarget != null)
                 {
-                    foreach (Dino dino in ActiveDinos)
+                    foreach (Unit.Unit unit in ActiveDinos)
                     {
-                        dino.SetDestination(DinoTarget.position);
+                        if (unit == null) continue;
+                        if (unit is Dino dino)
+                        {
+                            dino.SetDestination(DinoTarget.position);
+                        }
+                        else if (unit is PrehistoricDinoBase dinoBase)
+                        {
+                            dinoBase.SetDestination(DinoTarget.position);
+                        }
                     }
                 }
             }
@@ -172,17 +180,27 @@ namespace LlamAcademy.Dinos.RoundManagement
             Round++;
             for (int i = ActiveDinos.Count - 1; i >= 0; i--)
             {
-                DinoSpawner.Instance.ResourcesToSpend += ActiveDinos[i].UnitType.Cost; // give back cost of any surviving dinos
-                ActiveDinos[i].TakeDamage(int.MaxValue);
-                // Destroy(dino.gameObject);
+                if (ActiveDinos[i] != null)
+                {
+                    if (ActiveDinos[i].UnitType != null && DinoSpawner.Instance != null)
+                    {
+                        DinoSpawner.Instance.ResourcesToSpend += ActiveDinos[i].UnitType.Cost; // give back cost of any surviving dinos
+                    }
+                    ActiveDinos[i].TakeDamage(int.MaxValue);
+                }
             }
             ActiveDinos.Clear();
 
             for (int i = AliveDefenders.Count - 1; i >= 0; i--)
             {
-                EnemyAIController.Instance.ResourcesToSpend += AliveDefenders[i].UnitType.Cost; // give back cost of any surviving units
-                AliveDefenders[i].TakeDamage(int.MaxValue);
-                // Destroy(aliveDefender.gameObject);
+                if (AliveDefenders[i] != null)
+                {
+                    if (AliveDefenders[i].UnitType != null && EnemyAIController.Instance != null)
+                    {
+                        EnemyAIController.Instance.ResourcesToSpend += AliveDefenders[i].UnitType.Cost; // give back cost of any surviving units
+                    }
+                    AliveDefenders[i].TakeDamage(int.MaxValue);
+                }
             }
             AliveDefenders.Clear();
 
@@ -206,9 +224,9 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnDinoDeath(Unit.Unit deadDino)
         {
-            if (deadDino is not Dino dino) return;
-            ActiveDinos.Remove(dino);
-            DinoSupplyResource.Amount = ActiveDinos.Count;
+            if (deadDino == null) return;
+            ActiveDinos.Remove(deadDino);
+            if (DinoSupplyResource != null) DinoSupplyResource.Amount = ActiveDinos.Count;
 
             if (ActiveDinos.Count == 0 && !IsEndingRound)
             {
@@ -221,9 +239,9 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnSpawnDino(Unit.Unit spawnedDino)
         {
-            if (spawnedDino is not Dino dino) return;
-            ActiveDinos.Add(dino);
-            DinoSupplyResource.Amount = ActiveDinos.Count;
+            if (spawnedDino == null) return;
+            ActiveDinos.Add(spawnedDino);
+            if (DinoSupplyResource != null) DinoSupplyResource.Amount = ActiveDinos.Count;
         }
 
         private void OnDefenderDeath(Defender defender)

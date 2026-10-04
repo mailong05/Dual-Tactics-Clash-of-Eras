@@ -50,6 +50,15 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
+        public void SetDestination(Vector3 destination)
+        {
+            if (Agent != null && Agent.isOnNavMesh)
+            {
+                Agent.isStopped = false;
+                Agent.SetDestination(destination);
+            }
+        }
+
         protected virtual void FindTargetBase()
         {
             if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
