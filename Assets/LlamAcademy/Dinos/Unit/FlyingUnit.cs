@@ -1,4 +1,6 @@
 using LlamAcademy.Dinos.RoundManagement;
+using LlamAcademy.Dinos.UI;
+using LlamAcademy.Dinos.Utility;
 using UnityEngine;
 
 namespace LlamAcademy.Dinos.Unit
@@ -14,12 +16,35 @@ namespace LlamAcademy.Dinos.Unit
         public bool IsAerial => true;
 
         private Transform TargetBase;
+        private Transform VisualModel;
+        private Vector3 _BaseModelLocalPos;
+        private Quaternion _BaseModelLocalRot;
+        private Animation _LegacyAnimation;
 
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = 240;
-            Health = 240;
+            MaxHealth = 720;
+            Health = 720;
+
+            Transform modelChild = transform.Find("Model");
+            VisualModel = modelChild != null ? modelChild : (transform.childCount > 0 ? transform.GetChild(0) : transform);
+            if (VisualModel != null)
+            {
+                _BaseModelLocalPos = VisualModel.localPosition;
+                _BaseModelLocalRot = VisualModel.localRotation;
+            }
+
+            _LegacyAnimation = GetComponentInChildren<Animation>(true);
+            if (_LegacyAnimation != null)
+            {
+                _LegacyAnimation.playAutomatically = true;
+                foreach (AnimationState state in _LegacyAnimation)
+                {
+                    state.wrapMode = WrapMode.Loop;
+                }
+                _LegacyAnimation.Play();
+            }
         }
 
         protected override void Start()
@@ -35,6 +60,25 @@ namespace LlamAcademy.Dinos.Unit
             Vector3 pos = transform.position;
             pos.y += FlightHeight;
             transform.position = pos;
+
+            EnsureHealthBarAttached();
+        }
+
+        protected virtual void EnsureHealthBarAttached()
+        {
+            if (HealthBar == null)
+            {
+                HealthBar = GetComponentInChildren<HealthBar>();
+            }
+
+            if (HealthBar == null && HealthBarCanvas.Instance != null)
+            {
+                HealthBar = HealthBarCanvas.Instance.CreateHealthBarForUnit(this);
+            }
+            else if (HealthBar != null && HealthBarCanvas.Instance != null)
+            {
+                HealthBarCanvas.Instance.Register(HealthBar, this);
+            }
         }
 
         protected override void Update()
@@ -54,6 +98,16 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             transform.position = Vector3.MoveTowards(transform.position, targetDestination, FlightSpeed * Time.deltaTime);
+
+            // Flight undulating motion & wing-beat banking
+            if (VisualModel != null)
+            {
+                float flapTime = Time.time * 6.0f;
+                float verticalBob = Mathf.Sin(flapTime) * 0.12f;
+                float pitchOscillation = Mathf.Cos(flapTime) * 4.0f;
+                VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, verticalBob, 0f);
+                VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitchOscillation, 0f, 0f);
+            }
 
             // Reached base
             if (Vector3.Distance(transform.position, targetDestination) < 2.5f)

@@ -8,8 +8,8 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Awake();
             MoveSpeed = 5.5f;
-            MaxHealth = 160;
-            Health = 160;
+            MaxHealth = 480;
+            Health = 480;
             AttackDamage = 16;
             AttackInterval = 0.9f;
             GoldReward = 12;

@@ -94,6 +94,61 @@ namespace LlamAcademy.Dinos.Utility
             }
         }
 
+        [SerializeField] private HealthBar HealthBarPrefab;
+
+        public HealthBar CreateHealthBarForUnit(Unit.Unit unit)
+        {
+            if (unit == null) return null;
+
+            if (HealthBarPrefab == null)
+            {
+                GameObject prefabObj = Resources.Load<GameObject>("Health Bar");
+                if (prefabObj != null)
+                {
+                    HealthBarPrefab = prefabObj.GetComponent<HealthBar>();
+                }
+#if UNITY_EDITOR
+                if (HealthBarPrefab == null)
+                {
+                    HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/LlamAcademy/Dinos/Prefabs/Health Bar.prefab");
+                }
+#endif
+            }
+
+            if (HealthBarPrefab == null) return null;
+
+            HealthBar hb = Instantiate(HealthBarPrefab, transform);
+            hb.name = $"HealthBar_{unit.gameObject.name}";
+
+            // Tự động căn độ cao hiển thị thanh máu chuẩn xác theo kích thước từng loài khủng long
+            float height = 2.2f;
+            string unitNameLower = unit.gameObject.name.ToLower();
+            if (unitNameLower.Contains("trex") || unitNameLower.Contains("t-rex"))
+            {
+                height = 6.2f;
+            }
+            else if (unitNameLower.Contains("ankyl"))
+            {
+                height = 2.8f;
+            }
+            else if (unitNameLower.Contains("ptero"))
+            {
+                height = 2.0f;
+            }
+            else if (unitNameLower.Contains("raptor"))
+            {
+                height = 1.8f;
+            }
+            else if (unit.TryGetComponent(out Collider col))
+            {
+                height = col.bounds.size.y + 0.8f;
+            }
+
+            hb.FollowOffset = new Vector3(0f, height, 0f);
+            Register(hb, unit);
+            return hb;
+        }
+
         public void Register(HealthBar healthBar, Unit.Unit unit)
         {
             if (unit == null || healthBar == null) return;

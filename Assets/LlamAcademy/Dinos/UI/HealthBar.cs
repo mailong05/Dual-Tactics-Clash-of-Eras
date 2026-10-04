@@ -8,7 +8,7 @@ namespace LlamAcademy.Dinos.UI
         [SerializeField] private Image FillImage;
         [SerializeField] private Gradient Gradient;
         [field: SerializeField] public DeathBehavior OnDeathBehavior { get; private set; }
-        [field: SerializeField] public Vector3 FollowOffset { get; private set; }= new (0, 3, 0);
+        [field: SerializeField] public Vector3 FollowOffset { get; set; } = new (0, 3, 0);
 
         [SerializeField] private Text NameLabel;
         private string _CurrentUnitName = "";

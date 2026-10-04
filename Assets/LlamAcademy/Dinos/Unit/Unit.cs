@@ -56,7 +56,11 @@ namespace LlamAcademy.Dinos.Unit
             {
                 HealthBar = GetComponentInChildren<HealthBar>();
             }
-            if (HealthBar != null && HealthBarCanvas.Instance != null)
+            if (HealthBar == null && HealthBarCanvas.Instance != null)
+            {
+                HealthBar = HealthBarCanvas.Instance.CreateHealthBarForUnit(this);
+            }
+            else if (HealthBar != null && HealthBarCanvas.Instance != null)
             {
                 HealthBarCanvas.Instance.Register(HealthBar, this);
             }
@@ -97,9 +101,15 @@ namespace LlamAcademy.Dinos.Unit
 
         protected virtual void Update()
         {
-            if (Animator == null) return;
+            if (Animator == null)
+            {
+                Animator = GetComponentInChildren<Animator>();
+            }
 
-            Animator.SetFloat(AnimationConstants.SPEED_PARAMETER, Agent.enabled ? Agent.velocity.magnitude : 0);
+            if (Animator != null && Agent != null)
+            {
+                Animator.SetFloat(AnimationConstants.SPEED_PARAMETER, Agent.enabled ? Agent.velocity.magnitude : 0);
+            }
         }
 
         public abstract void Die();
