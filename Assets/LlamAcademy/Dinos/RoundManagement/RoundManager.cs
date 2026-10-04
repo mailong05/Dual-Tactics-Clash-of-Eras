@@ -56,25 +56,53 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void Awake()
         {
-            if (Instance != null)
+            if (Instance != null && Instance != this)
             {
                 Debug.LogError($"Multiple RoundManagers detected. Deleting the second one {name}");
                 Destroy(gameObject);
                 return;
             }
             Instance = this;
-            EggRadius.OnTargetEnter += HandleDinoEnterEggRadius;
-            DinoSupplyResource.Amount = 0;
+            if (EggRadius != null) EggRadius.OnTargetEnter += HandleDinoEnterEggRadius;
+            if (DinoSupplyResource != null) DinoSupplyResource.Amount = 0;
+            if (DinoTarget == null)
+            {
+                GameObject eggObj = GameObject.Find("Dino Egg Spawn");
+                if (eggObj != null) DinoTarget = eggObj.transform;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
+        public void ResetRoundToStart()
+        {
+            Round = 1;
+            State = GameState.Setup;
+            IsEndingRound = false;
+            ActiveDinos.Clear();
+            AliveDefenders.Clear();
         }
 
         private IEnumerator Start()
         {
-            DinoSpawner.Instance.OnSpawnDino += OnSpawnDino;
-            DinoSpawner.Instance.OnDinoDeath += OnDinoDeath;
-            EnemyAIController.Instance.OnSpawnDefender += OnSpawnDefender;
-            EnemyAIController.Instance.OnDefenderDeath += OnDefenderDeath;
-            EnemyAIController.Instance.OnSpawnWall += OnSpawnWall;
-            EnemyAIController.Instance.OnWallDeath += OnWallDeath;
+            if (DinoSpawner.Instance != null)
+            {
+                DinoSpawner.Instance.OnSpawnDino += OnSpawnDino;
+                DinoSpawner.Instance.OnDinoDeath += OnDinoDeath;
+            }
+            if (EnemyAIController.Instance != null)
+            {
+                EnemyAIController.Instance.OnSpawnDefender += OnSpawnDefender;
+                EnemyAIController.Instance.OnDefenderDeath += OnDefenderDeath;
+                EnemyAIController.Instance.OnSpawnWall += OnSpawnWall;
+                EnemyAIController.Instance.OnWallDeath += OnWallDeath;
+            }
             Round = 1;
             AddRoundResources();
 
@@ -84,12 +112,20 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void StartRound()
         {
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.BuildingPhase)
+            {
+                PrehistoricGameplayManager.Instance.StartNextWave();
+            }
+
             if (State == GameState.Setup)
             {
                 State = GameState.Running;
-                foreach(Dino dino in ActiveDinos)
+                if (DinoTarget != null)
                 {
-                    dino.SetDestination(DinoTarget.position);
+                    foreach (Dino dino in ActiveDinos)
+                    {
+                        dino.SetDestination(DinoTarget.position);
+                    }
                 }
             }
         }
@@ -105,12 +141,24 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void AddRoundResources()
         {
-            DinoSpawner.Instance.ResourcesToSpend += ResourcesPerRound[Round - 1];
-            EnemyAIController.Instance.ResourcesToSpend += Mathf.CeilToInt(ResourcesPerRound[Round - 1] * GetEnemyDifficultyResourceModifier());
+            if (DinoSpawner.Instance != null && Round - 1 >= 0 && Round - 1 < ResourcesPerRound.Length)
+            {
+                DinoSpawner.Instance.ResourcesToSpend += ResourcesPerRound[Round - 1];
+            }
+            if (EnemyAIController.Instance != null && Round - 1 >= 0 && Round - 1 < ResourcesPerRound.Length)
+            {
+                EnemyAIController.Instance.ResourcesToSpend += Mathf.CeilToInt(ResourcesPerRound[Round - 1] * GetEnemyDifficultyResourceModifier());
+            }
         }
 
         private void HandleDinoEnterEggRadius(IDamageable target)
         {
+            if (PrehistoricGameplayManager.Instance != null && target is Unit.Unit u)
+            {
+                PrehistoricGameplayManager.Instance.OnDinoReachedBase(u, 10);
+                return;
+            }
+
             if (IsEndingRound) return;
 
             IsEndingRound = true;

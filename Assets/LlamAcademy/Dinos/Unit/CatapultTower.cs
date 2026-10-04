@@ -88,16 +88,7 @@ namespace LlamAcademy.Dinos.Unit
 
         private bool IsEnemyTarget(Collider col)
         {
-            if (col == null || !col.gameObject.activeInHierarchy) return false;
-            if (col.TryGetComponent(out Unit u))
-            {
-                if (u is Wall || u is ArcherTower || u is BallistaTower || u is CatapultTower 
-                    || u is TeslaTower || u is FrostTower || u is GroundTrap)
-                {
-                    return false;
-                }
-            }
-            return col.TryGetComponent(out IDamageable d) && d.Health > 0;
+            return IsHostileMonster(col);
         }
 
         private IEnumerator LaunchSequence(Vector3 targetPosition)

@@ -52,13 +52,19 @@ namespace LlamAcademy.Dinos.Player
 
         private void Instance_OnGameStateChange(GameState oldState, GameState newState)
         {
-            if (newState != GameState.Setup)
+            if (newState == GameState.Setup || newState == GameState.Running)
             {
-                Visualization.ChangeDino(null);
+                if (SpawnDino != null && Visualization != null)
+                {
+                    Visualization.ChangeDino(SpawnDino);
+                }
             }
             else
             {
-                Visualization.ChangeDino(SpawnDino);
+                if (Visualization != null)
+                {
+                    Visualization.ChangeDino(null);
+                }
             }
         }
 
@@ -69,7 +75,7 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            if (RoundManager.Instance.State == GameState.Setup)
+            if (RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running)
             {
                 if (Physics.Raycast(
                            Camera.ScreenPointToRay(Mouse.current.position.ReadValue()),
@@ -77,30 +83,49 @@ namespace LlamAcademy.Dinos.Player
                            float.MaxValue,
                            GroundLayer))
                 {
-                    Visualization.transform.position = hit.point;
+                    if (Visualization != null)
+                    {
+                        Visualization.transform.position = hit.point;
+                    }
                 }
 
                 if (Mouse.current.leftButton.wasReleasedThisFrame
                      && SpawnDino != null
                      && HasResourcesToSpawn(SpawnDino)
+                     && Visualization != null
                      && Visualization.IsValidPlacementLocation
                      && hit.collider != null
-                     && !EventSystem.current.IsPointerOverGameObject())
+                     && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
                 {
                     ResourcesToSpend -= SpawnDino.Cost;
-                    Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, hit.point, Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - hit.point).normalized));
+                    Quaternion rot = Quaternion.identity;
+                    if (RoundManager.Instance.DinoTarget != null)
+                    {
+                        rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - hit.point).normalized);
+                    }
+                    Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, hit.point, rot);
                     spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
                     spawnedDino.UnitType = SpawnDino;
                     spawnedDino.enabled = true;
+
+                    // Nếu đang trong trận chiến, lập tức dẫn quân tiến công mục tiêu
+                    if (RoundManager.Instance.State == GameState.Running && spawnedDino is Unit.Dino dinoComp)
+                    {
+                        if (RoundManager.Instance.DinoTarget != null)
+                        {
+                            dinoComp.SetDestination(RoundManager.Instance.DinoTarget.position);
+                        }
+                    }
+
                     OnSpawnDino?.Invoke(spawnedDino);
                     SpawnDino = null;
-                    Visualization.ChangeDino(null);
+                    if (Visualization != null) Visualization.ChangeDino(null);
                 }
 
                 if (Keyboard.current.escapeKey.wasReleasedThisFrame)
                 {
                     SpawnDino = null;
-                    Visualization.ChangeDino(null);
+                    if (Visualization != null) Visualization.ChangeDino(null);
                 }
             }
         }
@@ -108,7 +133,7 @@ namespace LlamAcademy.Dinos.Player
         public void ChangeActiveDino(DinoSO Dino)
         {
             SpawnDino = Dino;
-            if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Setup)
+            if (RoundManager.Instance != null && (RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running))
             {
                 if (Visualization != null)
                 {

@@ -40,16 +40,53 @@ namespace LlamAcademy.Dinos.Player
         private TowerSO SelectedTower;
         public TowerSO ActiveTower => SelectedTower;
         private NavMeshPath PathCheckBuffer;
+        private List<GameObject> _PlacedTowerObjects = new();
 
         private void Awake()
         {
-            if (Instance != null)
+            if (Instance != null && Instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
             Instance = this;
             PathCheckBuffer = new NavMeshPath();
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
+        public void ClearAllPlacedTowers()
+        {
+            for (int i = _PlacedTowerObjects.Count - 1; i >= 0; i--)
+            {
+                if (_PlacedTowerObjects[i] != null)
+                {
+                    Destroy(_PlacedTowerObjects[i]);
+                }
+            }
+            _PlacedTowerObjects.Clear();
+
+            // Quét dọn các Unit Defender do người chơi đặt runtime không thuộc Starter_Defenses
+            GameObject starterDefenses = GameObject.Find("Starter_Defenses");
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
+            foreach (var u in allUnits)
+            {
+                if (u != null && u.UnitType is TowerSO && (starterDefenses == null || !u.transform.IsChildOf(starterDefenses.transform)))
+                {
+                    Destroy(u.gameObject);
+                }
+            }
+        }
+
+        public void ResetGoldToDefault(int startingAmount = 500)
+        {
+            Gold = startingAmount;
         }
 
         private void Start()
@@ -156,7 +193,7 @@ namespace LlamAcademy.Dinos.Player
                 if (Mouse.current.leftButton.wasReleasedThisFrame
                     && Visualization.IsValidPlacementLocation
                     && hasPrefab
-                    && !EventSystem.current.IsPointerOverGameObject())
+                    && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
                 {
                     PlaceTowerAt(hit.point);
                 }
@@ -183,6 +220,7 @@ namespace LlamAcademy.Dinos.Player
             }
 
             OnTowerPlaced?.Invoke(towerUnit);
+            _PlacedTowerObjects.Add(towerUnit.gameObject);
 
             // If Shift is NOT held, deselect. If held, keep placing more of the same tower!
             if (!Keyboard.current.leftShiftKey.isPressed && !Keyboard.current.rightShiftKey.isPressed)

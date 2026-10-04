@@ -129,24 +129,18 @@ namespace LlamAcademy.Dinos.UI
             int gold = TowerPlacer.Instance.Gold;
             TowerSO active = TowerPlacer.Instance.ActiveTower;
 
-            // Top-Left Gold & Status Banner
-            GUILayout.BeginArea(new Rect(20, 20, 320, 110), GUI.skin.box);
-            GUILayout.Label($"<b><size=18><color=#FFD700>VÀNG HIỆN CÓ: {gold}g</color></size></b>");
-            if (active != null)
-            {
-                GUILayout.Label($"<color=#55FF55>Đang chọn: {active.DisplayName} ({active.Cost}g)</color>");
-                GUILayout.Label("<size=11><i>[Click chuột trái] Đặt | [ESC] Hủy | [Shift] Đặt liên tục</i></size>");
-            }
-            else
-            {
-                GUILayout.Label("<color=#CCCCCC>Chọn tháp bên dưới hoặc bấm phím số (1-7)</color>");
-            }
-            GUILayout.EndArea();
-
             // Bottom Tower Selection Bar
             float barWidth = Mathf.Min(Screen.width - 40, towers.Count * 145f);
             float startX = (Screen.width - barWidth) / 2f;
             float startY = Screen.height - 75f;
+
+            // Selected Tower Tooltip Bar
+            if (active != null)
+            {
+                GUI.backgroundColor = new Color(0.1f, 0.2f, 0.1f, 0.9f);
+                GUI.Box(new Rect(startX, startY - 32f, barWidth, 30), $"<b><color=#55FF55>Đang chọn: {active.DisplayName} ({active.Cost}g)</color></b>  |  <i>[Click trái] Đặt  |  [ESC/Click phải] Hủy  |  [Shift] Đặt liên tục</i>");
+                GUI.backgroundColor = Color.white;
+            }
 
             GUILayout.BeginArea(new Rect(startX, startY, barWidth, 65), GUI.skin.box);
             GUILayout.BeginHorizontal();

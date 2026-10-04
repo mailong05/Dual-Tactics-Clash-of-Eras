@@ -10,20 +10,39 @@ namespace LlamAcademy.Dinos.Utility
     [RequireComponent(typeof(Canvas))]
     public class HealthBarCanvas : MonoBehaviour
     {
-        public static HealthBarCanvas Instance { get; private set; }
+        private static HealthBarCanvas _Instance;
+        public static HealthBarCanvas Instance
+        {
+            get
+            {
+                if (_Instance == null)
+                {
+                    _Instance = FindFirstObjectByType<HealthBarCanvas>();
+                    if (_Instance == null)
+                    {
+                        GameObject canvasObj = new GameObject("HealthBarCanvas");
+                        Canvas canvas = canvasObj.AddComponent<Canvas>();
+                        canvas.renderMode = RenderMode.WorldSpace;
+                        _Instance = canvasObj.AddComponent<HealthBarCanvas>();
+                    }
+                }
+                return _Instance;
+            }
+            private set => _Instance = value;
+        }
 
         private Dictionary<Unit.Unit, HealthBar> HealthBars = new();
 
         private void Awake()
         {
-            if (Instance != null)
+            if (_Instance != null && _Instance != this)
             {
-                Debug.LogError($"Multiple Health Bar Canvases in scene! Destroying this one ({name})!");
-                Destroy(this);
+                Debug.LogWarning($"Multiple Health Bar Canvases in scene! Destroying duplicate ({name})!");
+                Destroy(gameObject);
                 return;
             }
 
-            Instance = this;
+            _Instance = this;
         }
 
         private void Update()

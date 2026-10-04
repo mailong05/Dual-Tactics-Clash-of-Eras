@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &6234985568265529879
+--- !u!1 &1223499143100891852
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,10 +8,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 6933369130239602571}
-  - component: {fileID: 2741836102691734636}
-  - component: {fileID: 4026766820999129366}
-  - component: {fileID: 548703670651399343}
+  - component: {fileID: 745174508447189189}
+  - component: {fileID: 3061196027335043696}
+  - component: {fileID: 6079956066701693053}
+  - component: {fileID: 1431386423649161663}
   m_Layer: 0
   m_Name: Prefab_Ankylosaurus
   m_TagString: Untagged
@@ -19,33 +19,33 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &6933369130239602571
+--- !u!4 &745174508447189189
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6234985568265529879}
+  m_GameObject: {fileID: 1223499143100891852}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 3727030519578434631}
+  - {fileID: 3554614978234813164}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!195 &2741836102691734636
+--- !u!195 &3061196027335043696
 NavMeshAgent:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6234985568265529879}
+  m_GameObject: {fileID: 1223499143100891852}
   m_Enabled: 1
   m_AgentTypeID: 1479372276
-  m_Radius: 1
-  m_Speed: 2.4
+  m_Radius: 1.1
+  m_Speed: 2.2
   m_Acceleration: 8
   avoidancePriority: 50
   m_AngularSpeed: 120
@@ -53,17 +53,17 @@ NavMeshAgent:
   m_AutoTraverseOffMeshLink: 1
   m_AutoBraking: 1
   m_AutoRepath: 1
-  m_Height: 1.8
+  m_Height: 2
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
---- !u!114 &4026766820999129366
+--- !u!114 &6079956066701693053
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6234985568265529879}
+  m_GameObject: {fileID: 1223499143100891852}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 10fbee1a3549c0d4fb8937813d14ba5a, type: 3}
@@ -71,7 +71,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Unit.SiegeDino
   <MaxHealth>k__BackingField: 0
   <Health>k__BackingField: 0
-  <UnitType>k__BackingField: {fileID: 0}
+  <UnitType>k__BackingField: {fileID: 11400000, guid: 9f3baf0bef7eea34d8577da58f13d923, type: 2}
   AttackRadius: {fileID: 0}
   HealthBar: {fileID: 0}
   MoveSpeed: 3.5
@@ -84,13 +84,13 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   WallDetectRadius: 4.5
---- !u!65 &548703670651399343
+--- !u!65 &1431386423649161663
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6234985568265529879}
+  m_GameObject: {fileID: 1223499143100891852}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -103,15 +103,15 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.2, y: 1.8, z: 3.6}
-  m_Center: {x: 0, y: 0.9, z: 0}
---- !u!1001 &5242684355536712841
+  m_Size: {x: 2.2, y: 2, z: 5}
+  m_Center: {x: 0, y: 1, z: 0}
+--- !u!1001 &5344739609231778338
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6933369130239602571}
+    m_TransformParent: {fileID: 745174508447189189}
     m_Modifications:
     - target: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_Name
@@ -119,27 +119,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.14092888
+      value: 0.19573458
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.14092888
+      value: 0.19573458
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.14092888
+      value: 0.19573458
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.00012996505
+      value: 0.00018050702
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.09483685
+      value: 0.13171786
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.3719187
+      value: 0.5165538
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_LocalRotation.w
@@ -174,8 +174,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
---- !u!4 &3727030519578434631 stripped
+--- !u!4 &3554614978234813164 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
-  m_PrefabInstance: {fileID: 5242684355536712841}
+  m_PrefabInstance: {fileID: 5344739609231778338}
   m_PrefabAsset: {fileID: 0}

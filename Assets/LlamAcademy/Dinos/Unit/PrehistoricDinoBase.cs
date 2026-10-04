@@ -124,8 +124,13 @@ namespace LlamAcademy.Dinos.Unit
 
                 // Check if reached base
                 float distToBase = Vector3.Distance(transform.position, TargetBase.position);
-                if (distToBase <= AttackRange + 1.0f)
+                if (distToBase <= AttackRange + 1.2f)
                 {
+                    if (PrehistoricGameplayManager.Instance != null)
+                    {
+                        PrehistoricGameplayManager.Instance.OnDinoReachedBase(this, AttackDamage);
+                        return;
+                    }
                     if (TargetBase.TryGetComponent(out IDamageable baseDamageable))
                     {
                         CurrentTarget = baseDamageable;
@@ -190,7 +195,11 @@ namespace LlamAcademy.Dinos.Unit
 
         public override void Die()
         {
-            if (TowerPlacer.Instance != null)
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.HandleMonsterDeath(this);
+            }
+            else if (TowerPlacer.Instance != null)
             {
                 TowerPlacer.Instance.AddGold(GoldReward);
             }

@@ -49,7 +49,10 @@ namespace LlamAcademy.Dinos.Unit
             {
                 HealthBar.gameObject.SetActive(true);
 
-                HealthBarCanvas.Instance.Register(HealthBar, this);
+                if (HealthBarCanvas.Instance != null)
+                {
+                    HealthBarCanvas.Instance.Register(HealthBar, this);
+                }
             }
 
             UpdateNavMeshData.RemoveNavMeshData();
@@ -90,7 +93,10 @@ namespace LlamAcademy.Dinos.Unit
             yield return UpdateNavMeshData.Rebake();
             // destruction here would be cool
             Root.gameObject.SetActive(false);
-            NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+            }
         }
 
         [System.Serializable]

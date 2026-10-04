@@ -38,6 +38,8 @@ namespace LlamAcademy.Dinos.Editor
 
                 if (SceneManager.GetActiveScene().isLoaded)
                 {
+                    RunDiagnosticsAndMaterialsFix();
+
                     bool needsFix = false;
 
                     // 1. Check if dinosaurs are lying down (Euler X ~ 270 / -90 deg)
@@ -66,7 +68,7 @@ namespace LlamAcademy.Dinos.Editor
                         }
                     }
 
-                    // 2. Check starter defense models
+                    // 2. Check starter defense models and remove any legacy barricades
                     GameObject starter = GameObject.Find("Starter_Defenses");
                     if (starter == null)
                     {
@@ -74,6 +76,16 @@ namespace LlamAcademy.Dinos.Editor
                     }
                     else
                     {
+                        // Clean up any old barricades in starter defenses
+                        for (int ci = starter.transform.childCount - 1; ci >= 0; ci--)
+                        {
+                            Transform child = starter.transform.GetChild(ci);
+                            if (child != null && (child.name.Contains("Barricade") || child.name.Contains("Plank_Defenses") || child.name.Contains("Shield_Base")))
+                            {
+                                DestroyImmediate(child.gameObject);
+                            }
+                        }
+
                         Renderer[] rList = starter.GetComponentsInChildren<Renderer>();
                         foreach (Renderer r in rList)
                         {
@@ -123,25 +135,242 @@ namespace LlamAcademy.Dinos.Editor
                         }
                     }
 
+                    // 6. Check if ProBuilder Default material is broken or missing URP shader
+                    Material pbMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/ProBuilder Default.mat");
+                    if (pbMat != null && (pbMat.shader == null || pbMat.shader.name.Contains("InternalError") || !pbMat.shader.name.Contains("Universal")))
+                    {
+                        needsFix = true;
+                    }
+
+                    // 7. Remove any legacy Village_Perimeter_Wall if present (User requested wall removal)
+                    RemoveVillagePerimeterWall();
+
+                    // Check if PrehistoricGameplayManager is missing
+                    if (Object.FindFirstObjectByType<PrehistoricGameplayManager>() == null)
+                    {
+                        needsFix = true;
+                    }
+
+                    // 8. Check if Prefab_Barricade is correctly rotated (0 deg on Y, width across road along X)
+                    string bPath = $"{PREFAB_DIR}/Prefab_Barricade.prefab";
+                    if (File.Exists(bPath))
+                    {
+                        GameObject bObj = AssetDatabase.LoadAssetAtPath<GameObject>(bPath);
+                        if (bObj != null)
+                        {
+                            Transform mChild = bObj.transform.Find("Model");
+                            if (mChild == null || Mathf.Abs(mChild.localEulerAngles.y) > 10f)
+                            {
+                                needsFix = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        needsFix = true;
+                    }
+
+                    // 9. Check if Velociraptor is still using old oversized scale (> 0.5f radius)
+                    string vrPath = $"{PREFAB_DIR}/Prefab_Velociraptor.prefab";
+                    if (File.Exists(vrPath))
+                    {
+                        GameObject vrObj = AssetDatabase.LoadAssetAtPath<GameObject>(vrPath);
+                        if (vrObj != null)
+                        {
+                            CapsuleCollider cc = vrObj.GetComponent<CapsuleCollider>();
+                            if (cc != null && cc.radius > 0.5f)
+                            {
+                                needsFix = true;
+                            }
+                        }
+                    }
+
                     if (needsFix)
                     {
-                        Debug.Log("<color=yellow>[Prehistoric TD]</color> Detected uncalibrated models, missing Dual-Mode Manager, or unassigned tower prefabs. Auto-configuring now...");
+                        Debug.Log("<color=yellow>[Prehistoric TD]</color> Detected uncalibrated models, missing gameplay manager, or material shader issues. Auto-configuring now...");
                         FixAllModelScales(false);
                     }
                 }
             };
         }
 
-        [MenuItem("Tools/Prehistoric TD/Fix All Model Scales & Stand Upright (1-Click)", priority = 0)]
-        public static void MenuFixAllScales()
+        public static void RunDiagnosticsAndMaterialsFix()
+        {
+            try
+            {
+                // 1. Diagnostics on wooden__barricade_low.glb
+                System.Text.StringBuilder sbBar = new System.Text.StringBuilder();
+                sbBar.AppendLine("=== BARRICADE MODEL REPORT ===");
+                GameObject barGlb = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/wooden__barricade_low.glb");
+                if (barGlb != null)
+                {
+                    GameObject temp = (GameObject)PrefabUtility.InstantiatePrefab(barGlb);
+                    Transform[] allT = temp.GetComponentsInChildren<Transform>(true);
+                    foreach (Transform t in allT)
+                    {
+                        sbBar.AppendLine($"Child: '{t.name}' (parent: '{t.parent?.name}')");
+                        sbBar.AppendLine($"  pos: {t.localPosition}, rot: {t.localEulerAngles}, scale: {t.localScale}");
+                        if (t.TryGetComponent(out MeshFilter mf) && mf.sharedMesh != null)
+                        {
+                            sbBar.AppendLine($"  Mesh: '{mf.sharedMesh.name}' bounds size: {mf.sharedMesh.bounds.size}, center: {mf.sharedMesh.bounds.center}");
+                        }
+                        if (t.TryGetComponent(out Renderer rend))
+                        {
+                            sbBar.AppendLine($"  Renderer: bounds size: {rend.bounds.size}, center: {rend.bounds.center}");
+                            foreach (Material m in rend.sharedMaterials)
+                            {
+                                sbBar.AppendLine($"    Mat: {(m != null ? m.name : "NULL")}, Shader: {(m != null && m.shader != null ? m.shader.name : "NULL")}");
+                            }
+                        }
+                    }
+                    Bounds totalB = CalculateAccurateBounds(temp);
+                    sbBar.AppendLine($"TOTAL BOUNDS at identity: size={totalB.size}, center={totalB.center}, min={totalB.min}, max={totalB.max}");
+                    temp.transform.localRotation = Quaternion.Euler(-90f, 0, 0);
+                    Bounds totalRotB = CalculateAccurateBounds(temp);
+                    sbBar.AppendLine($"TOTAL BOUNDS at Euler(-90,0,0): size={totalRotB.size}, center={totalRotB.center}, min={totalRotB.min}, max={totalRotB.max}");
+                    DestroyImmediate(temp);
+                }
+                File.WriteAllText("Assets/barricade_model_info.txt", sbBar.ToString());
+
+                // 2. Diagnostics on Scene Village Layout
+                System.Text.StringBuilder sbVil = new System.Text.StringBuilder();
+                sbVil.AppendLine("=== VILLAGE LAYOUT REPORT ===");
+                Transform targetBase = RoundManager.Instance != null ? RoundManager.Instance.DinoTarget : null;
+                if (targetBase != null) sbVil.AppendLine($"RoundManager DinoTarget: '{targetBase.name}' at {targetBase.position}");
+                else sbVil.AppendLine("RoundManager DinoTarget: NULL");
+
+                GameObject[] roots = SceneManager.GetActiveScene().GetRootGameObjects();
+                foreach (GameObject r in roots)
+                {
+                    Renderer[] rRends = r.GetComponentsInChildren<Renderer>(true);
+                    if (rRends.Length > 0)
+                    {
+                        Bounds b = rRends[0].bounds;
+                        for (int i = 1; i < rRends.Length; i++) b.Encapsulate(rRends[i].bounds);
+                        sbVil.AppendLine($"Root '{r.name}': pos={r.transform.position}, bounds size={b.size}, center={b.center}, min={b.min}, max={b.max}");
+                    }
+                    else
+                    {
+                        sbVil.AppendLine($"Root '{r.name}': pos={r.transform.position}");
+                    }
+
+                    Transform[] children = r.GetComponentsInChildren<Transform>(true);
+                    foreach (Transform c in children)
+                    {
+                        string ln = c.name.ToLower();
+                        if (ln.Contains("tent") || ln.Contains("hut") || ln.Contains("house") || ln.Contains("fire") ||
+                            ln.Contains("platform") || ln.Contains("ramp") || ln.Contains("walk") || ln.Contains("catwalk") ||
+                            ln.Contains("bridge") || ln.Contains("wall") || ln.Contains("gate") || ln.Contains("tower") ||
+                            ln.Contains("target") || ln.Contains("base") || ln.Contains("village") || ln.Contains("palisade") ||
+                            ln.Contains("defense") || ln.Contains("prop") || ln.Contains("starter"))
+                        {
+                            Vector3 p = c.position;
+                            string bStr = "";
+                            if (c.TryGetComponent(out Renderer cr)) bStr = $" | bSize={cr.bounds.size}, bCenter={cr.bounds.center}";
+                            sbVil.AppendLine($"  Child '{c.name}' (parent: {c.parent?.name}) at {p}{bStr}");
+                        }
+                    }
+                }
+                File.WriteAllText("Assets/village_layout_report.txt", sbVil.ToString());
+
+                // 3. Scene Materials Report & Fix
+                System.Text.StringBuilder sbMat = new System.Text.StringBuilder();
+                sbMat.AppendLine("=== SCENE MATERIALS REPORT ===");
+                Material woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Prehistoric_Wood.mat");
+                Material pbMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/ProBuilder Default.mat");
+                Material fallbackMat = woodMat != null ? woodMat : pbMat;
+
+                Renderer[] allRends = Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None);
+                int replacedCount = 0;
+                foreach (Renderer rend in allRends)
+                {
+                    if (rend == null) continue;
+                    Material[] mats = rend.sharedMaterials;
+                    bool rendChanged = false;
+                    for (int i = 0; i < mats.Length; i++)
+                    {
+                        Material m = mats[i];
+                        bool isBroken = false;
+                        string reason = "";
+                        if (m == null) { isBroken = true; reason = "NULL material"; }
+                        else if (m.shader == null) { isBroken = true; reason = "NULL shader"; }
+                        else if (m.shader.name.Contains("InternalError")) { isBroken = true; reason = "Hidden/InternalErrorShader"; }
+                        else if (m.shader.name.StartsWith("Standard")) { isBroken = true; reason = "Standard shader in URP"; }
+                        else if (m.shader.name.Contains("Autodesk")) { isBroken = true; reason = "Autodesk shader"; }
+                        else if (m.name.Contains("standardSurface")) { isBroken = true; reason = "standardSurface material"; }
+
+                        if (isBroken)
+                        {
+                            sbMat.AppendLine($"FIXING: '{rend.gameObject.name}' (Path: {GetHierarchyPath(rend.transform)}) - Mat[{i}]: '{(m != null ? m.name : "NULL")}', Reason: {reason}");
+                            mats[i] = fallbackMat;
+                            rendChanged = true;
+                            replacedCount++;
+                        }
+                    }
+                    if (rendChanged)
+                    {
+                        rend.sharedMaterials = mats;
+                        EditorUtility.SetDirty(rend);
+                    }
+                }
+                sbMat.AppendLine($"Total materials fixed in scene: {replacedCount}");
+                File.WriteAllText("Assets/scene_materials_report.txt", sbMat.ToString());
+
+                if (replacedCount > 0)
+                {
+                    EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                    EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+                    AssetDatabase.SaveAssets();
+                }
+
+                Debug.Log($"<color=green>[Prehistoric TD]</color> Diagnostics & Materials Fix completed! Replaced {replacedCount} broken materials.");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[Prehistoric TD] Diagnostics error: {ex}");
+            }
+        }
+
+        private static string GetHierarchyPath(Transform t)
+        {
+            if (t == null) return "";
+            if (t.parent == null) return t.name;
+            return GetHierarchyPath(t.parent) + "/" + t.name;
+        }
+
+        [MenuItem("Tools/Prehistoric TD/Setup Everything & Complete Gameplay (1-Click)", priority = 0)]
+        public static void MenuSetupEverything()
         {
             FixAllModelScales(true);
         }
 
-        [MenuItem("Tools/Prehistoric TD/Setup Everything (1-Click)", priority = 1)]
-        public static void MenuSetupEverything()
+        [MenuItem("Tools/Prehistoric TD/Fix All Materials (URP Lit)", priority = 10)]
+        public static void MenuFixMaterials()
         {
-            FixAllModelScales(true);
+            FixAllMaterials();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+            EditorUtility.DisplayDialog("Vật Liệu Hoàn Tất", "Đã chuẩn hóa toàn bộ vật liệu sang Universal Render Pipeline/Lit (loại bỏ hoàn toàn lỗi màu hồng Hidden/InternalErrorShader)!", "Đóng");
+        }
+
+        [MenuItem("Tools/Prehistoric TD/Remove Village Perimeter Wall", priority = 11)]
+        public static void MenuRemovePerimeterWall()
+        {
+            RemoveVillagePerimeterWall();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+            EditorUtility.DisplayDialog("Đã Xóa Bờ Tường", "Đã xóa bỏ hoàn toàn hệ thống tường bao quanh ngôi làng theo yêu cầu!", "Đóng");
+        }
+
+        [MenuItem("Tools/Prehistoric TD/Recalibrate Dino Scales Only", priority = 12)]
+        public static void MenuRecalibrateDinos()
+        {
+            Dictionary<string, GameObject> prefabs = CreateAllPrefabs();
+            CreateTowerDataAssets(prefabs);
+            CreateDinoDataAssets(prefabs);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            EditorUtility.DisplayDialog("Kích Thước Khủng Long Hoàn Tất", "Đã tinh chỉnh tỉ lệ chuẩn xác cho cả 4 loài khủng long:\n• Velociraptor: Bầy đàn 1.6m\n• Pterodactyl: Bay lượn 2.6m\n• Ankylosaurus: Bọc thép công thành 5.0m\n• T-Rex Apex Boss: Khổng lồ 5.5m (cao) x 11.5m (dài)!", "Đóng");
         }
 
         public static void DiagnoseAllDinos()
@@ -215,10 +444,94 @@ namespace LlamAcademy.Dinos.Editor
             }
         }
 
+        public static void FixAllMaterials()
+        {
+            // 1. Fix ProBuilder Default.mat
+            Material pbMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/ProBuilder Default.mat");
+            if (pbMat != null)
+            {
+                Shader urpLit = Shader.Find("Universal Render Pipeline/Lit");
+                if (urpLit == null) urpLit = Shader.Find("Universal Render Pipeline/Simple Lit");
+                if (urpLit != null)
+                {
+                    pbMat.shader = urpLit;
+                    if (pbMat.HasProperty("_BaseColor")) pbMat.SetColor("_BaseColor", new Color(0.58f, 0.44f, 0.30f, 1f));
+                    if (pbMat.HasProperty("_Color")) pbMat.SetColor("_Color", new Color(0.58f, 0.44f, 0.30f, 1f));
+                    if (pbMat.HasProperty("_Smoothness")) pbMat.SetFloat("_Smoothness", 0.1f);
+                    EditorUtility.SetDirty(pbMat);
+                }
+            }
+
+            // 2. Scan all project materials for broken/missing shaders
+            string[] matGuids = AssetDatabase.FindAssets("t:Material");
+            int fixedCount = 0;
+            foreach (string guid in matGuids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (m != null && (m.shader == null || m.shader.name.Contains("InternalError") || m.shader.name.StartsWith("Standard") || m.shader.name.StartsWith("ProBuilder/")))
+                {
+                    Shader urpShader = Shader.Find("Universal Render Pipeline/Lit");
+                    if (urpShader != null)
+                    {
+                        m.shader = urpShader;
+                        EditorUtility.SetDirty(m);
+                        fixedCount++;
+                    }
+                }
+            }
+
+            // 3. Scan all scene renderers for broken materials
+            Material woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Prehistoric_Wood.mat");
+            Material targetReplacementMat = woodMat != null ? woodMat : pbMat;
+
+            Renderer[] renderers = Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None);
+            foreach (Renderer r in renderers)
+            {
+                if (r == null || r.sharedMaterials == null) continue;
+                Material[] mats = r.sharedMaterials;
+                bool changed = false;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    bool isBroken = false;
+                    if (mats[i] == null) isBroken = true;
+                    else if (mats[i].shader == null) isBroken = true;
+                    else if (mats[i].shader.name.Contains("InternalError")) isBroken = true;
+                    else if (mats[i].shader.name.StartsWith("Standard")) isBroken = true;
+                    else if (mats[i].shader.name.Contains("Autodesk")) isBroken = true;
+                    else if (mats[i].name.Contains("standardSurface")) isBroken = true;
+
+                    if (isBroken || r.gameObject.name.ToLower().Contains("tarpit") || r.transform.root.name.ToLower().Contains("tarpit"))
+                    {
+                        Material tarPitMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_TarPit.mat");
+                        if ((r.gameObject.name.ToLower().Contains("tarpit") || r.transform.root.name.ToLower().Contains("tarpit")) && tarPitMat != null)
+                        {
+                            mats[i] = tarPitMat;
+                            changed = true;
+                        }
+                        else if (targetReplacementMat != null)
+                        {
+                            mats[i] = targetReplacementMat;
+                            changed = true;
+                        }
+                    }
+                }
+                if (changed)
+                {
+                    r.sharedMaterials = mats;
+                    EditorUtility.SetDirty(r);
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log($"<color=green>[Prehistoric TD]</color> Fixed {fixedCount} materials with missing/URP shaders!");
+        }
+
         public static void FixAllModelScales(bool showDialog = true)
         {
             Debug.Log("<color=green>[Prehistoric TD]</color> Starting Universal 3D Model Scale & Upright Orientation Calibration...");
 
+            FixAllMaterials();
             DiagnoseAllDinos();
             EnsureDirectories();
             ReimportGLBModels();
@@ -229,6 +542,7 @@ namespace LlamAcademy.Dinos.Editor
 
             SetupSceneManagers(towerSOs, dinoSOs, prefabs);
             PlaceStarterDefenses(prefabs, towerSOs);
+            RemoveVillagePerimeterWall();
             SetupInGameHUD(towerSOs);
 
             AssetDatabase.SaveAssets();
@@ -237,24 +551,21 @@ namespace LlamAcademy.Dinos.Editor
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
 
-            Debug.Log("<color=green>[Prehistoric TD]</color> ALL 10 MODELS & PREFABS STOOD UPRIGHT & SCALED PERFECTLY!");
+            Debug.Log("<color=green>[Prehistoric TD]</color> ALL MODELS & COMPLETE GAMEPLAY LOOP CONFIGURED PERFECTLY!");
 
             if (showDialog)
             {
                 EditorUtility.DisplayDialog(
-                    "Đã Dựng Đứng & Chuẩn Hóa Tất Cả Mô Hình Khủng Long & Công Trình!",
-                    "Toàn bộ 10 mô hình 3D thời tiền sử đã được xoay đứng thẳng và tiếp đất chính xác:\n\n" +
-                    "• Khủng Long Velociraptor: Đứng thẳng trên 2 chân sau, dài 2.6m\n" +
-                    "• Khủng Long Ankylosaurus: Đứng vững 4 chân, giáp lưng hướng lên trời, dài 3.6m\n" +
-                    "• Boss T-Rex Khổng Lồ: Đứng thẳng hùng vĩ, cao/dài 6.5m\n" +
-                    "• Khủng Long Bay Pterodactyl: Bay lượn cân bằng, sải cánh 3.2m\n\n" +
-                    "• Chòi Cung Thủ Gỗ (Watchtower): Đứng thẳng uy nghi, cao 5.8m\n" +
-                    "• Cột Vật Tổ Sét (Shaman Totem): Dựng đứng, cao 4.2m\n" +
-                    "• Hố Chông Gai Gỗ (Spike Trap): Chông chĩa thẳng lên trời, rộng 2.4m x 2.4m\n" +
-                    "• Tháp Nỏ Bắn Lao (Ballista): Đứng vững trên 3 chân, rộng 2.5m, cao 2.0m\n" +
-                    "• Máy Bắn Đá Lửa (Catapult): Cần phóng hướng lên, dài 3.2m, cao 2.4m\n" +
-                    "• Rào Cọc Gỗ Cản Đường (Barricade): Cọc nhọn dựng đứng chắn đường, ngang 3.0m\n\n" +
-                    "Hỗ trợ 2 chế độ chơi độc lập: Thủ Thành (Tower Defense) & Khủng Long Tấn Công (Dino Assault) với menu đổi chế độ [⚙️ ĐỔI CHẾ ĐỘ] (Phím M / F1).",
+                    "Đã Cập Nhật Gameplay Hoàn Chỉnh & Xóa Bỏ Hàng Rào!",
+                    "Hoàn tất toàn bộ yêu cầu của bạn:\n\n" +
+                    "• ĐÃ XÓA BỎ HOÀN TOÀN HÀNG RÀO (Village Perimeter Wall) theo yêu cầu!\n" +
+                    "• VIẾT LẠI TOÀN BỘ GAMEPLAY HOÀN CHỈNH:\n" +
+                    "   - PrehistoricGameplayManager điều phối vòng lặp Thủ Thành hoàn hảo\n" +
+                    "   - Hệ thống Máu Làng (100 HP), hiển thị thanh máu trực quan\n" +
+                    "   - 10 Đợt khủng long có nhịp độ tăng dần (Raptor, Pterodactyl, Ankylosaurus & Apex Boss T-Rex)\n" +
+                    "   - Nút Bắt Đầu Đợt (Phím Space / Click) rõ ràng ở pha chuẩn bị\n" +
+                    "   - Thưởng vàng, nâng cấp & bảo toàn chiến thuật 7 loại tháp\n" +
+                    "   - Màn hình Thất Thủ (Game Over) & Khải Hoàn (Victory) đầy đủ nút Chơi Lại!",
                     "Tuyệt vời!");
             }
         }
@@ -352,7 +663,7 @@ namespace LlamAcademy.Dinos.Editor
                     if (!go.TryGetComponent(out GroundTrap _)) go.AddComponent<GroundTrap>();
                 });
 
-            // 7. Rào Cọc Gỗ Cản Đường (Barricade - Width across road 3.0m, Upright -90 deg X)
+            // 7. Rào Cọc Gỗ Cản Đường (Barricade - Width across road 3.0m along X, Upright -90 deg X, 0 deg Y)
             createdPrefabs["Barricade"] = CreateOrUpdatePrefab(
                 "Assets/wooden__barricade_low.glb",
                 $"{PREFAB_DIR}/Prefab_Barricade.prefab",
@@ -366,63 +677,76 @@ namespace LlamAcademy.Dinos.Editor
                         obs = go.AddComponent<NavMeshObstacle>();
                     }
                     obs.carving = true;
-                    obs.size = new Vector3(3.0f, 1.4f, 1.2f);
+                    obs.size = new Vector3(3.0f, 1.4f, 0.8f);
                     obs.center = new Vector3(0, 0.7f, 0);
-                    EnsureBoxCollider(go, new Vector3(3.0f, 1.4f, 1.2f), new Vector3(0, 0.7f, 0));
-                });
+                    EnsureBoxCollider(go, new Vector3(3.0f, 1.4f, 0.8f), new Vector3(0, 0.7f, 0));
 
-            // 8. Khủng Long Bay Pterodactyl (Wingspan 3.2m, Natural Upright Y-up)
+                    Material woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Prehistoric_Wood.mat");
+                    if (woodMat != null)
+                    {
+                        Renderer[] rList = go.GetComponentsInChildren<Renderer>(true);
+                        foreach (Renderer r in rList)
+                        {
+                            Material[] mats = new Material[r.sharedMaterials.Length];
+                            for (int mi = 0; mi < mats.Length; mi++) mats[mi] = woodMat;
+                            r.sharedMaterials = mats;
+                        }
+                    }
+                },
+                new Vector3(-90f, 0f, 0f));
+
+            // 8. Khủng Long Bay Pterodactyl (Wingspan 2.6m, Aerial threat)
             createdPrefabs["Pterodactyl"] = CreateOrUpdatePrefab(
                 "Assets/pterodactyl_1.glb",
                 $"{PREFAB_DIR}/Prefab_Pterodactyl.prefab",
-                3.2f,
-                DimensionMode.MaxExtent,
-                go =>
-                {
-                    if (!go.TryGetComponent(out FlyingUnit _)) go.AddComponent<FlyingUnit>();
-                    EnsureCapsuleCollider(go, 1.2f, 2.0f);
-                },
-                GetDinoRotation("Assets/pterodactyl_1.glb"));
-
-            // 9. Khủng Long Chạy Nhanh Velociraptor (Length 2.6m, Natural Upright Y-up)
-            createdPrefabs["Velociraptor"] = CreateOrUpdatePrefab(
-                "Assets/velociraptor.glb",
-                $"{PREFAB_DIR}/Prefab_Velociraptor.prefab",
                 2.6f,
                 DimensionMode.MaxExtent,
                 go =>
                 {
+                    if (!go.TryGetComponent(out FlyingUnit _)) go.AddComponent<FlyingUnit>();
+                    EnsureCapsuleCollider(go, 0.6f, 1.0f);
+                },
+                GetDinoRotation("Assets/pterodactyl_1.glb"));
+
+            // 9. Khủng Long Chạy Nhanh Velociraptor (Pack Runner: Length 1.6m, Height ~0.85m, nimble swarm)
+            createdPrefabs["Velociraptor"] = CreateOrUpdatePrefab(
+                "Assets/velociraptor.glb",
+                $"{PREFAB_DIR}/Prefab_Velociraptor.prefab",
+                1.6f,
+                DimensionMode.MaxExtent,
+                go =>
+                {
                     if (!go.TryGetComponent(out RunnerDino _)) go.AddComponent<RunnerDino>();
-                    EnsureCapsuleCollider(go, 0.8f, 1.8f);
-                    EnsureNavMeshAgent(go, 5.5f, 0.6f, 1.8f);
+                    EnsureCapsuleCollider(go, 0.4f, 1.0f);
+                    EnsureNavMeshAgent(go, 5.5f, 0.4f, 1.0f);
                 },
                 GetDinoRotation("Assets/velociraptor.glb"));
 
-            // 10. Khủng Long Công Thành Ankylosaurus (Length 3.6m, Natural Upright Y-up)
+            // 10. Khủng Long Công Thành Ankylosaurus (Siege Tank: Length 5.0m, Width ~2.1m, Height ~2.0m)
             createdPrefabs["Ankylosaurus"] = CreateOrUpdatePrefab(
                 "Assets/ankylosaurus_updated.glb",
                 $"{PREFAB_DIR}/Prefab_Ankylosaurus.prefab",
-                3.6f,
+                5.0f,
                 DimensionMode.MaxExtent,
                 go =>
                 {
                     if (!go.TryGetComponent(out SiegeDino _)) go.AddComponent<SiegeDino>();
-                    EnsureBoxCollider(go, new Vector3(2.2f, 1.8f, 3.6f), new Vector3(0, 0.9f, 0));
-                    EnsureNavMeshAgent(go, 2.4f, 1.0f, 1.8f);
+                    EnsureBoxCollider(go, new Vector3(2.2f, 2.0f, 5.0f), new Vector3(0, 1.0f, 0));
+                    EnsureNavMeshAgent(go, 2.2f, 1.1f, 2.0f);
                 },
                 GetDinoRotation("Assets/ankylosaurus_updated.glb"));
 
-            // 11. Boss T-Rex Khổng Lồ (Length/Height 6.5m, Natural Upright Y-up)
+            // 11. Boss T-Rex Khổng Lồ (Apex Boss: Towering Height 5.5m, Length ~11.5m, Width ~3.1m)
             createdPrefabs["TRexBoss"] = CreateOrUpdatePrefab(
                 "Assets/animated_t-rex_dinosaur_biting_attack_loop.glb",
                 $"{PREFAB_DIR}/Prefab_TRexBoss.prefab",
-                6.5f,
-                DimensionMode.MaxExtent,
+                5.5f,
+                DimensionMode.Height,
                 go =>
                 {
                     if (!go.TryGetComponent(out BossDino _)) go.AddComponent<BossDino>();
-                    EnsureCapsuleCollider(go, 2.0f, 5.5f);
-                    EnsureNavMeshAgent(go, 2.6f, 1.8f, 5.5f);
+                    EnsureCapsuleCollider(go, 1.8f, 5.5f);
+                    EnsureNavMeshAgent(go, 2.4f, 1.8f, 5.5f);
                 },
                 GetDinoRotation("Assets/animated_t-rex_dinosaur_biting_attack_loop.glb"));
 
@@ -778,7 +1102,11 @@ namespace LlamAcademy.Dinos.Editor
             Renderer rend = tarPit.GetComponent<Renderer>();
             if (rend != null)
             {
-                rend.material.color = new Color(0.08f, 0.08f, 0.09f, 0.95f);
+                Material tarMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_TarPit.mat");
+                if (tarMat != null)
+                {
+                    rend.sharedMaterial = tarMat;
+                }
             }
 
             if (!tarPit.TryGetComponent(out FrostTower _)) tarPit.AddComponent<FrostTower>();
@@ -898,6 +1226,23 @@ namespace LlamAcademy.Dinos.Editor
                 Undo.RegisterCreatedObjectUndo(managersRoot, "Create Systems Root");
             }
 
+            // 0. PrehistoricGameplayManager (Master Game Loop & Base Defense)
+            if (!managersRoot.TryGetComponent(out PrehistoricGameplayManager gameMgr))
+            {
+                gameMgr = managersRoot.AddComponent<PrehistoricGameplayManager>();
+            }
+
+            SerializedObject gameMgrSerialized = new SerializedObject(gameMgr);
+            if (prefabs.TryGetValue("Velociraptor", out GameObject pRap))
+                gameMgrSerialized.FindProperty("RaptorPrefab").objectReferenceValue = pRap;
+            if (prefabs.TryGetValue("Pterodactyl", out GameObject pPter))
+                gameMgrSerialized.FindProperty("PterodactylPrefab").objectReferenceValue = pPter;
+            if (prefabs.TryGetValue("Ankylosaurus", out GameObject pAnk))
+                gameMgrSerialized.FindProperty("AnkylosaurusPrefab").objectReferenceValue = pAnk;
+            if (prefabs.TryGetValue("TRexBoss", out GameObject pTRex))
+                gameMgrSerialized.FindProperty("TRexBossPrefab").objectReferenceValue = pTRex;
+            gameMgrSerialized.ApplyModifiedProperties();
+
             // 1. TowerPlacer
             if (!managersRoot.TryGetComponent(out TowerPlacer placer))
             {
@@ -1014,6 +1359,17 @@ namespace LlamAcademy.Dinos.Editor
             {
                 managersRoot.AddComponent<LlamAcademy.Dinos.AR.ARTabletopController>();
             }
+
+            // 10. HealthBarCanvas (World Space UI for units & walls)
+            var hbCanvas = FindFirstObjectByType<LlamAcademy.Dinos.Utility.HealthBarCanvas>();
+            if (hbCanvas == null)
+            {
+                GameObject canvasObj = new GameObject("HealthBarCanvas");
+                Canvas canvas = canvasObj.AddComponent<Canvas>();
+                canvas.renderMode = RenderMode.WorldSpace;
+                canvasObj.AddComponent<LlamAcademy.Dinos.Utility.HealthBarCanvas>();
+                Undo.RegisterCreatedObjectUndo(canvasObj, "Create HealthBarCanvas");
+            }
         }
 
         private static Transform[] SetupSpawnPoints()
@@ -1077,57 +1433,84 @@ namespace LlamAcademy.Dinos.Editor
             Transform targetBase = RoundManager.Instance != null ? RoundManager.Instance.DinoTarget : null;
             Vector3 basePos = targetBase != null ? targetBase.position : new Vector3(-2.23f, 0, -38.26f);
 
-            // 1. Place 2 Watchtowers guarding front left & right
-            if (prefabs.TryGetValue("Watchtower", out GameObject wt) && wt != null)
-            {
-                TowerSO wtSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Watchtower")) : null;
-                GameObject w1 = Instantiate(wt, basePos + new Vector3(-7f, 0, 11f), Quaternion.identity, defensesGroup.transform);
-                GameObject w2 = Instantiate(wt, basePos + new Vector3(7f, 0, 11f), Quaternion.identity, defensesGroup.transform);
-                if (wtSO != null)
-                {
-                    if (w1.TryGetComponent(out Unit.Unit u1)) u1.UnitType = wtSO;
-                    if (w2.TryGetComponent(out Unit.Unit u2)) u2.UnitType = wtSO;
-                }
-            }
-
-            // 2. Place 1 Catapult on high ground behind
+            // Starter Defenses positioned tactically at Fortress Gate Chokepoint (Gate line at Z = -11.0f)
+            // 1. Place 1 Catapult on high wooden platform overlooking the gate
             if (prefabs.TryGetValue("Catapult", out GameObject cat) && cat != null)
             {
                 TowerSO catSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Catapult")) : null;
-                GameObject c = Instantiate(cat, basePos + new Vector3(0, 0, 17f), Quaternion.identity, defensesGroup.transform);
+                Vector3 catPos = SnapToGround(new Vector3(-3.9f, 0, -14.7f), basePos.y);
+                GameObject c = Instantiate(cat, catPos, Quaternion.identity, defensesGroup.transform);
                 if (catSO != null && c.TryGetComponent(out Unit.Unit uc)) uc.UnitType = catSO;
             }
 
-            // 3. Place 1 Shaman Totem
+            // 2. Place 1 Shaman Totem inside gate on left flank
             if (prefabs.TryGetValue("ShamanTotem", out GameObject tot) && tot != null)
             {
                 TowerSO totSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("ShamanTotem")) : null;
-                GameObject t = Instantiate(tot, basePos + new Vector3(-4f, 0, 8f), Quaternion.identity, defensesGroup.transform);
+                Vector3 totPos = SnapToGround(new Vector3(-4.5f, 0, -13.0f), basePos.y);
+                GameObject t = Instantiate(tot, totPos, Quaternion.identity, defensesGroup.transform);
                 if (totSO != null && t.TryGetComponent(out Unit.Unit ut)) ut.UnitType = totSO;
             }
 
-            // 4. Place 2 Wooden Barricades forming a funnel chokepoint
-            if (prefabs.TryGetValue("Barricade", out GameObject bar) && bar != null)
+            // 3. Place 1 Watchtower overlooking gate on right flank
+            if (prefabs.TryGetValue("Watchtower", out GameObject wt) && wt != null)
             {
-                TowerSO barSO = towerSOs != null ? towerSOs.Find(t => t.IsWall) : null;
-                GameObject b1 = Instantiate(bar, basePos + new Vector3(-3.5f, 0, 12f), Quaternion.Euler(0, 25f, 0), defensesGroup.transform);
-                GameObject b2 = Instantiate(bar, basePos + new Vector3(3.5f, 0, 12f), Quaternion.Euler(0, -25f, 0), defensesGroup.transform);
-                if (barSO != null)
-                {
-                    if (b1.TryGetComponent(out Unit.Unit ub1)) ub1.UnitType = barSO;
-                    if (b2.TryGetComponent(out Unit.Unit ub2)) ub2.UnitType = barSO;
-                }
+                TowerSO wtSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("Watchtower")) : null;
+                Vector3 wtPos = SnapToGround(new Vector3(4.5f, 0, -14.7f), basePos.y);
+                GameObject w = Instantiate(wt, wtPos, Quaternion.identity, defensesGroup.transform);
+                if (wtSO != null && w.TryGetComponent(out Unit.Unit uw)) uw.UnitType = wtSO;
             }
 
-            // 5. Place 1 Spike Trap in the funnel bottleneck
+            // 4. Place 1 Spike Trap in the funnel bottleneck
             if (prefabs.TryGetValue("SpikeTrap", out GameObject st) && st != null)
             {
                 TowerSO stSO = towerSOs != null ? towerSOs.Find(t => t.name.Contains("SpikeTrap")) : null;
-                GameObject s = Instantiate(st, basePos + new Vector3(0, 0, 11f), Quaternion.identity, defensesGroup.transform);
+                Vector3 stPos = SnapToGround(new Vector3(-2.2f, 0, -8.5f), basePos.y);
+                GameObject s = Instantiate(st, stPos, Quaternion.identity, defensesGroup.transform);
                 if (stSO != null && s.TryGetComponent(out Unit.Unit us)) us.UnitType = stSO;
             }
 
-            Debug.Log("<color=cyan>[Prehistoric TD]</color> Placed Starter Defenses with proper scaling, upright orientation, and assigned UnitTypes!");
+            Debug.Log("<color=cyan>[Prehistoric TD]</color> Placed Starter Defenses guarding fortress gate chokepoint!");
+        }
+
+        public static void RemoveVillagePerimeterWall()
+        {
+            bool removed = false;
+            GameObject wallRoot = GameObject.Find("Village_Perimeter_Wall");
+            if (wallRoot != null)
+            {
+                DestroyImmediate(wallRoot);
+                removed = true;
+                Debug.Log("<color=green>[Prehistoric TD]</color> Successfully removed Village_Perimeter_Wall.");
+            }
+
+            // Clean up any remaining loose Palisade segments or broken barricades in the scene
+            GameObject[] roots = SceneManager.GetActiveScene().GetRootGameObjects();
+            foreach (GameObject obj in roots)
+            {
+                if (obj == null) continue;
+                string lower = obj.name.ToLower();
+                if (lower.Contains("perimeter_wall") || lower.Contains("palisade"))
+                {
+                    DestroyImmediate(obj);
+                    removed = true;
+                }
+            }
+
+            if (removed)
+            {
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+            }
+        }
+
+        private static Vector3 SnapToGround(Vector3 pos, float fallbackY = 0f)
+        {
+            if (Physics.Raycast(new Vector3(pos.x, 50f, pos.z), Vector3.down, out RaycastHit hit, 100f))
+            {
+                return hit.point;
+            }
+            return new Vector3(pos.x, fallbackY, pos.z);
         }
 
         private static void SetupInGameHUD(List<TowerSO> towerSOs)

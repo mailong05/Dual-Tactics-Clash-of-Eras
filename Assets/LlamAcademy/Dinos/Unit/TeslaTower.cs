@@ -51,7 +51,7 @@ namespace LlamAcademy.Dinos.Unit
             for (int i = 0; i < count; i++)
             {
                 if (OverlapBuffer[i] == null) continue;
-                if (OverlapBuffer[i].TryGetComponent(out Unit u) && (u is Wall || u is ArcherTower || u is BallistaTower || u is CatapultTower || u is TeslaTower || u is FrostTower || u is GroundTrap)) continue;
+                if (!IsHostileMonster(OverlapBuffer[i])) continue; // BẢO VỆ ĐỒNG MINH (Defenders, Wall, Player, Base)
                 float d = (OverlapBuffer[i].transform.position - transform.position).sqrMagnitude;
                 if (d < closestDist)
                 {
@@ -80,7 +80,7 @@ namespace LlamAcademy.Dinos.Unit
                 for (int j = 0; j < secondaryCount; j++)
                 {
                     if (OverlapBuffer[j] == null || hitEnemies.Contains(OverlapBuffer[j])) continue;
-                    if (OverlapBuffer[j].TryGetComponent(out Unit u) && (u is Wall || u is ArcherTower || u is BallistaTower || u is CatapultTower || u is TeslaTower || u is FrostTower || u is GroundTrap)) continue;
+                    if (!IsHostileMonster(OverlapBuffer[j])) continue; // BẢO VỆ ĐỒNG MINH
                     float d = (OverlapBuffer[j].transform.position - currentSource.transform.position).sqrMagnitude;
                     if (d < nextDist)
                     {

@@ -25,11 +25,23 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
-            // don't allow the agent to do stuff until we click go!
-            GraphAgent.enabled = false;
-            RoundManager.Instance.OnGameStateChange += InstanceOnOnGameStateChange;
-
-            SetDestination(transform.position);
+            if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running)
+            {
+                GraphAgent.enabled = true;
+                if (RoundManager.Instance.DinoTarget != null)
+                {
+                    SetDestination(RoundManager.Instance.DinoTarget.position);
+                }
+            }
+            else
+            {
+                GraphAgent.enabled = false;
+                SetDestination(transform.position);
+            }
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.OnGameStateChange += InstanceOnOnGameStateChange;
+            }
             GraphAgent.SetVariableValue(DinoGraphConstants.POST_ATTACK_COOLDOWN, UnitType.AttackConfig.PostAttackCooldown);
             if (ChainIKConstraint != null && GraphAgent.GetVariable(DinoGraphConstants.ATTACK_EVENT_CHANNEL, out BlackboardVariable<AttackEventChannel> attackEventChannelVariable))
             {

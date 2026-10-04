@@ -66,18 +66,20 @@ namespace LlamAcademy.Dinos.Unit
             for (int i = 0; i < count; i++)
             {
                 if (OverlapBuffer[i] == null) continue;
+                if (!IsHostileMonster(OverlapBuffer[i])) continue;
+
                 if (OverlapBuffer[i].TryGetComponent(out Unit enemyUnit))
                 {
-                    if (enemyUnit is Wall || enemyUnit is ArcherTower || enemyUnit is BallistaTower 
-                        || enemyUnit is CatapultTower || enemyUnit is TeslaTower || enemyUnit is FrostTower 
-                        || enemyUnit is GroundTrap) continue;
-
                     // Ballista prioritizes high-health armored targets or boss units
                     if (enemyUnit.Health > highestHp)
                     {
                         highestHp = enemyUnit.Health;
                         priorityTarget = OverlapBuffer[i];
                     }
+                }
+                else
+                {
+                    if (priorityTarget == null) priorityTarget = OverlapBuffer[i];
                 }
             }
 
@@ -147,7 +149,7 @@ namespace LlamAcademy.Dinos.Unit
                 RaycastHit[] hits = Physics.RaycastAll(spear.transform.position, direction, step, EnemyLayers);
                 foreach (RaycastHit hit in hits)
                 {
-                    if (hit.collider != null && !piercedTargets.Contains(hit.collider))
+                    if (hit.collider != null && !piercedTargets.Contains(hit.collider) && IsHostileMonster(hit.collider))
                     {
                         piercedTargets.Add(hit.collider);
                         if (hit.collider.TryGetComponent(out IDamageable damageable))

@@ -31,6 +31,9 @@ namespace LlamAcademy.Dinos.Unit
 
             if (TargetLayers.value != 0 && (TargetLayers.value & (1 << other.gameObject.layer)) == 0) return;
 
+            // BẢO VỆ ĐỒNG MINH (Defenders, Wall, Player, Base)
+            if (!IsHostileMonster(other)) return;
+
             if (other.TryGetComponent(out IDamageable damageable))
             {
                 TriggerTrap(damageable);

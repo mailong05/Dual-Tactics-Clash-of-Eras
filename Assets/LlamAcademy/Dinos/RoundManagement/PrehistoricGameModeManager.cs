@@ -49,12 +49,35 @@ namespace LlamAcademy.Dinos.RoundManagement
             ApplyModeConfiguration(_CurrentMode);
         }
 
+        public bool IsGameInProgress()
+        {
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            {
+                return PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase;
+            }
+            if (RoundManager.Instance != null)
+            {
+                return RoundManager.Instance.State == GameState.Running;
+            }
+            return false;
+        }
+
         private void Update()
         {
             // Hotkey 'M' or 'F1' to toggle Mode Select Menu
             if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame || Keyboard.current.f1Key.wasPressedThisFrame))
             {
-                ShowModeSelectModal = !ShowModeSelectModal;
+                if (IsGameInProgress())
+                {
+                    if (PrehistoricGameplayManager.Instance != null)
+                    {
+                        PrehistoricGameplayManager.Instance.ShowAnnouncement("⚠ ĐANG TRONG TRẬN CHIẾN! KHÔNG THỂ ĐỔI CHẾ ĐỘ!", 2.5f);
+                    }
+                }
+                else
+                {
+                    ShowModeSelectModal = !ShowModeSelectModal;
+                }
             }
 
             // In Dino Assault mode, handle hotkeys 1-4 for choosing dinos
@@ -76,6 +99,12 @@ namespace LlamAcademy.Dinos.RoundManagement
         private void ApplyModeConfiguration(PrehistoricGameMode mode)
         {
             // 1. Tower Defense Components
+            PrehistoricGameplayManager gameMgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
+            if (gameMgr != null)
+            {
+                gameMgr.enabled = (mode == PrehistoricGameMode.TowerDefense);
+            }
+
             TowerPlacer placer = TowerPlacer.Instance != null ? TowerPlacer.Instance : FindFirstObjectByType<TowerPlacer>();
             if (placer != null)
             {
@@ -111,7 +140,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
             if (enemyAI != null)
             {
-                enemyAI.enabled = (mode == PrehistoricGameMode.DinoAssault);
+                // Cho phép NPC Defender chiến đấu bảo vệ làng ở cả 2 chế độ!
+                enemyAI.enabled = true;
+                if (Application.isPlaying)
+                {
+                    enemyAI.EnsureDefendersAlive(4);
+                }
             }
 
             // 3. Battlefield Starter Defenses
@@ -188,10 +222,21 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUILayout.Label(modeText, GUILayout.Height(35));
 
-            GUI.backgroundColor = new Color(1f, 0.85f, 0.3f);
-            if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(130), GUILayout.Height(35)))
+            bool inCombat = IsGameInProgress();
+            if (inCombat)
             {
-                ShowModeSelectModal = !ShowModeSelectModal;
+                GUI.enabled = false;
+                GUI.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
+                GUILayout.Button("<b>[🔒 ĐANG CHIẾN ĐẤU]</b>", GUILayout.Width(145), GUILayout.Height(35));
+                GUI.enabled = true;
+            }
+            else
+            {
+                GUI.backgroundColor = new Color(1f, 0.85f, 0.3f);
+                if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(130), GUILayout.Height(35)))
+                {
+                    ShowModeSelectModal = !ShowModeSelectModal;
+                }
             }
             GUI.backgroundColor = Color.white;
 
@@ -328,6 +373,8 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawTowerDefenseStartRoundButton()
         {
+            if (PrehistoricGameplayManager.Instance != null) return;
+
             // Draw Next Wave button in Tower Defense mode if in setup state
             bool isSetupPhase = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup;
             if (isSetupPhase)

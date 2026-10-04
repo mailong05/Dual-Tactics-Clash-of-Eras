@@ -336,9 +336,90 @@ namespace LlamAcademy.Dinos.Enemy
         private void Defender_OnDeath(IDamageable damageable)
         {
             Defender defender = damageable.Transform.GetComponent<Defender>();
-            Defenders[defender.UnitType.Type].Remove(defender);
-            defender.OnDeath -= Defender_OnDeath;
-            OnDefenderDeath?.Invoke(defender);
+            if (defender != null && defender.UnitType != null && Defenders.ContainsKey(defender.UnitType.Type))
+            {
+                Defenders[defender.UnitType.Type].Remove(defender);
+            }
+            if (defender != null)
+            {
+                defender.OnDeath -= Defender_OnDeath;
+                OnDefenderDeath?.Invoke(defender);
+            }
+        }
+
+        public int TotalAliveDefenders
+        {
+            get
+            {
+                int count = 0;
+                foreach (var pair in Defenders)
+                {
+                    count += pair.Value.Count(d => d != null);
+                }
+                return count;
+            }
+        }
+
+        public void EnsureDefendersAlive(int minDefenders = 4)
+        {
+            if (ActiveConfig == null || ActiveConfig.Units == null || ActiveConfig.Units.Count == 0) return;
+            if (NavMeshManager.Instance == null || NavMeshManager.Instance.EnemyTriangulation.vertices == null) return;
+            if (NavMeshManager.Instance.EnemyTriangulation.vertices.Length < 2) return;
+
+            // Dọn dẹp các mục null
+            foreach (var pair in Defenders)
+            {
+                pair.Value.RemoveWhere(d => d == null);
+            }
+
+            int currentCount = TotalAliveDefenders;
+            if (currentCount < minDefenders)
+            {
+                int needed = minDefenders - currentCount;
+                Vector3[] vertices = NavMeshManager.Instance.EnemyTriangulation.vertices;
+
+                for (int i = 0; i < needed; i++)
+                {
+                    var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
+                    if (unitConfig.UnitSO == null || unitConfig.UnitSO.Prefab == null) continue;
+
+                    int index = Random.Range(1, vertices.Length);
+                    Vector3 spawnPos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
+
+                    Defender defender = Instantiate(
+                        unitConfig.UnitSO.Prefab,
+                        spawnPos,
+                        Quaternion.Euler(0, Random.Range(0, 360f), 0)
+                    ) as Defender;
+
+                    if (defender != null)
+                    {
+                        if (!Defenders.ContainsKey(unitConfig.UnitSO.Type))
+                        {
+                            Defenders[unitConfig.UnitSO.Type] = new HashSet<Defender>();
+                        }
+                        Defenders[unitConfig.UnitSO.Type].Add(defender);
+                        defender.OnDeath += Defender_OnDeath;
+                        OnSpawnDefender?.Invoke(defender);
+                        defender.Patrol(Waypoints);
+                    }
+                }
+            }
+        }
+
+        public void ClearAllDefenders()
+        {
+            foreach (var pair in Defenders)
+            {
+                foreach (Defender d in pair.Value)
+                {
+                    if (d != null)
+                    {
+                        Destroy(d.gameObject);
+                    }
+                }
+                pair.Value.Clear();
+            }
         }
 
         [System.Serializable]

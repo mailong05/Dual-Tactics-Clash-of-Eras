@@ -67,16 +67,13 @@ namespace LlamAcademy.Dinos.Unit
             for (int i = 0; i < count; i++)
             {
                 Collider col = OverlapBuffer[i];
-                if (col == null || !col.gameObject.activeInHierarchy) continue;
-                if (col.TryGetComponent(out Unit u) && (u is Wall || u is ArcherTower || u is BallistaTower || u is CatapultTower || u is TeslaTower || u is FrostTower || u is GroundTrap)) continue;
-                if (col.TryGetComponent(out IDamageable d) && d.Health > 0)
+                if (!IsHostileMonster(col)) continue;
+
+                float dist = (col.transform.position - transform.position).sqrMagnitude;
+                if (dist < closestDist)
                 {
-                    float dist = (col.transform.position - transform.position).sqrMagnitude;
-                    if (dist < closestDist)
-                    {
-                        closestDist = dist;
-                        bestTarget = col;
-                    }
+                    closestDist = dist;
+                    bestTarget = col;
                 }
             }
             return bestTarget;
@@ -128,7 +125,7 @@ namespace LlamAcademy.Dinos.Unit
 
                 if (t >= 1.0f || (target != null && Vector3.Distance(arrow.transform.position, currentTargetPos) < 0.6f))
                 {
-                    if (target != null && target.TryGetComponent(out IDamageable damageable))
+                    if (target != null && IsHostileMonster(target) && target.TryGetComponent(out IDamageable damageable))
                     {
                         damageable.TakeDamage(ArrowDamage);
                     }

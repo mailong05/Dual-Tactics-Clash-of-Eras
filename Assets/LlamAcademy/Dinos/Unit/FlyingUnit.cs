@@ -49,8 +49,13 @@ namespace LlamAcademy.Dinos.Unit
             transform.position = Vector3.MoveTowards(transform.position, targetDestination, FlightSpeed * Time.deltaTime);
 
             // Reached base
-            if (Vector3.Distance(transform.position, targetDestination) < 1.5f)
+            if (Vector3.Distance(transform.position, targetDestination) < 2.5f)
             {
+                if (PrehistoricGameplayManager.Instance != null)
+                {
+                    PrehistoricGameplayManager.Instance.OnDinoReachedBase(this, DamageToBase);
+                    return;
+                }
                 if (TargetBase.TryGetComponent(out IDamageable baseDamageable))
                 {
                     baseDamageable.TakeDamage(DamageToBase);
@@ -64,6 +69,10 @@ namespace LlamAcademy.Dinos.Unit
 
         public override void Die()
         {
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.HandleMonsterDeath(this);
+            }
             RaiseDeathEvent();
             Destroy(gameObject);
         }

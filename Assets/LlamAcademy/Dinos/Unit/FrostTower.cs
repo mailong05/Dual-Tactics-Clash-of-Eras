@@ -45,6 +45,7 @@ namespace LlamAcademy.Dinos.Unit
             for (int i = 0; i < count; i++)
             {
                 if (OverlapBuffer[i] == null) continue;
+                if (!IsHostileMonster(OverlapBuffer[i])) continue; // BẢO VỆ ĐỒNG MINH (Defenders, Walls, Player, Base)
 
                 if (OverlapBuffer[i].TryGetComponent(out IDamageable damageable))
                 {

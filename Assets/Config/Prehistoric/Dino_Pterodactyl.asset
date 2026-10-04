@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Config.DinoSO
   <Type>k__BackingField: 0
   <ArmorType>k__BackingField: {fileID: 0}
-  <Prefab>k__BackingField: {fileID: 8314073923860595559, guid: af4e6b48f6cbf69498f8beaf4ee87a01, type: 3}
+  <Prefab>k__BackingField: {fileID: 3662803354184797681, guid: af4e6b48f6cbf69498f8beaf4ee87a01, type: 3}
   <Health>k__BackingField: 120
   <HealthToCostRatio>k__BackingField: 0.2
   <AttackConfig>k__BackingField: {fileID: 0}

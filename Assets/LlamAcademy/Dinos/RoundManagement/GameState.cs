@@ -7,6 +7,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         Scoring,
         EnemyRepairs,
         Ending,
-        Ended
+        Ended,
+        GameOver,
+        Victory
     }
 }

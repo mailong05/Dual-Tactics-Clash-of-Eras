@@ -56,23 +56,26 @@ namespace LlamAcademy.Dinos.Player
         {
             if (newState == GameState.Running)
             {
-                StartCoroutine(FadeOut(SafeZone.GetComponent<Renderer>().material));
+                if (SafeZone != null && SafeZone.activeSelf && SafeZone.TryGetComponent(out Renderer r))
+                {
+                    StartCoroutine(FadeOut(r.material));
+                }
             }
         }
 
         private IEnumerator FadeIn(Material material)
         {
-            SafeZone.SetActive(true);
+            if (SafeZone != null) SafeZone.SetActive(true);
             float time = 0;
             int STRENGTH_PROPERTY = Shader.PropertyToID("_Strength");
             while (time < 1)
             {
-                material.SetFloat(STRENGTH_PROPERTY, time);
+                if (material != null) material.SetFloat(STRENGTH_PROPERTY, time);
                 time += Time.deltaTime * 4;
                 yield return null;
             }
 
-            material.SetFloat(STRENGTH_PROPERTY, 1);
+            if (material != null) material.SetFloat(STRENGTH_PROPERTY, 1);
         }
 
         private IEnumerator FadeOut(Material material)
@@ -81,20 +84,20 @@ namespace LlamAcademy.Dinos.Player
             int STRENGTH_PROPERTY = Shader.PropertyToID("_Strength");
             while (time > 0)
             {
-                material.SetFloat(STRENGTH_PROPERTY, time);
+                if (material != null) material.SetFloat(STRENGTH_PROPERTY, time);
                 time -= Time.deltaTime * 4;
                 yield return null;
             }
 
-            material.SetFloat(STRENGTH_PROPERTY, 0);
-            SafeZone.SetActive(false);
+            if (material != null) material.SetFloat(STRENGTH_PROPERTY, 0);
+            if (SafeZone != null) SafeZone.SetActive(false);
         }
 
         public void ChangeDino(DinoSO dinoSO)
         {
             foreach (GameObject go in Visualizations)
             {
-                Destroy(go.gameObject);
+                if (go != null) Destroy(go.gameObject);
             }
 
             Visualizations.Clear();
@@ -103,13 +106,16 @@ namespace LlamAcademy.Dinos.Player
 
             if (dinoSO == null)
             {
-                StartCoroutine(FadeOut(SafeZone.GetComponent<Renderer>().material));
+                if (SafeZone != null && SafeZone.activeSelf && SafeZone.TryGetComponent(out Renderer r))
+                {
+                    StartCoroutine(FadeOut(r.material));
+                }
                 return;
             }
 
-            if (!SafeZone.activeSelf)
+            if (SafeZone != null && !SafeZone.activeSelf && SafeZone.TryGetComponent(out Renderer safeR))
             {
-                StartCoroutine(FadeIn(SafeZone.GetComponent<Renderer>().material));
+                StartCoroutine(FadeIn(safeR.material));
             }
 
             for (int i = 0; i < Count; i++)

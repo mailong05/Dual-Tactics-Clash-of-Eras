@@ -1,4 +1,5 @@
 using LlamAcademy.Dinos.Enemy;
+using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.UI;
 using LlamAcademy.Dinos.Utility;
 using Unity.Behavior;
@@ -55,7 +56,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 HealthBar = GetComponentInChildren<HealthBar>();
             }
-            if (HealthBar != null)
+            if (HealthBar != null && HealthBarCanvas.Instance != null)
             {
                 HealthBarCanvas.Instance.Register(HealthBar, this);
             }
@@ -120,5 +121,48 @@ namespace LlamAcademy.Dinos.Unit
         protected void RaiseDamageEvent(int damage) => OnTakeDamage?.Invoke(this, damage);
         protected void RaiseDeathEvent() => OnDeath?.Invoke(this);
 
+        /// <summary>
+        /// Bộ lọc mục tiêu chuẩn xác 100% giúp các tháp và bẫy KHÔNG BAO GIỜ bắn nhầm đồng minh (Friendly Fire).
+        /// Loại trừ: Defender (lính NPC làng), Wall, Mọi loại tháp, Căn cứ/Trứng, Player.
+        /// Chỉ chấp nhận: Khủng long / Quái vật thù địch còn sống.
+        /// </summary>
+        public static bool IsHostileMonster(Collider col)
+        {
+            if (col == null || !col.gameObject.activeInHierarchy) return false;
+
+            // 1. LOẠI TRỪ 100% CÁC ĐỒNG MINH VÀ CÔNG TRÌNH PHE PHÒNG THỦ:
+            if (col.GetComponentInParent<Defender>() != null || col.GetComponent<Defender>() != null) return false;
+            if (col.GetComponentInParent<Wall>() != null || col.GetComponent<Wall>() != null) return false;
+            if (col.GetComponentInParent<ArcherTower>() != null || col.GetComponent<ArcherTower>() != null) return false;
+            if (col.GetComponentInParent<BallistaTower>() != null || col.GetComponent<BallistaTower>() != null) return false;
+            if (col.GetComponentInParent<CatapultTower>() != null || col.GetComponent<CatapultTower>() != null) return false;
+            if (col.GetComponentInParent<TeslaTower>() != null || col.GetComponent<TeslaTower>() != null) return false;
+            if (col.GetComponentInParent<FrostTower>() != null || col.GetComponent<FrostTower>() != null) return false;
+            if (col.GetComponentInParent<GroundTrap>() != null || col.GetComponent<GroundTrap>() != null) return false;
+
+            // Loại trừ Người chơi và Căn cứ/Trứng
+            if (col.CompareTag("Player") || col.name.Contains("Egg") || col.name.Contains("Base")) return false;
+
+            // Kiểm tra IDamageable còn máu
+            IDamageable d = col.GetComponent<IDamageable>() ?? col.GetComponentInParent<IDamageable>();
+            if (d == null || d.Health <= 0) return false;
+
+            // 2. XÁC NHẬN MỤC TIÊU LÀ KHỦNG LONG / QUÁI VẬT:
+            if (col.GetComponentInParent<PrehistoricDinoBase>() != null || col.GetComponent<PrehistoricDinoBase>() != null) return true;
+            if (col.GetComponentInParent<Dino>() != null || col.GetComponent<Dino>() != null) return true;
+            if (col.GetComponentInParent<RunnerDino>() != null || col.GetComponent<RunnerDino>() != null) return true;
+            if (col.GetComponentInParent<FlyingUnit>() != null || col.GetComponent<FlyingUnit>() != null) return true;
+            if (col.GetComponentInParent<SiegeDino>() != null || col.GetComponent<SiegeDino>() != null) return true;
+            if (col.GetComponentInParent<BossDino>() != null || col.GetComponent<BossDino>() != null) return true;
+
+            // Kiểm tra theo danh sách quái đang hoạt động
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                Unit u = col.GetComponent<Unit>() ?? col.GetComponentInParent<Unit>();
+                if (u != null && PrehistoricGameplayManager.Instance.IsActiveMonster(u)) return true;
+            }
+
+            return false;
+        }
     }
 }

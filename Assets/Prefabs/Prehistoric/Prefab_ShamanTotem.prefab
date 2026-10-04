@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &3551768507051562438
+--- !u!1 &4817446411579019670
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 6158928049620226145}
-  - component: {fileID: 6967347801406373980}
-  - component: {fileID: 4270721446837516054}
+  - component: {fileID: 575813466097644086}
+  - component: {fileID: 8461378451732794501}
+  - component: {fileID: 8583864807045426176}
   m_Layer: 0
   m_Name: Prefab_ShamanTotem
   m_TagString: Untagged
@@ -18,30 +18,30 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &6158928049620226145
+--- !u!4 &575813466097644086
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3551768507051562438}
+  m_GameObject: {fileID: 4817446411579019670}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 4956436323107152207}
-  - {fileID: 9127856481034922512}
+  - {fileID: 1082275239791883286}
+  - {fileID: 950675332396444748}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &6967347801406373980
+--- !u!114 &8461378451732794501
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3551768507051562438}
+  m_GameObject: {fileID: 4817446411579019670}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 41353449f8572f843b5916d55ab45833, type: 3}
@@ -49,7 +49,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Unit.TeslaTower
   <MaxHealth>k__BackingField: 0
   <Health>k__BackingField: 0
-  <UnitType>k__BackingField: {fileID: 0}
+  <UnitType>k__BackingField: {fileID: 11400000, guid: decd106bb1676a34ea21069d7775c238, type: 2}
   AttackRadius: {fileID: 0}
   HealthBar: {fileID: 0}
   AttackRange: 9
@@ -62,13 +62,13 @@ MonoBehaviour:
     m_Bits: 0
   LightningLinePrefab: {fileID: 0}
   FirePoint: {fileID: 0}
---- !u!65 &4270721446837516054
+--- !u!65 &8583864807045426176
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3551768507051562438}
+  m_GameObject: {fileID: 4817446411579019670}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -83,7 +83,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.6, y: 4.2, z: 1.6}
   m_Center: {x: 0, y: 2.1, z: 0}
---- !u!1 &7144184877174266579
+--- !u!1 &6453520883457436368
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -91,7 +91,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 9127856481034922512}
+  - component: {fileID: 950675332396444748}
   m_Layer: 0
   m_Name: FirePoint
   m_TagString: Untagged
@@ -99,28 +99,28 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &9127856481034922512
+--- !u!4 &950675332396444748
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7144184877174266579}
+  m_GameObject: {fileID: 6453520883457436368}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 3.9, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 6158928049620226145}
+  m_Father: {fileID: 575813466097644086}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &7082137081811547839
+--- !u!1001 &2991798819532071910
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6158928049620226145}
+    m_TransformParent: {fileID: 575813466097644086}
     m_Modifications:
     - target: {fileID: -6689036041284674117, guid: 1a3a1041dd4be2a469f17bb21827b158, type: 3}
       propertyPath: m_Name
@@ -183,8 +183,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 1a3a1041dd4be2a469f17bb21827b158, type: 3}
---- !u!4 &4956436323107152207 stripped
+--- !u!4 &1082275239791883286 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2774220344278030320, guid: 1a3a1041dd4be2a469f17bb21827b158, type: 3}
-  m_PrefabInstance: {fileID: 7082137081811547839}
+  m_PrefabInstance: {fileID: 2991798819532071910}
   m_PrefabAsset: {fileID: 0}
