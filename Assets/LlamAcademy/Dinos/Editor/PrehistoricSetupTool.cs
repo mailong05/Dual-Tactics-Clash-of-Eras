@@ -1431,14 +1431,57 @@ namespace LlamAcademy.Dinos.Editor
             }
 
             // 10. HealthBarCanvas (World Space UI for units & walls)
-            var hbCanvas = FindFirstObjectByType<LlamAcademy.Dinos.Utility.HealthBarCanvas>();
+            var allHbCanvases = Object.FindObjectsByType<LlamAcademy.Dinos.Utility.HealthBarCanvas>();
+            LlamAcademy.Dinos.Utility.HealthBarCanvas hbCanvas = null;
+
+            foreach (var hbc in allHbCanvases)
+            {
+                if (hbc.gameObject.name == "HealthBarCanvas")
+                {
+                    if (hbCanvas == null) hbCanvas = hbc;
+                    else DestroyImmediate(hbc);
+                }
+                else
+                {
+                    // Gỡ component HealthBarCanvas khỏi các GameObject khác (như Health Bar Canvas cũ)
+                    DestroyImmediate(hbc);
+                }
+            }
+
             if (hbCanvas == null)
             {
                 GameObject canvasObj = new GameObject("HealthBarCanvas");
                 Canvas canvas = canvasObj.AddComponent<Canvas>();
                 canvas.renderMode = RenderMode.WorldSpace;
-                canvasObj.AddComponent<LlamAcademy.Dinos.Utility.HealthBarCanvas>();
+                canvas.worldCamera = null;
+                canvas.overrideSorting = true;
+                canvas.sortingOrder = 500;
+                hbCanvas = canvasObj.AddComponent<LlamAcademy.Dinos.Utility.HealthBarCanvas>();
                 Undo.RegisterCreatedObjectUndo(canvasObj, "Create HealthBarCanvas");
+            }
+            else
+            {
+                Canvas canvas = hbCanvas.GetComponent<Canvas>();
+                if (canvas != null)
+                {
+                    canvas.renderMode = RenderMode.WorldSpace;
+                    canvas.worldCamera = null;
+                    canvas.overrideSorting = true;
+                    canvas.sortingOrder = 500;
+                }
+            }
+
+            // Gán reference HealthBarPrefab chuẩn xác vào HealthBarCanvas
+            var hbPrefab = AssetDatabase.LoadAssetAtPath<LlamAcademy.Dinos.UI.HealthBar>("Assets/Resources/Health Bar.prefab");
+            if (hbPrefab != null && hbCanvas != null)
+            {
+                var so = new SerializedObject(hbCanvas);
+                var prop = so.FindProperty("HealthBarPrefab");
+                if (prop != null)
+                {
+                    prop.objectReferenceValue = hbPrefab;
+                    so.ApplyModifiedProperties();
+                }
             }
         }
 

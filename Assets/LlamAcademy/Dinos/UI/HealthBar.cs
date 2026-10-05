@@ -52,6 +52,7 @@ namespace LlamAcademy.Dinos.UI
             if (NameLabel != null) return;
 
             GameObject labelObj = new GameObject("UnitNameLabel");
+            labelObj.layer = gameObject.layer;
             labelObj.transform.SetParent(transform, false);
 
             CanvasRenderer cr = labelObj.AddComponent<CanvasRenderer>();
@@ -65,11 +66,11 @@ namespace LlamAcademy.Dinos.UI
             if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             if (font == null)
             {
-                try { font = Font.CreateDynamicFontFromOSFont(new[] { "Arial", "Segoe UI", "Tahoma" }, 24); } catch { }
+                try { font = Font.CreateDynamicFontFromOSFont(new[] { "Arial", "Segoe UI", "Tahoma" }, 28); } catch { }
             }
             if (font != null) NameLabel.font = font;
 
-            NameLabel.fontSize = 24;
+            NameLabel.fontSize = 28;
             NameLabel.fontStyle = FontStyle.Bold;
             NameLabel.alignment = TextAnchor.MiddleCenter;
             NameLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -80,16 +81,16 @@ namespace LlamAcademy.Dinos.UI
             // Đổ bóng và viền chữ đen đậm nét giúp đọc rõ từ mọi góc nhìn 3D
             Outline outline = labelObj.AddComponent<Outline>();
             outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
-            outline.effectDistance = new Vector2(1.5f, -1.5f);
+            outline.effectDistance = new Vector2(2f, -2f);
 
-            // Căn chỉnh vị trí chữ nổi lên trên thanh máu chuẩn xác
+            // Căn chỉnh vị trí chữ nổi lên trên thanh máu chuẩn xác, to rõ từ mọi góc nhìn camera
             RectTransform rect = labelObj.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(400f, 60f);
-            rect.anchoredPosition = new Vector2(0f, 1.4f);
-            rect.localScale = new Vector3(0.007f, 0.007f, 1f);
+            rect.sizeDelta = new Vector2(600f, 100f);
+            rect.anchoredPosition = new Vector2(0f, 1.8f);
+            rect.localScale = new Vector3(0.015f, 0.015f, 1f);
         }
 
         public void SetProgress(float progress)

@@ -39,26 +39,44 @@ namespace LlamAcademy.Dinos.Utility
         {
             if (_Instance != null && _Instance != this)
             {
-                Debug.LogWarning($"Multiple Health Bar Canvases in scene! Destroying duplicate ({name})!");
-                Destroy(gameObject);
+                Debug.LogWarning($"Duplicate HealthBarCanvas component on ({name})! Removing duplicate component.");
+                Destroy(this);
                 return;
             }
 
             _Instance = this;
             _canvas = GetComponent<Canvas>();
-            if (_canvas != null && _canvas.worldCamera == null)
+            if (_canvas != null)
             {
-                _canvas.worldCamera = Camera.main;
+                _canvas.renderMode = RenderMode.WorldSpace;
+                _canvas.worldCamera = null; // Trong URP, KHÔNG gán worldCamera để tránh Canvas bounding box bị frustum culling
+                _canvas.overrideSorting = true;
+                _canvas.sortingOrder = 500; // Đảm bảo luôn vẽ nổi trên địa hình và khủng long
+            }
+
+            if (HealthBarPrefab == null)
+            {
+                GameObject prefabObj = Resources.Load<GameObject>("Health Bar");
+                if (prefabObj != null)
+                {
+                    HealthBarPrefab = prefabObj.GetComponent<HealthBar>();
+                }
+#if UNITY_EDITOR
+                if (HealthBarPrefab == null)
+                {
+                    HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/Resources/Health Bar.prefab");
+                    if (HealthBarPrefab == null)
+                    {
+                        HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/LlamAcademy/Dinos/Prefabs/Health Bar.prefab");
+                    }
+                }
+#endif
             }
         }
 
-        private void Update()
+        private void LateUpdate()
         {
             Camera cam = Camera.main;
-            if (_canvas != null && _canvas.worldCamera == null && cam != null)
-            {
-                _canvas.worldCamera = cam;
-            }
             Quaternion camRot = cam != null ? cam.transform.rotation : Quaternion.identity;
 
             bool missedCleaningAUnit = false;
@@ -84,10 +102,10 @@ namespace LlamAcademy.Dinos.Utility
 
             if (missedCleaningAUnit)
             {
-                IEnumerable<KeyValuePair<Unit.Unit, HealthBar>> keyValuePairs = HealthBars.Where((kvp) => kvp.Key == null).ToArray();
-                for (int i = keyValuePairs.Count() - 1; i >= 0; i--)
+                var deadPairs = HealthBars.Where(kvp => kvp.Key == null).ToArray();
+                for (int i = deadPairs.Length - 1; i >= 0; i--)
                 {
-                    var kvp = keyValuePairs.ElementAt(i);
+                    var kvp = deadPairs[i];
                     if (kvp.Value != null && kvp.Value.gameObject != null)
                     {
                         Destroy(kvp.Value.gameObject);
@@ -104,6 +122,12 @@ namespace LlamAcademy.Dinos.Utility
         {
             if (unit == null) return null;
 
+            if (HealthBars.TryGetValue(unit, out HealthBar existingHb) && existingHb != null)
+            {
+                existingHb.gameObject.SetActive(true);
+                return existingHb;
+            }
+
             if (HealthBarPrefab == null)
             {
                 GameObject prefabObj = Resources.Load<GameObject>("Health Bar");
@@ -114,7 +138,11 @@ namespace LlamAcademy.Dinos.Utility
 #if UNITY_EDITOR
                 if (HealthBarPrefab == null)
                 {
-                    HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/LlamAcademy/Dinos/Prefabs/Health Bar.prefab");
+                    HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/Resources/Health Bar.prefab");
+                    if (HealthBarPrefab == null)
+                    {
+                        HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/LlamAcademy/Dinos/Prefabs/Health Bar.prefab");
+                    }
                 }
 #endif
             }
@@ -123,6 +151,7 @@ namespace LlamAcademy.Dinos.Utility
 
             HealthBar hb = Instantiate(HealthBarPrefab, transform);
             hb.name = $"HealthBar_{unit.gameObject.name}";
+            hb.gameObject.SetActive(true);
             hb.transform.localScale = Vector3.one;
 
             // Tự động căn độ cao hiển thị thanh máu chuẩn xác theo kích thước từng loài khủng long
@@ -130,7 +159,7 @@ namespace LlamAcademy.Dinos.Utility
             string unitNameLower = unit.gameObject.name.ToLower();
             if (unitNameLower.Contains("trex") || unitNameLower.Contains("t-rex"))
             {
-                height = 6.2f;
+                height = 5.8f;
             }
             else if (unitNameLower.Contains("ankyl"))
             {
@@ -138,11 +167,11 @@ namespace LlamAcademy.Dinos.Utility
             }
             else if (unitNameLower.Contains("ptero"))
             {
-                height = 2.0f;
+                height = 3.2f;
             }
             else if (unitNameLower.Contains("raptor"))
             {
-                height = 1.8f;
+                height = 2.0f;
             }
             else if (unit is PrehistoricVillageBase || unitNameLower.Contains("base") || unitNameLower.Contains("egg"))
             {
@@ -165,6 +194,10 @@ namespace LlamAcademy.Dinos.Utility
 
             if (HealthBars.ContainsKey(unit))
             {
+                if (HealthBars[unit] != healthBar && HealthBars[unit] != null)
+                {
+                    Destroy(HealthBars[unit].gameObject);
+                }
                 HealthBars[unit] = healthBar;
             }
             else
@@ -172,6 +205,7 @@ namespace LlamAcademy.Dinos.Utility
                 HealthBars.Add(unit, healthBar);
             }
 
+            healthBar.gameObject.SetActive(true);
             healthBar.transform.SetParent(transform);
             healthBar.transform.localScale = Vector3.one;
             healthBar.transform.localRotation = Quaternion.identity;

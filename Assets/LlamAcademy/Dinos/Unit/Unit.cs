@@ -52,13 +52,13 @@ namespace LlamAcademy.Dinos.Unit
                 AttackRadius.OnTargetExit += OnTargetExit;
             }
 
-            EnsureHealthBarAttached();
-
             if (UnitType != null)
             {
                 MaxHealth = UnitType.Health;
                 Health = UnitType.Health;
             }
+
+            EnsureHealthBarAttached();
         }
 
         public virtual void EnsureHealthBarAttached()
