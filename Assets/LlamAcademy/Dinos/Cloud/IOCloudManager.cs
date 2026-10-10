@@ -184,7 +184,7 @@ namespace LlamAcademy.Dinos.Cloud
                 mode = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.CurrentMode.ToString() : "TowerDefense"
             };
 
-            using (UnityWebRequest req = new UnityWebRequest(url, "POST"))
+                using (UnityWebRequest req = new UnityWebRequest(url, "POST"))
             {
                 byte[] body = Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload));
                 req.uploadHandler = new UploadHandlerRaw(body);
@@ -193,6 +193,92 @@ namespace LlamAcademy.Dinos.Cloud
                 req.timeout = 3;
                 yield return req.SendWebRequest();
             }
+        }
+
+        [Header("Cloud HUD Status")]
+        [SerializeField] private bool ShowCloudBadge = true;
+
+        private void OnGUI()
+        {
+            if (!ShowCloudBadge) return;
+
+            float width = 360f;
+            float height = string.IsNullOrEmpty(LastTacticalRationale) || LastTacticalRationale.Contains("standby") ? 44f : 66f;
+            float x = (Screen.width - width) / 2f;
+            float y = 10f;
+
+            GUI.color = new Color(0.06f, 0.12f, 0.18f, 0.90f);
+            GUI.Box(new Rect(x, y, width, height), GUIContent.none);
+            GUI.color = Color.white;
+
+            GUILayout.BeginArea(new Rect(x + 8f, y + 4f, width - 16f, height - 8f));
+            GUILayout.BeginHorizontal();
+
+            string statusColor = IsCloudConnected ? "#00FFAA" : "#FFB84D";
+            string statusText = IsCloudConnected ? "ONLINE (Docker :8000)" : "STANDBY (Heuristic Prior)";
+            GUILayout.Label($"<b>☁ IO CLOUD:</b> <color={statusColor}>{statusText}</color>", GetCloudStatusStyle());
+
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button(IsCloudConnected ? "Ping ✓" : "Connect", GUILayout.Width(62), GUILayout.Height(18)))
+            {
+                StartCoroutine(CheckCloudLiveness());
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label($"<b>🧠 AI DIRECTOR:</b> PrehistoricTacticsNet (PyTorch DL)", GetCloudSubStyle());
+
+            if (!string.IsNullOrEmpty(LastTacticalRationale) && !LastTacticalRationale.Contains("standby"))
+            {
+                GUILayout.Label($"<i>\"{LastTacticalRationale}\"</i>", GetCloudRationaleStyle());
+            }
+
+            GUILayout.EndArea();
+        }
+
+        private GUIStyle _cloudStatusStyle;
+        private GUIStyle GetCloudStatusStyle()
+        {
+            if (_cloudStatusStyle == null)
+            {
+                _cloudStatusStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 11,
+                    richText = true,
+                    normal = { textColor = Color.white }
+                };
+            }
+            return _cloudStatusStyle;
+        }
+
+        private GUIStyle _cloudSubStyle;
+        private GUIStyle GetCloudSubStyle()
+        {
+            if (_cloudSubStyle == null)
+            {
+                _cloudSubStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 10,
+                    richText = true,
+                    normal = { textColor = new Color(0.7f, 0.9f, 1f) }
+                };
+            }
+            return _cloudSubStyle;
+        }
+
+        private GUIStyle _cloudRationaleStyle;
+        private GUIStyle GetCloudRationaleStyle()
+        {
+            if (_cloudRationaleStyle == null)
+            {
+                _cloudRationaleStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 9,
+                    wordWrap = true,
+                    richText = true,
+                    normal = { textColor = new Color(1f, 0.85f, 0.4f) }
+                };
+            }
+            return _cloudRationaleStyle;
         }
     }
 

@@ -83,10 +83,21 @@ class TacticalAIDirector:
     def __init__(self):
         self.device = "cuda" if HAS_TORCH and torch.cuda.is_available() else "cpu"
         self.model = None
+        self.checkpoint_loaded = False
         if HAS_TORCH:
             self.model = PrehistoricTacticsNet(input_dim=12, hidden_dim=64).to(self.device)
+            pth_path = os.path.join(os.path.dirname(__file__), "data", "tactics_model.pth")
+            if os.path.exists(pth_path):
+                try:
+                    self.model.load_state_dict(torch.load(pth_path, map_location=self.device))
+                    self.checkpoint_loaded = True
+                    print(f"[*] Successfully loaded trained PrehistoricTacticsNet checkpoint from {pth_path}")
+                except Exception as e:
+                    print(f"[-] Failed to load checkpoint {pth_path}: {e}. Initializing priors...")
+                    self._init_tactical_weights()
+            else:
+                self._init_tactical_weights()
             self.model.eval()
-            self._init_tactical_weights()
 
     def _init_tactical_weights(self):
         """Initializes weights with pre-trained heuristic game balance priors"""

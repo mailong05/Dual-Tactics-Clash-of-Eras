@@ -93,6 +93,7 @@ def health_check():
         "status": "healthy",
         "timestamp": time.time(),
         "model_loaded": True,
+        "checkpoint_loaded": getattr(ai_director, "checkpoint_loaded", False),
         "device": ai_director.device
     }
 

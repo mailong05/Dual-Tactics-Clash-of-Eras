@@ -276,6 +276,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             ShowAnnouncement($"⚔ ĐỢT {waveIndex} BẮT ĐẦU! {TotalMonstersInWave} KHỦNG LONG ĐANG TẤN CÔNG! ⚔", 3.0f);
             Debug.Log($"<color=orange>[Prehistoric TD]</color> Starting Wave {waveIndex} with {TotalMonstersInWave} dinos!");
 
+            // Send telemetry & query Deep Learning AI Director if connected to IO Cloud
+            if (LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.IsCloudConnected)
+            {
+                LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.RequestDeepLearningWave(waveIndex);
+            }
+
             yield return new WaitForSeconds(1.0f);
 
             for (int i = 0; i < spawnQueue.Count; i++)
