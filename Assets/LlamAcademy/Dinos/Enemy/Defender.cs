@@ -162,28 +162,7 @@ namespace LlamAcademy.Dinos.Enemy
 
         private static Material CreateSafeWeaponMaterial(Color color, float smoothness = 0.2f)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Simple Lit");
-            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
-
-            Material mat;
-            if (shader != null)
-            {
-                mat = new Material(shader);
-            }
-            else
-            {
-                GameObject tempPrimitive = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                Material defaultMat = tempPrimitive.GetComponent<Renderer>().sharedMaterial;
-                DestroyImmediate(tempPrimitive);
-                mat = defaultMat != null ? new Material(defaultMat) : new Material(Shader.Find("Sprites/Default"));
-            }
-
-            mat.color = color;
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
-            if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
-            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
-            return mat;
+            return LlamAcademy.Dinos.Rendering.PrehistoricShaderUtility.CreateSafeMaterial(color, smoothness);
         }
 
         private GameObject CreateBowVisual()

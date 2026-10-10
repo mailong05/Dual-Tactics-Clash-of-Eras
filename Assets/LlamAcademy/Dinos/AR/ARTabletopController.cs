@@ -150,8 +150,7 @@ namespace LlamAcademy.Dinos.AR
             plane.transform.localScale = new Vector3(12f, 1f, 12f);
 
             // Translucent holographic cyan material
-            Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color"));
-            mat.color = new Color(0.1f, 0.6f, 0.95f, 0.25f);
+            Material mat = LlamAcademy.Dinos.Rendering.PrehistoricShaderUtility.CreateUnlitMaterial(new Color(0.1f, 0.6f, 0.95f, 0.25f));
             Renderer r = plane.GetComponent<Renderer>();
             if (r != null) r.material = mat;
 

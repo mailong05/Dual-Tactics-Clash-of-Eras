@@ -126,7 +126,7 @@ namespace LlamAcademy.Dinos.Unit
                 line = lineObj.AddComponent<LineRenderer>();
                 line.startWidth = 0.15f;
                 line.endWidth = 0.05f;
-                line.material = new Material(Shader.Find("Sprites/Default"));
+                line.material = LlamAcademy.Dinos.Rendering.PrehistoricShaderUtility.CreateLineMaterial(Color.cyan);
                 line.startColor = Color.cyan;
                 line.endColor = Color.white;
             }

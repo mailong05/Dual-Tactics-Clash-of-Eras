@@ -56,8 +56,7 @@ namespace LlamAcademy.Dinos.Player
             FootprintIndicator.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             FootprintIndicator.receiveShadows = false;
 
-            Shader unlit = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-            if (unlit != null) FootprintIndicator.material = new Material(unlit);
+            FootprintIndicator.material = LlamAcademy.Dinos.Rendering.PrehistoricShaderUtility.CreateLineMaterial(Color.white);
             FootprintIndicator.enabled = false;
         }
 

@@ -284,6 +284,11 @@ namespace LlamAcademy.Dinos.Editor
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
             PlayerSettings.runInBackground = true;
             PlayerSettings.resizableWindow = true;
+
+            // Đảm bảo mức đồ họa xuất file là Ultra (cực đại), đồng bộ 100% với Editor
+            int maxQuality = QualitySettings.names.Length - 1;
+            QualitySettings.SetQualityLevel(maxQuality, true);
+            Debug.Log($"<color=cyan>[Prehistoric Build]</color> Cấu hình mức đồ họa build: {QualitySettings.names[maxQuality]} (Cực đại - Đồng bộ Editor)");
         }
 
         /// <summary>
