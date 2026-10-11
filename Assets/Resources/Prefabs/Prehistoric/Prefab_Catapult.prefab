@@ -64,8 +64,8 @@ MonoBehaviour:
   LaunchPoint: {fileID: 0}
   RestAngleX: 0
   LaunchAngleX: -65
-  BoulderPrefab: {fileID: 0}
-  ImpactExplosionVFX: {fileID: 0}
+  BoulderPrefab: {fileID: 10000001, guid: c7e8a91b2d3f4567890123456789abcd, type: 3}
+  ImpactExplosionVFX: {fileID: 198207014375249716, guid: 64891a0eb28db934898420d80ca07cb3, type: 3}
 --- !u!65 &5145653164336722188
 BoxCollider:
   m_ObjectHideFlags: 0

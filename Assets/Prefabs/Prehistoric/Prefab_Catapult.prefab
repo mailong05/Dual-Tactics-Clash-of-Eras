@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &6926296776733478634
+--- !u!1 &106655829860246161
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,9 +8,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3222408061526396374}
-  - component: {fileID: 978696863461396058}
-  - component: {fileID: 5145653164336722188}
+  - component: {fileID: 2328275518861295505}
+  - component: {fileID: 9118845607309234030}
+  - component: {fileID: 8993652388566232205}
   m_Layer: 0
   m_Name: Prefab_Catapult
   m_TagString: Untagged
@@ -18,29 +18,29 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3222408061526396374
+--- !u!4 &2328275518861295505
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6926296776733478634}
+  m_GameObject: {fileID: 106655829860246161}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2272894549869209633}
+  - {fileID: 6904041418267312191}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &978696863461396058
+--- !u!114 &9118845607309234030
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6926296776733478634}
+  m_GameObject: {fileID: 106655829860246161}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 05bd03b92a74b574d93e86c9ffbcdb2d, type: 3}
@@ -64,15 +64,15 @@ MonoBehaviour:
   LaunchPoint: {fileID: 0}
   RestAngleX: 0
   LaunchAngleX: -65
-  BoulderPrefab: {fileID: 0}
-  ImpactExplosionVFX: {fileID: 0}
---- !u!65 &5145653164336722188
+  BoulderPrefab: {fileID: 10000001, guid: b78067d71f2590f40831cb32098452fe, type: 3}
+  ImpactExplosionVFX: {fileID: 198656289721292014, guid: 64891a0eb28db934898420d80ca07cb3, type: 3}
+--- !u!65 &8993652388566232205
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6926296776733478634}
+  m_GameObject: {fileID: 106655829860246161}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -87,13 +87,13 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.6, y: 2.4, z: 3.2}
   m_Center: {x: 0, y: 1.2, z: 0}
---- !u!1001 &4110365037774421969
+--- !u!1001 &8741512867170408399
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 3222408061526396374}
+    m_TransformParent: {fileID: 2328275518861295505}
     m_Modifications:
     - target: {fileID: -6689036041284674117, guid: ab37ac6cb47e23e4c9c125b1b7830dfc, type: 3}
       propertyPath: m_Name
@@ -117,7 +117,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: ab37ac6cb47e23e4c9c125b1b7830dfc, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: 1.4613167
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: ab37ac6cb47e23e4c9c125b1b7830dfc, type: 3}
       propertyPath: m_LocalPosition.z
@@ -156,8 +156,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: ab37ac6cb47e23e4c9c125b1b7830dfc, type: 3}
---- !u!4 &2272894549869209633 stripped
+--- !u!4 &6904041418267312191 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2774220344278030320, guid: ab37ac6cb47e23e4c9c125b1b7830dfc, type: 3}
-  m_PrefabInstance: {fileID: 4110365037774421969}
+  m_PrefabInstance: {fileID: 8741512867170408399}
   m_PrefabAsset: {fileID: 0}

@@ -189,13 +189,35 @@ namespace LlamAcademy.Dinos.Unit
             return "velociraptor.glb";
         }
 
+        private static bool AreClipsValid(AnimationClip[] clips)
+        {
+            if (clips == null || clips.Length == 0) return false;
+            for (int i = 0; i < clips.Length; i++)
+            {
+                if (clips[i] == null) return false;
+            }
+            return true;
+        }
+
+        public static void ClearClipsCache()
+        {
+            s_ClipsCache.Clear();
+        }
+
         private async void TryLoadGlbAnimations()
         {
             string glbName = GetModelGlbFileName();
             if (s_ClipsCache.TryGetValue(glbName, out var cachedClips))
             {
-                ApplyAnimationClips(cachedClips);
-                return;
+                if (AreClipsValid(cachedClips))
+                {
+                    ApplyAnimationClips(cachedClips);
+                    return;
+                }
+                else
+                {
+                    s_ClipsCache.Remove(glbName);
+                }
             }
 
             string filePath = Path.Combine(Application.dataPath, glbName);
@@ -211,11 +233,31 @@ namespace LlamAcademy.Dinos.Unit
                 bool success = await gltf.LoadFile(filePath, importSettings: importSettings);
                 if (success)
                 {
-                    var clips = gltf.GetAnimationClips();
-                    if (clips != null && clips.Length > 0)
+                    var rawClips = gltf.GetAnimationClips();
+                    if (rawClips != null && rawClips.Length > 0)
                     {
-                        s_ClipsCache[glbName] = clips;
-                        ApplyAnimationClips(clips);
+                        List<AnimationClip> persistentClips = new();
+                        foreach (var c in rawClips)
+                        {
+                            if (c != null)
+                            {
+                                try
+                                {
+                                    AnimationClip clone = Instantiate(c);
+                                    clone.name = c.name;
+                                    clone.hideFlags = HideFlags.DontSave;
+                                    persistentClips.Add(clone);
+                                }
+                                catch {}
+                            }
+                        }
+
+                        if (persistentClips.Count > 0)
+                        {
+                            AnimationClip[] persistentArray = persistentClips.ToArray();
+                            s_ClipsCache[glbName] = persistentArray;
+                            ApplyAnimationClips(persistentArray);
+                        }
                     }
                 }
             }
@@ -229,6 +271,13 @@ namespace LlamAcademy.Dinos.Unit
         {
             if (clips == null || clips.Length == 0 || VisualModel == null) return;
 
+            List<AnimationClip> validClips = new();
+            foreach (var clip in clips)
+            {
+                if (clip != null) validClips.Add(clip);
+            }
+            if (validClips.Count == 0) return;
+
             if (ModelLegacyAnimation == null)
             {
                 ModelLegacyAnimation = VisualModel.GetComponent<Animation>();
@@ -241,24 +290,34 @@ namespace LlamAcademy.Dinos.Unit
             if (ModelLegacyAnimation != null)
             {
                 ModelLegacyAnimation.playAutomatically = true;
-                foreach (var clip in clips)
+                foreach (var clip in validClips)
                 {
                     if (clip == null) continue;
-                    clip.legacy = true;
-                    clip.wrapMode = WrapMode.Loop;
-                    if (ModelLegacyAnimation[clip.name] == null)
+                    try
                     {
-                        ModelLegacyAnimation.AddClip(clip, clip.name);
+                        clip.legacy = true;
+                        clip.wrapMode = WrapMode.Loop;
+                        string cName = clip.name;
+                        if (ModelLegacyAnimation[cName] == null)
+                        {
+                            ModelLegacyAnimation.AddClip(clip, cName);
+                        }
                     }
+                    catch {}
                 }
 
-                foreach (var clip in clips)
+                foreach (var clip in validClips)
                 {
-                    string cn = clip.name.ToLower();
-                    if (_WalkClipName == null && (cn.Contains("walk") || cn.Contains("run") || cn.Contains("anim") || cn.Contains("fly")))
-                        _WalkClipName = clip.name;
-                    if (_AttackClipName == null && (cn.Contains("roar") || cn.Contains("eat") || cn.Contains("attack") || cn.Contains("bite")))
-                        _AttackClipName = clip.name;
+                    if (clip == null) continue;
+                    try
+                    {
+                        string cn = clip.name.ToLower();
+                        if (_WalkClipName == null && (cn.Contains("walk") || cn.Contains("run") || cn.Contains("anim") || cn.Contains("fly")))
+                            _WalkClipName = clip.name;
+                        if (_AttackClipName == null && (cn.Contains("roar") || cn.Contains("eat") || cn.Contains("attack") || cn.Contains("bite")))
+                            _AttackClipName = clip.name;
+                    }
+                    catch {}
                 }
 
                 if (_WalkClipName != null && ModelLegacyAnimation[_WalkClipName] != null)
@@ -266,11 +325,15 @@ namespace LlamAcademy.Dinos.Unit
                     ModelLegacyAnimation.clip = ModelLegacyAnimation[_WalkClipName].clip;
                     ModelLegacyAnimation.Play(_WalkClipName);
                 }
-                else if (clips.Length > 0)
+                else if (validClips.Count > 0 && validClips[0] != null)
                 {
-                    _WalkClipName = clips[0].name;
-                    ModelLegacyAnimation.clip = clips[0];
-                    ModelLegacyAnimation.Play(_WalkClipName);
+                    try
+                    {
+                        _WalkClipName = validClips[0].name;
+                        ModelLegacyAnimation.clip = validClips[0];
+                        ModelLegacyAnimation.Play(_WalkClipName);
+                    }
+                    catch {}
                 }
             }
         }

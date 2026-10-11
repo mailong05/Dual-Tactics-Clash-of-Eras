@@ -149,6 +149,11 @@ namespace LlamAcademy.Dinos.Unit
 
         private IEnumerator SimulateBoulderFlight(Vector3 start, Vector3 target)
         {
+            if (BoulderPrefab == null)
+            {
+                BoulderPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_LavaBoulder");
+            }
+
             GameObject boulder = null;
             if (BoulderPrefab != null)
             {
@@ -157,9 +162,17 @@ namespace LlamAcademy.Dinos.Unit
             else
             {
                 boulder = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                boulder.name = "Flaming_Boulder";
-                boulder.transform.localScale = Vector3.one * 0.7f;
-                boulder.GetComponent<Renderer>().material.color = new Color(0.9f, 0.4f, 0.1f);
+                boulder.name = "Flaming_Lava_Boulder";
+                boulder.transform.localScale = Vector3.one * 0.85f;
+                Material lavaMat = Resources.Load<Material>("Materials/Stylize_Lava");
+                if (lavaMat != null)
+                {
+                    boulder.GetComponent<Renderer>().sharedMaterial = lavaMat;
+                }
+                else
+                {
+                    boulder.GetComponent<Renderer>().material.color = new Color(1f, 0.45f, 0.1f);
+                }
                 Destroy(boulder.GetComponent<Collider>());
             }
 
@@ -179,7 +192,15 @@ namespace LlamAcademy.Dinos.Unit
                 if (boulder != null)
                 {
                     boulder.transform.position = currentPos;
-                    boulder.transform.Rotate(Vector3.right, 360f * Time.deltaTime * 2f);
+                    Transform visual = boulder.transform.Find("Visual_LavaSphere");
+                    if (visual != null)
+                    {
+                        visual.Rotate(new Vector3(360f, 220f, 140f) * Time.deltaTime, Space.Self);
+                    }
+                    else
+                    {
+                        boulder.transform.Rotate(new Vector3(360f, 220f, 140f) * Time.deltaTime, Space.Self);
+                    }
                 }
 
                 yield return null;
