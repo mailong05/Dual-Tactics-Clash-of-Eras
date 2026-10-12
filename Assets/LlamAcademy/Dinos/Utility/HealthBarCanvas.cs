@@ -11,14 +11,43 @@ namespace LlamAcademy.Dinos.Utility
     public class HealthBarCanvas : MonoBehaviour
     {
         private static HealthBarCanvas _Instance;
+        private static bool _IsShuttingDown = false;
+
+        public static bool HasInstance => _Instance != null && !_IsShuttingDown;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            _Instance = null;
+            _IsShuttingDown = false;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+        {
+            _IsShuttingDown = false;
+        }
+
         public static HealthBarCanvas Instance
         {
             get
             {
+                if (_IsShuttingDown) return null;
+
+                if (!Application.isPlaying)
+                {
+                    if (_Instance == null)
+                    {
+                        _Instance = FindFirstObjectByType<HealthBarCanvas>();
+                    }
+                    return _Instance;
+                }
+
                 if (_Instance == null)
                 {
                     _Instance = FindFirstObjectByType<HealthBarCanvas>();
-                    if (_Instance == null)
+                    if (_Instance == null && !_IsShuttingDown)
                     {
                         GameObject canvasObj = new GameObject("HealthBarCanvas");
                         Canvas canvas = canvasObj.AddComponent<Canvas>();
@@ -37,6 +66,8 @@ namespace LlamAcademy.Dinos.Utility
 
         private void Awake()
         {
+            _IsShuttingDown = false;
+
             if (_Instance != null && _Instance != this)
             {
                 Debug.LogWarning($"Duplicate HealthBarCanvas component on ({name})! Removing duplicate component.");
@@ -299,6 +330,20 @@ namespace LlamAcademy.Dinos.Utility
             {
                 Unit.Unit unit = diedobject.Transform.GetComponent<Unit.Unit>();
                 Unregister(unit);
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            _IsShuttingDown = true;
+        }
+
+        private void OnDestroy()
+        {
+            if (_Instance == this)
+            {
+                _Instance = null;
+                _IsShuttingDown = true;
             }
         }
     }

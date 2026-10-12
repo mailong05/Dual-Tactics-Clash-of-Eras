@@ -131,7 +131,7 @@ namespace LlamAcademy.Dinos.Unit
                 AttackRadius.OnTargetExit -= OnTargetExit;
             }
 
-            if (HealthBarCanvas.Instance != null)
+            if (HealthBarCanvas.HasInstance)
             {
                 HealthBarCanvas.Instance.Unregister(this);
             }
