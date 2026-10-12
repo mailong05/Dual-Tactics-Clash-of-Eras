@@ -139,6 +139,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Kích hoạt NPC chiến binh bộ lạc xuất hiện cùng phòng thủ làng
             EnsureVillageDefendersActive();
 
+            foreach (var r in Resources.FindObjectsOfTypeAll<MeshRenderer>())
+            {
+                if (r != null && r.gameObject != null && r.gameObject.name.Contains("NavMeshVisualization"))
+                {
+                    r.enabled = false;
+                    r.gameObject.SetActive(false);
+                    Destroy(r.gameObject);
+                }
+            }
+
             // Cấu hình va chạm và AI nhận diện chướng ngại vật cho toàn bộ tường trên map (tôn trọng 100% chỉnh sửa của người chơi)
             ConfigureAllCustomBarricades();
 

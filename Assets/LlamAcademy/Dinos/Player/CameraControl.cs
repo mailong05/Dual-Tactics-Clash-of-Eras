@@ -79,6 +79,10 @@ namespace LlamAcademy.Dinos.Player
 
             CinemachineCamera = GetComponent<CinemachineCamera>();
             _FollowComponent = GetComponent<CinemachineFollow>();
+            if (CinemachineCamera != null && CinemachineCamera.LookAt == null && CinemachineCamera.Follow != null)
+            {
+                CinemachineCamera.LookAt = CinemachineCamera.Follow;
+            }
         }
 
         private void Start()

@@ -206,6 +206,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (oldWaypoints != null) Destroy(oldWaypoints);
             GameObject starterDefenses = GameObject.Find("Starter_Defenses");
             if (starterDefenses != null) Destroy(starterDefenses);
+            foreach (var r in Resources.FindObjectsOfTypeAll<MeshRenderer>())
+            {
+                if (r != null && r.gameObject != null && r.gameObject.name.Contains("NavMeshVisualization"))
+                {
+                    r.enabled = false;
+                    r.gameObject.SetActive(false);
+                    Destroy(r.gameObject);
+                }
+            }
 
             if (PrehistoricGameplayManager.Instance != null)
             {

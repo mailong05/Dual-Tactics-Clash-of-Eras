@@ -29,14 +29,37 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 Debug.LogError($"Multiple NavMeshManagers in the scene. Destroying second one {name}.");
                 Destroy(gameObject);
+                return;
             }
 
             Instance = this;
+            ShowDebugMesh = false;
+
+            // Triệt tiêu vĩnh viễn mesh xanh gỡ lỗi (NavMeshVisualization) trong toàn bộ scene
+            if (NavMeshRenderer != null)
+            {
+                NavMeshRenderer.enabled = false;
+                if (NavMeshRenderer.gameObject != null)
+                {
+                    NavMeshRenderer.gameObject.SetActive(false);
+                    Destroy(NavMeshRenderer.gameObject);
+                }
+                NavMeshRenderer = null;
+            }
+
+            foreach (var r in Resources.FindObjectsOfTypeAll<MeshRenderer>())
+            {
+                if (r != null && r.gameObject != null && r.gameObject.name.Contains("NavMeshVisualization"))
+                {
+                    r.enabled = false;
+                    r.gameObject.SetActive(false);
+                    Destroy(r.gameObject);
+                }
+            }
 
             NavMesh.RemoveAllNavMeshData();
             EnemySurface.BuildNavMesh();
             EnemyTriangulation = NavMesh.CalculateTriangulation();
-            NavMeshFilter = NavMeshRenderer.GetComponent<MeshFilter>();
             SetVisualizationFromTriangulation();
 
             foreach (NavMeshSurface surface in DinoSurfaces)
@@ -81,9 +104,22 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void SetVisualizationFromTriangulation()
         {
-            NavMeshFilter.mesh = new Mesh();
-            NavMeshFilter.mesh.SetVertices(EnemyTriangulation.vertices);
-            NavMeshFilter.mesh.SetIndices(EnemyTriangulation.indices, MeshTopology.Triangles, 0);
+            // Không bao giờ tạo hay hiển thị mesh xanh gỡ lỗi lên chiến trường
+            if (NavMeshRenderer != null)
+            {
+                NavMeshRenderer.enabled = false;
+                if (NavMeshRenderer.gameObject != null)
+                {
+                    NavMeshRenderer.gameObject.SetActive(false);
+                    Destroy(NavMeshRenderer.gameObject);
+                }
+                NavMeshRenderer = null;
+            }
+
+            if (NavMeshFilter != null)
+            {
+                NavMeshFilter.mesh = null;
+            }
         }
     }
 }

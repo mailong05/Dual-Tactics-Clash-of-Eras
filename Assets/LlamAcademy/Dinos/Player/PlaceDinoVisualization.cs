@@ -31,6 +31,7 @@ namespace LlamAcademy.Dinos.Player
 
         private void Start()
         {
+            if (SafeZone != null) SafeZone.SetActive(false);
             // If you're not using a shader to show this, this code works nicely :)
             // List<Collider> colliders = WorldRoot.GetComponentsInChildren<Collider>().Where(collider => collider.enabled && !collider.isTrigger && (UnsafeLayers | 1 << collider.gameObject.layer) == UnsafeLayers).ToList();
             // SafeZone = new  GameObject("Safe Zone");

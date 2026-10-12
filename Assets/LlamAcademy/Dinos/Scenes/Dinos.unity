@@ -2656,7 +2656,7 @@ MonoBehaviour:
   m_LegacyPriority: 0
   Target:
     TrackingTarget: {fileID: 1827429455}
-    LookAtTarget: {fileID: 0}
+    LookAtTarget: {fileID: 1827429455}
     CustomLookAtTarget: 0
   Lens:
     FieldOfView: 75
@@ -7716,7 +7716,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &292893539
 Transform:
   m_ObjectHideFlags: 0
@@ -7764,8 +7764,7 @@ MeshRenderer:
   m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: d0054e2826ae0cc4e8abb517bd8d7ac5, type: 2}
+  m_Materials: []
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -35427,8 +35426,8 @@ MonoBehaviour:
   - {fileID: 1627078591}
   - {fileID: 1627078592}
   - {fileID: 1627078594}
-  ShowDebugMesh: 1
-  NavMeshRenderer: {fileID: 292893541}
+  ShowDebugMesh: 0
+  NavMeshRenderer: {fileID: 0}
 --- !u!114 &1627078594
 MonoBehaviour:
   m_ObjectHideFlags: 0
