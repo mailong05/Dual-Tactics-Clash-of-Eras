@@ -40,7 +40,10 @@ namespace LlamAcademy.Dinos.Unit
                 Wall wall = col.GetComponentInParent<Wall>();
                 if (wall != null && wall.Health > 0)
                 {
-                    Vector3 closest = col.ClosestPoint(transform.position);
+                    Vector3 closest;
+                    try { closest = col.ClosestPoint(transform.position); }
+                    catch { closest = col.bounds.ClosestPoint(transform.position); }
+
                     Vector3 dir = (closest - transform.position).normalized;
                     if (Vector3.Dot(targetDir, dir) > -0.2f)
                     {

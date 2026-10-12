@@ -94,6 +94,9 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             if (_MaxBaseHealth < 1000) _MaxBaseHealth = 1000;
             _CurrentBaseHealth = _MaxBaseHealth;
+
+            EnsureVillageFortressWallActive();
+            ConfigureAllCustomBarricades();
         }
 
         private void Start()
@@ -678,8 +681,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Transform rightWing = existing.transform.Find("Right_Wing_Wall");
                 Transform customGapWall = existing.transform.Find("Village_Left_Gap_Wall_128_neg152");
 
+                Transform rightFlank = existing.transform.Find("Right_Flank_Wall");
+
                 bool hasWatchtowers = wtLeft != null && wtRight != null;
-                bool hasFullWings = leftWing != null && leftWing.childCount >= 14 && rightWing != null && rightWing.childCount >= 10;
+                bool hasFullWings = leftWing != null && leftWing.childCount >= 14 && rightWing != null && rightWing.childCount >= 18 && rightFlank != null;
                 bool hasCustomGap = customGapWall != null;
 
                 if (hasWatchtowers && hasFullWings && hasCustomGap)
@@ -810,11 +815,15 @@ namespace LlamAcademy.Dinos.RoundManagement
                 EnsureNavMeshObstacle(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
             }
 
-            // 3. TƯỜNG THÀNH CÁNH PHẢI KHÉP KÍN 100% (Right Wing Wall: X = +0.6f đến X = +26.6f)
+            // 3. TƯỜNG THÀNH CÁNH PHẢI KHÉP KÍN 100% (Right Wing Wall: X = +0.6f đến X = +42.2f nối liền vào vách núi phía Đông)
             GameObject rightWallGroup = new GameObject("Right_Wing_Wall");
             rightWallGroup.transform.SetParent(fortressRoot.transform);
 
-            float[] rightPositionsX = new float[] { 0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f, 26.6f };
+            // 17 đoạn tường gối chồng lên nhau 1.15m (mỗi đoạn rộng 3.75m, khoảng cách tâm 2.6m -> Tuyệt đối không có kẽ hở từ X = +0.6f đến X = +42.2f)
+            float[] rightPositionsX = new float[] {
+                0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f, 26.6f,
+                29.2f, 31.8f, 34.4f, 37.0f, 39.6f, 42.2f
+            };
             for (int i = 0; i < rightPositionsX.Length; i++)
             {
                 if (barricadePrefab != null)
@@ -833,14 +842,50 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // Pháo Đài Góc Phải sát vách núi (X = 29.0f)
+            // Pháo Đài Góc Phải sát vách núi (X = 44.5f cắm sâu vào vách núi phía Đông)
             if (towerPrefab != null)
             {
-                GameObject rightBastion = Instantiate(towerPrefab, new Vector3(29.0f, 0f, wallZ), Quaternion.Euler(0f, -30f, 0f), rightWallGroup.transform);
+                GameObject rightBastion = Instantiate(towerPrefab, new Vector3(44.5f, 0f, wallZ), Quaternion.Euler(0f, -30f, 0f), rightWallGroup.transform);
                 rightBastion.name = "Right_Bastion_Tower";
                 rightBastion.transform.localScale = Vector3.one * 0.7f;
                 EnsureBoxCollider(rightBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
                 EnsureNavMeshObstacle(rightBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
+            }
+
+            // 4. BỔ SUNG TƯỜNG SƯỜN PHẢI (Right Flank Barricade Wall) ĐỐI XỨNG HOÀN TOÀN VỚI TƯỜNG SƯỜN TRÁI CỦA LÀNG
+            GameObject rightFlankGroup = new GameObject("Right_Flank_Wall");
+            rightFlankGroup.transform.SetParent(fortressRoot.transform);
+
+            Vector3[] rightFlankPositions = new Vector3[] {
+                // Tuyến rào chắn sườn núi phía Đông (đối xứng hoàn toàn với 5 rào chắn sườn Tây)
+                new Vector3(28.92f, 1.91f, 4.91f),
+                new Vector3(28.97f, 1.86f, 2.22f),
+                new Vector3(28.95f, 1.91f, -0.29f),
+                new Vector3(29.02f, 1.91f, -3.28f),
+                new Vector3(34.81f, 1.91f, -10.39f),
+                // Rào chắn kết nối từ chòi bộ lạc phía Đông ra sườn rào
+                new Vector3(14.5f, 0.2f, 0.85f),
+                new Vector3(17.5f, 0.2f, 0.85f),
+                new Vector3(20.5f, 0.2f, 0.85f),
+                new Vector3(23.5f, 0.2f, 0.85f),
+                new Vector3(26.5f, 0.2f, 0.85f)
+            };
+            for (int i = 0; i < rightFlankPositions.Length; i++)
+            {
+                if (barricadePrefab != null)
+                {
+                    GameObject rf = Instantiate(barricadePrefab, rightFlankPositions[i], Quaternion.Euler(0f, i < 5 ? 90f : 0f, 0f), rightFlankGroup.transform);
+                    rf.name = $"Right_Flank_Barricade_{i + 1}";
+                    rf.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
+                    if (rf.TryGetComponent(out Unit.Unit uwf))
+                    {
+                        if (barricadeSO != null) uwf.UnitType = barricadeSO;
+                        uwf.Health = 450;
+                        uwf.MaxHealth = 450;
+                        uwf.EnsureHealthBarAttached();
+                    }
+                    EnsureNavMeshObstacle(rf, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+                }
             }
 
             // 4. THÊM 2 CHÒI CUNG THỦ TIỀN TIÊU Ở 2 BÊN PHÍA TRƯỚC LÀNG (Front Flanking Archer Watchtowers)
@@ -905,77 +950,181 @@ namespace LlamAcademy.Dinos.RoundManagement
             foreach (Transform t in allTransforms)
             {
                 if (t == null) continue;
-                string n = t.gameObject.name;
+                string n = t.gameObject.name.ToLower();
 
-                // Bỏ qua nếu object là con cháu bên trong bất kỳ đối tượng Wall nào khác (ví dụ sub-mesh bên trong Prefab_Barricade)
+                // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường
+                if (n == "gate_complex" || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" || n == "right_flank_wall" ||
+                    n.Contains("bridge") || n.Contains("floor") || n.Contains("ground") ||
+                    n.Contains("camera") || n.Contains("light") || n.Contains("spawn") ||
+                    n.Contains("system") || n.Contains("event") || n.Contains("healthbar") ||
+                    n.Contains("canvas") || n.Contains("ui") || n.Contains("dino") ||
+                    n.Contains("player") || n.Contains("projectile") || n.Contains("trap") ||
+                    n.Contains("pot") || n.Contains("vase") || n.Contains("flag") ||
+                    n.Contains("egg") || n.Contains("skull") || n.Contains("spine") ||
+                    n.Contains("totem") || n.Contains("hut") || n.Contains("mountain") ||
+                    n.Contains("torch") || n.Contains("ramp") || n.Contains("particle") ||
+                    n.Contains("look target") || n.Contains("navmesh") || n.Contains("vegetation") ||
+                    n.Contains("overhead"))
+                {
+                    continue;
+                }
+
+                // 2. Bỏ qua nếu object là node con bên trong bất kỳ đối tượng Wall nào khác
                 Unit.Wall parentWall = t.GetComponentInParent<Unit.Wall>(true);
                 if (parentWall != null && parentWall.gameObject != t.gameObject)
                 {
-                    // Dọn dẹp nếu có lỡ dính component Wall / Obstacle trên node con
                     if (t.TryGetComponent(out Unit.Wall errWall)) Destroy(errWall);
                     if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle errObs)) Destroy(errObs);
                     continue;
                 }
 
-                // Chỉ cấu hình cho các đối tượng có MeshRenderer / MeshFilter (bỏ qua các node transform rỗng như Plank_Defenses_low)
-                if (!t.TryGetComponent(out MeshRenderer mr) && !t.TryGetComponent(out MeshFilter mf))
-                {
-                    continue;
-                }
+                // 3. Nhận diện toàn diện các object rào chắn, tường thành, pháo đài (kể cả Arch Entry Wall, Big Tower, v.v.)
+                bool hasWallTag = false;
+                try { hasWallTag = t.CompareTag("Wall") || t.CompareTag("Obstacle"); } catch {}
 
-                // Nhận diện các object rào chắn gỗ tiền sử do người chơi tự thêm (ví dụ Plank_Defenses_low_standardSurface1_0)
-                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall") || n.Contains("Village_Left_Gap_Wall"))
-                {
-                    GameObject go = t.gameObject;
+                bool isWallCandidate = n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
+                                       n.Contains("palisade") || n.Contains("fence") || n.Contains("defense") ||
+                                       n.Contains("arch entry") || n.Contains("bastion") || n.Contains("big tower") ||
+                                       n.Contains("gate") || n.Contains("barrier") || n.Contains("rampart") ||
+                                       n.Contains("wooden__barricade") || n.Contains("wooden_barricade") ||
+                                       hasWallTag ||
+                                       t.GetComponent<Unit.Wall>() != null;
 
-                    // 1. Đảm bảo có BoxCollider bao phủ toàn bộ bề mặt rào chắn
-                    if (!go.TryGetComponent(out BoxCollider col))
+                if (!isWallCandidate) continue;
+
+                GameObject go = t.gameObject;
+
+                // 4. Tính toán bounds chính xác từ Renderer / Collider của go và các con cháu của nó
+                Bounds combinedBounds = new Bounds();
+                bool hasBounds = false;
+
+                Renderer[] renderers = go.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers)
+                {
+                    if (r == null || !r.enabled) continue;
+                    if (r is ParticleSystemRenderer || r is TrailRenderer) continue;
+                    if (!hasBounds)
                     {
-                        col = go.AddComponent<BoxCollider>();
-                    }
-                    if (go.TryGetComponent(out MeshFilter meshFilter) && meshFilter.sharedMesh != null)
-                    {
-                        col.center = meshFilter.sharedMesh.bounds.center;
-                        Vector3 ms = meshFilter.sharedMesh.bounds.size;
-                        col.size = new Vector3(ms.x, ms.y, Mathf.Max(ms.z, 40f));
+                        combinedBounds = r.bounds;
+                        hasBounds = true;
                     }
                     else
                     {
-                        col.center = new Vector3(386.04f, 7.91f, 0.60f);
-                        col.size = new Vector3(100f, 115f, 40f);
+                        combinedBounds.Encapsulate(r.bounds);
                     }
-
-                    // 2. Đảm bảo NavMeshObstacle Carving được bật tức thì (carveOnlyStationary = false)
-                    // để NavMeshAgent của khủng long lập tức coi đây là chướng ngại vật tuyệt đối không thể đi xuyên qua
-                    if (!go.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
-                    {
-                        obs = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
-                    }
-                    obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
-                    obs.size = col.size;
-                    obs.center = col.center;
-                    obs.carving = true;
-                    obs.carveOnlyStationary = false;
-
-                    // 3. Đảm bảo có Component Wall (Unit) với lượng máu tường đã được giảm cân đối (450 HP)
-                    if (!go.TryGetComponent(out Unit.Wall wall))
-                    {
-                        wall = go.AddComponent<Unit.Wall>();
-                    }
-                    wall.MaxHealth = 450;
-                    wall.Health = 450;
-                    if (barricadeSO != null)
-                    {
-                        wall.UnitType = barricadeSO;
-                    }
-                    wall.EnsureHealthBarAttached();
-                    count++;
                 }
+
+                if (!hasBounds)
+                {
+                    Collider[] childCols = go.GetComponentsInChildren<Collider>(true);
+                    foreach (var c in childCols)
+                    {
+                        if (c == null || !c.enabled || (c is BoxCollider bc && bc.gameObject == go)) continue;
+                        if (!hasBounds)
+                        {
+                            combinedBounds = c.bounds;
+                            hasBounds = true;
+                        }
+                        else
+                        {
+                            combinedBounds.Encapsulate(c.bounds);
+                        }
+                    }
+                }
+
+                // Nếu không có renderer lẫn collider thì bỏ qua (node rỗng)
+                if (!hasBounds && !go.TryGetComponent(out MeshFilter _)) continue;
+
+                Vector3 localCenter;
+                Vector3 localSize;
+
+                if (hasBounds)
+                {
+                    localCenter = go.transform.InverseTransformPoint(combinedBounds.center);
+                    Vector3 worldSize = combinedBounds.size;
+                    Vector3 lossy = go.transform.lossyScale;
+
+                    float absX = Mathf.Abs(lossy.x) > 0.0001f ? Mathf.Abs(lossy.x) : 1f;
+                    float absY = Mathf.Abs(lossy.y) > 0.0001f ? Mathf.Abs(lossy.y) : 1f;
+                    float absZ = Mathf.Abs(lossy.z) > 0.0001f ? Mathf.Abs(lossy.z) : 1f;
+
+                    float lx = Mathf.Max(0.5f, worldSize.x / absX);
+                    float ly = Mathf.Max(1.0f, worldSize.y / absY);
+                    float lz = Mathf.Max(0.5f, worldSize.z / absZ);
+
+                    // Đảm bảo độ dày tối thiểu 1.0m trong world space ở trục mỏng nhất để không bị lọt xuyên tường
+                    if (lx * absX < 1.0f && lz * absZ >= lx * absX)
+                    {
+                        lx = 1.0f / absX;
+                    }
+                    else if (lz * absZ < 1.0f)
+                    {
+                        lz = 1.0f / absZ;
+                    }
+
+                    localSize = new Vector3(lx, ly, lz);
+                }
+                else
+                {
+                    if (go.TryGetComponent(out MeshFilter mf) && mf.sharedMesh != null)
+                    {
+                        localCenter = mf.sharedMesh.bounds.center;
+                        localSize = mf.sharedMesh.bounds.size;
+                    }
+                    else
+                    {
+                        localCenter = new Vector3(0f, 1f, 0f);
+                        localSize = new Vector3(3f, 2f, 1.2f);
+                    }
+                }
+
+                // 5. Vô hiệu hóa triệt để mọi NavMeshLink trên bức tường này để khủng long không thể đi tắt/nhảy xuyên qua
+                var links = go.GetComponentsInChildren<Unity.AI.Navigation.NavMeshLink>(true);
+                foreach (var link in links)
+                {
+                    if (link != null) link.enabled = false;
+                }
+
+                // 6. BoxCollider bao phủ toàn bộ bề mặt rào chắn / tường
+                if (!go.TryGetComponent(out BoxCollider col))
+                {
+                    col = go.AddComponent<BoxCollider>();
+                }
+                col.center = localCenter;
+                col.size = localSize;
+                col.enabled = true;
+
+                // 7. NavMeshObstacle Carving được bật tức thì (carveOnlyStationary = false)
+                // để NavMeshAgent của khủng long lập tức coi đây là chướng ngại vật cản tuyệt đối không thể đi xuyên qua
+                if (!go.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                {
+                    obs = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                }
+                obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                obs.center = col.center;
+                obs.size = col.size;
+                obs.carving = true;
+                obs.carveOnlyStationary = false;
+                obs.enabled = true;
+
+                // 8. Đảm bảo có Component Wall (Unit) với lượng máu tường cân đối (450 HP)
+                if (!go.TryGetComponent(out Unit.Wall wall))
+                {
+                    wall = go.AddComponent<Unit.Wall>();
+                }
+                if (wall.MaxHealth <= 0) wall.MaxHealth = 450;
+                if (wall.Health <= 0) wall.Health = wall.MaxHealth;
+                if (barricadeSO != null && wall.UnitType == null)
+                {
+                    wall.UnitType = barricadeSO;
+                }
+                wall.EnsureHealthBarAttached();
+                count++;
             }
 
             if (count > 0)
             {
-                Debug.Log($"<color=green>[Prehistoric TD]</color> Đã tích hợp thành công {count} bức tường chắn tự thêm vào hệ thống phòng thủ & NavMesh cản quái!");
+                Debug.Log($"<color=green>[Prehistoric TD]</color> Đã tích hợp thành công {count} bức tường chắn/pháo đài/rào chắn vào hệ thống phòng thủ & NavMesh cản quái!");
             }
         }
 

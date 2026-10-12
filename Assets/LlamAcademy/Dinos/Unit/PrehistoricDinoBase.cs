@@ -732,6 +732,49 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
+        private static Wall EnsureDynamicWall(Collider col)
+        {
+            if (col == null) return null;
+            Transform root = col.transform.root;
+            Transform targetT = col.transform;
+            while (targetT.parent != null && targetT.parent != root &&
+                   !targetT.parent.name.ToLower().Contains("world") &&
+                   !targetT.parent.name.ToLower().Contains("props"))
+            {
+                targetT = targetT.parent;
+            }
+
+            string n = targetT.gameObject.name.ToLower();
+            bool hasWallTag = false;
+            try { hasWallTag = col.CompareTag("Wall") || col.CompareTag("Obstacle"); } catch {}
+
+            if (n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
+                n.Contains("arch entry") || n.Contains("big tower") || n.Contains("bastion") ||
+                n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
+                hasWallTag)
+            {
+                GameObject go = targetT.gameObject;
+                if (!go.TryGetComponent(out Wall wall))
+                {
+                    wall = go.AddComponent<Wall>();
+                    wall.MaxHealth = 450;
+                    wall.Health = 450;
+                    wall.EnsureHealthBarAttached();
+                }
+                if (!go.TryGetComponent(out NavMeshObstacle obs))
+                {
+                    obs = go.AddComponent<NavMeshObstacle>();
+                    obs.shape = NavMeshObstacleShape.Box;
+                    obs.size = col.bounds.size;
+                    obs.center = go.transform.InverseTransformPoint(col.bounds.center);
+                    obs.carving = true;
+                    obs.carveOnlyStationary = false;
+                }
+                return wall;
+            }
+            return null;
+        }
+
         protected virtual IDamageable ScanForBlockers()
         {
             if (Agent == null || !Agent.enabled || !Agent.isOnNavMesh) return null;
@@ -748,9 +791,10 @@ namespace LlamAcademy.Dinos.Unit
             // 1. Tia quét trực diện tầm ngực phía trước (SphereCast forward check)
             // Phát hiện tường chắn ngay hướng di chuyển
             Vector3 chestPos = transform.position + Vector3.up * 0.8f;
-            if (Physics.SphereCast(chestPos, 0.4f, fwdDir, out RaycastHit forwardHit, AttackRange + 0.8f, TargetLayers))
+            if (Physics.SphereCast(chestPos, 0.45f, fwdDir, out RaycastHit forwardHit, AttackRange + 0.8f, TargetLayers))
             {
                 Wall hitWall = forwardHit.collider.GetComponentInParent<Wall>();
+                if (hitWall == null) hitWall = EnsureDynamicWall(forwardHit.collider);
                 if (hitWall != null && hitWall.Health > 0)
                 {
                     return hitWall;
@@ -775,22 +819,44 @@ namespace LlamAcademy.Dinos.Unit
                 if (col == null || col.gameObject == gameObject) continue;
 
                 Wall wall = col.GetComponentInParent<Wall>();
+                if (wall == null) wall = EnsureDynamicWall(col);
+
                 if (wall != null && wall.Health > 0)
                 {
+                    Vector3 closestPt;
+                    try { closestPt = col.ClosestPoint(transform.position); }
+                    catch { closestPt = col.bounds.ClosestPoint(transform.position); }
+
+                    Vector3 diff = transform.position - closestPt;
+                    diff.y = 0;
+                    float distToCol = diff.magnitude;
+                    float stopRadius = (Agent != null && Agent.radius > 0.1f) ? Agent.radius : 0.6f;
+
                     // Nếu khủng long đang chạm sát hoặc bị đẩy vào trong bounds của tường
-                    if (col.bounds.Contains(transform.position) || col.bounds.SqrDistance(transform.position) < 0.15f)
+                    if (col.bounds.Contains(transform.position) || distToCol < stopRadius + 0.15f)
                     {
                         // Ngăn chặn tuyệt đối khủng long đi xuyên qua
-                        Vector3 pushBack = (transform.position - col.bounds.center);
-                        pushBack.y = 0;
-                        if (pushBack.sqrMagnitude > 0.001f)
+                        Vector3 pushDir = distToCol > 0.001f ? diff.normalized : (transform.position - col.bounds.center);
+                        pushDir.y = 0;
+                        if (pushDir == Vector3.zero) pushDir = -fwdDir;
+                        pushDir.Normalize();
+
+                        Vector3 safePos = closestPt + pushDir * (stopRadius + 0.2f);
+                        safePos.y = transform.position.y;
+
+                        if (Agent != null && Agent.isOnNavMesh)
                         {
-                            transform.position += pushBack.normalized * 0.08f;
+                            Agent.velocity = Vector3.zero;
+                            Agent.isStopped = true;
+                            Agent.Warp(safePos);
+                        }
+                        else
+                        {
+                            transform.position = safePos;
                         }
                         return wall;
                     }
 
-                    Vector3 closestPt = col.ClosestPoint(transform.position);
                     Vector3 flatToWall = new Vector3(closestPt.x - transform.position.x, 0f, closestPt.z - transform.position.z);
                     float flatDist = flatToWall.magnitude;
                     if (flatDist <= AttackRange + 0.6f)
@@ -809,7 +875,10 @@ namespace LlamAcademy.Dinos.Unit
                 Unit tower = col.GetComponentInParent<Unit>();
                 if (tower != null && !(tower is PrehistoricDinoBase) && tower.Health > 0)
                 {
-                    Vector3 closestPt = col.ClosestPoint(transform.position);
+                    Vector3 closestPt;
+                    try { closestPt = col.ClosestPoint(transform.position); }
+                    catch { closestPt = col.bounds.ClosestPoint(transform.position); }
+
                     Vector3 flatToTower = new Vector3(closestPt.x - transform.position.x, 0f, closestPt.z - transform.position.z);
                     float flatDist = flatToTower.magnitude;
                     if (flatDist <= AttackRange + 0.6f)
@@ -855,9 +924,13 @@ namespace LlamAcademy.Dinos.Unit
                 if (col == null || col.gameObject == gameObject) continue;
 
                 Wall wall = col.GetComponentInParent<Wall>();
+                if (wall == null) wall = EnsureDynamicWall(col);
                 if (wall != null && wall.Health > 0)
                 {
-                    Vector3 closest = col.ClosestPoint(transform.position);
+                    Vector3 closest;
+                    try { closest = col.ClosestPoint(transform.position); }
+                    catch { closest = col.bounds.ClosestPoint(transform.position); }
+
                     Vector3 flatToWall = new Vector3(closest.x - transform.position.x, 0f, closest.z - transform.position.z);
                     if (Vector3.Dot(targetDir, flatToWall.normalized) > -0.2f)
                     {
@@ -874,7 +947,10 @@ namespace LlamAcademy.Dinos.Unit
                 Unit tower = col.GetComponentInParent<Unit>();
                 if (tower != null && !(tower is PrehistoricDinoBase) && tower.Health > 0)
                 {
-                    Vector3 closest = col.ClosestPoint(transform.position);
+                    Vector3 closest;
+                    try { closest = col.ClosestPoint(transform.position); }
+                    catch { closest = col.bounds.ClosestPoint(transform.position); }
+
                     float d = Vector3.Distance(transform.position, closest);
                     if (d < minDistance)
                     {

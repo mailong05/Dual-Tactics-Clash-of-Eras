@@ -67,6 +67,7 @@ namespace LlamAcademy.Dinos.Enemy
             Wall[] baseWalls = FindObjectsByType<Wall>(FindObjectsInactive.Include);
             for (int i = 0; i < baseWalls.Length; i++)
             {
+                if (baseWalls[i] == null) continue;
                 WallDatas.Add(new WallData(baseWalls[i], 0, 0));
                 baseWalls[i].OnDeath += HandleWallDeath;
                 baseWalls[i].OnTakeDamage += HandleWallDamage;
@@ -75,7 +76,8 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void HandleWallDamage(IDamageable wall, int damage)
         {
-            if (RoundManager.Instance.State != GameState.Running) return;
+            if (wall == null || wall.Transform == null) return;
+            if (RoundManager.Instance == null || RoundManager.Instance.State != GameState.Running) return;
 
             foreach (Defender defender in Defenders.SelectMany(keyValuePair => keyValuePair.Value.Where((def) => UnitShouldChangeTarget(def, wall))))
             {
@@ -106,8 +108,10 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void HandleWallDeath(IDamageable diedObject)
         {
+            if (diedObject == null || diedObject.Transform == null) return;
             Wall diedWall = diedObject.Transform.GetComponent<Wall>();
-            int diedIndex = WallDatas.FindIndex((wallData) => wallData.Wall.Equals(diedWall));
+            if (diedWall == null) return;
+            int diedIndex = WallDatas.FindIndex((wallData) => wallData.Wall != null && wallData.Wall.Equals(diedWall));
             if (diedIndex != -1)
             {
                 WallDatas[diedIndex] = new WallData(diedWall, WallDatas[diedIndex].UpgradeLevel, WallDatas[diedIndex].TimesDied + 1);
@@ -246,33 +250,40 @@ namespace LlamAcademy.Dinos.Enemy
             int remainingSpend = Mathf.CeilToInt(maxSpend * resourceSpend);
             int initialSpend = remainingSpend;
 
+            WallDatas.RemoveAll(data => data.Wall == null);
             List<Wall> walls = WallDatas.ConvertAll(data => data.Wall);
+            walls.RemoveAll(w => w == null);
             // repair lowest % hp walls first
-            walls.Sort((a, b) => (a.Health / (float)a.MaxHealth).CompareTo(b.Health / (float)b.MaxHealth));
+            walls.Sort((a, b) =>
+            {
+                float aRatio = a.MaxHealth > 0 ? (a.Health / (float)a.MaxHealth) : 1f;
+                float bRatio = b.MaxHealth > 0 ? (b.Health / (float)b.MaxHealth) : 1f;
+                return aRatio.CompareTo(bRatio);
+            });
 
             foreach (Wall wall in walls)
             {
+                if (wall == null) continue;
                 int healthRepairNeeded = wall.MaxHealth - wall.Health;
+                if (healthRepairNeeded <= 0) continue;
                 int cost = Mathf.CeilToInt(healthRepairNeeded * wall.HealthToCostMultiplier);
-                if (wall != null)
+                if (remainingSpend >= cost)
                 {
-                    if (remainingSpend >= cost)
-                    {
-                        wall.Repair(healthRepairNeeded);
-                        remainingSpend -= cost;
-                        Debug.Log($"Repairing wall {healthRepairNeeded} at cost of {cost}");
-                        ResourcesToSpend -= cost;
-                    }
-                    else if (remainingSpend > 0)
-                    {
-                        cost = remainingSpend;
-                        healthRepairNeeded = Mathf.CeilToInt(remainingSpend / wall.HealthToCostMultiplier);
-                        wall.Repair(healthRepairNeeded);
-                        Debug.Log($"Partially repairing wall {healthRepairNeeded} at cost of {cost}");
-                        remainingSpend -= cost;
-                        ResourcesToSpend -= cost;
-                        break;
-                    }
+                    wall.Repair(healthRepairNeeded);
+                    remainingSpend -= cost;
+                    Debug.Log($"Repairing wall {healthRepairNeeded} at cost of {cost}");
+                    ResourcesToSpend -= cost;
+                }
+                else if (remainingSpend > 0)
+                {
+                    cost = remainingSpend;
+                    float mult = wall.HealthToCostMultiplier > 0 ? wall.HealthToCostMultiplier : 1f;
+                    healthRepairNeeded = Mathf.CeilToInt(remainingSpend / mult);
+                    wall.Repair(healthRepairNeeded);
+                    Debug.Log($"Partially repairing wall {healthRepairNeeded} at cost of {cost}");
+                    remainingSpend -= cost;
+                    ResourcesToSpend -= cost;
+                    break;
                 }
             }
 
@@ -293,26 +304,40 @@ namespace LlamAcademy.Dinos.Enemy
             int remainingSpend = Mathf.CeilToInt(maxSpend * resourceSpend);
             int initialSpend = remainingSpend;
 
+            // Clean up any destroyed or null walls
+            WallDatas.RemoveAll(wallData => wallData.Wall == null);
+
             // prefer to upgrade walls where the player is attacking, then the lowest upgrade level
             List<WallData> upgradePriority = WallDatas
+                .Where(wallData => wallData.Wall != null &&
+                                   wallData.Wall.UnitType != null &&
+                                   wallData.Wall.UnitType.Upgrade != null &&
+                                   wallData.Wall.UnitType.Upgrade.Prefab != null)
                 .OrderByDescending(wallData => wallData.TimesDied)
                 .ThenBy(wallData => wallData.UpgradeLevel)
-                .Where(wallData => wallData.Wall.UnitType.Upgrade != null)
                 .ToList();
 
             Debug.Log($"Found {upgradePriority.Count} possible upgrades at the current tier.");
             foreach (WallData wallData in upgradePriority)
             {
+                if (wallData.Wall == null || wallData.Wall.UnitType == null || wallData.Wall.UnitType.Upgrade == null) continue;
                 UnitSO upgrade = wallData.Wall.UnitType.Upgrade;
+                if (upgrade.Prefab == null) continue;
+
                 if (remainingSpend >= upgrade.Cost)
                 {
                     int index = WallDatas.FindIndex(data => data.Equals(wallData));
+                    if (index == -1) continue;
+
+                    Transform wallTransform = wallData.Wall.transform;
                     Wall upgradedWall = Instantiate(
                         upgrade.Prefab,
-                        wallData.Wall.transform.position,
-                        wallData.Wall.Transform.rotation,
-                        wallData.Wall.transform.parent
+                        wallTransform.position,
+                        wallTransform.rotation,
+                        wallTransform.parent
                     ) as Wall;
+
+                    if (upgradedWall == null) continue;
 
                     Debug.Log($"Upgrading {wallData.Wall.gameObject.name} to tier {wallData.UpgradeLevel + 1} for a cost of {upgrade.Cost}");
                     remainingSpend -= upgrade.Cost;
@@ -330,7 +355,7 @@ namespace LlamAcademy.Dinos.Enemy
                 }
             }
 
-            if (remainingSpend > 0 && depth == 0)
+            if (remainingSpend > 0 && depth == 0 && upgradePriority.Count > 0)
             {
                 Debug.Log("Extra money left over for upgrades. Trying a second round of upgrades.");
                 return (initialSpend - remainingSpend) + HandleUpgrades(1, remainingSpend, 1);
