@@ -20,6 +20,7 @@ namespace LlamAcademy.Dinos.Unit
         private Vector3 _BaseModelLocalPos;
         private Quaternion _BaseModelLocalRot;
         private Animation _LegacyAnimation;
+        private bool _hasReachedBase = false;
 
         protected override void Awake()
         {
@@ -137,6 +138,10 @@ namespace LlamAcademy.Dinos.Unit
             // Reached base
             if (Vector3.Distance(transform.position, targetDestination) < 3.0f)
             {
+                if (_hasReachedBase) return;
+                _hasReachedBase = true;
+                enabled = false;
+
                 if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
                 {
                     if (PrehistoricGameModeManager.Instance.VillageBase != null)
@@ -157,6 +162,7 @@ namespace LlamAcademy.Dinos.Unit
                     baseDamageable.TakeDamage(DamageToBase);
                 }
                 Die();
+                return;
             }
         }
 

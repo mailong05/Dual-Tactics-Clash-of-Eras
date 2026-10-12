@@ -1385,6 +1385,7 @@ namespace LlamAcademy.Dinos.Editor
             {
                 waveMgr = managersRoot.AddComponent<AdaptiveWaveManager>();
             }
+            waveMgr.enabled = false;
 
             // 5. PrehistoricGameModeManager (Allows switching between Tower Defense & Dino Assault)
             if (!managersRoot.TryGetComponent(out PrehistoricGameModeManager modeMgr))

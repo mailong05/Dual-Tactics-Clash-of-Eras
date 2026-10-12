@@ -4488,7 +4488,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 380851558}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 71933ecc53940a341b8b694f1acf24dd, type: 3}
   m_Name: 
@@ -4709,8 +4709,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 82e0f76e233667447a764e0b0cc07343, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.RoundManagement.PrehistoricGameplayManager
-  _MaxBaseHealth: 100
-  _CurrentBaseHealth: 100
+  _MaxBaseHealth: 1000
+  _CurrentBaseHealth: 1000
   _CurrentWave: 1
   _MaxWaves: 10
   _CurrentPhase: 0

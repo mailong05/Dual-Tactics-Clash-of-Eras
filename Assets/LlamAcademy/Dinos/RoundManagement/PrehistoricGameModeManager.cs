@@ -167,7 +167,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             AdaptiveWaveManager waveMgr = AdaptiveWaveManager.Instance != null ? AdaptiveWaveManager.Instance : FindFirstObjectByType<AdaptiveWaveManager>();
             if (waveMgr != null)
             {
-                waveMgr.enabled = (mode == PrehistoricGameMode.TowerDefense);
+                // PrehistoricGameplayManager làm chủ toàn bộ wave trong Tower Defense; tắt AdaptiveWaveManager để triệt tiêu sinh quái trùng lặp
+                waveMgr.enabled = false;
             }
 
             // 2. Dino Assault Components

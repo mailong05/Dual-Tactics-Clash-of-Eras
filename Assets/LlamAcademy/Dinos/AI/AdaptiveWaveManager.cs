@@ -86,6 +86,13 @@ namespace LlamAcademy.Dinos.AI
 
         private void HandleGameStateChange(GameState oldState, GameState newState)
         {
+            // Khi PrehistoricGameplayManager đang quản lý wave của game (10 Wave chuẩn),
+            // AdaptiveWaveManager tuyệt đối không tự ý spawn trùng lặp wave quái riêng biệt
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            {
+                return;
+            }
+
             if (newState == GameState.Running)
             {
                 StartNextAdaptiveWave();
@@ -94,6 +101,11 @@ namespace LlamAcademy.Dinos.AI
 
         public void StartNextAdaptiveWave()
         {
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            {
+                return;
+            }
+
             StopAllCoroutines();
             StartCoroutine(SpawnAdaptiveWaveRoutine());
         }

@@ -70,6 +70,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public event Action<PrehistoricWavePhase> OnPhaseChanged;
 
         private List<Unit.Unit> ActiveMonsters = new();
+        private int _MonstersRemainingToSpawn = 0;
         private Coroutine WaveSpawnRoutine;
         private BossDino ActiveBossInstance;
         private string ScreenAnnouncement = "";
@@ -91,6 +92,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             Instance = this;
 
+            if (_MaxBaseHealth < 1000) _MaxBaseHealth = 1000;
             _CurrentBaseHealth = _MaxBaseHealth;
         }
 
@@ -123,6 +125,13 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // Sync with RoundManager if present
             SyncWithLegacyRoundManager();
+
+            // Vô hiệu hóa việc tự sinh quái trùng lặp của AdaptiveWaveManager
+            AdaptiveWaveManager waveMgr = FindFirstObjectByType<AdaptiveWaveManager>();
+            if (waveMgr != null)
+            {
+                waveMgr.enabled = false;
+            }
 
             // Kích hoạt NPC chiến binh bộ lạc xuất hiện cùng phòng thủ làng
             EnsureVillageDefendersActive();
@@ -276,7 +285,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             ActiveMonsters.Clear();
             List<GameObject> spawnQueue = GenerateWaveComposition(waveIndex);
             TotalMonstersInWave = spawnQueue.Count;
-            MonstersAliveCount = TotalMonstersInWave;
+            _MonstersRemainingToSpawn = spawnQueue.Count;
+            MonstersAliveCount = _MonstersRemainingToSpawn;
 
             ShowAnnouncement($"⚔ ĐỢT {waveIndex} BẮT ĐẦU! {TotalMonstersInWave} KHỦNG LONG ĐANG TẤN CÔNG! ⚔", 3.0f);
             Debug.Log($"<color=orange>[Prehistoric TD]</color> Starting Wave {waveIndex} with {TotalMonstersInWave} dinos!");
@@ -311,15 +321,21 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                 }
 
+                _MonstersRemainingToSpawn--;
+                ActiveMonsters.RemoveAll(item => item == null);
+                MonstersAliveCount = _MonstersRemainingToSpawn + ActiveMonsters.Count;
+
                 // Staggered interval between dino spawns
                 float spawnDelay = Mathf.Clamp(1.2f - (waveIndex * 0.05f), 0.5f, 1.2f);
                 yield return new WaitForSeconds(spawnDelay);
             }
 
-            // Wait until all monsters are dead or reached base
-            while (MonstersAliveCount > 0 && _CurrentPhase == PrehistoricWavePhase.CombatPhase)
+            // Chờ cho đến khi toàn bộ quái trong danh sách spawn ĐÃ RA HẾT VÀ TOÀN BỘ quái trên map ĐÃ CHẾT hoặc chạm căn cứ
+            while ((_MonstersRemainingToSpawn > 0 || ActiveMonsters.Count > 0) && _CurrentPhase == PrehistoricWavePhase.CombatPhase)
             {
-                yield return new WaitForSeconds(0.4f);
+                ActiveMonsters.RemoveAll(item => item == null);
+                MonstersAliveCount = _MonstersRemainingToSpawn + ActiveMonsters.Count;
+                yield return new WaitForSeconds(0.25f);
             }
 
             if (_CurrentPhase != PrehistoricWavePhase.CombatPhase) yield break;
@@ -429,9 +445,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             Unit.Unit deadMonster = diedObject as Unit.Unit;
             if (deadMonster != null)
             {
-                ActiveMonsters.Remove(deadMonster);
+                // Chỉ xử lý nếu quái thực sự nằm trong danh sách ActiveMonsters (ngăn chặn triệt để đếm trừ 2 lần)
+                if (!ActiveMonsters.Remove(deadMonster))
+                {
+                    return;
+                }
             }
-            MonstersAliveCount = Mathf.Max(0, MonstersAliveCount - 1);
+            else
+            {
+                return;
+            }
+
+            ActiveMonsters.RemoveAll(item => item == null);
+            MonstersAliveCount = _MonstersRemainingToSpawn + ActiveMonsters.Count;
 
             // Award reward gold based on dino type
             int reward = 15;
@@ -460,17 +486,25 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void OnDinoReachedBase(Unit.Unit dino, int damage = 10)
         {
             if (_CurrentPhase != PrehistoricWavePhase.CombatPhase) return;
+            if (dino == null) return;
 
-            DamageBase(damage, dino);
-
-            // Dino reached base and caused damage, remove from active pool
-            ActiveMonsters.Remove(dino);
-            MonstersAliveCount = Mathf.Max(0, MonstersAliveCount - 1);
-
-            if (dino != null)
+            // KIỂM TRA ĐẦU TIÊN: Quái chỉ được gây sát thương căn cứ ĐÚNG 1 LẦN DUY NHẤT
+            // Nếu không còn trong ActiveMonsters (đã tính trước đó hoặc đã chết), hủy bỏ ngay!
+            if (!ActiveMonsters.Remove(dino))
             {
-                Destroy(dino.gameObject, 0.1f);
+                return;
             }
+
+            // Ngắt hoạt động của dino ngay lập tức để không thể gọi Update() thêm frame nào nữa
+            dino.enabled = false;
+            dino.gameObject.SetActive(false);
+            Destroy(dino.gameObject);
+
+            ActiveMonsters.RemoveAll(item => item == null);
+            MonstersAliveCount = _MonstersRemainingToSpawn + ActiveMonsters.Count;
+
+            // Gây sát thương căn cứ đúng 1 lần duy nhất
+            DamageBase(damage, dino);
         }
 
         public void DamageBase(int damage, Unit.Unit attackingDino = null)
@@ -610,6 +644,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
+            _MonstersRemainingToSpawn = 0;
             MonstersAliveCount = 0;
             TotalMonstersInWave = 0;
         }

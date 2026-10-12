@@ -214,7 +214,18 @@ namespace LlamAcademy.Dinos.Unit
 
                 if (ImpactExplosionVFX != null)
                 {
-                    Instantiate(ImpactExplosionVFX, impactPos, Quaternion.identity);
+                    ParticleSystem vfxInstance = Instantiate(ImpactExplosionVFX, impactPos, Quaternion.identity);
+                    float maxLifetime = 2.0f;
+                    ParticleSystem[] allSystems = vfxInstance.GetComponentsInChildren<ParticleSystem>(true);
+                    foreach (var ps in allSystems)
+                    {
+                        var main = ps.main;
+                        main.loop = false;
+                        main.stopAction = ParticleSystemStopAction.Destroy;
+                        if (main.duration > maxLifetime) maxLifetime = main.duration;
+                        ps.Play();
+                    }
+                    Destroy(vfxInstance.gameObject, maxLifetime + 0.5f);
                 }
 
                 int hitCount = Physics.OverlapSphereNonAlloc(impactPos, ExplosionRadius, OverlapBuffer, EnemyLayers);

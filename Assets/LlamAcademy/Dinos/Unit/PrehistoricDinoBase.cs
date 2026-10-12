@@ -62,6 +62,7 @@ namespace LlamAcademy.Dinos.Unit
         private Quaternion _BaseModelLocalRot;
         private bool _HasBaseModelTransform;
         private bool _IsAttackingAnim;
+        private bool _hasReachedBase = false;
 
         protected override void Awake()
         {
@@ -464,6 +465,11 @@ namespace LlamAcademy.Dinos.Unit
                 float distToBase = Vector3.Distance(transform.position, TargetBase.position);
                 if (distToBase <= AttackRange + 1.5f)
                 {
+                    if (_hasReachedBase) return;
+                    _hasReachedBase = true;
+                    enabled = false;
+                    if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
+
                     if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
                     {
                         if (PrehistoricGameModeManager.Instance.VillageBase != null && PrehistoricGameModeManager.Instance.VillageBase.Health > 0)
@@ -482,6 +488,7 @@ namespace LlamAcademy.Dinos.Unit
                     {
                         CurrentTarget = baseDamageable;
                     }
+                    return;
                 }
             }
         }
