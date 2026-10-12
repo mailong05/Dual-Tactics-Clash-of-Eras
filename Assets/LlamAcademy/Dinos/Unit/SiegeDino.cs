@@ -9,10 +9,11 @@ namespace LlamAcademy.Dinos.Unit
 
         protected override void Awake()
         {
+            MoveSpeed = 3.0f;
             base.Awake();
+            ConfigureNavMeshAgent();
             BuildingDamageMultiplier = 3.5f;
             AttackDamage = 25;
-            MoveSpeed = 2.4f;
             MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1275;
             Health = MaxHealth;
             GoldReward = 40;
@@ -20,8 +21,8 @@ namespace LlamAcademy.Dinos.Unit
 
         protected override IDamageable ScanForBlockers()
         {
-            // If path is complete through a breach, navigate through the hole without stopping!
-            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && Agent.hasPath && Agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathComplete)
+            // If path is pending or complete through a breach, navigate without stopping!
+            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && (Agent.pathPending || (Agent.hasPath && Agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathComplete)))
             {
                 return base.ScanForBlockers();
             }

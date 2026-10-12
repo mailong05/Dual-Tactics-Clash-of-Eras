@@ -150,7 +150,7 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         Vector3 spawnPos = hit.point;
-                        if (UnityEngine.AI.NavMesh.SamplePosition(hit.point, out UnityEngine.AI.NavMeshHit navHit, 3.0f, UnityEngine.AI.NavMesh.AllAreas))
+                        if (UnityEngine.AI.NavMesh.SamplePosition(hit.point, out UnityEngine.AI.NavMeshHit navHit, 15.0f, UnityEngine.AI.NavMesh.AllAreas))
                         {
                             spawnPos = navHit.position;
                         }
@@ -172,26 +172,34 @@ namespace LlamAcademy.Dinos.Player
                             Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(spawnedDino);
                         }
 
-                        // Định vị NavMeshAgent chính xác trên NavMesh để khủng long di chuyển ngay
-                        UnityEngine.AI.NavMeshAgent agent = spawnedDino.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                        if (agent != null)
+                        UnityEngine.AI.NavMeshAgent navAgent = spawnedDino.GetComponent<UnityEngine.AI.NavMeshAgent>();
+
+                        if (spawnedDino is Unit.PrehistoricDinoBase pDino)
                         {
-                            agent.enabled = true;
-                            agent.Warp(spawnPos);
+                            pDino.EnsureOnNavMesh(15.0f);
+                            pDino.ConfigureNavMeshAgent();
+                        }
+                        else if (navAgent != null)
+                        {
+                            navAgent.enabled = true;
+                            navAgent.Warp(spawnPos);
                         }
 
                         bool isCombatActive = isAssault && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.IsAssaultActive;
                         if (isCombatActive)
                         {
-                            // Đang trong trận: xuất kích xông thẳng vào căn cứ địch!
-                            if (agent != null && agent.isOnNavMesh)
+                            if (navAgent != null && navAgent.isOnNavMesh)
                             {
-                                agent.isStopped = false;
-                                if (targetT != null) agent.SetDestination(targetT.position);
+                                navAgent.isStopped = false;
+                                if (targetT != null) navAgent.SetDestination(targetT.position);
                             }
                             if (spawnedDino is Unit.PrehistoricDinoBase dinoBase)
                             {
                                 if (targetT != null) dinoBase.SetDestination(targetT.position);
+                            }
+                            else if (spawnedDino is Unit.FlyingUnit flyBase)
+                            {
+                                if (targetT != null) flyBase.SetDestination(targetT.position);
                             }
                             else if (spawnedDino is Unit.Dino dinoComp)
                             {
@@ -201,9 +209,9 @@ namespace LlamAcademy.Dinos.Player
                         else
                         {
                             // Đang ở giai đoạn Setup (dàn trận): giữ nguyên vị trí, hướng mặt về phía mục tiêu
-                            if (agent != null && agent.isOnNavMesh)
+                            if (navAgent != null && navAgent.isOnNavMesh)
                             {
-                                agent.isStopped = true;
+                                navAgent.isStopped = true;
                             }
                         }
 

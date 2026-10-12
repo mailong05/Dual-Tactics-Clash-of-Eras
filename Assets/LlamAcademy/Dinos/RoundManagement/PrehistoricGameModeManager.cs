@@ -651,13 +651,21 @@ namespace LlamAcademy.Dinos.RoundManagement
             foreach (var dino in allDinos)
             {
                 if (dino == null || dino.Health <= 0) continue;
-                var agent = dino.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                if (agent != null && agent.isOnNavMesh)
+                dino.EnsureOnNavMesh(15f);
+                dino.ConfigureNavMeshAgent();
+                if (dino.Agent != null && dino.Agent.isOnNavMesh)
                 {
-                    agent.isStopped = false;
-                    agent.SetDestination(targetPos);
+                    dino.Agent.isStopped = false;
+                    dino.Agent.SetDestination(targetPos);
                 }
                 dino.SetDestination(targetPos);
+            }
+
+            var flyingUnits = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
+            foreach (var fly in flyingUnits)
+            {
+                if (fly == null || fly.Health <= 0) continue;
+                fly.SetDestination(targetPos);
             }
 
             var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);

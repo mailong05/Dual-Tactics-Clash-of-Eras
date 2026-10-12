@@ -331,6 +331,21 @@ namespace LlamAcademy.Dinos.RoundManagement
                         ActiveMonsters.Add(unitComp);
                         unitComp.OnDeath += HandleMonsterDeath;
                     }
+
+                    if (spawned.TryGetComponent(out Unit.PrehistoricDinoBase dinoBase))
+                    {
+                        dinoBase.EnsureOnNavMesh(15f);
+                        dinoBase.ConfigureNavMeshAgent();
+                        if (dinoBase.Agent != null && dinoBase.Agent.isOnNavMesh)
+                        {
+                            dinoBase.Agent.isStopped = false;
+                            if (BaseTarget != null) dinoBase.Agent.SetDestination(BaseTarget.position);
+                        }
+                    }
+                    else if (spawned.TryGetComponent(out Unit.FlyingUnit flyComp))
+                    {
+                        if (BaseTarget != null) flyComp.SetTargetBase(BaseTarget);
+                    }
                 }
 
                 _MonstersRemainingToSpawn--;

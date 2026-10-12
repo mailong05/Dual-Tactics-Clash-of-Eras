@@ -65,9 +65,52 @@ namespace LlamAcademy.Dinos.Unit
         private bool _hasReachedBase = false;
         private static readonly HashSet<PrehistoricDinoBase> s_ActiveDinos = new();
 
+        public bool EnsureOnNavMesh(float maxDistance = 15f)
+        {
+            if (Agent == null) Agent = GetComponent<NavMeshAgent>();
+            if (Agent == null) return false;
+
+            if (!Agent.enabled) Agent.enabled = true;
+
+            if (Agent.isOnNavMesh) return true;
+
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, maxDistance, NavMesh.AllAreas))
+            {
+                Agent.Warp(hit.position);
+                transform.position = hit.position;
+                return Agent.isOnNavMesh;
+            }
+
+            if (NavMesh.SamplePosition(transform.position + Vector3.up * 1.5f, out hit, maxDistance * 1.5f, NavMesh.AllAreas))
+            {
+                Agent.Warp(hit.position);
+                transform.position = hit.position;
+                return Agent.isOnNavMesh;
+            }
+
+            return false;
+        }
+
+        public void ConfigureNavMeshAgent()
+        {
+            if (Agent == null) Agent = GetComponent<NavMeshAgent>();
+            if (Agent == null) return;
+
+            Agent.speed = MoveSpeed;
+            Agent.acceleration = 28f;
+            Agent.angularSpeed = 480f;
+            Agent.autoBraking = false;
+            Agent.stoppingDistance = 0.5f;
+            Agent.autoRepath = true;
+            Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
+            if (Agent.radius > 0.45f) Agent.radius = 0.45f;
+        }
+
         protected virtual void OnEnable()
         {
             s_ActiveDinos.Add(this);
+            ConfigureNavMeshAgent();
+            EnsureOnNavMesh(15f);
             if (NavMeshManager.Instance != null)
             {
                 NavMeshManager.Instance.OnNavMeshUpdated += HandleNavMeshUpdated;
@@ -120,13 +163,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            if (Agent == null) Agent = GetComponent<NavMeshAgent>();
-            if (Agent != null)
-            {
-                Agent.speed = MoveSpeed;
-                Agent.autoRepath = true;
-                Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
-            }
+            ConfigureNavMeshAgent();
 
             InitializeVisualAndAnimation();
             DiscoverSkeletalBones();
@@ -338,6 +375,12 @@ namespace LlamAcademy.Dinos.Unit
             }
             if (validClips.Count == 0) return;
 
+            // When real GLB legacy clips are present, disable ModelAnimator to avoid Mecanim vs Legacy collision!
+            if (ModelAnimator != null)
+            {
+                ModelAnimator.enabled = false;
+            }
+
             if (ModelLegacyAnimation == null)
             {
                 ModelLegacyAnimation = VisualModel.GetComponent<Animation>();
@@ -372,28 +415,28 @@ namespace LlamAcademy.Dinos.Unit
                     try
                     {
                         string cn = clip.name.ToLower();
-                        if (_WalkClipName == null && (cn.Contains("walk") || cn.Contains("run") || cn.Contains("anim") || cn.Contains("fly")))
+                        if (_WalkClipName == null && (cn.Contains("walk") || cn.Contains("run") || cn.Contains("fly") || cn.Contains("anim")))
                             _WalkClipName = clip.name;
-                        if (_AttackClipName == null && (cn.Contains("roar") || cn.Contains("eat") || cn.Contains("attack") || cn.Contains("bite")))
+                        if (_AttackClipName == null && (cn.Contains("attack") || cn.Contains("bite") || cn.Contains("roar") || cn.Contains("eat")))
                             _AttackClipName = clip.name;
                     }
                     catch {}
                 }
 
-                if (_WalkClipName != null && ModelLegacyAnimation[_WalkClipName] != null)
+                // If only 1 clip exists (e.g. TRex or Ankylosaurus with single "Animation" clip), use it for both walk and attack!
+                if (_WalkClipName == null && validClips.Count > 0)
+                {
+                    _WalkClipName = validClips[0].name;
+                }
+                if (_AttackClipName == null && !string.IsNullOrEmpty(_WalkClipName))
+                {
+                    _AttackClipName = _WalkClipName;
+                }
+
+                if (!string.IsNullOrEmpty(_WalkClipName) && ModelLegacyAnimation[_WalkClipName] != null)
                 {
                     ModelLegacyAnimation.clip = ModelLegacyAnimation[_WalkClipName].clip;
                     ModelLegacyAnimation.Play(_WalkClipName);
-                }
-                else if (validClips.Count > 0 && validClips[0] != null)
-                {
-                    try
-                    {
-                        _WalkClipName = validClips[0].name;
-                        ModelLegacyAnimation.clip = validClips[0];
-                        ModelLegacyAnimation.Play(_WalkClipName);
-                    }
-                    catch {}
                 }
             }
         }
@@ -404,16 +447,14 @@ namespace LlamAcademy.Dinos.Unit
 
             if (TargetLayers.value == 0) TargetLayers = ~LayerMask.GetMask("Ignore Raycast");
 
-            if (Agent != null)
-            {
-                Agent.speed = MoveSpeed;
-                Agent.stoppingDistance = AttackRange * 0.8f;
-            }
+            ConfigureNavMeshAgent();
+            EnsureOnNavMesh(15f);
 
             FindTargetBase();
 
             if (TargetBase != null && Agent != null && Agent.isOnNavMesh)
             {
+                Agent.isStopped = false;
                 Agent.SetDestination(TargetBase.position);
             }
 
@@ -460,16 +501,25 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
+            if (Agent != null && (!Agent.enabled || !Agent.isOnNavMesh))
+            {
+                EnsureOnNavMesh(15.0f);
+            }
+
             float currentSpeed = (Agent != null && Agent.enabled && Agent.isOnNavMesh) ? Agent.velocity.magnitude : 0f;
             UpdateAnimation(currentSpeed);
 
-            if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running)
-            {
-                bool isAssaultCombat = PrehistoricGameModeManager.Instance != null 
-                    && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault 
-                    && PrehistoricGameModeManager.Instance.IsAssaultActive;
+            bool isDefenseCombat = PrehistoricGameplayManager.Instance != null 
+                && PrehistoricGameplayManager.Instance.enabled 
+                && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase;
 
-                if (!isAssaultCombat)
+            bool isAssaultCombat = PrehistoricGameModeManager.Instance != null 
+                && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault 
+                && PrehistoricGameModeManager.Instance.IsAssaultActive;
+
+            if (!isDefenseCombat && !isAssaultCombat)
+            {
+                if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running)
                 {
                     if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
                     return;
@@ -490,7 +540,7 @@ namespace LlamAcademy.Dinos.Unit
             // check if we can navigate through the hole without needing to finish destroying this wall!
             if (hasValidTarget && CurrentTarget is Wall)
             {
-                if (Agent != null && Agent.enabled && Agent.isOnNavMesh && Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete)
+                if (Agent != null && Agent.enabled && Agent.isOnNavMesh && !Agent.pathPending && Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete)
                 {
                     Collider wallCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
                     Vector3 wallPos = wallCol != null ? wallCol.bounds.center : CurrentTarget.Transform.position;
@@ -499,7 +549,6 @@ namespace LlamAcademy.Dinos.Unit
                     float dist = toWall.magnitude;
                     float forwardAlignment = dist > 0.01f ? Vector3.Dot(transform.forward, toWall.normalized) : 0f;
 
-                    // Chỉ từ bỏ tường này nếu hướng đi tiếp theo rẽ sang chỗ khác để chui qua lỗ thủng đã vỡ
                     Vector3 steerDir = (Agent.steeringTarget - transform.position);
                     steerDir.y = 0;
                     float steerAwayDot = steerDir.sqrMagnitude > 0.01f ? Vector3.Dot(steerDir.normalized, toWall.normalized) : 1f;
@@ -601,8 +650,12 @@ namespace LlamAcademy.Dinos.Unit
             _CurrentSpeed = currentSpeed;
             bool isMoving = currentSpeed > 0.15f;
 
-            // 1. Mecanim Animator Parameters
-            if (ModelAnimator != null)
+            bool hasRealLegacyAnim = ModelLegacyAnimation != null 
+                && ModelLegacyAnimation.enabled 
+                && ModelLegacyAnimation.GetClipCount() > 0;
+
+            // 1. Mecanim Animator Parameters (only if no legacy clip active)
+            if (!hasRealLegacyAnim && ModelAnimator != null && ModelAnimator.enabled)
             {
                 SetAnimatorFloatIfExists(ModelAnimator, "Speed", currentSpeed);
                 SetAnimatorFloatIfExists(ModelAnimator, "Forward", currentSpeed);
@@ -612,7 +665,7 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // 2. Legacy Animation Clip Playback
-            if (ModelLegacyAnimation != null)
+            if (hasRealLegacyAnim)
             {
                 string activeClip = _WalkClipName;
                 if (string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation.clip != null)
@@ -622,24 +675,28 @@ namespace LlamAcademy.Dinos.Unit
 
                 if (!string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation[activeClip] != null)
                 {
-                    if (isMoving)
+                    if (!_IsAttackingAnim)
                     {
                         if (!ModelLegacyAnimation.isPlaying || !ModelLegacyAnimation.IsPlaying(activeClip))
                         {
                             ModelLegacyAnimation.CrossFade(activeClip, 0.2f);
                         }
-                        float animSpeed = Mathf.Clamp(currentSpeed / Mathf.Max(MoveSpeed * 0.7f, 1f), 0.6f, 1.8f);
-                        ModelLegacyAnimation[activeClip].speed = animSpeed;
-                    }
-                    else
-                    {
-                        ModelLegacyAnimation[activeClip].speed = 0.2f;
+
+                        if (isMoving)
+                        {
+                            float speedRatio = currentSpeed / Mathf.Max(MoveSpeed * 0.7f, 1f);
+                            ModelLegacyAnimation[activeClip].speed = Mathf.Clamp(speedRatio, 0.75f, 1.6f);
+                        }
+                        else
+                        {
+                            ModelLegacyAnimation[activeClip].speed = 0.35f;
+                        }
                     }
                 }
             }
 
-            // 3. Root Visual Stride Bob & Rolling Sway
-            if (_HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
+            // 3. Root Visual Stride Bob & Rolling Sway (ONLY applied if NO skeletal clip is playing)
+            if (!hasRealLegacyAnim && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
             {
                 if (isMoving)
                 {
@@ -660,15 +717,31 @@ namespace LlamAcademy.Dinos.Unit
                     VisualModel.localRotation = Quaternion.Slerp(VisualModel.localRotation, _BaseModelLocalRot, Time.deltaTime * 4f);
                 }
             }
+            else if (hasRealLegacyAnim && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
+            {
+                // Keep model stable at root offset for clean, glitch-free skeletal animation
+                VisualModel.localPosition = _BaseModelLocalPos;
+                VisualModel.localRotation = _BaseModelLocalRot;
+            }
         }
 
         protected virtual void LateUpdate()
         {
             if (VisualModel == null) return;
 
+            // CRITICAL FIX: If real rigged skeleton animations are playing,
+            // DO NOT override bone localRotations! Doing so causes severe jitter and fighting between animation and math!
+            bool hasRealAnimation = (ModelLegacyAnimation != null && ModelLegacyAnimation.enabled && ModelLegacyAnimation.isPlaying)
+                || (ModelAnimator != null && ModelAnimator.enabled && ModelAnimator.runtimeAnimatorController != null);
+
+            if (hasRealAnimation)
+            {
+                return;
+            }
+
             bool isMoving = _CurrentSpeed > 0.15f;
 
-            // 1. Chân bước đi / chạy nhịp nhàng (Alternating Leg Swings)
+            // 1. Chân bước đi / chạy nhịp nhàng (Alternating Leg Swings) - Fallback only
             if (isMoving)
             {
                 float legSwing = Mathf.Sin(_GaitTimer) * 26f;
@@ -761,15 +834,6 @@ namespace LlamAcademy.Dinos.Unit
                     wall.Health = 450;
                     wall.EnsureHealthBarAttached();
                 }
-                if (!go.TryGetComponent(out NavMeshObstacle obs))
-                {
-                    obs = go.AddComponent<NavMeshObstacle>();
-                    obs.shape = NavMeshObstacleShape.Box;
-                    obs.size = col.bounds.size;
-                    obs.center = go.transform.InverseTransformPoint(col.bounds.center);
-                    obs.carving = true;
-                    obs.carveOnlyStationary = false;
-                }
                 return wall;
             }
             return null;
@@ -779,141 +843,51 @@ namespace LlamAcademy.Dinos.Unit
         {
             if (Agent == null || !Agent.enabled || !Agent.isOnNavMesh) return null;
 
-            Vector3 fwdDir = transform.forward;
-            if (Agent.hasPath && Agent.velocity.sqrMagnitude > 0.1f)
-            {
-                fwdDir = Agent.velocity.normalized;
-            }
-            fwdDir.y = 0;
-            if (fwdDir == Vector3.zero) fwdDir = transform.forward;
-            fwdDir.Normalize();
-
-            // 1. Tia quét trực diện tầm ngực phía trước (SphereCast forward check)
-            // Phát hiện tường chắn ngay hướng di chuyển
-            Vector3 chestPos = transform.position + Vector3.up * 0.8f;
-            if (Physics.SphereCast(chestPos, 0.45f, fwdDir, out RaycastHit forwardHit, AttackRange + 0.8f, TargetLayers))
-            {
-                Wall hitWall = forwardHit.collider.GetComponentInParent<Wall>();
-                if (hitWall == null) hitWall = EnsureDynamicWall(forwardHit.collider);
-                if (hitWall != null && hitWall.Health > 0)
-                {
-                    return hitWall;
-                }
-
-                Unit hitDefender = forwardHit.collider.GetComponentInParent<Unit>();
-                if (hitDefender != null && !(hitDefender is PrehistoricDinoBase) && hitDefender.Health > 0)
-                {
-                    return hitDefender;
-                }
-            }
-
-            // 2. Quét vùng chạm / xuyên thấu (Overlap check)
-            float scanRadius = Mathf.Max(AttackRange + 0.8f, 3.2f);
-            int hits = Physics.OverlapSphereNonAlloc(transform.position, scanRadius, ScanBuffer, TargetLayers);
-            IDamageable directForwardObstacle = null;
-            float bestForwardAlignment = 0.35f;
-
-            for (int i = 0; i < hits; i++)
-            {
-                Collider col = ScanBuffer[i];
-                if (col == null || col.gameObject == gameObject) continue;
-
-                Wall wall = col.GetComponentInParent<Wall>();
-                if (wall == null) wall = EnsureDynamicWall(col);
-
-                if (wall != null && wall.Health > 0)
-                {
-                    Vector3 closestPt;
-                    try { closestPt = col.ClosestPoint(transform.position); }
-                    catch { closestPt = col.bounds.ClosestPoint(transform.position); }
-
-                    Vector3 diff = transform.position - closestPt;
-                    diff.y = 0;
-                    float distToCol = diff.magnitude;
-                    float stopRadius = (Agent != null && Agent.radius > 0.1f) ? Agent.radius : 0.6f;
-
-                    // Nếu khủng long đang chạm sát hoặc bị đẩy vào trong bounds của tường
-                    if (col.bounds.Contains(transform.position) || distToCol < stopRadius + 0.15f)
-                    {
-                        // Ngăn chặn tuyệt đối khủng long đi xuyên qua
-                        Vector3 pushDir = distToCol > 0.001f ? diff.normalized : (transform.position - col.bounds.center);
-                        pushDir.y = 0;
-                        if (pushDir == Vector3.zero) pushDir = -fwdDir;
-                        pushDir.Normalize();
-
-                        Vector3 safePos = closestPt + pushDir * (stopRadius + 0.2f);
-                        safePos.y = transform.position.y;
-
-                        if (Agent != null && Agent.isOnNavMesh)
-                        {
-                            Agent.velocity = Vector3.zero;
-                            Agent.isStopped = true;
-                            Agent.Warp(safePos);
-                        }
-                        else
-                        {
-                            transform.position = safePos;
-                        }
-                        return wall;
-                    }
-
-                    Vector3 flatToWall = new Vector3(closestPt.x - transform.position.x, 0f, closestPt.z - transform.position.z);
-                    float flatDist = flatToWall.magnitude;
-                    if (flatDist <= AttackRange + 0.6f)
-                    {
-                        Vector3 flatDir = flatDist > 0.01f ? (flatToWall / flatDist) : fwdDir;
-                        float forwardDot = Vector3.Dot(fwdDir, flatDir);
-                        if (forwardDot > bestForwardAlignment)
-                        {
-                            directForwardObstacle = wall;
-                            bestForwardAlignment = forwardDot;
-                        }
-                    }
-                    continue;
-                }
-
-                Unit tower = col.GetComponentInParent<Unit>();
-                if (tower != null && !(tower is PrehistoricDinoBase) && tower.Health > 0)
-                {
-                    Vector3 closestPt;
-                    try { closestPt = col.ClosestPoint(transform.position); }
-                    catch { closestPt = col.bounds.ClosestPoint(transform.position); }
-
-                    Vector3 flatToTower = new Vector3(closestPt.x - transform.position.x, 0f, closestPt.z - transform.position.z);
-                    float flatDist = flatToTower.magnitude;
-                    if (flatDist <= AttackRange + 0.6f)
-                    {
-                        Vector3 flatDir = flatDist > 0.01f ? (flatToTower / flatDist) : fwdDir;
-                        float forwardDot = Vector3.Dot(fwdDir, flatDir);
-                        if (forwardDot > bestForwardAlignment)
-                        {
-                            directForwardObstacle = tower;
-                            bestForwardAlignment = forwardDot;
-                        }
-                    }
-                }
-            }
-
-            if (directForwardObstacle != null)
-            {
-                return directForwardObstacle;
-            }
-
-            // 3. Nếu không có bức tường nào chặn trực diện ngay trước mặt:
-            // Nếu NavMesh đã có đường đi HOÀN TOÀN (PathComplete) qua một lỗ thủng đã vỡ,
-            // khủng long sẽ men theo NavMesh đi qua lỗ thủng đó mà KHÔNG tấn công các bức tường xung quanh!
-            bool pathIsComplete = (Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete);
-            if (pathIsComplete)
+            // 1. If path is currently being computed asynchronously, do not assume path is blocked!
+            if (Agent.pathPending)
             {
                 return null;
             }
 
-            // 4. Khi chưa có lỗ thủng nào bị phá (PathPartial hoặc PathInvalid):
-            // Toàn bộ đường vào làng bị phong tỏa 100%, khủng long bắt buộc phải tấn công bức tường gần nhất chắn đường vào làng
+            // 2. If path to target is COMPLETE (unobstructed corridor / breach is open):
+            // Dinosaurs sprint smoothly along the path towards base without stopping at roadside walls!
+            if (Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete)
+            {
+                // Only if directly obstructed right in front within very close melee range:
+                Vector3 fwd = transform.forward;
+                if (Agent.velocity.sqrMagnitude > 0.1f) fwd = Agent.velocity.normalized;
+                fwd.y = 0;
+
+                Vector3 chest = transform.position + Vector3.up * 0.8f;
+                if (Physics.SphereCast(chest, 0.4f, fwd, out RaycastHit fwdHit, AttackRange, TargetLayers))
+                {
+                    if (fwdHit.collider != null && fwdHit.collider.gameObject != gameObject)
+                    {
+                        Wall w = fwdHit.collider.GetComponentInParent<Wall>();
+                        if (w != null && w.Health > 0 && Agent.velocity.sqrMagnitude < 0.15f)
+                        {
+                            return w;
+                        }
+
+                        Unit u = fwdHit.collider.GetComponentInParent<Unit>();
+                        if (u != null && !(u is PrehistoricDinoBase) && u.Health > 0)
+                        {
+                            return u;
+                        }
+                    }
+                }
+
+                // Path is complete and dino is freely moving: NO blockers!
+                return null;
+            }
+
+            // 3. When path is NOT complete (PathPartial or PathInvalid):
+            // The route to base is blocked by walls/barricades! Find the wall blocking our way towards base to breach it.
             Vector3 targetDir = TargetBase != null ? (TargetBase.position - transform.position).normalized : transform.forward;
             targetDir.y = 0;
-            float wideScanRadius = Mathf.Max(AttackRange + 2.0f, 4.5f);
-            int blockHits = Physics.OverlapSphereNonAlloc(transform.position, wideScanRadius, ScanBuffer, TargetLayers);
+
+            float scanRadius = Mathf.Max(AttackRange + 1.5f, 4.0f);
+            int blockHits = Physics.OverlapSphereNonAlloc(transform.position, scanRadius, ScanBuffer, TargetLayers);
 
             IDamageable closestBlocker = null;
             float minDistance = float.MaxValue;
@@ -932,14 +906,11 @@ namespace LlamAcademy.Dinos.Unit
                     catch { closest = col.bounds.ClosestPoint(transform.position); }
 
                     Vector3 flatToWall = new Vector3(closest.x - transform.position.x, 0f, closest.z - transform.position.z);
-                    if (Vector3.Dot(targetDir, flatToWall.normalized) > -0.2f)
+                    float d = flatToWall.magnitude;
+                    if (d < minDistance && Vector3.Dot(targetDir, flatToWall.normalized) > -0.3f)
                     {
-                        float d = flatToWall.magnitude;
-                        if (d < minDistance)
-                        {
-                            minDistance = d;
-                            closestBlocker = wall;
-                        }
+                        minDistance = d;
+                        closestBlocker = wall;
                     }
                     continue;
                 }
@@ -968,19 +939,37 @@ namespace LlamAcademy.Dinos.Unit
             int damage = target is Wall ? Mathf.CeilToInt(AttackDamage * BuildingDamageMultiplier) : AttackDamage;
             target.TakeDamage(damage);
 
-            if (ModelAnimator != null)
-            {
-                SetAnimatorTriggerIfExists(ModelAnimator, "IsAttacking");
-                SetAnimatorTriggerIfExists(ModelAnimator, "Attack");
-                SetAnimatorTriggerIfExists(ModelAnimator, "Bite");
-            }
+            bool hasAttackClip = ModelLegacyAnimation != null 
+                && !string.IsNullOrEmpty(_AttackClipName) 
+                && ModelLegacyAnimation[_AttackClipName] != null;
 
-            if (ModelLegacyAnimation != null && !string.IsNullOrEmpty(_AttackClipName) && ModelLegacyAnimation[_AttackClipName] != null)
+            if (hasAttackClip)
             {
-                ModelLegacyAnimation.CrossFade(_AttackClipName, 0.15f);
+                ModelLegacyAnimation[_AttackClipName].speed = 1.3f;
+                ModelLegacyAnimation.CrossFade(_AttackClipName, 0.12f);
+                StartCoroutine(AttackClipResetRoutine());
             }
+            else
+            {
+                if (ModelAnimator != null && ModelAnimator.enabled)
+                {
+                    SetAnimatorTriggerIfExists(ModelAnimator, "IsAttacking");
+                    SetAnimatorTriggerIfExists(ModelAnimator, "Attack");
+                    SetAnimatorTriggerIfExists(ModelAnimator, "Bite");
+                }
+                StartCoroutine(AttackMotionRoutine());
+            }
+        }
 
-            StartCoroutine(AttackMotionRoutine());
+        protected virtual IEnumerator AttackClipResetRoutine()
+        {
+            _IsAttackingAnim = true;
+            yield return new WaitForSeconds(0.55f);
+            if (ModelLegacyAnimation != null && !string.IsNullOrEmpty(_WalkClipName) && ModelLegacyAnimation[_WalkClipName] != null)
+            {
+                ModelLegacyAnimation.CrossFade(_WalkClipName, 0.2f);
+            }
+            _IsAttackingAnim = false;
         }
 
         protected virtual IEnumerator AttackMotionRoutine()

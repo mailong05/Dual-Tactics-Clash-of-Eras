@@ -6,8 +6,9 @@ namespace LlamAcademy.Dinos.Unit
     {
         protected override void Awake()
         {
-            base.Awake();
             MoveSpeed = 5.5f;
+            base.Awake();
+            ConfigureNavMeshAgent();
             MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 240;
             Health = MaxHealth;
             AttackDamage = 16;

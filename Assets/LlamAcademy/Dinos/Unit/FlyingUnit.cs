@@ -78,10 +78,7 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Start();
 
-            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
-            {
-                TargetBase = RoundManager.Instance.DinoTarget;
-            }
+            FindTargetBase();
 
             // Adjust starting altitude
             Vector3 pos = transform.position;
@@ -89,6 +86,53 @@ namespace LlamAcademy.Dinos.Unit
             transform.position = pos;
 
             EnsureHealthBarAttached();
+        }
+
+        public void FindTargetBase()
+        {
+            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            {
+                TargetBase = RoundManager.Instance.DinoTarget;
+                return;
+            }
+
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
+            {
+                TargetBase = PrehistoricGameModeManager.Instance.VillageBase.transform;
+                return;
+            }
+
+            GameObject eggObj = GameObject.Find("Dino Egg Spawn");
+            if (eggObj != null)
+            {
+                TargetBase = eggObj.transform;
+                return;
+            }
+
+            GameObject eggTag = GameObject.FindWithTag("Finish");
+            if (eggTag != null)
+            {
+                TargetBase = eggTag.transform;
+            }
+        }
+
+        public void SetTargetBase(Transform t)
+        {
+            TargetBase = t;
+        }
+
+        public void SetDestination(Vector3 destination)
+        {
+            if (TargetBase == null)
+            {
+                GameObject destObj = new GameObject("FlyingTargetDestination");
+                destObj.transform.position = destination;
+                TargetBase = destObj.transform;
+            }
+            else
+            {
+                TargetBase.position = destination;
+            }
         }
 
         public override void EnsureHealthBarAttached()
@@ -100,8 +144,24 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
-            if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
-            if (TargetBase == null) return;
+            bool isDefenseCombat = PrehistoricGameplayManager.Instance != null 
+                && PrehistoricGameplayManager.Instance.enabled 
+                && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase;
+
+            bool isAssaultCombat = PrehistoricGameModeManager.Instance != null 
+                && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault 
+                && PrehistoricGameModeManager.Instance.IsAssaultActive;
+
+            if (!isDefenseCombat && !isAssaultCombat)
+            {
+                if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            }
+
+            if (TargetBase == null)
+            {
+                FindTargetBase();
+                if (TargetBase == null) return;
+            }
 
             Vector3 targetDestination = TargetBase.position + Vector3.up * FlightHeight;
             Vector3 direction = (targetDestination - transform.position).normalized;
@@ -117,21 +177,25 @@ namespace LlamAcademy.Dinos.Unit
             // Flight undulating motion & wing-beat banking
             if (VisualModel != null)
             {
-                float flapTime = Time.time * 6.0f;
-                float verticalBob = Mathf.Sin(flapTime) * 0.12f;
-                float pitchOscillation = Mathf.Cos(flapTime) * 4.0f;
-                VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, verticalBob, 0f);
-                VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitchOscillation, 0f, 0f);
+                bool hasAnim = _LegacyAnimation != null && _LegacyAnimation.enabled && _LegacyAnimation.isPlaying;
+                if (!hasAnim)
+                {
+                    float flapTime = Time.time * 6.0f;
+                    float verticalBob = Mathf.Sin(flapTime) * 0.12f;
+                    float pitchOscillation = Mathf.Cos(flapTime) * 4.0f;
+                    VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, verticalBob, 0f);
+                    VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitchOscillation, 0f, 0f);
 
-                if (_LeftWing != null)
-                {
-                    float wingFlap = Mathf.Sin(flapTime) * 25.0f;
-                    _LeftWing.localRotation = _LeftWingBaseRot * Quaternion.Euler(0f, 0f, wingFlap);
-                }
-                if (_RightWing != null)
-                {
-                    float wingFlap = Mathf.Sin(flapTime) * 25.0f;
-                    _RightWing.localRotation = _RightWingBaseRot * Quaternion.Euler(0f, 0f, -wingFlap);
+                    if (_LeftWing != null)
+                    {
+                        float wingFlap = Mathf.Sin(flapTime) * 25.0f;
+                        _LeftWing.localRotation = _LeftWingBaseRot * Quaternion.Euler(0f, 0f, wingFlap);
+                    }
+                    if (_RightWing != null)
+                    {
+                        float wingFlap = Mathf.Sin(flapTime) * 25.0f;
+                        _RightWing.localRotation = _RightWingBaseRot * Quaternion.Euler(0f, 0f, -wingFlap);
+                    }
                 }
             }
 
