@@ -84,7 +84,15 @@ namespace LlamAcademy.Dinos.Unit
 
         public override void Die()
         {
+            // 1. Lập tức vô hiệu hóa Collider và NavMeshObstacle ngay trong frame này
+            // để Unity NavMesh lập tức un-carve giải phóng lối đi và vật lý không chặn quái
+            Collider[] cols = GetComponentsInChildren<Collider>();
+            foreach (var c in cols) if (c != null) c.enabled = false;
+            NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>();
+            foreach (var obs in obstacles) if (obs != null) obs.enabled = false;
+
             UpdateNavMeshData.MoveObstacles();
+            PrehistoricDinoBase.OnWallBreached(this);
             if (gameObject.activeInHierarchy)
             {
                 StartCoroutine(HandleDeath());
@@ -124,6 +132,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 NavMeshManager.Instance.NavMeshUpdatedByObstacles();
             }
+            PrehistoricDinoBase.OnWallBreached(this);
         }
 
         [System.Serializable]

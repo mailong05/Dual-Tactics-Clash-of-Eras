@@ -671,18 +671,32 @@ namespace LlamAcademy.Dinos.RoundManagement
             GameObject existing = GameObject.Find("Village_Fortress_Wall");
             if (existing != null)
             {
-                // Nếu tường cũ ở vị trí Z sâu trong làng (Z <= -8f), xóa đi để tái thiết lập tường thành ra mặt tiền trước làng
-                Transform firstChild = existing.transform.childCount > 0 ? existing.transform.GetChild(0) : null;
-                float currentZ = (firstChild != null && firstChild.childCount > 0) ? firstChild.GetChild(0).position.z : existing.transform.position.z;
-                if (currentZ <= -8f)
+                // Kiểm tra xem đã có đủ 2 chòi cung thủ tiền tiêu và số đoạn tường mới chưa
+                Transform wtLeft = existing.transform.Find("Village_Watchtower_Left");
+                Transform wtRight = existing.transform.Find("Village_Watchtower_Right");
+                Transform leftWing = existing.transform.Find("Left_Wing_Wall");
+                Transform rightWing = existing.transform.Find("Right_Wing_Wall");
+
+                bool hasWatchtowers = wtLeft != null && wtRight != null;
+                bool hasFullWings = leftWing != null && leftWing.childCount >= 10 && rightWing != null && rightWing.childCount >= 10;
+
+                if (hasWatchtowers && hasFullWings)
                 {
-                    Destroy(existing);
+                    return; // Đã là tường thành khép kín hoàn chỉnh chuẩn 100%
                 }
-                else
-                {
-                    return;
-                }
+
+                Destroy(existing);
             }
+
+            // Xóa mọi chòi cung thủ cũ/ẩn hoặc lạc đàn
+            GameObject oldWaypoints = GameObject.Find("Archer Waypoints");
+            if (oldWaypoints != null) Destroy(oldWaypoints);
+            GameObject oldStarter = GameObject.Find("Starter_Defenses");
+            if (oldStarter != null) Destroy(oldStarter);
+            GameObject strayWtL = GameObject.Find("Village_Watchtower_Left");
+            if (strayWtL != null) Destroy(strayWtL);
+            GameObject strayWtR = GameObject.Find("Village_Watchtower_Right");
+            if (strayWtR != null) Destroy(strayWtR);
 
             GameObject fortressRoot = new GameObject("Village_Fortress_Wall");
 
@@ -690,10 +704,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             GameObject archPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Fortress_Arch");
             GameObject torchPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Fortress_Torch");
             GameObject barricadePrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Barricade");
+            GameObject watchtowerPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Watchtower");
+            Config.TowerSO barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
+            if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
+            Config.TowerSO watchtowerSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Watchtower");
+            if (watchtowerSO == null) watchtowerSO = Resources.Load<Config.TowerSO>("Tower_Watchtower");
 
             const float wallZ = -2.5f;
 
-            // 1. Cổng Thành Trung Tâm (Gate Complex - Đặt ngay tại cửa ngõ vào làng X = -2.2f)
+            // 1. CỔNG THÀNH TRUNG TÂM KHÉP KÍN (Gate Complex: X = -5.0f đến X = +0.6f)
             GameObject gateGroup = new GameObject("Gate_Complex");
             gateGroup.transform.SetParent(fortressRoot.transform);
 
@@ -737,7 +756,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 tr.transform.localScale = Vector3.one * 1.3f;
             }
 
-            // Cánh Cổng Gỗ Kiên Cố Chắn Khủng Long (1500 HP)
+            // Cánh Cổng Gỗ Kiên Cố Chắn Khủng Long (1000 HP)
             if (barricadePrefab != null)
             {
                 GameObject gateBar = Instantiate(barricadePrefab, new Vector3(-2.2f, 0f, wallZ), Quaternion.identity, gateGroup.transform);
@@ -745,75 +764,109 @@ namespace LlamAcademy.Dinos.RoundManagement
                 gateBar.transform.localScale = new Vector3(1.8f, 1.4f, 1.0f);
                 if (gateBar.TryGetComponent(out Unit.Unit ugb))
                 {
-                    ugb.Health = 800;
-                    ugb.MaxHealth = 800;
+                    if (barricadeSO != null) ugb.UnitType = barricadeSO;
+                    ugb.Health = 1000;
+                    ugb.MaxHealth = 1000;
                     ugb.EnsureHealthBarAttached();
                 }
+                EnsureNavMeshObstacle(gateBar, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
             }
 
-            // 2. Tường Thành Cánh Trái (Left Wing Wall - Kéo dài nối vào vách núi)
+            // 2. TƯỜNG THÀNH CÁNH TRÁI KHÉP KÍN 100% (Left Wing Wall: X = -5.0f đến X = -31.0f)
             GameObject leftWallGroup = new GameObject("Left_Wing_Wall");
             leftWallGroup.transform.SetParent(fortressRoot.transform);
 
-            float[] leftPositionsX = new float[] { -9.0f, -12.2f, -15.4f, -18.6f, -21.8f, -25.0f };
+            float[] leftPositionsX = new float[] { -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f };
             for (int i = 0; i < leftPositionsX.Length; i++)
             {
                 if (barricadePrefab != null)
                 {
                     GameObject seg = Instantiate(barricadePrefab, new Vector3(leftPositionsX[i], 0f, wallZ), Quaternion.identity, leftWallGroup.transform);
                     seg.name = $"Left_Wall_Segment_{i + 1}";
-                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.0f);
+                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
                     if (seg.TryGetComponent(out Unit.Unit uw))
                     {
+                        if (barricadeSO != null) uw.UnitType = barricadeSO;
                         uw.Health = 450;
                         uw.MaxHealth = 450;
                         uw.EnsureHealthBarAttached();
                     }
+                    EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
                 }
             }
 
-            // Pháo Đài Góc Trái sát vách núi
+            // Pháo Đài Góc Trái sát vách núi (X = -33.5f)
             if (towerPrefab != null)
             {
-                GameObject leftBastion = Instantiate(towerPrefab, new Vector3(-28.0f, 0f, wallZ), Quaternion.Euler(0f, 30f, 0f), leftWallGroup.transform);
+                GameObject leftBastion = Instantiate(towerPrefab, new Vector3(-33.5f, 0f, wallZ), Quaternion.Euler(0f, 30f, 0f), leftWallGroup.transform);
                 leftBastion.name = "Left_Bastion_Tower";
                 leftBastion.transform.localScale = Vector3.one * 0.7f;
                 EnsureBoxCollider(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
                 EnsureNavMeshObstacle(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
             }
 
-            // 3. Tường Thành Cánh Phải (Right Wing Wall - Kéo dài nối vào vách núi phải)
+            // 3. TƯỜNG THÀNH CÁNH PHẢI KHÉP KÍN 100% (Right Wing Wall: X = +0.6f đến X = +26.6f)
             GameObject rightWallGroup = new GameObject("Right_Wing_Wall");
             rightWallGroup.transform.SetParent(fortressRoot.transform);
 
-            float[] rightPositionsX = new float[] { 4.6f, 7.8f, 11.0f, 14.2f, 17.4f, 20.6f, 23.8f };
+            float[] rightPositionsX = new float[] { 0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f, 26.6f };
             for (int i = 0; i < rightPositionsX.Length; i++)
             {
                 if (barricadePrefab != null)
                 {
                     GameObject seg = Instantiate(barricadePrefab, new Vector3(rightPositionsX[i], 0f, wallZ), Quaternion.identity, rightWallGroup.transform);
                     seg.name = $"Right_Wall_Segment_{i + 1}";
-                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.0f);
+                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
                     if (seg.TryGetComponent(out Unit.Unit uw))
                     {
+                        if (barricadeSO != null) uw.UnitType = barricadeSO;
                         uw.Health = 450;
                         uw.MaxHealth = 450;
                         uw.EnsureHealthBarAttached();
                     }
+                    EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
                 }
             }
 
-            // Pháo Đài Góc Phải sát vách núi
+            // Pháo Đài Góc Phải sát vách núi (X = 29.0f)
             if (towerPrefab != null)
             {
-                GameObject rightBastion = Instantiate(towerPrefab, new Vector3(27.0f, 0f, wallZ), Quaternion.Euler(0f, -30f, 0f), rightWallGroup.transform);
+                GameObject rightBastion = Instantiate(towerPrefab, new Vector3(29.0f, 0f, wallZ), Quaternion.Euler(0f, -30f, 0f), rightWallGroup.transform);
                 rightBastion.name = "Right_Bastion_Tower";
                 rightBastion.transform.localScale = Vector3.one * 0.7f;
                 EnsureBoxCollider(rightBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
                 EnsureNavMeshObstacle(rightBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
             }
 
-            Debug.Log("<color=green>[Prehistoric TD]</color> Khởi tạo thành công Tường Thành Có Cổng mặt tiền trước làng (Z = -2.5f) bảo vệ buôn làng!");
+            // 4. THÊM 2 CHÒI CUNG THỦ TIỀN TIÊU Ở 2 BÊN PHÍA TRƯỚC LÀNG (Front Flanking Archer Watchtowers)
+            if (watchtowerPrefab != null)
+            {
+                // Chòi Cung Thủ Bên Trái
+                GameObject wtLeft = Instantiate(watchtowerPrefab, new Vector3(-6.0f, 0f, -5.5f), Quaternion.Euler(0f, 15f, 0f), fortressRoot.transform);
+                wtLeft.name = "Village_Watchtower_Left";
+                if (wtLeft.TryGetComponent(out Unit.Unit uwl))
+                {
+                    if (watchtowerSO != null) uwl.UnitType = watchtowerSO;
+                    uwl.MaxHealth = 800;
+                    uwl.Health = 800;
+                    uwl.EnsureHealthBarAttached();
+                }
+                EnsureNavMeshObstacle(wtLeft, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
+
+                // Chòi Cung Thủ Bên Phải
+                GameObject wtRight = Instantiate(watchtowerPrefab, new Vector3(1.6f, 0f, -5.5f), Quaternion.Euler(0f, -15f, 0f), fortressRoot.transform);
+                wtRight.name = "Village_Watchtower_Right";
+                if (wtRight.TryGetComponent(out Unit.Unit uwr))
+                {
+                    if (watchtowerSO != null) uwr.UnitType = watchtowerSO;
+                    uwr.MaxHealth = 800;
+                    uwr.Health = 800;
+                    uwr.EnsureHealthBarAttached();
+                }
+                EnsureNavMeshObstacle(wtRight, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
+            }
+
+            Debug.Log("<color=green>[Prehistoric TD]</color> Khởi tạo thành công Tường Thành Có Cổng khép kín 100% và 2 Chòi Cung Thủ tiền tiêu bảo vệ buôn làng!");
         }
 
         /// <summary>

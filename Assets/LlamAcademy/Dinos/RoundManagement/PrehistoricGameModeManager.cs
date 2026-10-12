@@ -201,11 +201,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 3. Battlefield Starter Defenses & Village Base
+            // 3. Xóa các đối tượng cũ/ẩn và đảm bảo phòng tuyến làng hoàn chỉnh
+            GameObject oldWaypoints = GameObject.Find("Archer Waypoints");
+            if (oldWaypoints != null) Destroy(oldWaypoints);
             GameObject starterDefenses = GameObject.Find("Starter_Defenses");
-            if (starterDefenses != null)
+            if (starterDefenses != null) Destroy(starterDefenses);
+
+            if (PrehistoricGameplayManager.Instance != null)
             {
-                starterDefenses.SetActive(true);
+                PrehistoricGameplayManager.Instance.EnsureVillageFortressWallActive();
+                PrehistoricGameplayManager.Instance.ConfigureAllCustomBarricades();
             }
 
             if (mode == PrehistoricGameMode.DinoAssault)
@@ -702,10 +707,9 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private static readonly DefenseSpawnSpec[] VillageDefenseSpecs = new DefenseSpawnSpec[]
         {
-            // Level 1: Tiền đồn mở đầu, Máy bắn đá, Cột sét Shaman & Bẫy chông
+            // Level 1: Tiền đồn mở đầu, Máy bắn đá, Cột sét Shaman & Bẫy chông (2 Chòi Cung Thủ tiền tiêu đã luôn có sẵn trên tường thành)
             new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-5.5f, 0f, -6f), Quaternion.Euler(0, 45, 0), 1),
             new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(-5.5f, 0f, -1f), Quaternion.identity, 1),
-            new DefenseSpawnSpec("Prefab_Watchtower", new Vector3(5.0f, 0f, -6f), Quaternion.identity, 1),
             new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.1f, -8.5f), Quaternion.identity, 1),
             new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -12.0f), Quaternion.Euler(0, 90, 0), 1),
 
@@ -716,9 +720,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.1f, -16.0f), Quaternion.identity, 2),
             new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -20.0f), Quaternion.Euler(0, 90, 0), 2),
 
-            // Level 3: Pháo đài lõi - Tháp nỏ khổng lồ, Chòi canh, Cột bão sét & Máy bắn đá
+            // Level 3: Pháo đài lõi - Tháp nỏ khổng lồ, Cột bão sét & Máy bắn đá
             new DefenseSpawnSpec("Prefab_Ballista", new Vector3(-6.5f, 0f, -26.0f), Quaternion.Euler(0, 40, 0), 3),
-            new DefenseSpawnSpec("Prefab_Watchtower", new Vector3(6.5f, 0f, -28.0f), Quaternion.identity, 3),
             new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(-5.0f, 0f, -32.0f), Quaternion.identity, 3),
             new DefenseSpawnSpec("Prefab_Catapult", new Vector3(5.0f, 0f, -34.0f), Quaternion.Euler(0, -35, 0), 3),
             new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.1f, -25.0f), Quaternion.identity, 3),

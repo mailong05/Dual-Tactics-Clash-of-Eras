@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &385696930018660493
+--- !u!1 &7458764829465663924
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,10 +8,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 9217121732760680622}
-  - component: {fileID: 8870992496375419834}
-  - component: {fileID: 8511727341499585102}
-  - component: {fileID: 2040873317974581835}
+  - component: {fileID: 384839117547712697}
+  - component: {fileID: 13651097366180306}
+  - component: {fileID: 8497333694218563333}
+  - component: {fileID: 6815529053646087473}
   m_Layer: 0
   m_Name: Prefab_Ankylosaurus
   m_TagString: Untagged
@@ -19,29 +19,29 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &9217121732760680622
+--- !u!4 &384839117547712697
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 385696930018660493}
+  m_GameObject: {fileID: 7458764829465663924}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 8132405177642486381}
+  - {fileID: 4803595430220413240}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!195 &8870992496375419834
+--- !u!195 &13651097366180306
 NavMeshAgent:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 385696930018660493}
+  m_GameObject: {fileID: 7458764829465663924}
   m_Enabled: 1
   m_AgentTypeID: 1479372276
   m_Radius: 1.1
@@ -57,13 +57,13 @@ NavMeshAgent:
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
---- !u!114 &8511727341499585102
+--- !u!114 &8497333694218563333
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 385696930018660493}
+  m_GameObject: {fileID: 7458764829465663924}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 10fbee1a3549c0d4fb8937813d14ba5a, type: 3}
@@ -83,17 +83,17 @@ MonoBehaviour:
   TargetLayers:
     serializedVersion: 2
     m_Bits: 0
-  ModelAnimator: {fileID: 6684405121388521789}
+  ModelAnimator: {fileID: 0}
   ModelLegacyAnimation: {fileID: 0}
   VisualModel: {fileID: 0}
   WallDetectRadius: 4.5
---- !u!65 &2040873317974581835
+--- !u!65 &6815529053646087473
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 385696930018660493}
+  m_GameObject: {fileID: 7458764829465663924}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -108,13 +108,13 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.2, y: 2, z: 5}
   m_Center: {x: 0, y: 1, z: 0}
---- !u!1001 &839015666943910563
+--- !u!1001 &4166145979344114166
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 9217121732760680622}
+    m_TransformParent: {fileID: 384839117547712697}
     m_Modifications:
     - target: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_Name
@@ -175,40 +175,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 6684405121388521789}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
---- !u!4 &8132405177642486381 stripped
+--- !u!4 &4803595430220413240 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
-  m_PrefabInstance: {fileID: 839015666943910563}
+  m_PrefabInstance: {fileID: 4166145979344114166}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &8892952284529316580 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
-  m_PrefabInstance: {fileID: 839015666943910563}
-  m_PrefabAsset: {fileID: 0}
---- !u!95 &6684405121388521789
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8892952284529316580}
-  m_Enabled: 1
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 2e169f538ac125e4481768e5379857d2, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0

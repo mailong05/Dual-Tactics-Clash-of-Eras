@@ -45,7 +45,21 @@ namespace LlamAcademy.Dinos.Enemy
 
             Instance = this;
 
-            Waypoints = WaypointTransforms.ConvertAll(transform => transform.position);
+            Waypoints = new List<Vector3>();
+            if (WaypointTransforms != null)
+            {
+                WaypointTransforms.RemoveAll(t => t == null);
+                foreach (Transform t in WaypointTransforms)
+                {
+                    if (t != null)
+                    {
+                        Waypoints.Add(t.position);
+                    }
+                }
+            }
+
+            EnsureValidWaypoints();
+
             Defenders.Add(UnitType.Archer, new());
             Defenders.Add(UnitType.Mage, new());
             Defenders.Add(UnitType.Cannoneer, new());
@@ -133,15 +147,52 @@ namespace LlamAcademy.Dinos.Enemy
             }
         }
 
+        private void EnsureValidWaypoints()
+        {
+            if (Waypoints == null) Waypoints = new List<Vector3>();
+
+            if (Waypoints.Count == 0)
+            {
+                Vector3[] defaultPatrolSpots = new Vector3[]
+                {
+                    new Vector3(-4.0f, 0f, -6.0f),
+                    new Vector3(0.0f, 0f, -6.0f),
+                    new Vector3(-2.2f, 0f, -9.0f),
+                    new Vector3(-8.0f, 0f, -8.0f),
+                    new Vector3(6.0f, 0f, -8.0f),
+                    new Vector3(-5.0f, 0f, -14.0f),
+                    new Vector3(4.0f, 0f, -14.0f),
+                    new Vector3(-2.2f, 0f, -20.0f),
+                    new Vector3(-6.0f, 0f, -26.0f),
+                    new Vector3(4.0f, 0f, -26.0f),
+                    new Vector3(-2.2f, 0f, -32.0f)
+                };
+
+                foreach (Vector3 spot in defaultPatrolSpots)
+                {
+                    if (NavMesh.SamplePosition(spot, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
+                    {
+                        Waypoints.Add(hit.position);
+                    }
+                    else
+                    {
+                        Waypoints.Add(spot);
+                    }
+                }
+            }
+        }
+
         private void Instance_OnNavMeshUpdated()
         {
-            // remove all invalid points
-            Waypoints.RemoveAll((waypoint) => !NavMesh.SamplePosition(waypoint, out _, 1, NavMesh.AllAreas));
+            // Loại bỏ các điểm không nằm trên NavMesh và đảm bảo luôn có điểm tuần tra hợp lệ
+            Waypoints.RemoveAll((waypoint) => !NavMesh.SamplePosition(waypoint, out _, 3.0f, NavMesh.AllAreas));
+            EnsureValidWaypoints();
+
             foreach (KeyValuePair<UnitType, HashSet<Defender>> defenders in Defenders)
             {
                 foreach (Defender defender in defenders.Value)
                 {
-                    if (defender.State == AIState.Patrol)
+                    if (defender != null && defender.State == AIState.Patrol)
                     {
                         defender.Patrol(Waypoints);
                     }

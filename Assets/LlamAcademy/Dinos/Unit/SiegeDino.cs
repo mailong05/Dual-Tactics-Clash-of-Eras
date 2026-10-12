@@ -20,20 +20,41 @@ namespace LlamAcademy.Dinos.Unit
 
         protected override IDamageable ScanForBlockers()
         {
-            // Prioritize walls even further away
+            // If path is complete through a breach, navigate through the hole without stopping!
+            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && Agent.hasPath && Agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathComplete)
+            {
+                return base.ScanForBlockers();
+            }
+
+            // When path is blocked (PathPartial), prioritize walls in front using WallDetectRadius
             int hits = Physics.OverlapSphereNonAlloc(transform.position, WallDetectRadius, ScanBuffer, TargetLayers);
+            Vector3 targetDir = TargetBase != null ? (TargetBase.position - transform.position).normalized : transform.forward;
+            IDamageable bestWall = null;
+            float minDistance = float.MaxValue;
+
             for (int i = 0; i < hits; i++)
             {
                 Collider col = ScanBuffer[i];
                 if (col == null || col.gameObject == gameObject) continue;
 
-                if (col.TryGetComponent(out Wall wall) && wall.Health > 0)
+                Wall wall = col.GetComponentInParent<Wall>();
+                if (wall != null && wall.Health > 0)
                 {
-                    return wall;
+                    Vector3 closest = col.ClosestPoint(transform.position);
+                    Vector3 dir = (closest - transform.position).normalized;
+                    if (Vector3.Dot(targetDir, dir) > -0.2f)
+                    {
+                        float d = Vector3.Distance(transform.position, closest);
+                        if (d < minDistance)
+                        {
+                            minDistance = d;
+                            bestWall = wall;
+                        }
+                    }
                 }
             }
 
-            return base.ScanForBlockers();
+            return bestWall != null ? bestWall : base.ScanForBlockers();
         }
     }
 }

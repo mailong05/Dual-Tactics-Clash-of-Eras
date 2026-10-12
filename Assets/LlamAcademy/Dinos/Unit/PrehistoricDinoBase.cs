@@ -63,11 +63,70 @@ namespace LlamAcademy.Dinos.Unit
         private bool _HasBaseModelTransform;
         private bool _IsAttackingAnim;
         private bool _hasReachedBase = false;
+        private static readonly HashSet<PrehistoricDinoBase> s_ActiveDinos = new();
+
+        protected virtual void OnEnable()
+        {
+            s_ActiveDinos.Add(this);
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.OnNavMeshUpdated += HandleNavMeshUpdated;
+            }
+        }
+
+        protected virtual void OnDisable()
+        {
+            s_ActiveDinos.Remove(this);
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.OnNavMeshUpdated -= HandleNavMeshUpdated;
+            }
+        }
+
+        private void HandleNavMeshUpdated()
+        {
+            // When NavMesh updates (e.g. wall destroyed, breach opened), immediately repath towards base!
+            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && TargetBase != null)
+            {
+                // If targeting a wall but a path through a hole is now open, abandon the wall!
+                if (CurrentTarget is Wall)
+                {
+                    CurrentTarget = null;
+                }
+                Agent.isStopped = false;
+                Agent.ResetPath();
+                Agent.SetDestination(TargetBase.position);
+            }
+        }
+
+        public static void OnWallBreached(Wall breachedWall)
+        {
+            foreach (var dino in s_ActiveDinos)
+            {
+                if (dino == null || !dino.enabled || dino.Health <= 0) continue;
+                if (dino.CurrentTarget == breachedWall)
+                {
+                    dino.CurrentTarget = null;
+                }
+                if (dino.Agent != null && dino.Agent.enabled && dino.Agent.isOnNavMesh && dino.TargetBase != null)
+                {
+                    dino.Agent.isStopped = false;
+                    dino.Agent.ResetPath();
+                    dino.Agent.SetDestination(dino.TargetBase.position);
+                }
+            }
+        }
 
         protected override void Awake()
         {
             base.Awake();
             if (Agent == null) Agent = GetComponent<NavMeshAgent>();
+            if (Agent != null)
+            {
+                Agent.speed = MoveSpeed;
+                Agent.autoRepath = true;
+                Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
+            }
 
             InitializeVisualAndAnimation();
             DiscoverSkeletalBones();
@@ -424,7 +483,38 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // Check if current target is valid
-            if (CurrentTarget != null && CurrentTarget.Health > 0)
+            bool hasValidTarget = (CurrentTarget != null && CurrentTarget.Health > 0);
+
+            // INTELLIGENT BREACH BEHAVIOR:
+            // If the current target is a Wall, but our path to TargetBase is COMPLETE (a breach has opened!),
+            // check if we can navigate through the hole without needing to finish destroying this wall!
+            if (hasValidTarget && CurrentTarget is Wall)
+            {
+                if (Agent != null && Agent.enabled && Agent.isOnNavMesh && Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete)
+                {
+                    Collider wallCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
+                    Vector3 wallPos = wallCol != null ? wallCol.bounds.center : CurrentTarget.Transform.position;
+                    Vector3 toWall = (wallPos - transform.position);
+                    toWall.y = 0;
+                    float dist = toWall.magnitude;
+                    float forwardAlignment = dist > 0.01f ? Vector3.Dot(transform.forward, toWall.normalized) : 0f;
+
+                    // Chỉ từ bỏ tường này nếu hướng đi tiếp theo rẽ sang chỗ khác để chui qua lỗ thủng đã vỡ
+                    Vector3 steerDir = (Agent.steeringTarget - transform.position);
+                    steerDir.y = 0;
+                    float steerAwayDot = steerDir.sqrMagnitude > 0.01f ? Vector3.Dot(steerDir.normalized, toWall.normalized) : 1f;
+
+                    if (steerAwayDot < 0.5f || forwardAlignment < 0.3f)
+                    {
+                        CurrentTarget = null;
+                        hasValidTarget = false;
+                        Agent.isStopped = false;
+                        Agent.SetDestination(TargetBase.position);
+                    }
+                }
+            }
+
+            if (hasValidTarget)
             {
                 Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
                 Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
@@ -447,6 +537,16 @@ namespace LlamAcademy.Dinos.Unit
                     }
                     return;
                 }
+                else
+                {
+                    // Tiến đến gần bức tường/mục tiêu để tấn công
+                    if (Agent != null && Agent.isOnNavMesh)
+                    {
+                        Agent.isStopped = false;
+                        Agent.SetDestination(targetCenter);
+                    }
+                    return;
+                }
             }
 
             // Look for blocking walls or defenders in path
@@ -458,7 +558,10 @@ namespace LlamAcademy.Dinos.Unit
                 if (Agent != null && Agent.isOnNavMesh)
                 {
                     Agent.isStopped = false;
-                    Agent.SetDestination(TargetBase.position);
+                    if (!Agent.hasPath || Agent.destination != TargetBase.position)
+                    {
+                        Agent.SetDestination(TargetBase.position);
+                    }
                 }
 
                 // Check if reached base
@@ -631,8 +734,41 @@ namespace LlamAcademy.Dinos.Unit
 
         protected virtual IDamageable ScanForBlockers()
         {
-            float scanRadius = Mathf.Max(AttackRange, 2.8f);
+            if (Agent == null || !Agent.enabled || !Agent.isOnNavMesh) return null;
+
+            Vector3 fwdDir = transform.forward;
+            if (Agent.hasPath && Agent.velocity.sqrMagnitude > 0.1f)
+            {
+                fwdDir = Agent.velocity.normalized;
+            }
+            fwdDir.y = 0;
+            if (fwdDir == Vector3.zero) fwdDir = transform.forward;
+            fwdDir.Normalize();
+
+            // 1. Tia quét trực diện tầm ngực phía trước (SphereCast forward check)
+            // Phát hiện tường chắn ngay hướng di chuyển
+            Vector3 chestPos = transform.position + Vector3.up * 0.8f;
+            if (Physics.SphereCast(chestPos, 0.4f, fwdDir, out RaycastHit forwardHit, AttackRange + 0.8f, TargetLayers))
+            {
+                Wall hitWall = forwardHit.collider.GetComponentInParent<Wall>();
+                if (hitWall != null && hitWall.Health > 0)
+                {
+                    return hitWall;
+                }
+
+                Unit hitDefender = forwardHit.collider.GetComponentInParent<Unit>();
+                if (hitDefender != null && !(hitDefender is PrehistoricDinoBase) && hitDefender.Health > 0)
+                {
+                    return hitDefender;
+                }
+            }
+
+            // 2. Quét vùng chạm / xuyên thấu (Overlap check)
+            float scanRadius = Mathf.Max(AttackRange + 0.8f, 3.2f);
             int hits = Physics.OverlapSphereNonAlloc(transform.position, scanRadius, ScanBuffer, TargetLayers);
+            IDamageable directForwardObstacle = null;
+            float bestForwardAlignment = 0.35f;
+
             for (int i = 0; i < hits; i++)
             {
                 Collider col = ScanBuffer[i];
@@ -641,16 +777,114 @@ namespace LlamAcademy.Dinos.Unit
                 Wall wall = col.GetComponentInParent<Wall>();
                 if (wall != null && wall.Health > 0)
                 {
-                    return wall;
+                    // Nếu khủng long đang chạm sát hoặc bị đẩy vào trong bounds của tường
+                    if (col.bounds.Contains(transform.position) || col.bounds.SqrDistance(transform.position) < 0.15f)
+                    {
+                        // Ngăn chặn tuyệt đối khủng long đi xuyên qua
+                        Vector3 pushBack = (transform.position - col.bounds.center);
+                        pushBack.y = 0;
+                        if (pushBack.sqrMagnitude > 0.001f)
+                        {
+                            transform.position += pushBack.normalized * 0.08f;
+                        }
+                        return wall;
+                    }
+
+                    Vector3 closestPt = col.ClosestPoint(transform.position);
+                    Vector3 flatToWall = new Vector3(closestPt.x - transform.position.x, 0f, closestPt.z - transform.position.z);
+                    float flatDist = flatToWall.magnitude;
+                    if (flatDist <= AttackRange + 0.6f)
+                    {
+                        Vector3 flatDir = flatDist > 0.01f ? (flatToWall / flatDist) : fwdDir;
+                        float forwardDot = Vector3.Dot(fwdDir, flatDir);
+                        if (forwardDot > bestForwardAlignment)
+                        {
+                            directForwardObstacle = wall;
+                            bestForwardAlignment = forwardDot;
+                        }
+                    }
+                    continue;
                 }
 
                 Unit tower = col.GetComponentInParent<Unit>();
                 if (tower != null && !(tower is PrehistoricDinoBase) && tower.Health > 0)
                 {
-                    return tower;
+                    Vector3 closestPt = col.ClosestPoint(transform.position);
+                    Vector3 flatToTower = new Vector3(closestPt.x - transform.position.x, 0f, closestPt.z - transform.position.z);
+                    float flatDist = flatToTower.magnitude;
+                    if (flatDist <= AttackRange + 0.6f)
+                    {
+                        Vector3 flatDir = flatDist > 0.01f ? (flatToTower / flatDist) : fwdDir;
+                        float forwardDot = Vector3.Dot(fwdDir, flatDir);
+                        if (forwardDot > bestForwardAlignment)
+                        {
+                            directForwardObstacle = tower;
+                            bestForwardAlignment = forwardDot;
+                        }
+                    }
                 }
             }
-            return null;
+
+            if (directForwardObstacle != null)
+            {
+                return directForwardObstacle;
+            }
+
+            // 3. Nếu không có bức tường nào chặn trực diện ngay trước mặt:
+            // Nếu NavMesh đã có đường đi HOÀN TOÀN (PathComplete) qua một lỗ thủng đã vỡ,
+            // khủng long sẽ men theo NavMesh đi qua lỗ thủng đó mà KHÔNG tấn công các bức tường xung quanh!
+            bool pathIsComplete = (Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete);
+            if (pathIsComplete)
+            {
+                return null;
+            }
+
+            // 4. Khi chưa có lỗ thủng nào bị phá (PathPartial hoặc PathInvalid):
+            // Toàn bộ đường vào làng bị phong tỏa 100%, khủng long bắt buộc phải tấn công bức tường gần nhất chắn đường vào làng
+            Vector3 targetDir = TargetBase != null ? (TargetBase.position - transform.position).normalized : transform.forward;
+            targetDir.y = 0;
+            float wideScanRadius = Mathf.Max(AttackRange + 2.0f, 4.5f);
+            int blockHits = Physics.OverlapSphereNonAlloc(transform.position, wideScanRadius, ScanBuffer, TargetLayers);
+
+            IDamageable closestBlocker = null;
+            float minDistance = float.MaxValue;
+
+            for (int i = 0; i < blockHits; i++)
+            {
+                Collider col = ScanBuffer[i];
+                if (col == null || col.gameObject == gameObject) continue;
+
+                Wall wall = col.GetComponentInParent<Wall>();
+                if (wall != null && wall.Health > 0)
+                {
+                    Vector3 closest = col.ClosestPoint(transform.position);
+                    Vector3 flatToWall = new Vector3(closest.x - transform.position.x, 0f, closest.z - transform.position.z);
+                    if (Vector3.Dot(targetDir, flatToWall.normalized) > -0.2f)
+                    {
+                        float d = flatToWall.magnitude;
+                        if (d < minDistance)
+                        {
+                            minDistance = d;
+                            closestBlocker = wall;
+                        }
+                    }
+                    continue;
+                }
+
+                Unit tower = col.GetComponentInParent<Unit>();
+                if (tower != null && !(tower is PrehistoricDinoBase) && tower.Health > 0)
+                {
+                    Vector3 closest = col.ClosestPoint(transform.position);
+                    float d = Vector3.Distance(transform.position, closest);
+                    if (d < minDistance)
+                    {
+                        minDistance = d;
+                        closestBlocker = tower;
+                    }
+                }
+            }
+
+            return closestBlocker;
         }
 
         protected virtual void PerformAttack(IDamageable target)

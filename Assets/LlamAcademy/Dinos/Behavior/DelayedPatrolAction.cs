@@ -35,8 +35,7 @@ namespace LlamAcademy.Dinos.Behavior
 
         protected override Status OnStart()
         {
-            if (Self.Value == null || !Self.Value.TryGetComponent(out NavMeshAgent) || Waypoints.Value == null ||
-                Waypoints.Value.Count == 0)
+            if (Self.Value == null || !Self.Value.TryGetComponent(out NavMeshAgent))
             {
                 return Status.Failure;
             }
@@ -47,14 +46,29 @@ namespace LlamAcademy.Dinos.Behavior
             WaitingTimer = 0.0f;
 
             PickNavMeshWaypoints();
+
+            if (NavMeshWaypoints == null || NavMeshWaypoints.Count == 0)
+            {
+                return Status.Failure;
+            }
+
             return Status.Running;
         }
 
         protected override Status OnUpdate()
         {
-            if (Self.Value == null || Waypoints.Value == null)
+            if (Self.Value == null || NavMeshAgent == null)
             {
                 return Status.Failure;
+            }
+
+            if (NavMeshWaypoints == null || NavMeshWaypoints.Count == 0)
+            {
+                PickNavMeshWaypoints();
+                if (NavMeshWaypoints == null || NavMeshWaypoints.Count == 0)
+                {
+                    return Status.Failure;
+                }
             }
 
             if (IsWaiting)
@@ -72,13 +86,20 @@ namespace LlamAcademy.Dinos.Behavior
             }
             else
             {
-                float distance = NavMeshAgent.remainingDistance;
-
-
-                if (distance <= NavMeshAgent.stoppingDistance + NavMeshAgent.radius)
+                if (NavMeshAgent.isOnNavMesh && NavMeshAgent.hasPath)
                 {
-                    WaitingTimer = Random.Range(WaypointRoamTime.Value.x, WaypointRoamTime.Value.y);
-                    IsWaiting = true;
+                    float distance = NavMeshAgent.remainingDistance;
+
+                    if (distance <= NavMeshAgent.stoppingDistance + NavMeshAgent.radius)
+                    {
+                        WaitingTimer = Random.Range(WaypointRoamTime.Value.x, WaypointRoamTime.Value.y);
+                        IsWaiting = true;
+                    }
+                }
+                else if (NavMeshAgent.isOnNavMesh)
+                {
+                    // Nếu chưa có lộ trình di chuyển, đi tới điểm tuần tra kế tiếp
+                    MoveToNextWaypoint();
                 }
             }
 
@@ -87,7 +108,7 @@ namespace LlamAcademy.Dinos.Behavior
 
         protected override void OnEnd()
         {
-            if (NavMeshAgent.isOnNavMesh)
+            if (NavMeshAgent != null && NavMeshAgent.isOnNavMesh)
             {
                 NavMeshAgent.ResetPath();
             }
@@ -95,53 +116,78 @@ namespace LlamAcademy.Dinos.Behavior
 
         private void PickNavMeshWaypoints()
         {
+            if (NavMeshAgent == null) return;
+
             NavMeshQueryFilter queryFilter = new()
                 { agentTypeID = NavMeshAgent.agentTypeID, areaMask = NavMeshAgent.areaMask };
-            NavMeshWaypoints = new List<Vector3>(Waypoints.Value.Count);
+            NavMeshWaypoints = new List<Vector3>();
             int closestWaypointIndex = 0;
             int index = 0;
             float closestWaypointDistance = float.MaxValue;
             Vector3 currentPosition = NavMeshAgent.transform.position;
 
-            foreach (Vector3 waypoint in Waypoints.Value)
+            float sampleRadius = Mathf.Max(NavMeshAgent.radius * 3.0f, 4.0f);
+
+            if (Waypoints.Value != null && Waypoints.Value.Count > 0)
             {
-                if (NavMesh.SamplePosition(waypoint, out NavMeshHit hit, NavMeshAgent.radius, queryFilter))
+                foreach (Vector3 waypoint in Waypoints.Value)
                 {
-                    NavMeshPath path = new();
-                    if (NavMesh.CalculatePath(currentPosition, hit.position, queryFilter, path))
+                    if (NavMesh.SamplePosition(waypoint, out NavMeshHit hit, sampleRadius, queryFilter))
                     {
                         NavMeshWaypoints.Add(hit.position);
-                        float distance = NavMeshUtilities.GetSquareDistanceOfPath(path);
-
-                        if (distance < closestWaypointDistance)
+                        NavMeshPath path = new();
+                        if (NavMesh.CalculatePath(currentPosition, hit.position, queryFilter, path) && path.status == NavMeshPathStatus.PathComplete)
                         {
-                            closestWaypointIndex = index;
-                            closestWaypointDistance = distance;
+                            float distance = NavMeshUtilities.GetSquareDistanceOfPath(path);
+
+                            if (distance < closestWaypointDistance)
+                            {
+                                closestWaypointIndex = index;
+                                closestWaypointDistance = distance;
+                            }
                         }
 
                         index++;
                     }
                 }
+            }
+
+            // Fallback an toàn: nếu không có điểm nào được sample, dùng vị trí hiện tại của agent để đảm bảo Count >= 1
+            if (NavMeshWaypoints.Count == 0)
+            {
+                if (NavMesh.SamplePosition(currentPosition, out NavMeshHit currentHit, 5.0f, queryFilter))
+                {
+                    NavMeshWaypoints.Add(currentHit.position);
+                }
                 else
                 {
-                    Debug.LogWarning(
-                        $"Waypoint at {waypoint} is not close enough to the NavMesh to use as a waypoint!");
+                    NavMeshWaypoints.Add(currentPosition);
                 }
             }
 
-            if (NavMeshWaypoints.Count == 0) return;
-
-            CurrentPatrolPoint = closestWaypointIndex;
+            CurrentPatrolPoint = Mathf.Clamp(closestWaypointIndex, 0, NavMeshWaypoints.Count - 1);
             CurrentTarget = NavMeshWaypoints[CurrentPatrolPoint];
-            NavMeshAgent.SetDestination(CurrentTarget);
+            if (NavMeshAgent.isOnNavMesh)
+            {
+                NavMeshAgent.SetDestination(CurrentTarget);
+            }
         }
 
         private void MoveToNextWaypoint()
         {
+            if (NavMeshWaypoints == null || NavMeshWaypoints.Count == 0)
+            {
+                PickNavMeshWaypoints();
+                if (NavMeshWaypoints == null || NavMeshWaypoints.Count == 0) return;
+            }
+
             CurrentPatrolPoint = (CurrentPatrolPoint + 1) % NavMeshWaypoints.Count;
 
             CurrentTarget = NavMeshWaypoints[CurrentPatrolPoint];
-            NavMeshAgent.SetDestination(CurrentTarget);
+            if (NavMeshAgent != null && NavMeshAgent.isOnNavMesh)
+            {
+                NavMeshAgent.SetDestination(CurrentTarget);
+            }
         }
     }
 }
