@@ -676,11 +676,13 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Transform wtRight = existing.transform.Find("Village_Watchtower_Right");
                 Transform leftWing = existing.transform.Find("Left_Wing_Wall");
                 Transform rightWing = existing.transform.Find("Right_Wing_Wall");
+                Transform customGapWall = existing.transform.Find("Village_Left_Gap_Wall_128_neg152");
 
                 bool hasWatchtowers = wtLeft != null && wtRight != null;
-                bool hasFullWings = leftWing != null && leftWing.childCount >= 10 && rightWing != null && rightWing.childCount >= 10;
+                bool hasFullWings = leftWing != null && leftWing.childCount >= 14 && rightWing != null && rightWing.childCount >= 10;
+                bool hasCustomGap = customGapWall != null;
 
-                if (hasWatchtowers && hasFullWings)
+                if (hasWatchtowers && hasFullWings && hasCustomGap)
                 {
                     return; // Đã là tường thành khép kín hoàn chỉnh chuẩn 100%
                 }
@@ -776,7 +778,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             GameObject leftWallGroup = new GameObject("Left_Wing_Wall");
             leftWallGroup.transform.SetParent(fortressRoot.transform);
 
-            float[] leftPositionsX = new float[] { -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f };
+            float[] leftPositionsX = new float[] {
+                -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f,
+                -33.6f, -36.2f, -38.8f, -41.4f
+            };
             for (int i = 0; i < leftPositionsX.Length; i++)
             {
                 if (barricadePrefab != null)
@@ -795,10 +800,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // Pháo Đài Góc Trái sát vách núi (X = -33.5f)
+            // Pháo Đài Góc Trái sát vách núi (X = -44.0f)
             if (towerPrefab != null)
             {
-                GameObject leftBastion = Instantiate(towerPrefab, new Vector3(-33.5f, 0f, wallZ), Quaternion.Euler(0f, 30f, 0f), leftWallGroup.transform);
+                GameObject leftBastion = Instantiate(towerPrefab, new Vector3(-44.0f, 0f, wallZ), Quaternion.Euler(0f, 30f, 0f), leftWallGroup.transform);
                 leftBastion.name = "Left_Bastion_Tower";
                 leftBastion.transform.localScale = Vector3.one * 0.7f;
                 EnsureBoxCollider(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
@@ -866,7 +871,24 @@ namespace LlamAcademy.Dinos.RoundManagement
                 EnsureNavMeshObstacle(wtRight, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
             }
 
-            Debug.Log("<color=green>[Prehistoric TD]</color> Khởi tạo thành công Tường Thành Có Cổng khép kín 100% và 2 Chòi Cung Thủ tiền tiêu bảo vệ buôn làng!");
+            // 5. BỔ SUNG BỨC TƯỜNG Ở TỌA ĐỘ (128, 0, -152) THEO YÊU CẦU NGƯỜI CHƠI ĐỂ LẮP CHỖ TRỐNG BÊN TRÁI
+            if (barricadePrefab != null)
+            {
+                GameObject customGapWall = Instantiate(barricadePrefab, new Vector3(128f, 0f, -152f), Quaternion.identity, fortressRoot.transform);
+                customGapWall.name = "Village_Left_Gap_Wall_128_neg152";
+                customGapWall.transform.localScale = Vector3.one;
+                if (customGapWall.TryGetComponent(out Unit.Unit ucg))
+                {
+                    if (barricadeSO != null) ucg.UnitType = barricadeSO;
+                    ucg.Health = 450;
+                    ucg.MaxHealth = 450;
+                    ucg.EnsureHealthBarAttached();
+                }
+                EnsureBoxCollider(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+                EnsureNavMeshObstacle(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+            }
+
+            Debug.Log("<color=green>[Prehistoric TD]</color> Khởi tạo thành công Tường Thành Có Cổng khép kín 100%, 2 Chòi Cung Thủ tiền tiêu và Bức tường lắp chỗ trống bên trái (128, 0, -152)!");
         }
 
         /// <summary>
@@ -902,7 +924,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
 
                 // Nhận diện các object rào chắn gỗ tiền sử do người chơi tự thêm (ví dụ Plank_Defenses_low_standardSurface1_0)
-                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall"))
+                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall") || n.Contains("Village_Left_Gap_Wall"))
                 {
                     GameObject go = t.gameObject;
 

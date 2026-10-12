@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &7458764829465663924
+--- !u!1 &1715840963424745
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,10 +8,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 384839117547712697}
-  - component: {fileID: 13651097366180306}
-  - component: {fileID: 8497333694218563333}
-  - component: {fileID: 6815529053646087473}
+  - component: {fileID: 468975473379245012}
+  - component: {fileID: 7156584039732034622}
+  - component: {fileID: 4824810606655997310}
+  - component: {fileID: 7432879583408337039}
   m_Layer: 0
   m_Name: Prefab_Ankylosaurus
   m_TagString: Untagged
@@ -19,29 +19,29 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &384839117547712697
+--- !u!4 &468975473379245012
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7458764829465663924}
+  m_GameObject: {fileID: 1715840963424745}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 4803595430220413240}
+  - {fileID: 2318138857877483192}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!195 &13651097366180306
+--- !u!195 &7156584039732034622
 NavMeshAgent:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7458764829465663924}
+  m_GameObject: {fileID: 1715840963424745}
   m_Enabled: 1
   m_AgentTypeID: 1479372276
   m_Radius: 1.1
@@ -57,13 +57,13 @@ NavMeshAgent:
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
---- !u!114 &8497333694218563333
+--- !u!114 &4824810606655997310
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7458764829465663924}
+  m_GameObject: {fileID: 1715840963424745}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 10fbee1a3549c0d4fb8937813d14ba5a, type: 3}
@@ -87,13 +87,13 @@ MonoBehaviour:
   ModelLegacyAnimation: {fileID: 0}
   VisualModel: {fileID: 0}
   WallDetectRadius: 4.5
---- !u!65 &6815529053646087473
+--- !u!65 &7432879583408337039
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7458764829465663924}
+  m_GameObject: {fileID: 1715840963424745}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -108,13 +108,13 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.2, y: 2, z: 5}
   m_Center: {x: 0, y: 1, z: 0}
---- !u!1001 &4166145979344114166
+--- !u!1001 &6580739976325056118
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 384839117547712697}
+    m_TransformParent: {fileID: 468975473379245012}
     m_Modifications:
     - target: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_Name
@@ -177,8 +177,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
---- !u!4 &4803595430220413240 stripped
+--- !u!4 &2318138857877483192 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
-  m_PrefabInstance: {fileID: 4166145979344114166}
+  m_PrefabInstance: {fileID: 6580739976325056118}
   m_PrefabAsset: {fileID: 0}

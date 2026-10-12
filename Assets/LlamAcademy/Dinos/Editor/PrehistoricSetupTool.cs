@@ -41,14 +41,16 @@ namespace LlamAcademy.Dinos.Editor
             {
                 GameObject wall = GameObject.Find("Village_Fortress_Wall");
                 GameObject wtLeft = GameObject.Find("Village_Watchtower_Left");
-                if (wall == null || wtLeft == null)
+                Transform customGap = wall != null ? wall.transform.Find("Village_Left_Gap_Wall_128_neg152") : null;
+                Transform leftWing = wall != null ? wall.transform.Find("Left_Wing_Wall") : null;
+                if (wall == null || wtLeft == null || customGap == null || leftWing == null || leftWing.childCount < 14)
                 {
                     BuildVillageFortressWallWithGate();
                     BakeAllCustomSceneWalls();
                     CleanSceneGhostObjects();
                     EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
                     EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
-                    Debug.Log("<color=green>[Prehistoric TD]</color> Tự động cấu trúc lại Tường Thành khép kín 100% và 2 Chòi Cung Thủ tiền tiêu!");
+                    Debug.Log("<color=green>[Prehistoric TD]</color> Tự động cấu trúc lại Tường Thành khép kín 100%, 2 Chòi Cung Thủ tiền tiêu và Bức tường lắp chỗ trống bên trái (128, 0, -152)!");
                 }
             }
             catch {}
@@ -1724,8 +1726,11 @@ namespace LlamAcademy.Dinos.Editor
             GameObject leftWallGroup = new GameObject("Left_Wing_Wall");
             leftWallGroup.transform.SetParent(fortressRoot.transform);
 
-            // 11 đoạn tường gối chồng lên nhau 1.15m (mỗi đoạn rộng 3.75m, khoảng cách tâm 2.6m -> Tuyệt đối không có kẽ hở)
-            float[] leftPositionsX = new float[] { -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f };
+            // 15 đoạn tường gối chồng lên nhau 1.15m (mỗi đoạn rộng 3.75m, khoảng cách tâm 2.6m -> Tuyệt đối không có kẽ hở từ X = -5.0f đến X = -41.4f)
+            float[] leftPositionsX = new float[] {
+                -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f,
+                -33.6f, -36.2f, -38.8f, -41.4f
+            };
             for (int i = 0; i < leftPositionsX.Length; i++)
             {
                 if (barricadePrefab != null)
@@ -1746,12 +1751,12 @@ namespace LlamAcademy.Dinos.Editor
                 }
             }
 
-            // Pháo Đài Góc Trái sát vách núi
+            // Pháo Đài Góc Trái sát vách núi (X = -44.0f)
             if (towerPrefab != null)
             {
                 GameObject leftBastion = (GameObject)PrefabUtility.InstantiatePrefab(towerPrefab, leftWallGroup.transform);
                 leftBastion.name = "Left_Bastion_Tower";
-                leftBastion.transform.position = new Vector3(-33.5f, 0f, wallZ);
+                leftBastion.transform.position = new Vector3(-44.0f, 0f, wallZ);
                 leftBastion.transform.rotation = Quaternion.Euler(0f, 30f, 0f);
                 leftBastion.transform.localScale = Vector3.one * 0.7f;
                 EnsureBoxCollider(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
@@ -1828,7 +1833,26 @@ namespace LlamAcademy.Dinos.Editor
                 EnsureNavMeshObstacle(wtRight, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
             }
 
-            Debug.Log("<color=green>[Prehistoric TD]</color> Successfully constructed 100% gapless fortified Village Wall with Gate and 2 Front Archer Watchtowers!");
+            // 5. BỔ SUNG BỨC TƯỜNG Ở TỌA ĐỘ (128, 0, -152) THEO YÊU CẦU NGƯỜI CHƠI ĐỂ LẮP CHỖ TRỐNG BÊN TRÁI
+            if (barricadePrefab != null)
+            {
+                GameObject customGapWall = (GameObject)PrefabUtility.InstantiatePrefab(barricadePrefab, fortressRoot.transform);
+                customGapWall.name = "Village_Left_Gap_Wall_128_neg152";
+                customGapWall.transform.position = new Vector3(128f, 0f, -152f);
+                customGapWall.transform.rotation = Quaternion.identity;
+                customGapWall.transform.localScale = Vector3.one;
+                if (barricadeSO != null && customGapWall.TryGetComponent(out Unit.Unit ucg))
+                {
+                    ucg.UnitType = barricadeSO;
+                    ucg.Health = 450;
+                    ucg.MaxHealth = 450;
+                    ucg.EnsureHealthBarAttached();
+                }
+                EnsureBoxCollider(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+                EnsureNavMeshObstacle(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+            }
+
+            Debug.Log("<color=green>[Prehistoric TD]</color> Successfully constructed 100% gapless fortified Village Wall with Gate, 2 Front Archer Watchtowers, and Custom Left Gap Wall at (128, 0, -152)!");
             return fortressRoot;
         }
 
@@ -1958,7 +1982,7 @@ namespace LlamAcademy.Dinos.Editor
                     continue;
                 }
 
-                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall"))
+                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall") || n.Contains("Village_Left_Gap_Wall"))
                 {
                     GameObject go = t.gameObject;
 
