@@ -13,8 +13,8 @@ namespace LlamAcademy.Dinos.Unit
             BuildingDamageMultiplier = 3.5f;
             AttackDamage = 25;
             MoveSpeed = 2.4f;
-            MaxHealth = 420;
-            Health = 420;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1275;
+            Health = MaxHealth;
             GoldReward = 40;
         }
 

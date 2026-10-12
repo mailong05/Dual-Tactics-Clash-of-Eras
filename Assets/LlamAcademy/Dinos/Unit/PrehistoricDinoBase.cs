@@ -425,13 +425,17 @@ namespace LlamAcademy.Dinos.Unit
             // Check if current target is valid
             if (CurrentTarget != null && CurrentTarget.Health > 0)
             {
-                float distToTarget = Vector3.Distance(transform.position, CurrentTarget.Transform.position);
+                Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
+                Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
+                Vector3 closestPoint = targetCol != null ? targetCol.ClosestPoint(transform.position) : targetCenter;
+                float distToTarget = Vector3.Distance(transform.position, closestPoint);
+
                 if (distToTarget <= AttackRange + 0.5f)
                 {
                     if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
 
                     // Face target
-                    Vector3 look = (CurrentTarget.Transform.position - transform.position);
+                    Vector3 look = (targetCenter - transform.position);
                     look.y = 0;
                     if (look != Vector3.zero) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), Time.deltaTime * 6f);
 
@@ -620,17 +624,21 @@ namespace LlamAcademy.Dinos.Unit
 
         protected virtual IDamageable ScanForBlockers()
         {
-            int hits = Physics.OverlapSphereNonAlloc(transform.position, AttackRange, ScanBuffer, TargetLayers);
+            float scanRadius = Mathf.Max(AttackRange, 2.8f);
+            int hits = Physics.OverlapSphereNonAlloc(transform.position, scanRadius, ScanBuffer, TargetLayers);
             for (int i = 0; i < hits; i++)
             {
                 Collider col = ScanBuffer[i];
                 if (col == null || col.gameObject == gameObject) continue;
 
-                if (col.TryGetComponent(out Wall wall) && wall.Health > 0)
+                Wall wall = col.GetComponentInParent<Wall>();
+                if (wall != null && wall.Health > 0)
                 {
                     return wall;
                 }
-                if (col.TryGetComponent(out Unit tower) && !(tower is PrehistoricDinoBase) && tower.Health > 0)
+
+                Unit tower = col.GetComponentInParent<Unit>();
+                if (tower != null && !(tower is PrehistoricDinoBase) && tower.Health > 0)
                 {
                     return tower;
                 }

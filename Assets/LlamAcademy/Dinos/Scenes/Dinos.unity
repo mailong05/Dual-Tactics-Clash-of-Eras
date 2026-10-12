@@ -579,11 +579,11 @@ PrefabInstance:
       objectReference: {fileID: 819079428}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2250,11 +2250,11 @@ PrefabInstance:
       objectReference: {fileID: 451819717}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4427,11 +4427,11 @@ PrefabInstance:
       objectReference: {fileID: 1902032532}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5300,11 +5300,11 @@ PrefabInstance:
       objectReference: {fileID: 1115492082}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5927,11 +5927,11 @@ PrefabInstance:
       objectReference: {fileID: 195620777}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6155,11 +6155,11 @@ PrefabInstance:
       objectReference: {fileID: 1328736736}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -7595,11 +7595,11 @@ PrefabInstance:
       objectReference: {fileID: 277551037}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -10894,11 +10894,11 @@ PrefabInstance:
       objectReference: {fileID: 623404956}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -11155,11 +11155,11 @@ PrefabInstance:
       objectReference: {fileID: 1347616310}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -13851,11 +13851,11 @@ PrefabInstance:
       objectReference: {fileID: 11298050}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -15052,11 +15052,11 @@ PrefabInstance:
       objectReference: {fileID: 171963039}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 1500
+      value: 800
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 1500
+      value: 800
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -15176,11 +15176,11 @@ PrefabInstance:
       objectReference: {fileID: 689980327}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -15757,11 +15757,11 @@ PrefabInstance:
       objectReference: {fileID: 234385054}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -16850,11 +16850,11 @@ PrefabInstance:
       objectReference: {fileID: 1491252943}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <Health>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     - target: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
       propertyPath: <MaxHealth>k__BackingField
-      value: 900
+      value: 450
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

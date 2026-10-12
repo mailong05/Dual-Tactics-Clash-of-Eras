@@ -86,12 +86,14 @@ namespace LlamAcademy.Dinos.Unit
 
         public virtual void TakeDamage(int damage)
         {
+            if (Health <= 0) return;
+
             if (damage >= Health)
             {
                 Health = 0;
                 if (HealthBar != null)
                 {
-                    HealthBar.SetProgress((float)Health / MaxHealth);
+                    HealthBar.SetProgress(0f);
                 }
                 RaiseDamageEvent(Health);
                 RaiseDeathEvent();

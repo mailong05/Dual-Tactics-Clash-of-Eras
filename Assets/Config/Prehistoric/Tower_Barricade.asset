@@ -15,7 +15,7 @@ MonoBehaviour:
   <Type>k__BackingField: 0
   <ArmorType>k__BackingField: {fileID: 0}
   <Prefab>k__BackingField: {fileID: 8592976605241190561, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
-  <Health>k__BackingField: 450
+  <Health>k__BackingField: 250
   <HealthToCostRatio>k__BackingField: 0.2
   <AttackConfig>k__BackingField: {fileID: 0}
   <Upgrade>k__BackingField: {fileID: 0}

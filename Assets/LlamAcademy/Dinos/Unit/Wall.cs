@@ -85,14 +85,41 @@ namespace LlamAcademy.Dinos.Unit
         public override void Die()
         {
             UpdateNavMeshData.MoveObstacles();
-            StartCoroutine(HandleDeath());
+            if (gameObject.activeInHierarchy)
+            {
+                StartCoroutine(HandleDeath());
+            }
+            else
+            {
+                if (Root != null)
+                {
+                    Root.gameObject.SetActive(false);
+                }
+                else
+                {
+                    gameObject.SetActive(false);
+                }
+
+                if (NavMeshManager.Instance != null)
+                {
+                    NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+                }
+            }
         }
 
         private IEnumerator HandleDeath()
         {
             yield return UpdateNavMeshData.Rebake();
             // destruction here would be cool
-            Root.gameObject.SetActive(false);
+            if (Root != null)
+            {
+                Root.gameObject.SetActive(false);
+            }
+            else
+            {
+                gameObject.SetActive(false);
+            }
+
             if (NavMeshManager.Instance != null)
             {
                 NavMeshManager.Instance.NavMeshUpdatedByObstacles();

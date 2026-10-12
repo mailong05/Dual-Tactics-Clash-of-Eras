@@ -129,6 +129,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // Kích hoạt Tường Thành Có Cổng trước làng để chặn khủng long
             EnsureVillageFortressWallActive();
+            ConfigureAllCustomBarricades();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ShowAnnouncement($"ĐỢT {_CurrentWave}: HÃY ĐẶT THÁP PHÒNG THỦ TRƯỚC KHI BẮT ĐẦU!", 4.0f);
@@ -709,8 +710,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 gateBar.transform.localScale = new Vector3(1.8f, 1.4f, 1.0f);
                 if (gateBar.TryGetComponent(out Unit.Unit ugb))
                 {
-                    ugb.Health = 1500;
-                    ugb.MaxHealth = 1500;
+                    ugb.Health = 800;
+                    ugb.MaxHealth = 800;
                     ugb.EnsureHealthBarAttached();
                 }
             }
@@ -729,8 +730,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.0f);
                     if (seg.TryGetComponent(out Unit.Unit uw))
                     {
-                        uw.Health = 900;
-                        uw.MaxHealth = 900;
+                        uw.Health = 450;
+                        uw.MaxHealth = 450;
                         uw.EnsureHealthBarAttached();
                     }
                 }
@@ -760,8 +761,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.0f);
                     if (seg.TryGetComponent(out Unit.Unit uw))
                     {
-                        uw.Health = 900;
-                        uw.MaxHealth = 900;
+                        uw.Health = 450;
+                        uw.MaxHealth = 450;
                         uw.EnsureHealthBarAttached();
                     }
                 }
@@ -778,6 +779,94 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             Debug.Log("<color=green>[Prehistoric TD]</color> Khởi tạo thành công Tường Thành Có Cổng mặt tiền trước làng (Z = -2.5f) bảo vệ buôn làng!");
+        }
+
+        /// <summary>
+        /// Tự động quét và kích hoạt toàn bộ các tường chắn / barricade mà người chơi tự đặt thêm vào map trong Editor.
+        /// Đảm bảo đầy đủ BoxCollider, NavMeshObstacle (Carving = true) và Component Wall để khủng long không thể đi xuyên qua.
+        /// </summary>
+        public void ConfigureAllCustomBarricades()
+        {
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
+            if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
+
+            int count = 0;
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // Bỏ qua nếu object là con cháu bên trong bất kỳ đối tượng Wall nào khác (ví dụ sub-mesh bên trong Prefab_Barricade)
+                Unit.Wall parentWall = t.GetComponentInParent<Unit.Wall>(true);
+                if (parentWall != null && parentWall.gameObject != t.gameObject)
+                {
+                    // Dọn dẹp nếu có lỡ dính component Wall / Obstacle trên node con
+                    if (t.TryGetComponent(out Unit.Wall errWall)) Destroy(errWall);
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle errObs)) Destroy(errObs);
+                    continue;
+                }
+
+                // Chỉ cấu hình cho các đối tượng có MeshRenderer / MeshFilter (bỏ qua các node transform rỗng như Plank_Defenses_low)
+                if (!t.TryGetComponent(out MeshRenderer mr) && !t.TryGetComponent(out MeshFilter mf))
+                {
+                    continue;
+                }
+
+                // Nhận diện các object rào chắn gỗ tiền sử do người chơi tự thêm (ví dụ Plank_Defenses_low_standardSurface1_0)
+                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall"))
+                {
+                    GameObject go = t.gameObject;
+
+                    // 1. Đảm bảo có BoxCollider bao phủ toàn bộ bề mặt rào chắn
+                    if (!go.TryGetComponent(out BoxCollider col))
+                    {
+                        col = go.AddComponent<BoxCollider>();
+                    }
+                    if (go.TryGetComponent(out MeshFilter meshFilter) && meshFilter.sharedMesh != null)
+                    {
+                        col.center = meshFilter.sharedMesh.bounds.center;
+                        Vector3 ms = meshFilter.sharedMesh.bounds.size;
+                        col.size = new Vector3(ms.x, ms.y, Mathf.Max(ms.z, 40f));
+                    }
+                    else
+                    {
+                        col.center = new Vector3(386.04f, 7.91f, 0.60f);
+                        col.size = new Vector3(100f, 115f, 40f);
+                    }
+
+                    // 2. Đảm bảo NavMeshObstacle Carving được bật tức thì (carveOnlyStationary = false)
+                    // để NavMeshAgent của khủng long lập tức coi đây là chướng ngại vật tuyệt đối không thể đi xuyên qua
+                    if (!go.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                    {
+                        obs = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                    }
+                    obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                    obs.size = col.size;
+                    obs.center = col.center;
+                    obs.carving = true;
+                    obs.carveOnlyStationary = false;
+
+                    // 3. Đảm bảo có Component Wall (Unit) với lượng máu tường đã được giảm cân đối (450 HP)
+                    if (!go.TryGetComponent(out Unit.Wall wall))
+                    {
+                        wall = go.AddComponent<Unit.Wall>();
+                    }
+                    wall.MaxHealth = 450;
+                    wall.Health = 450;
+                    if (barricadeSO != null)
+                    {
+                        wall.UnitType = barricadeSO;
+                    }
+                    wall.EnsureHealthBarAttached();
+                    count++;
+                }
+            }
+
+            if (count > 0)
+            {
+                Debug.Log($"<color=green>[Prehistoric TD]</color> Đã tích hợp thành công {count} bức tường chắn tự thêm vào hệ thống phòng thủ & NavMesh cản quái!");
+            }
         }
 
         private static BoxCollider EnsureBoxCollider(GameObject go, Vector3 size, Vector3 center)

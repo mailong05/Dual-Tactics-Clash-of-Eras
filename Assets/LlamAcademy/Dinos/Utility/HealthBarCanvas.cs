@@ -119,7 +119,16 @@ namespace LlamAcademy.Dinos.Utility
                 }
                 else if (keyValuePair.Value != null)
                 {
-                    keyValuePair.Value.transform.position = keyValuePair.Key.Transform.position + keyValuePair.Value.FollowOffset;
+                    Vector3 targetPos;
+                    if (keyValuePair.Key.TryGetComponent(out Collider col))
+                    {
+                        targetPos = new Vector3(col.bounds.center.x, col.bounds.max.y + 0.6f, col.bounds.center.z);
+                    }
+                    else
+                    {
+                        targetPos = keyValuePair.Key.Transform.position + keyValuePair.Value.FollowOffset;
+                    }
+                    keyValuePair.Value.transform.position = targetPos;
                     if (cam != null)
                     {
                         keyValuePair.Value.transform.rotation = camRot;

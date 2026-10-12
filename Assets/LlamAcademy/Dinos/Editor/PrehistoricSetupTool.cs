@@ -1229,7 +1229,7 @@ namespace LlamAcademy.Dinos.Editor
             list.Add(GetOrCreateTowerSO("Tower_ShamanTotem", "Cột Vật Tổ Sét", 120, UnityEngine.InputSystem.Key.Digit4, prefabs["ShamanTotem"], false, 1.4f, 650));
             list.Add(GetOrCreateTowerSO("Tower_TarPit", "Vũng Hắc Ín (Chậm 50%)", 50, UnityEngine.InputSystem.Key.Digit5, prefabs["TarPit"], false, 1.8f, 400));
             list.Add(GetOrCreateTowerSO("Tower_SpikeTrap", "Hố Chông Gai Gỗ", 30, UnityEngine.InputSystem.Key.Digit6, prefabs["SpikeTrap"], false, 1.2f, 350));
-            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 450));
+            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 250));
 
             return list;
         }
@@ -1238,10 +1238,10 @@ namespace LlamAcademy.Dinos.Editor
         {
             List<DinoSO> list = new();
 
-            list.Add(GetOrCreateDinoSO("Dino_Velociraptor", 20, prefabs["Velociraptor"], 160));
-            list.Add(GetOrCreateDinoSO("Dino_Pterodactyl", 35, prefabs["Pterodactyl"], 240));
-            list.Add(GetOrCreateDinoSO("Dino_Ankylosaurus", 50, prefabs["Ankylosaurus"], 850));
-            list.Add(GetOrCreateDinoSO("Dino_TRexBoss", 100, prefabs["TRexBoss"], 3500));
+            list.Add(GetOrCreateDinoSO("Dino_Velociraptor", 20, prefabs["Velociraptor"], 240));
+            list.Add(GetOrCreateDinoSO("Dino_Pterodactyl", 35, prefabs["Pterodactyl"], 360));
+            list.Add(GetOrCreateDinoSO("Dino_Ankylosaurus", 50, prefabs["Ankylosaurus"], 1275));
+            list.Add(GetOrCreateDinoSO("Dino_TRexBoss", 100, prefabs["TRexBoss"], 5250));
 
             return list;
         }
@@ -1675,8 +1675,8 @@ namespace LlamAcademy.Dinos.Editor
                 if (barricadeSO != null && gateBar.TryGetComponent(out Unit.Unit ugb))
                 {
                     ugb.UnitType = barricadeSO;
-                    ugb.Health = 1500;
-                    ugb.MaxHealth = 1500;
+                    ugb.Health = 800;
+                    ugb.MaxHealth = 800;
                     ugb.EnsureHealthBarAttached();
                 }
             }
@@ -1698,8 +1698,8 @@ namespace LlamAcademy.Dinos.Editor
                     if (barricadeSO != null && seg.TryGetComponent(out Unit.Unit uw))
                     {
                         uw.UnitType = barricadeSO;
-                        uw.Health = 900;
-                        uw.MaxHealth = 900;
+                        uw.Health = 450;
+                        uw.MaxHealth = 450;
                         uw.EnsureHealthBarAttached();
                     }
                 }
@@ -1734,8 +1734,8 @@ namespace LlamAcademy.Dinos.Editor
                     if (barricadeSO != null && seg.TryGetComponent(out Unit.Unit uw))
                     {
                         uw.UnitType = barricadeSO;
-                        uw.Health = 900;
-                        uw.MaxHealth = 900;
+                        uw.Health = 450;
+                        uw.MaxHealth = 450;
                         uw.EnsureHealthBarAttached();
                     }
                 }
@@ -1851,6 +1851,99 @@ namespace LlamAcademy.Dinos.Editor
             agent.radius = radius;
             agent.height = height;
             return agent;
+        }
+
+        [MenuItem("Prehistoric TD/Bake All Custom Scene Walls", priority = 30)]
+        public static void BakeAllCustomSceneWalls()
+        {
+            var allTransforms = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var barricadeSO = AssetDatabase.LoadAssetAtPath<Config.TowerSO>($"{CONFIG_DIR}/Tower_Barricade.asset");
+
+            int count = 0;
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // Bỏ qua nếu object là con cháu bên trong bất kỳ đối tượng Wall nào khác (ví dụ sub-mesh bên trong Prefab_Barricade)
+                Unit.Wall parentWall = t.GetComponentInParent<Unit.Wall>(true);
+                if (parentWall != null && parentWall.gameObject != t.gameObject)
+                {
+                    // Dọn dẹp nếu có lỡ dính component Wall / Obstacle trên node con
+                    if (t.TryGetComponent(out Unit.Wall errWall)) Undo.DestroyObjectImmediate(errWall);
+                    if (t.TryGetComponent(out NavMeshObstacle errObs)) Undo.DestroyObjectImmediate(errObs);
+                    continue;
+                }
+
+                // Chỉ cấu hình cho các đối tượng có MeshRenderer / MeshFilter (bỏ qua các node transform rỗng như Plank_Defenses_low)
+                if (!t.TryGetComponent(out MeshRenderer mr) && !t.TryGetComponent(out MeshFilter mf))
+                {
+                    if (t.TryGetComponent(out Unit.Wall errWall2)) Undo.DestroyObjectImmediate(errWall2);
+                    if (t.TryGetComponent(out NavMeshObstacle errObs2)) Undo.DestroyObjectImmediate(errObs2);
+                    continue;
+                }
+
+                if (n.Contains("Plank_Defenses") || n.Contains("wooden__barricade") || n.Contains("Village_Custom_Wall"))
+                {
+                    GameObject go = t.gameObject;
+
+                    Undo.RecordObject(go, "Bake Custom Wall");
+
+                    // 1. BoxCollider
+                    if (!go.TryGetComponent(out BoxCollider col))
+                    {
+                        col = Undo.AddComponent<BoxCollider>(go);
+                    }
+                    if (go.TryGetComponent(out MeshFilter mf2) && mf2.sharedMesh != null)
+                    {
+                        col.center = mf2.sharedMesh.bounds.center;
+                        Vector3 ms = mf2.sharedMesh.bounds.size;
+                        col.size = new Vector3(ms.x, ms.y, Mathf.Max(ms.z, 40f));
+                    }
+                    else
+                    {
+                        col.center = new Vector3(386.04f, 7.91f, 0.60f);
+                        col.size = new Vector3(100f, 115f, 40f);
+                    }
+
+                    // 2. NavMeshObstacle
+                    if (!go.TryGetComponent(out NavMeshObstacle obs))
+                    {
+                        obs = Undo.AddComponent<NavMeshObstacle>(go);
+                    }
+                    obs.shape = NavMeshObstacleShape.Box;
+                    obs.size = col.size;
+                    obs.center = col.center;
+                    obs.carving = true;
+                    obs.carveOnlyStationary = false;
+
+                    // 3. Wall component
+                    if (!go.TryGetComponent(out Unit.Wall wall))
+                    {
+                        wall = Undo.AddComponent<Unit.Wall>(go);
+                    }
+                    wall.MaxHealth = 450;
+                    wall.Health = 450;
+                    if (barricadeSO != null)
+                    {
+                        wall.UnitType = barricadeSO;
+                    }
+
+                    EditorUtility.SetDirty(go);
+                    count++;
+                }
+            }
+
+            if (count > 0)
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene());
+                Debug.Log($"<color=green>[Prehistoric TD]</color> Đã nướng (Bake) thành công Collider, NavMeshObstacle & Wall cho {count} bức tường chắn trong scene!");
+                EditorUtility.DisplayDialog("Bake Walls Thành Công", $"Đã tích hợp thành công {count} bức tường tự đặt vào hệ thống phòng thủ và chặn đường NavMesh!", "OK");
+            }
+            else
+            {
+                Debug.Log("<color=yellow>[Prehistoric TD]</color> Không tìm thấy bức tường chắn tự thêm nào cần cấu hình.");
+            }
         }
     }
 }
