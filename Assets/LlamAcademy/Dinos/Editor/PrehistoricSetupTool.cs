@@ -32,31 +32,12 @@ namespace LlamAcademy.Dinos.Editor
         static PrehistoricSetupTool()
         {
             FixBlenderImportIssue();
-            EditorApplication.delayCall += EnsureWallInSceneOnLoad;
         }
 
         private static void EnsureWallInSceneOnLoad()
         {
-            try
-            {
-                GameObject wall = GameObject.Find("Village_Fortress_Wall");
-                GameObject wtLeft = GameObject.Find("Village_Watchtower_Left");
-                Transform customGap = wall != null ? wall.transform.Find("Village_Left_Gap_Wall_128_neg152") : null;
-                Transform leftWing = wall != null ? wall.transform.Find("Left_Wing_Wall") : null;
-                Transform rightWing = wall != null ? wall.transform.Find("Right_Wing_Wall") : null;
-                Transform rightFlank = wall != null ? wall.transform.Find("Right_Flank_Wall") : null;
-                GameObject archWall = GameObject.Find("Arch Entry Wall");
-                if (wall == null || wtLeft == null || customGap == null || leftWing == null || leftWing.childCount < 14 || rightWing == null || rightWing.childCount < 18 || rightFlank == null || (archWall != null && archWall.GetComponent<Unit.Wall>() == null))
-                {
-                    BuildVillageFortressWallWithGate();
-                    BakeAllCustomSceneWalls();
-                    CleanSceneGhostObjects();
-                    EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-                    EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
-                    Debug.Log("<color=green>[Prehistoric TD]</color> Tự động cấu trúc lại Tường Thành khép kín 100%, bổ sung cánh phải và sườn phải đầy đủ, 2 Chòi Cung Thủ tiền tiêu và Bức tường lắp chỗ trống bên trái (128, 0, -152)!");
-                }
-            }
-            catch {}
+            // TÔN TRỌNG 100% CÁC CHỈNH SỬA THỦ CÔNG CỦA NGƯỜI CHƠI TRÊN SCENE:
+            // Tuyệt đối không tự động ghi đè, không tự tạo lại các vật thể người chơi đã xóa.
         }
 
         public static void FixBlenderImportIssue()
@@ -115,7 +96,7 @@ namespace LlamAcademy.Dinos.Editor
             EditorUtility.DisplayDialog("Xử Lý File Blender", "Đã quét và di chuyển an toàn toàn bộ file .blend ra thư mục Backup_Blend_Files ngoài Assets!", "OK");
         }
 
-        [InitializeOnLoadMethod]
+        // Đã gỡ bỏ [InitializeOnLoadMethod] để tránh việc tự động quét và ghi đè các chỉnh sửa thủ công của người chơi trên Scene
         private static void AutoSetupOnLoad()
         {
             EditorApplication.delayCall += () =>

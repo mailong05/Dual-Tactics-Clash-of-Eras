@@ -139,8 +139,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Kích hoạt NPC chiến binh bộ lạc xuất hiện cùng phòng thủ làng
             EnsureVillageDefendersActive();
 
-            // Kích hoạt Tường Thành Có Cổng trước làng để chặn khủng long
-            EnsureVillageFortressWallActive();
+            // Cấu hình va chạm và AI nhận diện chướng ngại vật cho toàn bộ tường trên map (tôn trọng 100% chỉnh sửa của người chơi)
             ConfigureAllCustomBarricades();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
@@ -671,8 +670,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void EnsureVillageFortressWallActive()
         {
+            // TÔN TRỌNG HOÀN TOÀN 100% CÁC CHỈNH SỬA THỦ CÔNG CỦA NGƯỜI CHƠI TRÊN SCENE:
+            // Tuyệt đối không xóa và không tự động sinh lại (respawn) bất kỳ vật thể nào khi chạy game.
+            return;
             GameObject existing = GameObject.Find("Village_Fortress_Wall");
-            if (existing != null)
             {
                 // Kiểm tra xem đã có đủ 2 chòi cung thủ tiền tiêu và số đoạn tường mới chưa
                 Transform wtLeft = existing.transform.Find("Village_Watchtower_Left");
