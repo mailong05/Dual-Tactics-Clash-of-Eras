@@ -47,7 +47,7 @@ namespace LlamAcademy.Dinos.Unit
             OnBaseHealthChanged?.Invoke(Health, MaxHealth);
         }
 
-        public void EnsureHealthBarAttached()
+        public override void EnsureHealthBarAttached()
         {
             if (HealthBar == null)
             {

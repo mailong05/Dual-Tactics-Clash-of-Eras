@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using GLTFast;
+using LlamAcademy.Dinos.AI;
 using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.UI;
@@ -65,6 +66,12 @@ namespace LlamAcademy.Dinos.Unit
         private bool _hasReachedBase = false;
         private static readonly HashSet<PrehistoricDinoBase> s_ActiveDinos = new();
 
+        [Header("Tactical Breach AI")]
+        protected bool _IsNavigatingBreach = false;
+        protected LlamAcademy.Dinos.AI.BreachPoint _CurrentBreachPoint = null;
+        protected float _DefaultAgentRadius = 0.45f;
+        protected float _BreachTransitTimer = 0f;
+
         public bool EnsureOnNavMesh(float maxDistance = 15f)
         {
             if (Agent == null) Agent = GetComponent<NavMeshAgent>();
@@ -104,6 +111,7 @@ namespace LlamAcademy.Dinos.Unit
             Agent.autoRepath = true;
             Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
             if (Agent.radius > 0.45f) Agent.radius = 0.45f;
+            _DefaultAgentRadius = Agent.radius;
         }
 
         protected virtual void OnEnable()
@@ -144,19 +152,56 @@ namespace LlamAcademy.Dinos.Unit
 
         public static void OnWallBreached(Wall breachedWall)
         {
+            if (breachedWall == null) return;
+            Vector3 wallPos = breachedWall.transform.position;
+
             foreach (var dino in s_ActiveDinos)
             {
                 if (dino == null || !dino.enabled || dino.Health <= 0) continue;
-                if (dino.CurrentTarget == breachedWall)
+
+                // Nếu đang tấn công đúng bức tường bị vỡ hoặc đang tấn công một bức tường kế bên trong phạm vi 16m
+                if (dino.CurrentTarget == breachedWall || (dino.CurrentTarget is Wall && Vector3.Distance(dino.transform.position, wallPos) < 16f))
                 {
                     dino.CurrentTarget = null;
                 }
-                if (dino.Agent != null && dino.Agent.enabled && dino.Agent.isOnNavMesh && dino.TargetBase != null)
+
+                // Nếu khủng long ở gần khe hở trong vòng 26m, lập tức kích hoạt điều hướng xuyên qua khe hở!
+                if (Vector3.Distance(dino.transform.position, wallPos) < 26f)
                 {
-                    dino.Agent.isStopped = false;
-                    dino.Agent.ResetPath();
-                    dino.Agent.SetDestination(dino.TargetBase.position);
+                    dino.NotifyNearbyBreach(wallPos);
                 }
+            }
+        }
+
+        public void NotifyNearbyBreach(Vector3 breachPos)
+        {
+            if (Health <= 0 || !enabled) return;
+            CurrentTarget = null;
+
+            if (TacticalBreachMemory.Instance != null)
+            {
+                var breach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase != null ? TargetBase.position : breachPos, 28f);
+                if (breach != null)
+                {
+                    _CurrentBreachPoint = breach;
+                    _IsNavigatingBreach = true;
+                    _BreachTransitTimer = 0f;
+                    if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                    {
+                        Agent.radius = 0.20f;
+                        Agent.isStopped = false;
+                        Agent.ResetPath();
+                        Agent.SetDestination(breach.IngressPoint);
+                    }
+                    return;
+                }
+            }
+
+            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && TargetBase != null)
+            {
+                Agent.isStopped = false;
+                Agent.ResetPath();
+                Agent.SetDestination(TargetBase.position);
             }
         }
 
@@ -535,31 +580,82 @@ namespace LlamAcademy.Dinos.Unit
             // Check if current target is valid
             bool hasValidTarget = (CurrentTarget != null && CurrentTarget.Health > 0);
 
-            // INTELLIGENT BREACH BEHAVIOR:
-            // If the current target is a Wall, but our path to TargetBase is COMPLETE (a breach has opened!),
-            // check if we can navigate through the hole without needing to finish destroying this wall!
-            if (hasValidTarget && CurrentTarget is Wall)
+            // 1. TACTICAL BREACH EXPLOITATION CHECK:
+            // Nếu chưa điều hướng khe hở nhưng đang nhắm vào tường hoặc đường đi bị chặn,
+            // kiểm tra xem đã có khe hở nào mở sẵn trong phạm vi không!
+            if (!_IsNavigatingBreach && TacticalBreachMemory.Instance != null && TargetBase != null)
             {
-                if (Agent != null && Agent.enabled && Agent.isOnNavMesh && !Agent.pathPending && Agent.hasPath && Agent.pathStatus == NavMeshPathStatus.PathComplete)
+                bool pathBlockedOrTargetingWall = (CurrentTarget is Wall) 
+                    || (Agent != null && Agent.hasPath && Agent.pathStatus != NavMeshPathStatus.PathComplete)
+                    || TacticalBreachMemory.Instance.IsWallNearActiveBreach(transform.position, 12.0f);
+
+                if (pathBlockedOrTargetingWall)
                 {
-                    Collider wallCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
-                    Vector3 wallPos = wallCol != null ? wallCol.bounds.center : CurrentTarget.Transform.position;
-                    Vector3 toWall = (wallPos - transform.position);
-                    toWall.y = 0;
-                    float dist = toWall.magnitude;
-                    float forwardAlignment = dist > 0.01f ? Vector3.Dot(transform.forward, toWall.normalized) : 0f;
-
-                    Vector3 steerDir = (Agent.steeringTarget - transform.position);
-                    steerDir.y = 0;
-                    float steerAwayDot = steerDir.sqrMagnitude > 0.01f ? Vector3.Dot(steerDir.normalized, toWall.normalized) : 1f;
-
-                    if (steerAwayDot < 0.5f || forwardAlignment < 0.3f)
+                    var bestBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, 26.0f);
+                    if (bestBreach != null)
                     {
+                        _CurrentBreachPoint = bestBreach;
+                        _IsNavigatingBreach = true;
+                        _BreachTransitTimer = 0f;
                         CurrentTarget = null;
                         hasValidTarget = false;
-                        Agent.isStopped = false;
-                        Agent.SetDestination(TargetBase.position);
                     }
+                }
+            }
+
+            // 2. ACTIVE BREACH NAVIGATION STATE:
+            if (_IsNavigatingBreach && _CurrentBreachPoint != null)
+            {
+                _BreachTransitTimer += Time.deltaTime;
+                float distToBreach = Vector3.Distance(transform.position, _CurrentBreachPoint.Position);
+                bool hasPassedPlane = _CurrentBreachPoint.HasPassedPlane(transform.position);
+
+                // Khủng long đã vượt qua cửa ngõ thâm nhập vào sâu trong làng (hoặc đã quá 5.5s):
+                if (hasPassedPlane || distToBreach < 1.2f || _BreachTransitTimer > 5.5f)
+                {
+                    if (Agent != null && Agent.isOnNavMesh)
+                    {
+                        Agent.radius = _DefaultAgentRadius;
+                        Agent.isStopped = false;
+                        Agent.ResetPath();
+                        if (TargetBase != null) Agent.SetDestination(TargetBase.position);
+                    }
+                    TacticalBreachMemory.Instance.NotifyUnitTraversed(_CurrentBreachPoint);
+                    _IsNavigatingBreach = false;
+                    _CurrentBreachPoint = null;
+                }
+                else
+                {
+                    // Đang luồn lách qua khe hẹp:
+                    if (Agent != null && Agent.isOnNavMesh)
+                    {
+                        Agent.radius = 0.20f;
+                        Agent.isStopped = false;
+                        if (!Agent.hasPath || Agent.destination != _CurrentBreachPoint.IngressPoint)
+                        {
+                            Agent.SetDestination(_CurrentBreachPoint.IngressPoint);
+                        }
+                    }
+
+                    // Hỗ trợ lực đẩy tiến xuyên qua khe nếu vướng carving cục bộ
+                    if (distToBreach < 3.8f)
+                    {
+                        Vector3 breachDir = (_CurrentBreachPoint.IngressPoint - transform.position).normalized;
+                        breachDir.y = 0;
+                        if (breachDir.sqrMagnitude > 0.01f)
+                        {
+                            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(breachDir), Time.deltaTime * 8f);
+                            if (Agent != null && Agent.velocity.sqrMagnitude < 0.25f)
+                            {
+                                transform.position += breachDir * (MoveSpeed * 0.75f * Time.deltaTime);
+                            }
+                        }
+                    }
+
+                    // Tuyệt đối không tấn công các hàng rào bên cạnh!
+                    CurrentTarget = null;
+                    hasValidTarget = false;
+                    return;
                 }
             }
 
@@ -841,6 +937,7 @@ namespace LlamAcademy.Dinos.Unit
 
         protected virtual IDamageable ScanForBlockers()
         {
+            if (_IsNavigatingBreach) return null;
             if (Agent == null || !Agent.enabled || !Agent.isOnNavMesh) return null;
 
             // 1. If path is currently being computed asynchronously, do not assume path is blocked!
@@ -882,6 +979,27 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // 3. When path is NOT complete (PathPartial or PathInvalid):
+            // KIỂM TRA ĐẦU TIÊN: Có khe hở nào gần đây (trong 25m) hướng về căn cứ không?
+            if (TacticalBreachMemory.Instance != null && TargetBase != null)
+            {
+                var nearbyBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, 25.0f);
+                if (nearbyBreach != null)
+                {
+                    // Đã có khe hở! KHÔNG ĐƯỢC TẤN CÔNG TƯỜNG, lập tức kích hoạt điều hướng qua khe hở!
+                    _CurrentBreachPoint = nearbyBreach;
+                    _IsNavigatingBreach = true;
+                    _BreachTransitTimer = 0f;
+                    if (Agent != null && Agent.isOnNavMesh)
+                    {
+                        Agent.radius = 0.20f;
+                        Agent.isStopped = false;
+                        Agent.ResetPath();
+                        Agent.SetDestination(nearbyBreach.IngressPoint);
+                    }
+                    return null;
+                }
+            }
+
             // The route to base is blocked by walls/barricades! Find the wall blocking our way towards base to breach it.
             Vector3 targetDir = TargetBase != null ? (TargetBase.position - transform.position).normalized : transform.forward;
             targetDir.y = 0;
@@ -901,6 +1019,12 @@ namespace LlamAcademy.Dinos.Unit
                 if (wall == null) wall = EnsureDynamicWall(col);
                 if (wall != null && wall.Health > 0)
                 {
+                    // QUAN TRỌNG NHẤT: Bỏ qua bức tường này nếu nó nằm sát (<= 7.5m) bất kỳ khe hở nào đã mở!
+                    if (TacticalBreachMemory.Instance != null && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 7.5f))
+                    {
+                        continue; // KHÔNG TẤN CÔNG BỨC TƯỜNG NÀY VÌ CỬA ĐÃ MỞ BÊN CẠNH!
+                    }
+
                     Vector3 closest;
                     try { closest = col.ClosestPoint(transform.position); }
                     catch { closest = col.bounds.ClosestPoint(transform.position); }

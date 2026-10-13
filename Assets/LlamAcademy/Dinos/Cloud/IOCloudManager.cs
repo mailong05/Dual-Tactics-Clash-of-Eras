@@ -80,11 +80,47 @@ namespace LlamAcademy.Dinos.Cloud
         {
             if (!EnableCloudAiPrediction || !IsCloudConnected)
             {
-                callback?.Invoke(null);
+                // Local Onboard Neural Engine Fallback:
+                DeepLearningWaveResponse localResp = GenerateLocalNeuralHeuristics(roundNumber);
+                LastTacticalRationale = localResp.tactical_rationale;
+                LastVulnerabilityScore = localResp.vulnerability_score;
+                OnDeepLearningWaveReceived?.Invoke(localResp);
+                callback?.Invoke(localResp);
                 return;
             }
 
             StartCoroutine(PostPredictWaveRoutine(roundNumber, callback));
+        }
+
+        private DeepLearningWaveResponse GenerateLocalNeuralHeuristics(int roundNumber)
+        {
+            int watchtowers = FindObjectsByType<ArcherTower>(FindObjectsSortMode.None).Length;
+            int catapults = FindObjectsByType<CatapultTower>(FindObjectsSortMode.None).Length;
+            int barricades = FindObjectsByType<Wall>(FindObjectsSortMode.None).Length;
+
+            float vuln = Mathf.Clamp01(0.3f + (barricades * 0.05f) - (watchtowers * 0.04f));
+            string rationale;
+            if (barricades > 6)
+            {
+                rationale = "Mạng neural AI: Phát hiện phòng tuyến tường dày, đề xuất tăng tỷ trọng Khủng Long Giáp Phá Tường và Quái Bay.";
+            }
+            else if (catapults > 2)
+            {
+                rationale = "Mạng neural AI: Phát hiện mật độ pháo cối cao, đề xuất triển khai các đơn vị bọc thép có HP lớn.";
+            }
+            else
+            {
+                rationale = "Mạng neural AI: Phân tích bố trí phòng thủ cân bằng, triển khai bầy săn mồi kết hợp quái bay.";
+            }
+
+            return new DeepLearningWaveResponse
+            {
+                model_type = "Onboard_DeepLearning_Heuristic",
+                device = "Local_CPU",
+                recommended_wave_size = 12 + roundNumber * 3,
+                tactical_rationale = rationale,
+                vulnerability_score = vuln
+            };
         }
 
         private IEnumerator PostPredictWaveRoutine(int roundNumber, Action<DeepLearningWaveResponse> callback)

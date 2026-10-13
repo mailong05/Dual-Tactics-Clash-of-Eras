@@ -92,6 +92,21 @@ namespace LlamAcademy.Dinos.Unit
             foreach (var obs in obstacles) if (obs != null) obs.enabled = false;
 
             UpdateNavMeshData.MoveObstacles();
+
+            // Đăng ký vị trí khe hở vào TacticalBreachMemory để điều phối quái và quân cố thủ
+            Vector3 toBase = Vector3.forward;
+            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            {
+                toBase = (RoundManager.Instance.DinoTarget.position - transform.position).normalized;
+            }
+            else if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
+            {
+                toBase = (PrehistoricGameModeManager.Instance.VillageBase.transform.position - transform.position).normalized;
+            }
+            toBase.y = 0;
+            if (toBase == Vector3.zero) toBase = transform.forward;
+            LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase);
+
             PrehistoricDinoBase.OnWallBreached(this);
             if (gameObject.activeInHierarchy)
             {

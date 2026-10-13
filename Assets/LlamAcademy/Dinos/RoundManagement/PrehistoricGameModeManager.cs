@@ -63,6 +63,45 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             EnsureAvailableDinos();
             ApplyModeConfiguration(_CurrentMode);
+
+            if (DinoSpawner.Instance != null)
+            {
+                DinoSpawner.Instance.OnSpawnDino += OnPlayerDinoSpawned;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (DinoSpawner.Instance != null)
+            {
+                DinoSpawner.Instance.OnSpawnDino -= OnPlayerDinoSpawned;
+            }
+        }
+
+        private void OnPlayerDinoSpawned(Unit.Unit dino)
+        {
+            if (_CurrentMode != PrehistoricGameMode.DinoAssault || dino == null) return;
+
+            if (dino is Unit.BossDino)
+            {
+                Debug.LogWarning("<color=red><b>[AI Chỉ Huy Làng]</b></color> BÁO ĐỘNG ĐỎ: T-Rex Apex xuất trận! Toàn bộ cung thủ và lính giáo tập trung hỏa lực!");
+                if (PrehistoricGameplayManager.Instance != null)
+                {
+                    PrehistoricGameplayManager.Instance.ShowAnnouncement("⚠ BÁO ĐỘNG ĐỎ: T-REX XUẤT HIỆN! CHIẾN BINH TẬP TRUNG HỎA LỰC!", 3.5f);
+                }
+            }
+            else if (dino is Unit.SiegeDino)
+            {
+                Debug.Log("<color=orange><b>[AI Chỉ Huy Làng]</b></color> Phát hiện Khủng Long Giáp (Ankylosaurus)! Quân cố thủ dàn đội hình chống phá thành!");
+                if (EnemyAIController.Instance != null)
+                {
+                    EnemyAIController.Instance.EnsureDefendersAlive(Mathf.Clamp(4 + AssaultLevel * 2, 4, 10));
+                }
+            }
+            else if (dino is Unit.RunnerDino)
+            {
+                Debug.Log("<color=yellow><b>[AI Chỉ Huy Làng]</b></color> Phát hiện bầy Velociraptor tốc độ cao! Cung thủ tiền tiêu chuẩn bị xạ tiễn!");
+            }
         }
 
         public bool IsGameInProgress()
@@ -631,6 +670,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.State = GameState.Running;
+            }
+
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
             }
 
             EnsureVillageBase();

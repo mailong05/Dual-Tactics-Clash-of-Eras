@@ -296,5 +296,69 @@ namespace LlamAcademy.Dinos.AI
 
             return affordable[0];
         }
+
+        /// <summary>
+        /// Sinh đội hình quái vật thích ứng chiến thuật theo bố trí phòng thủ thời gian thực của người chơi.
+        /// </summary>
+        public List<GameObject> GenerateAdaptiveWave(int waveIndex, GameObject raptorPrefab, GameObject pteroPrefab, GameObject ankylPrefab, GameObject bossPrefab, out string tacticalRationale)
+        {
+            List<GameObject> queue = new();
+            DefenseAudit audit = AuditPlayerDefenses();
+
+            int raptorCount = 6 + (waveIndex * 2);
+            int pteroCount = waveIndex >= 2 ? 3 + (waveIndex * 1) : 0;
+            int ankylCount = waveIndex >= 3 ? 2 + (waveIndex * 1) : 0;
+            bool spawnBoss = (waveIndex == 10 || (waveIndex >= 5 && waveIndex % 5 == 0));
+
+            string rationale = "";
+
+            // 1. Nếu người chơi xây nhiều tường chắn (WallCount > 6)
+            if (audit.WallCount > 6)
+            {
+                int bonusSiege = Mathf.Clamp(audit.WallCount / 3, 2, 8);
+                int bonusFlyers = Mathf.Clamp(audit.WallCount / 4, 1, 6);
+                ankylCount += bonusSiege;
+                pteroCount += bonusFlyers;
+                rationale += $"[Phát hiện người chơi xây {audit.WallCount} tường chắn -> AI Director điều động thêm +{bonusSiege} Khủng Long Phá Tường & +{bonusFlyers} Quái Bay vượt rào] ";
+            }
+
+            // 2. Nếu người chơi xây nhiều tháp tỉa đơn (Archer, Ballista)
+            if (audit.SingleTargetTowers > audit.SplashTowers + 2)
+            {
+                int bonusSwarm = (audit.SingleTargetTowers - audit.SplashTowers) * 2;
+                raptorCount += bonusSwarm;
+                rationale += $"[Phát hiện {audit.SingleTargetTowers} tháp tỉa đơn -> AI Director tăng viện +{bonusSwarm} Velociraptor bầy đàn] ";
+            }
+
+            // 3. Nếu người chơi xây nhiều tháp diện rộng/bẫy (Catapult/Traps)
+            if (audit.SplashTowers > 2)
+            {
+                int bonusTanks = audit.SplashTowers;
+                ankylCount += bonusTanks;
+                rationale += $"[Phát hiện {audit.SplashTowers} pháo cối diện rộng -> AI Director tăng viện +{bonusTanks} Khủng Long Bọc Thép] ";
+            }
+
+            if (string.IsNullOrEmpty(rationale))
+            {
+                rationale = $"Bố trí căn cứ chuẩn ({audit.SingleTargetTowers} tháp tỉa, {audit.SplashTowers} pháo cối, {audit.WallCount} tường). Đội hình cân bằng.";
+            }
+
+            tacticalRationale = rationale;
+
+            if (raptorPrefab != null) for (int i = 0; i < raptorCount; i++) queue.Add(raptorPrefab);
+            if (pteroPrefab != null) for (int i = 0; i < pteroCount; i++) queue.Add(pteroPrefab);
+            if (ankylPrefab != null) for (int i = 0; i < ankylCount; i++) queue.Add(ankylPrefab);
+            if (spawnBoss && bossPrefab != null) queue.Add(bossPrefab);
+
+            // Xáo trộn thứ tự xuất hiện tự nhiên
+            for (int i = 0; i < queue.Count - 2; i++)
+            {
+                int r = Random.Range(i, queue.Count);
+                if (queue[r] == bossPrefab && i < queue.Count / 3) continue;
+                (queue[i], queue[r]) = (queue[r], queue[i]);
+            }
+
+            return queue;
+        }
     }
 }

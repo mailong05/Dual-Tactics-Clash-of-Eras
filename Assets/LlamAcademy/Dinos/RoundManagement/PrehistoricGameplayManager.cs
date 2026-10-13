@@ -129,11 +129,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Sync with RoundManager if present
             SyncWithLegacyRoundManager();
 
-            // Vô hiệu hóa việc tự sinh quái trùng lặp của AdaptiveWaveManager
+            // Kích hoạt AdaptiveWaveManager làm Deep Learning AI Director phân tích chiến thuật
             AdaptiveWaveManager waveMgr = FindFirstObjectByType<AdaptiveWaveManager>();
             if (waveMgr != null)
             {
-                waveMgr.enabled = false;
+                waveMgr.enabled = true;
             }
 
             // Kích hoạt NPC chiến binh bộ lạc xuất hiện cùng phòng thủ làng
@@ -295,6 +295,10 @@ namespace LlamAcademy.Dinos.RoundManagement
         private IEnumerator SpawnWaveRoutine(int waveIndex)
         {
             ActiveMonsters.Clear();
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
             List<GameObject> spawnQueue = GenerateWaveComposition(waveIndex);
             TotalMonstersInWave = spawnQueue.Count;
             _MonstersRemainingToSpawn = spawnQueue.Count;
@@ -380,6 +384,18 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private List<GameObject> GenerateWaveComposition(int waveIndex)
         {
+            if (AdaptiveWaveManager.Instance != null)
+            {
+                string rationale;
+                var adaptiveQueue = AdaptiveWaveManager.Instance.GenerateAdaptiveWave(waveIndex, RaptorPrefab, PterodactylPrefab, AnkylosaurusPrefab, TRexBossPrefab, out rationale);
+                Debug.Log($"<color=#00FFAA><b>[AI Director Deep Learning]</b></color> Đợt {waveIndex}: {rationale}");
+                ShowAnnouncement($"<b><color=#00FFAA>[AI TÁC CHIẾN]</color></b> ĐỢT {waveIndex}:\n{rationale}", 4.5f);
+                if (adaptiveQueue != null && adaptiveQueue.Count > 0)
+                {
+                    return adaptiveQueue;
+                }
+            }
+
             List<GameObject> queue = new();
 
             switch (waveIndex)

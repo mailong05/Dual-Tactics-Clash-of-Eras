@@ -97,6 +97,11 @@ namespace LlamAcademy.Dinos.Enemy
                 NavMeshManager.Instance.OnNavMeshUpdated += OnNavMeshUpdated;
             }
 
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.OnBreachOpened += HandleBreachOpened;
+            }
+
             EquipWeaponVisual();
         }
 
@@ -105,6 +110,32 @@ namespace LlamAcademy.Dinos.Enemy
             if (NavMeshManager.Instance != null)
             {
                 NavMeshManager.Instance.OnNavMeshUpdated -= OnNavMeshUpdated;
+            }
+
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.OnBreachOpened -= HandleBreachOpened;
+            }
+        }
+
+        private void HandleBreachOpened(LlamAcademy.Dinos.AI.BreachPoint breach)
+        {
+            if (Health <= 0 || breach == null) return;
+            float dist = Vector3.Distance(transform.position, breach.Position);
+            if (dist > 38.0f) return; // Quá xa, giữ nguyên vị trí phân bổ làng
+
+            // Lập tức cơ động chốt chặn cửa ngõ đột phá (Chokepoint Defense)
+            Vector3 defensiveSpot = (Role == DefenderRole.Spearman)
+                ? breach.IngressPoint + breach.Direction * 0.5f // Lính giáo dựng phên dậu chốt ngay mép trong
+                : breach.IngressPoint + breach.Direction * 4.5f + Vector3.Cross(breach.Direction, Vector3.up) * (Random.value > 0.5f ? 2.5f : -2.5f); // Cung thủ đứng bọc lót sườn sau
+
+            if (UnityEngine.AI.NavMesh.SamplePosition(defensiveSpot, out UnityEngine.AI.NavMeshHit hit, 5.0f, UnityEngine.AI.NavMesh.AllAreas))
+            {
+                SetDestination(hit.position);
+            }
+            else
+            {
+                SetDestination(breach.IngressPoint);
             }
         }
 
@@ -287,6 +318,21 @@ namespace LlamAcademy.Dinos.Enemy
                 // Nếu mục tiêu trong tầm đánh
                 if (distToTarget <= AttackRange)
                 {
+                    // Cung thủ kiting chiến thuật: nếu quái cận chiến áp sát (< 3.2m), lùi lại giữ cự ly an toàn
+                    if (Role == DefenderRole.Archer && distToTarget < 3.2f)
+                    {
+                        Vector3 retreatDir = (transform.position - targetPos).normalized;
+                        retreatDir.y = 0;
+                        Vector3 kitePos = transform.position + retreatDir * 3.5f;
+                        if (NavMesh.SamplePosition(kitePos, out NavMeshHit kHit, 3.5f, NavMesh.AllAreas))
+                        {
+                            if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                            {
+                                Agent.SetDestination(kHit.position);
+                            }
+                        }
+                    }
+
                     if (Time.time >= _LastAttackTime + AttackInterval)
                     {
                         _LastAttackTime = Time.time;
@@ -473,17 +519,36 @@ namespace LlamAcademy.Dinos.Enemy
         {
             int count = Physics.OverlapSphereNonAlloc(transform.position, searchRange, _ScanBuffer);
             Collider best = null;
-            float closestDist = float.MaxValue;
+            float bestPriorityScore = float.MinValue;
 
             for (int i = 0; i < count; i++)
             {
                 Collider col = _ScanBuffer[i];
                 if (!IsHostileMonster(col)) continue;
 
-                float dist = (col.transform.position - transform.position).sqrMagnitude;
-                if (dist < closestDist)
+                Vector3 targetPos = col.bounds.center;
+                float dist = Vector3.Distance(transform.position, targetPos);
+
+                // Điểm số phân cấp độ nguy hiểm chiến thuật (Tactical Threat Scoring)
+                float score = 100f - dist;
+
+                string n = col.gameObject.name.ToLower();
+                // 1. Quái chạy nhanh (Raptor) tiếp cận căn cứ: độ nguy hiểm cực cao
+                if (n.Contains("raptor") || n.Contains("runner")) score += 35f;
+
+                // 2. Boss T-Rex: dồn hỏa lực tiêu diệt mục tiêu thủ lĩnh
+                if (n.Contains("trex") || n.Contains("t-rex") || n.Contains("boss")) score += 40f;
+
+                // 3. Quái đang vượt qua khe hở thâm nhập làng
+                if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null &&
+                    LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.IsWallNearActiveBreach(targetPos, 5.0f))
                 {
-                    closestDist = dist;
+                    score += 50f;
+                }
+
+                if (score > bestPriorityScore)
+                {
+                    bestPriorityScore = score;
                     best = col;
                 }
             }

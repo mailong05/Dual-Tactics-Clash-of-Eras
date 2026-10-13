@@ -21,10 +21,22 @@ namespace LlamAcademy.Dinos.Unit
 
         protected override IDamageable ScanForBlockers()
         {
+            if (_IsNavigatingBreach) return null;
+
             // If path is pending or complete through a breach, navigate without stopping!
             if (Agent != null && Agent.enabled && Agent.isOnNavMesh && (Agent.pathPending || (Agent.hasPath && Agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathComplete)))
             {
                 return base.ScanForBlockers();
+            }
+
+            // Nếu đã có khe hở gần đây, tuân thủ theo base để điều hướng qua khe hở thay vì đập thêm tường!
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null && TargetBase != null)
+            {
+                var nearbyBreach = LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, 20.0f);
+                if (nearbyBreach != null)
+                {
+                    return base.ScanForBlockers();
+                }
             }
 
             // When path is blocked (PathPartial), prioritize walls in front using WallDetectRadius
@@ -41,6 +53,12 @@ namespace LlamAcademy.Dinos.Unit
                 Wall wall = col.GetComponentInParent<Wall>();
                 if (wall != null && wall.Health > 0)
                 {
+                    // Bỏ qua tường nằm sát khe hở đã mở
+                    if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null && LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 7.5f))
+                    {
+                        continue;
+                    }
+
                     Vector3 closest;
                     try { closest = col.ClosestPoint(transform.position); }
                     catch { closest = col.bounds.ClosestPoint(transform.position); }
