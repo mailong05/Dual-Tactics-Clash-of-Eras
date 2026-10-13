@@ -64,6 +64,7 @@ namespace LlamAcademy.Dinos.Unit
         private bool _HasBaseModelTransform;
         private bool _IsAttackingAnim;
         private bool _hasReachedBase = false;
+        public bool HasReachedBase => _hasReachedBase;
         private static readonly HashSet<PrehistoricDinoBase> s_ActiveDinos = new();
         public static IReadOnlyCollection<PrehistoricDinoBase> ActiveDinos => s_ActiveDinos;
 
@@ -941,32 +942,41 @@ namespace LlamAcademy.Dinos.Unit
 
                 // Check if reached base
                 float distToBase = Vector3.Distance(transform.position, TargetBase.position);
-                if (distToBase <= AttackRange + 1.5f)
+                if (distToBase <= AttackRange + 2.0f)
                 {
-                    if (_hasReachedBase) return;
                     _hasReachedBase = true;
-                    enabled = false;
-                    if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
 
-                    if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+                    IDamageable baseDamageable = null;
+                    if (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
                     {
-                        if (PrehistoricGameModeManager.Instance.VillageBase != null && PrehistoricGameModeManager.Instance.VillageBase.Health > 0)
-                        {
-                            CurrentTarget = PrehistoricGameModeManager.Instance.VillageBase;
-                            return;
-                        }
+                        baseDamageable = PrehistoricVillageBase.Instance;
                     }
-                    else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+                    else if (TargetBase.TryGetComponent(out IDamageable bDmg) && bDmg.Health > 0)
                     {
-                        PrehistoricGameplayManager.Instance.OnDinoReachedBase(this, AttackDamage);
-                        return;
+                        baseDamageable = bDmg;
                     }
 
-                    if (TargetBase.TryGetComponent(out IDamageable baseDamageable))
+                    if (baseDamageable != null)
                     {
                         CurrentTarget = baseDamageable;
+                        if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
+
+                        // Xoay mặt về hướng căn cứ
+                        Vector3 baseDir = (TargetBase.position - transform.position);
+                        baseDir.y = 0;
+                        if (baseDir.sqrMagnitude > 0.001f)
+                        {
+                            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(baseDir), Time.deltaTime * 8f);
+                        }
+
+                        // Thực hiện cắn phá căn cứ theo chu kỳ tấn công
+                        if (Time.time >= LastAttackTime + AttackInterval)
+                        {
+                            LastAttackTime = Time.time;
+                            PerformAttack(CurrentTarget);
+                        }
+                        return;
                     }
-                    return;
                 }
             }
         }

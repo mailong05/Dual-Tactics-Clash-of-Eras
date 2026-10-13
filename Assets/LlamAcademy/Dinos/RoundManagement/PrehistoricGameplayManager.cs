@@ -69,7 +69,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public event Action OnVictory;
         public event Action<PrehistoricWavePhase> OnPhaseChanged;
 
-        private List<Unit.Unit> ActiveMonsters = new();
+        public List<Unit.Unit> ActiveMonsters = new();
         private int _MonstersRemainingToSpawn = 0;
         private Coroutine WaveSpawnRoutine;
         private BossDino ActiveBossInstance;
@@ -230,6 +230,21 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject baseObj = new GameObject("Dino Egg Spawn");
                 baseObj.transform.position = new Vector3(-2.23f, 0f, -38.26f);
                 BaseTarget = baseObj.transform;
+            }
+
+            if (BaseTarget != null)
+            {
+                if (!BaseTarget.TryGetComponent(out BoxCollider col))
+                {
+                    col = BaseTarget.gameObject.AddComponent<BoxCollider>();
+                    col.size = new Vector3(4f, 3f, 4f);
+                    col.center = new Vector3(0f, 1.5f, 0f);
+                }
+                if (!BaseTarget.TryGetComponent(out Unit.PrehistoricVillageBase vb))
+                {
+                    vb = BaseTarget.gameObject.AddComponent<Unit.PrehistoricVillageBase>();
+                }
+                vb.SetBaseStats(_CurrentBaseHealth);
             }
 
             if (RoundManager.Instance != null)
@@ -526,27 +541,14 @@ namespace LlamAcademy.Dinos.RoundManagement
             HandleMonsterDeath((IDamageable)deadMonster);
         }
 
+        private float _LastBaseAnnouncementTime = -99f;
+
         public void OnDinoReachedBase(Unit.Unit dino, int damage = 10)
         {
             if (_CurrentPhase != PrehistoricWavePhase.CombatPhase) return;
             if (dino == null) return;
 
-            // KIỂM TRA ĐẦU TIÊN: Quái chỉ được gây sát thương căn cứ ĐÚNG 1 LẦN DUY NHẤT
-            // Nếu không còn trong ActiveMonsters (đã tính trước đó hoặc đã chết), hủy bỏ ngay!
-            if (!ActiveMonsters.Remove(dino))
-            {
-                return;
-            }
-
-            // Ngắt hoạt động của dino ngay lập tức để không thể gọi Update() thêm frame nào nữa
-            dino.enabled = false;
-            dino.gameObject.SetActive(false);
-            Destroy(dino.gameObject);
-
-            ActiveMonsters.RemoveAll(item => item == null);
-            MonstersAliveCount = _MonstersRemainingToSpawn + ActiveMonsters.Count;
-
-            // Gây sát thương căn cứ đúng 1 lần duy nhất
+            // Khủng long tiếp cận căn cứ: KHÔNG phá hủy khủng long! Quái ở lại cắn phá căn cứ liên tục!
             DamageBase(damage, dino);
         }
 
@@ -555,10 +557,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (_CurrentPhase == PrehistoricWavePhase.GameOver) return;
 
             _CurrentBaseHealth = Mathf.Max(0, _CurrentBaseHealth - damage);
+            if (Unit.PrehistoricVillageBase.Instance != null && Unit.PrehistoricVillageBase.Instance.Health != _CurrentBaseHealth)
+            {
+                Unit.PrehistoricVillageBase.Instance.Health = _CurrentBaseHealth;
+            }
             OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
 
             string attackerName = attackingDino != null ? attackingDino.GetType().Name : "Khủng long";
-            ShowAnnouncement($"<color=red>CẢNH BÁO: {attackerName} xâm nhập Căn Cứ! -{damage} HP!</color>", 2.0f);
+            if (Time.time - _LastBaseAnnouncementTime > 2.0f)
+            {
+                _LastBaseAnnouncementTime = Time.time;
+                ShowAnnouncement($"<color=red>CẢNH BÁO: {attackerName} đang cắn phá Căn Cứ! -{damage} HP!</color>", 1.8f);
+            }
             Debug.LogWarning($"<color=red>[Village Defense]</color> Base took {damage} damage! Remaining HP: {_CurrentBaseHealth}/{_MaxBaseHealth}");
 
             if (_CurrentBaseHealth <= 0)
@@ -1228,8 +1238,12 @@ namespace LlamAcademy.Dinos.RoundManagement
                 TowerPlacer.Instance.DeselectTower();
             }
 
-            // 4. Khôi phục hoàn toàn Máu Làng về 100/100 HP
+            // 4. Khôi phục hoàn toàn Máu Làng về Max HP
             _CurrentBaseHealth = _MaxBaseHealth;
+            if (Unit.PrehistoricVillageBase.Instance != null)
+            {
+                Unit.PrehistoricVillageBase.Instance.SetBaseStats(_MaxBaseHealth);
+            }
             OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
 
             // 5. Đặt lại Đợt chơi về Wave 1

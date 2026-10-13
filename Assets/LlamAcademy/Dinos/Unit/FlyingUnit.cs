@@ -21,6 +21,8 @@ namespace LlamAcademy.Dinos.Unit
         private Quaternion _BaseModelLocalRot;
         private Animation _LegacyAnimation;
         private bool _hasReachedBase = false;
+        public bool HasReachedBase => _hasReachedBase;
+        private float _LastAttackTime = 0f;
 
         protected override void Awake()
         {
@@ -199,33 +201,39 @@ namespace LlamAcademy.Dinos.Unit
                 }
             }
 
-            // Reached base
-            if (Vector3.Distance(transform.position, targetDestination) < 3.0f)
+            // Reached base: hover and continuously attack
+            if (Vector3.Distance(transform.position, targetDestination) < 4.0f)
             {
-                if (_hasReachedBase) return;
                 _hasReachedBase = true;
-                enabled = false;
 
-                if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+                // Quay mặt về phía căn cứ
+                Vector3 look = (targetDestination - transform.position);
+                look.y = 0;
+                if (look.sqrMagnitude > 0.001f)
                 {
-                    if (PrehistoricGameModeManager.Instance.VillageBase != null)
+                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), Time.deltaTime * 6f);
+                }
+
+                // Giữ cự ly lượn trên không trung căn cứ
+                transform.position = Vector3.Lerp(transform.position, targetDestination + Vector3.up * 2.8f, Time.deltaTime * 2.5f);
+
+                // Tấn công căn cứ theo chu kỳ
+                if (Time.time >= _LastAttackTime + 1.5f)
+                {
+                    _LastAttackTime = Time.time;
+                    if (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
                     {
-                        PrehistoricGameModeManager.Instance.VillageBase.TakeDamage(DamageToBase);
+                        PrehistoricVillageBase.Instance.TakeDamage(DamageToBase);
                     }
-                    Die();
-                    return;
+                    else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+                    {
+                        PrehistoricGameplayManager.Instance.DamageBase(DamageToBase, this);
+                    }
+                    else if (TargetBase != null && TargetBase.TryGetComponent(out IDamageable baseDamageable))
+                    {
+                        baseDamageable.TakeDamage(DamageToBase);
+                    }
                 }
-                else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
-                {
-                    PrehistoricGameplayManager.Instance.OnDinoReachedBase(this, DamageToBase);
-                    return;
-                }
-
-                if (TargetBase.TryGetComponent(out IDamageable baseDamageable))
-                {
-                    baseDamageable.TakeDamage(DamageToBase);
-                }
-                Die();
                 return;
             }
         }

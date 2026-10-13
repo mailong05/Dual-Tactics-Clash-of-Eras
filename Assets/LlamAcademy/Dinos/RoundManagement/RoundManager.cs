@@ -171,18 +171,11 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                if (PrehistoricGameModeManager.Instance.VillageBase != null && target is Unit.Unit dinoUnit)
-                {
-                    int dmg = 25;
-                    if (target is Unit.PrehistoricDinoBase pd) dmg = Mathf.Max(25, pd.AttackDamage);
-                    PrehistoricGameModeManager.Instance.VillageBase.TakeDamage(dmg);
-                }
                 return;
             }
 
-            if (PrehistoricGameplayManager.Instance != null && target is Unit.Unit u)
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
             {
-                PrehistoricGameplayManager.Instance.OnDinoReachedBase(u, 10);
                 return;
             }
 

@@ -1,4 +1,5 @@
 using System;
+using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.UI;
 using LlamAcademy.Dinos.Utility;
 using UnityEngine;
@@ -80,6 +81,11 @@ namespace LlamAcademy.Dinos.Unit
                 HealthBar.SetProgress((float)Health / Mathf.Max(1, MaxHealth));
             }
 
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            {
+                PrehistoricGameplayManager.Instance.DamageBase(damage);
+            }
+
             if (Health <= 0)
             {
                 Die();
@@ -90,7 +96,7 @@ namespace LlamAcademy.Dinos.Unit
         {
             Debug.Log("<color=red>[Village Base]</color> Nhà chính làng bộ lạc đã bị san bằng hoàn toàn!");
             OnBaseDestroyed?.Invoke();
-            gameObject.SetActive(false);
+            if (TryGetComponent(out Collider col)) col.enabled = false;
         }
 
         protected override void OnTargetEnter(IDamageable target) {}
