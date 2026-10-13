@@ -245,7 +245,8 @@ namespace LlamAcademy.Dinos.AI
         }
 
         /// <summary>
-        /// Tìm khe hở tốt nhất hướng về căn cứ. Nếu chỉ định unit, chỉ trả về khe hở nếu unit đó đã được gán hoặc khe hở còn chỗ trống (< 4 con).
+        /// Tìm khe hở tốt nhất hướng về căn cứ.
+        /// TỰ ĐỘNG BỎ QUA nếu unit đã ở bên trong làng (đã vượt qua khe hở này) hoặc khe hở không giúp tiến gần căn cứ.
         /// </summary>
         public BreachPoint GetBestBreachTowards(Vector3 unitPos, Vector3 targetBasePos, Unit.Unit unit = null, float maxSearchDistance = 25.0f)
         {
@@ -256,14 +257,28 @@ namespace LlamAcademy.Dinos.AI
 
             Vector3 toBase = (targetBasePos - unitPos);
             toBase.y = 0;
-            float distToBase = toBase.magnitude;
+            float currentDistToBase = toBase.magnitude;
 
             for (int i = _ActiveBreaches.Count - 1; i >= 0; i--)
             {
                 BreachPoint bp = _ActiveBreaches[i];
                 if (bp == null) continue;
 
-                // Nếu unit được cung cấp: kiểm tra xem khe hở này có còn slot không hoặc unit đã được gán chưa
+                // 1. NẾU UNIT ĐÃ VƯỢT QUA MẶT PHẲNG KHE HỞ NÀY (ĐÃ Ở TRONG LÀNG), BỎ QUA NGAY!
+                // Tuyệt đối không để khủng long quay đầu lại khe hở mà nó vừa mới đi qua!
+                if (bp.HasPassedPlane(unitPos))
+                {
+                    continue;
+                }
+
+                // 2. Điểm thâm nhập của khe hở phải thực sự giúp rút ngắn khoảng cách tới căn cứ
+                float ingressDistToBase = Vector3.Distance(bp.IngressPoint, targetBasePos);
+                if (ingressDistToBase >= currentDistToBase - 0.5f)
+                {
+                    continue; // Khe hở này nằm phía sau hoặc không giúp tiến gần căn cứ
+                }
+
+                // 3. Nếu unit được cung cấp: kiểm tra xem khe hở này có còn slot không (< 4 con)
                 if (unit != null && !bp.IsUnitAssigned(unit) && !bp.HasSlotAvailable)
                 {
                     continue; // Khe hở này đã đủ 4 con! Bỏ qua để unit đi phá tường chỗ khác
@@ -272,9 +287,7 @@ namespace LlamAcademy.Dinos.AI
                 float distToBreach = Vector3.Distance(unitPos, bp.Position);
                 if (distToBreach > maxSearchDistance) continue;
 
-                float distFromBreachToBase = Vector3.Distance(bp.IngressPoint, targetBasePos);
-                float progressBonus = distToBase - distFromBreachToBase;
-
+                float progressBonus = currentDistToBase - ingressDistToBase;
                 float score = (progressBonus * 2.0f) - distToBreach;
 
                 if (score > bestScore)
@@ -298,20 +311,37 @@ namespace LlamAcademy.Dinos.AI
         }
 
         /// <summary>
-        /// Kiểm tra xem một vị trí tường có nằm sát một khe hở đã mở hay không.
+        /// Kiểm tra xem một vị trí tường có nằm sát mép khe hở cùng hàng rào hay không.
+        /// Chỉ bỏ qua các đoạn tường cùng hàng (độ sâu < 2.0m, khoảng cách ngang <= 4.5m).
+        /// TUYỆT ĐỐI KHÔNG bỏ qua các hàng rào tầng trong (secondary defenses) nằm sâu hơn trong làng!
         /// </summary>
-        public bool IsWallNearActiveBreach(Vector3 wallPos, float threshold = 6.5f)
+        public bool IsWallNearActiveBreach(Vector3 wallPos, float threshold = 4.5f)
         {
             if (_ActiveBreaches.Count == 0) return false;
 
             for (int i = 0; i < _ActiveBreaches.Count; i++)
             {
-                if (_ActiveBreaches[i] == null) continue;
-                Vector3 diff = wallPos - _ActiveBreaches[i].Position;
+                BreachPoint bp = _ActiveBreaches[i];
+                if (bp == null) continue;
+
+                Vector3 diff = wallPos - bp.Position;
                 diff.y = 0;
-                if (diff.magnitude <= threshold)
+
+                // Tính khoảng cách dọc theo hướng thâm nhập vào làng (Direction)
+                float depthAlongDirection = Vector3.Dot(diff, bp.Direction);
+
+                // Nếu bức tường này nằm sâu hơn về phía làng (độ sâu > 2.0m),
+                // đây là hàng rào tầng trong! Khủng long BẮT BUỘC phải tấn công nó để tiến vào trung tâm!
+                if (depthAlongDirection > 2.0f)
                 {
-                    return true;
+                    continue;
+                }
+
+                // Tính khoảng cách ngang theo tuyến tường
+                float lateralDist = Vector3.Dot(diff, bp.Lateral);
+                if (Mathf.Abs(depthAlongDirection) < 2.0f && Mathf.Abs(lateralDist) <= threshold)
+                {
+                    return true; // Đúng là đoạn tường mép cạnh lỗ thủng cùng hàng rào
                 }
             }
             return false;

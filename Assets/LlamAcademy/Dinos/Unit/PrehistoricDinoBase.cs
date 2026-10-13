@@ -74,6 +74,7 @@ namespace LlamAcademy.Dinos.Unit
         public LlamAcademy.Dinos.AI.BreachPoint CurrentBreachPoint => _CurrentBreachPoint;
         protected float _DefaultAgentRadius = 0.45f;
         protected float _BreachTransitTimer = 0f;
+        protected readonly HashSet<LlamAcademy.Dinos.AI.BreachPoint> _TraversedBreaches = new();
 
         private Vector3 _OrigBoxColliderSize = Vector3.zero;
         private float _OrigCapsuleRadius = 0f;
@@ -727,6 +728,24 @@ namespace LlamAcademy.Dinos.Unit
                 return;
             }
 
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.BaseTarget != null)
+            {
+                TargetBase = PrehistoricGameplayManager.Instance.BaseTarget;
+                return;
+            }
+
+            if (PrehistoricVillageBase.Instance != null)
+            {
+                TargetBase = PrehistoricVillageBase.Instance.transform;
+                return;
+            }
+
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
+            {
+                TargetBase = PrehistoricGameModeManager.Instance.VillageBase.transform;
+                return;
+            }
+
             GameObject eggObj = GameObject.Find("Dino Egg Spawn");
             if (eggObj != null)
             {
@@ -780,21 +799,20 @@ namespace LlamAcademy.Dinos.Unit
             bool hasValidTarget = (CurrentTarget != null && CurrentTarget.Health > 0);
 
             // 1. TACTICAL BREACH EXPLOITATION CHECK:
-            // Nếu chưa điều hướng khe hở nhưng đang nhắm vào tường hoặc đường đi bị chặn,
-            // kiểm tra xem đã có khe hở nào mở sẵn trong phạm vi không!
+            // Chỉ kiểm tra khi khủng long đang nhắm vào một bức tường trên cùng hàng rào sát mép khe hở
             if (!_IsNavigatingBreach && TacticalBreachMemory.HasInstance && TargetBase != null)
             {
-                bool pathBlockedOrTargetingWall = (CurrentTarget is Wall) 
-                    || (Agent != null && Agent.hasPath && Agent.pathStatus != NavMeshPathStatus.PathComplete)
-                    || TacticalBreachMemory.Instance.IsWallNearActiveBreach(transform.position, 12.0f);
-
-                if (pathBlockedOrTargetingWall)
+                if (CurrentTarget is Wall targetWall)
                 {
-                    var bestBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 26.0f);
-                    if (bestBreach != null && bestBreach.TryClaimSlot(this))
+                    // Nếu bức tường đang nhắm vào nằm sát một khe hở đã mở trên cùng hàng rào
+                    if (TacticalBreachMemory.Instance.IsWallNearActiveBreach(targetWall.transform.position, 4.5f))
                     {
-                        AssignToBreach(bestBreach);
-                        hasValidTarget = false;
+                        var bestBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 26.0f);
+                        if (bestBreach != null && !_TraversedBreaches.Contains(bestBreach) && bestBreach.TryClaimSlot(this))
+                        {
+                            AssignToBreach(bestBreach);
+                            hasValidTarget = false;
+                        }
                     }
                 }
             }
@@ -811,6 +829,9 @@ namespace LlamAcademy.Dinos.Unit
                 if (hasPassedPlane || distToIngress < 1.2f || _BreachTransitTimer > 6.0f)
                 {
                     RestoreOriginalColliderAndAgent();
+
+                    // Đánh dấu đã qua khe hở này để vĩnh viễn không bao giờ quay lại
+                    _TraversedBreaches.Add(_CurrentBreachPoint);
 
                     if (Agent != null && Agent.isOnNavMesh)
                     {
@@ -1192,7 +1213,7 @@ namespace LlamAcademy.Dinos.Unit
             if (TacticalBreachMemory.HasInstance && TargetBase != null)
             {
                 var nearbyBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 25.0f);
-                if (nearbyBreach != null && nearbyBreach.TryClaimSlot(this))
+                if (nearbyBreach != null && !_TraversedBreaches.Contains(nearbyBreach) && nearbyBreach.TryClaimSlot(this))
                 {
                     // Đã có khe hở và CÒN CHỖ TRỐNG (< 4 con)! Lập tức kích hoạt điều hướng qua khe hở!
                     AssignToBreach(nearbyBreach);
@@ -1204,7 +1225,7 @@ namespace LlamAcademy.Dinos.Unit
             Vector3 targetDir = TargetBase != null ? (TargetBase.position - transform.position).normalized : transform.forward;
             targetDir.y = 0;
 
-            float scanRadius = Mathf.Max(AttackRange + 1.5f, 4.0f);
+            float scanRadius = Mathf.Max(AttackRange + 2.5f, 8.5f);
             int blockHits = Physics.OverlapSphereNonAlloc(transform.position, scanRadius, ScanBuffer, TargetLayers);
 
             IDamageable closestBlocker = null;
@@ -1219,10 +1240,10 @@ namespace LlamAcademy.Dinos.Unit
                 if (wall == null) wall = EnsureDynamicWall(col);
                 if (wall != null && wall.Health > 0)
                 {
-                    // QUAN TRỌNG NHẤT: Bỏ qua bức tường này nếu nó nằm sát (<= 7.5m) bất kỳ khe hở nào đã mở!
-                    if (TacticalBreachMemory.Instance != null && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 7.5f))
+                    // Bỏ qua bức tường này nếu nó nằm ngay sát mép khe hở cùng hàng rào! (Không bỏ qua hàng rào tầng trong)
+                    if (TacticalBreachMemory.Instance != null && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 4.5f))
                     {
-                        continue; // KHÔNG TẤN CÔNG BỨC TƯỜNG NÀY VÌ CỬA ĐÃ MỞ BÊN CẠNH!
+                        continue;
                     }
 
                     Vector3 closest;

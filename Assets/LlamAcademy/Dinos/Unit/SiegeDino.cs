@@ -33,7 +33,7 @@ namespace LlamAcademy.Dinos.Unit
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.HasInstance && TargetBase != null)
             {
                 var nearbyBreach = LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 20.0f);
-                if (nearbyBreach != null && nearbyBreach.TryClaimSlot(this))
+                if (nearbyBreach != null && !_TraversedBreaches.Contains(nearbyBreach) && nearbyBreach.TryClaimSlot(this))
                 {
                     AssignToBreach(nearbyBreach);
                     return null;
@@ -41,7 +41,8 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // When path is blocked (PathPartial), prioritize walls in front using WallDetectRadius
-            int hits = Physics.OverlapSphereNonAlloc(transform.position, WallDetectRadius, ScanBuffer, TargetLayers);
+            float detectRadius = Mathf.Max(WallDetectRadius, 7.5f);
+            int hits = Physics.OverlapSphereNonAlloc(transform.position, detectRadius, ScanBuffer, TargetLayers);
             Vector3 targetDir = TargetBase != null ? (TargetBase.position - transform.position).normalized : transform.forward;
             IDamageable bestWall = null;
             float minDistance = float.MaxValue;
@@ -54,8 +55,8 @@ namespace LlamAcademy.Dinos.Unit
                 Wall wall = col.GetComponentInParent<Wall>();
                 if (wall != null && wall.Health > 0)
                 {
-                    // Bỏ qua tường nằm sát khe hở đã mở
-                    if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null && LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 7.5f))
+                    // Bỏ qua tường nằm sát mép khe hở đã mở cùng hàng rào (không bỏ qua tường tầng trong)
+                    if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null && LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 4.5f))
                     {
                         continue;
                     }
