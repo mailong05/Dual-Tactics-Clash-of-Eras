@@ -369,7 +369,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 float myDist = Vector3.Distance(transform.position, basePos);
                 float breachDist = Vector3.Distance(breach.Position, basePos);
-                if (myDist <= breachDist + 1.0f)
+                if (myDist <= breachDist - 1.0f)
                 {
                     CurrentTarget = null;
                     if (Agent != null && Agent.isOnNavMesh)
@@ -437,28 +437,26 @@ namespace LlamAcademy.Dinos.Unit
                     try { closest = col.ClosestPoint(myPos); }
                     catch { closest = col.bounds.ClosestPoint(myPos); }
 
-                    // QUY TẮC CỐT LÕI: Tường thay thế phải nằm GẦN CĂN CỨ HƠN vị trí hiện tại của khủng long!
+                    // QUY TẮC CỐT LÕI: Tường thay thế không được nằm ở sau lưng
                     float wallDistToBase = Vector3.Distance(closest, basePos);
-                    if (wallDistToBase >= myDistToBase - 0.3f)
-                    {
-                        continue; // Tường nằm xa căn cứ hơn (ở sau lưng hay ở ngoài) -> TUYỆT ĐỐI BỎ QUA!
-                    }
-
                     Vector3 toWall = closest - myPos;
                     toWall.y = 0;
                     float d = toWall.magnitude;
-                    // Phải nằm về phía căn cứ (Dot > 0.35f) và trong hành lang di chuyển
-                    if (Vector3.Dot(toBaseDir, toWall.normalized) > 0.35f)
-                    {
-                        Vector3 lateralDir = Vector3.Cross(Vector3.up, toBaseDir).normalized;
-                        float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, toWall));
-                        if (lateralOffset > 4.5f) continue;
+                    float dot = Vector3.Dot(toBaseDir, toWall.normalized);
 
-                        if (d < minDistance)
-                        {
-                            minDistance = d;
-                            bestWall = wall;
-                        }
+                    if (dot < 0.2f || wallDistToBase > myDistToBase + 1.0f)
+                    {
+                        continue; // Tường nằm ở sau lưng -> BỎ QUA!
+                    }
+
+                    Vector3 lateralDir = Vector3.Cross(Vector3.up, toBaseDir).normalized;
+                    float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, toWall));
+                    if (lateralOffset > 4.5f) continue;
+
+                    if (d < minDistance)
+                    {
+                        minDistance = d;
+                        bestWall = wall;
                     }
                 }
             }
@@ -882,13 +880,17 @@ namespace LlamAcademy.Dinos.Unit
             // Lập tức chuyển sang đi qua khe hở thay vì đập thêm tường!
             if (!_IsNavigatingBreach && TacticalBreachMemory.HasInstance && TargetBase != null)
             {
-                if (CurrentTarget is Wall)
+                if (CurrentTarget is Wall targetWall)
                 {
-                    var bestBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 26.0f);
-                    if (bestBreach != null && !_TraversedBreaches.Contains(bestBreach) && bestBreach.TryClaimSlot(this))
+                    float distToTarget = Vector3.Distance(transform.position, targetWall.transform.position);
+                    if (distToTarget > AttackRange + 1.5f)
                     {
-                        AssignToBreach(bestBreach);
-                        hasValidTarget = false;
+                        var bestBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 26.0f);
+                        if (bestBreach != null && !_TraversedBreaches.Contains(bestBreach) && bestBreach.TryClaimSlot(this))
+                        {
+                            AssignToBreach(bestBreach);
+                            hasValidTarget = false;
+                        }
                     }
                 }
             }
@@ -971,10 +973,7 @@ namespace LlamAcademy.Dinos.Unit
                 Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
                 Vector3 closestPoint = targetCol != null ? targetCol.ClosestPoint(transform.position) : targetCenter;
 
-                // KIỂM TRA QUY TẮC CỐT LÕI:
-                // Nếu mục tiêu hiện tại là tường hoặc công trình mà nó nằm XA CĂN CỨ HƠN vị trí hiện tại của khủng long
-                // (nghĩa là khủng long đã đi qua nó rồi, hoặc nó ở sau lưng / ở rìa ngoài):
-                // LẬP TỨC HỦY BỎ MỤC TIÊU ĐỂ TIẾP TỤC TIẾN VỀ CĂN CỨ!
+                // KIỂM TRA MỤC TIÊU CÓ THỰC SỰ Ở PHÍA SAU LƯNG (ĐÃ ĐI QUA RỒI) HAY KHÔNG:
                 if (TargetBase != null && !(CurrentTarget is PrehistoricVillageBase))
                 {
                     float myDist = Vector3.Distance(transform.position, TargetBase.position);
@@ -987,9 +986,8 @@ namespace LlamAcademy.Dinos.Unit
                         ? Vector3.Dot(toBase.normalized, toTarget.normalized)
                         : 1.0f;
 
-                    // Nếu mục tiêu nằm xa căn cứ hơn hoặc nằm ngoảnh về phía sau lưng (dot <= 0.1f):
-                    // Lập tức hủy bỏ mục tiêu để tiếp tục tiến thẳng về căn cứ!
-                    if (targetDist >= myDist - 0.3f || dot <= 0.1f)
+                    // Chỉ hủy bỏ mục tiêu khi nó THỰC SỰ ở phía sau lưng (dot < -0.2f) VÀ ở xa căn cứ hơn ít nhất 1.2m
+                    if (dot < -0.2f && targetDist > myDist + 1.2f)
                     {
                         CurrentTarget = null;
                         hasValidTarget = false;
@@ -1004,14 +1002,20 @@ namespace LlamAcademy.Dinos.Unit
                 Vector3 closestPoint = targetCol != null ? targetCol.ClosestPoint(transform.position) : targetCenter;
                 float distToTarget = Vector3.Distance(transform.position, closestPoint);
 
-                if (distToTarget <= AttackRange + 0.5f)
+                float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+                float effectiveAttackRange = AttackRange + agentRadius + 0.5f;
+
+                if (distToTarget <= effectiveAttackRange)
                 {
                     if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
 
                     // Face target
                     Vector3 look = (targetCenter - transform.position);
                     look.y = 0;
-                    if (look != Vector3.zero) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), Time.deltaTime * 6f);
+                    if (look.sqrMagnitude > 0.01f)
+                    {
+                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), Time.deltaTime * 6f);
+                    }
 
                     if (Time.time >= LastAttackTime + AttackInterval)
                     {
@@ -1022,11 +1026,11 @@ namespace LlamAcademy.Dinos.Unit
                 }
                 else
                 {
-                    // Tiến đến gần bức tường/mục tiêu để tấn công
+                    // Tiến đến gần bề mặt bức tường/mục tiêu để tấn công
                     if (Agent != null && Agent.isOnNavMesh)
                     {
                         Agent.isStopped = false;
-                        Agent.SetDestination(targetCenter);
+                        Agent.SetDestination(closestPoint);
                     }
                     return;
                 }
@@ -1288,12 +1292,7 @@ namespace LlamAcademy.Dinos.Unit
         {
             if (_IsNavigatingBreach) return null;
             if (Agent == null || !Agent.enabled || !Agent.isOnNavMesh) return null;
-
-            // 1. Nếu đường đi đang được NavMesh tính toán bất đồng bộ, không vội đánh giá là bị chặn
-            if (Agent.pathPending)
-            {
-                return null;
-            }
+            if (Agent.pathPending) return null;
 
             if (TargetBase == null) FindTargetBase();
             if (TargetBase == null) return null;
@@ -1306,86 +1305,53 @@ namespace LlamAcademy.Dinos.Unit
             if (myDistToBase < 0.2f) return null;
             Vector3 toBaseDir = toBase.normalized;
 
-            // 2. Nếu đường đi hiện tại hoàn toàn thông suốt (PathComplete):
-            // Khủng long phi thẳng một mạch về căn cứ mà không dừng lại đánh các bức tường bên vệ đường!
-            if (Agent.hasPath && Agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathComplete)
+            // 1. TÌM VẬT CẢN (WALL / BARRICADE / TOWER) CHẶN TRƯỚC MẶT TRÊN ĐƯỜNG TIẾN VỀ CĂN CỨ
+            IDamageable directFrontBlocker = FindDirectFrontBlocker(myPos, basePos, myDistToBase, toBaseDir);
+
+            // 2. NẾU CÓ VẬT CẢN TRỰC TIẾP TRƯỚC MẶT:
+            if (directFrontBlocker != null)
             {
-                // Chỉ kiểm tra khi bị chặn vật lý ngay trước mặt ở khoảng cách cận chiến:
-                Vector3 fwd = transform.forward;
-                if (Agent.velocity.sqrMagnitude > 0.1f) fwd = Agent.velocity.normalized;
-                fwd.y = 0;
+                Collider blockerCol = directFrontBlocker.Transform.GetComponentInChildren<Collider>();
+                Vector3 closestPoint = blockerCol != null ? blockerCol.ClosestPoint(myPos) : directFrontBlocker.Transform.position;
+                float distToBlocker = Vector3.Distance(myPos, closestPoint);
 
-                Vector3 chest = myPos + Vector3.up * 0.8f;
-                if (Physics.SphereCast(chest, 0.4f, fwd, out RaycastHit fwdHit, AttackRange, TargetLayers))
+                float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+
+                // A. NẾU ĐÃ ÁP SÁT CỰ LY CẬN CHIẾN (<= AttackRange + agentRadius + 0.8m):
+                // TẤN CÔNG NGAY LẬP TỨC! Không tìm đường vòng hay khe hở xa nữa!
+                if (distToBlocker <= AttackRange + agentRadius + 0.8f)
                 {
-                    if (fwdHit.collider != null && fwdHit.collider.gameObject != gameObject)
-                    {
-                        float colDistToBase = Vector3.Distance(fwdHit.collider.transform.position, basePos);
-                        if (colDistToBase < myDistToBase - 0.3f && Agent.velocity.sqrMagnitude < 0.15f)
-                        {
-                            Wall w = fwdHit.collider.GetComponentInParent<Wall>();
-                            if (w != null && w.Health > 0) return w;
+                    return directFrontBlocker;
+                }
 
-                            Unit u = fwdHit.collider.GetComponentInParent<Unit>();
-                            if (u != null && !(u is PrehistoricDinoBase) && u.Health > 0) return u;
-                        }
+                // B. Nếu còn ở xa hơn: Kiểm tra xem có khe hở đột phá nào gần đó (< 20m) hướng về căn cứ và CÒN CHỖ TRỐNG (< 4 con) không?
+                if (TacticalBreachMemory.HasInstance)
+                {
+                    var nearbyBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(myPos, basePos, this, 20.0f);
+                    if (nearbyBreach != null && !_TraversedBreaches.Contains(nearbyBreach) && nearbyBreach.TryClaimSlot(this))
+                    {
+                        AssignToBreach(nearbyBreach);
+                        return null; // Chuyển sang đi qua khe hở đột phá
                     }
                 }
 
-                return null; // Đường thông suốt: không có vật cản!
+                // C. Nếu không có khe hở nào gần đó còn slot: Tấn công vật cản trước mặt!
+                return directFrontBlocker;
             }
 
-            // 3. TÌM VẬT CẢN TRỰC TIẾP TRƯỚC MẶT CHẶN HƯỚNG VỀ CĂN CỨ
-            IDamageable directFrontBlocker = FindDirectFrontBlocker(myPos, basePos, myDistToBase, toBaseDir);
-
-            // NẾU TRƯỚC MẶT KHÔNG CÓ VẬT CẢN:
-            // "lấy tọa độ căn cứ làm điểm để cho các con khủng long luôn đi về hướng đó nếu trước mặt không có vật cản"
-            if (directFrontBlocker == null)
+            // 3. NẾU PHÍA TRƯỚC HOÀN TOÀN THÔNG SUỐT (KHÔNG CÓ VẬT CẢN NÀO CHẶN):
+            // Khủng long tiếp tục chạy thẳng một mạch về phía căn cứ!
+            if (Agent.isOnNavMesh && (!Agent.hasPath || Agent.destination != basePos))
             {
-                if (Agent.isOnNavMesh && (!Agent.hasPath || Agent.destination != basePos))
-                {
-                    Agent.isStopped = false;
-                    Agent.SetDestination(basePos);
-                }
-                return null;
+                Agent.isStopped = false;
+                Agent.SetDestination(basePos);
             }
-
-            // 4. NẾU TRƯỚC MẶT CÓ VẬT CẢN:
-            // "trường hợp nếu có vật cản và không có đường nào khác gần đó thì mới đánh vật thể trước mặt
-            // còn nếu có đường khác bên cạnh và gần căn cứ hơn thì đi qua đường đó lưu ý vẫn giữ logic 4 con đi lần lượt ở logic cũ"
-
-            // A. Kiểm tra có khe hở đột phá nào gần đó (< 25m) hướng về căn cứ và còn slot (< 4 con) không?
-            if (TacticalBreachMemory.HasInstance)
-            {
-                var nearbyBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(myPos, basePos, this, 25.0f);
-                if (nearbyBreach != null && !_TraversedBreaches.Contains(nearbyBreach) && nearbyBreach.TryClaimSlot(this))
-                {
-                    AssignToBreach(nearbyBreach);
-                    return null; // Có khe hở bên cạnh còn slot: Đi qua đường đó!
-                }
-            }
-
-            // B. Kiểm tra có đường đi vòng (detour) hợp lệ bên cạnh dẫn về căn cứ mà không bị chặn không?
-            UnityEngine.AI.NavMeshPath detourPath = new UnityEngine.AI.NavMeshPath();
-            if (UnityEngine.AI.NavMesh.CalculatePath(myPos, basePos, UnityEngine.AI.NavMesh.AllAreas, detourPath)
-                && detourPath.status == UnityEngine.AI.NavMeshPathStatus.PathComplete)
-            {
-                float pathLength = CalculatePathLength(detourPath);
-                if (pathLength <= myDistToBase * 1.8f + 8.0f)
-                {
-                    Agent.SetPath(detourPath);
-                    return null; // Đi theo lối đi mở bên cạnh, không đập tường trước mặt!
-                }
-            }
-
-            // C. NẾU KHÔNG CÓ ĐƯỜNG NÀO KHÁC GẦN ĐÓ (hoặc các khe hở đều đã đủ 4 con và đường vòng bị chặn):
-            // "mới đánh vật thể trước mặt"!
-            return directFrontBlocker;
+            return null;
         }
 
         protected virtual IDamageable FindDirectFrontBlocker(Vector3 myPos, Vector3 basePos, float myDistToBase, Vector3 toBaseDir)
         {
-            float scanRadius = Mathf.Max(AttackRange + 3.0f, WallScanRadius);
+            float scanRadius = Mathf.Max(AttackRange + 3.5f, WallScanRadius);
             int blockHits = Physics.OverlapSphereNonAlloc(myPos, scanRadius, ScanBuffer, TargetLayers);
 
             IDamageable bestBlocker = null;
@@ -1404,10 +1370,15 @@ namespace LlamAcademy.Dinos.Unit
                 IDamageable candidate = null;
                 if (wall != null && wall.Health > 0)
                 {
-                    // Bỏ qua bức tường này nếu nó nằm ngay sát mép khe hở cùng hàng rào
+                    // Chỉ bỏ qua tường làng nằm sát khe hở đã mở, KHÔNG bỏ qua Barricade rào cọc của người chơi
                     if (TacticalBreachMemory.HasInstance && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 4.5f))
                     {
-                        continue;
+                        string wName = wall.name.ToLower();
+                        bool isBarricade = wName.Contains("barricade") || wName.Contains("rào cọc") || wName.Contains("cọc gỗ");
+                        if (!isBarricade)
+                        {
+                            continue;
+                        }
                     }
                     candidate = wall;
                 }
@@ -1426,34 +1397,50 @@ namespace LlamAcademy.Dinos.Unit
                 try { closest = col.ClosestPoint(myPos); }
                 catch { closest = col.bounds.ClosestPoint(myPos); }
 
-                // 1. QUY TẮC CỐT LÕI: Vật cản BẮT BUỘC phải nằm gần căn cứ hơn khủng long!
-                // Tuyệt đối không đánh vật cản ở sau lưng hoặc xa căn cứ hơn chỗ đang đứng!
-                float colDistToBase = Vector3.Distance(closest, basePos);
-                if (colDistToBase >= myDistToBase - 0.3f)
-                {
-                    continue;
-                }
-
                 Vector3 flatToCol = new Vector3(closest.x - myPos.x, 0f, closest.z - myPos.z);
                 float distToCol = flatToCol.magnitude;
                 if (distToCol < 0.05f) distToCol = 0.05f;
                 Vector3 dirToCol = flatToCol / distToCol;
 
-                // 2. HƯỚNG TRƯỚC MẶT: Phải nằm trong hình nón hướng về căn cứ (dot > 0.35f, góc < 70 độ)
+                float colDistToBase = Vector3.Distance(closest, basePos);
+
+                // Kiểm tra góc hướng về căn cứ:
                 float dotToBase = Vector3.Dot(toBaseDir, dirToCol);
-                if (dotToBase <= 0.35f)
+
+                float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+                bool isVeryClose = distToCol <= AttackRange + agentRadius + 0.8f;
+
+                if (isVeryClose)
                 {
-                    continue;
+                    // Khi đã ở cự ly áp sát cận chiến (ngay trước mặt):
+                    // Chỉ bỏ qua nếu vật thể THỰC SỰ ở hẳn sau lưng (dot < -0.2f VÀ xa căn cứ hơn 1.2m)
+                    if (dotToBase < -0.2f && colDistToBase > myDistToBase + 1.2f)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Khi ở xa hơn:
+                    // 1. Phải hướng về phía căn cứ (dotToBase >= 0.15f)
+                    // 2. Không được nằm xa căn cứ hơn khủng long
+                    if (dotToBase < 0.15f || colDistToBase > myDistToBase + 1.0f)
+                    {
+                        continue;
+                    }
+
+                    // 3. Nằm trong hành lang di chuyển về căn cứ
+                    float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, flatToCol));
+                    if (lateralOffset > 4.5f)
+                    {
+                        continue;
+                    }
                 }
 
-                // 3. ĐỘ LỆCH NGANG: Phải nằm trong hành lang di chuyển về căn cứ
-                float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, flatToCol));
-                if (lateralOffset > 3.8f && distToCol > AttackRange + 1.2f)
-                {
-                    continue;
-                }
+                // Điểm số ưu tiên: Càng gần và càng thẳng hướng căn cứ thì điểm càng cao
+                float closeBonus = isVeryClose ? 200f : 0f;
+                float score = closeBonus + (dotToBase * 15f) - distToCol;
 
-                float score = (dotToBase * 10f) - distToCol;
                 if (score > bestScore)
                 {
                     bestScore = score;
