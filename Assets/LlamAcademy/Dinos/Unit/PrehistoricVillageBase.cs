@@ -48,6 +48,23 @@ namespace LlamAcademy.Dinos.Unit
             OnBaseHealthChanged?.Invoke(Health, MaxHealth);
         }
 
+        public void RestoreBase(int maxHp = -1)
+        {
+            if (maxHp > 0)
+            {
+                MaxHealth = maxHp;
+            }
+            Health = MaxHealth;
+            gameObject.SetActive(true);
+            if (TryGetComponent(out Collider col)) col.enabled = true;
+            EnsureHealthBarAttached();
+            if (HealthBar != null)
+            {
+                HealthBar.SetProgress(1.0f);
+            }
+            OnBaseHealthChanged?.Invoke(Health, MaxHealth);
+        }
+
         public override void EnsureHealthBarAttached()
         {
             if (HealthBar == null)

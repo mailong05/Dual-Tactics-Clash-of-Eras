@@ -178,9 +178,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             else if (_CurrentPhase == PrehistoricWavePhase.GameOver || _CurrentPhase == PrehistoricWavePhase.Victory)
             {
+                bool isEscPressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+                bool isQPressed = Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame;
+
                 if (isSpacePressed || isEnterPressed || isRPressed)
                 {
                     FullResetGame();
+                }
+                else if (isEscPressed || isQPressed)
+                {
+                    QuitGame();
                 }
             }
 
@@ -601,6 +608,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
 
             _CurrentWave++;
+
+            // Reset và phục hồi toàn bộ ngôi làng (tường, căn cứ, NPC chiến binh) cho bàn/đợt mới
+            ResetEntireVillage(keepPlayerTowers: true);
+
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ShowAnnouncement($"ĐỢT {_CurrentWave}: HÃY ĐẶT THÊM THÁP VÀ BẤM 'BẮT ĐẦU ĐỢT' (SPACE)!", 4.0f);
         }
@@ -610,8 +621,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.GameOver);
             StopAllCoroutines();
 
+            // Mở khóa con trỏ chuột để người chơi tương tác với menu
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
             ShowAnnouncement("☠ THẤT THỦ! NGÔI LÀNG TIỀN SỬ ĐÃ BỊ PHÁ HỦY! ☠", 10.0f);
-            Debug.LogError("<color=red>[Prehistoric TD]</color> GAME OVER! The village was destroyed by dinosaurs!");
+            Debug.LogWarning("<color=red>[Prehistoric TD]</color> GAME OVER! The village was destroyed by dinosaurs!");
             OnGameOver?.Invoke();
         }
 
@@ -619,6 +634,10 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             SetPhase(PrehistoricWavePhase.Victory);
             StopAllCoroutines();
+
+            // Mở khóa con trỏ chuột
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
 
             ShowAnnouncement("🏆 CHIẾN THẮNG KHẢI HOÀN! BẠN ĐÃ BẢO VỆ NGÔI LÀNG THÀNH CÔNG! 🏆", 15.0f);
             Debug.Log("<color=green>[Prehistoric TD]</color> VICTORY! Boss T-Rex defeated!");
@@ -1214,6 +1233,105 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        /// <summary>
+        /// Thoát game hoàn toàn (Dừng PlayMode trong Editor hoặc tắt ứng dụng trong bản build).
+        /// </summary>
+        public void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        /// <summary>
+        /// Reset và khôi phục toàn bộ ngôi làng:
+        /// - Tường thành, rào chắn, chướng ngại vật (FullRestore)
+        /// - Xóa bộ nhớ đột phá TacticalBreachMemory của khủng long
+        /// - Cập nhật NavMesh
+        /// - Căn cứ Làng (Base HP)
+        /// - Làm mới và hồi sinh toàn bộ NPC dân làng / chiến binh bảo vệ làng
+        /// - Nếu keepPlayerTowers = false: dọn tháp đã đặt và reset vàng về 500
+        /// - Nếu keepPlayerTowers = true: hồi đầy 100% máu cho các tháp phòng thủ hiện có
+        /// </summary>
+        public void ResetEntireVillage(bool keepPlayerTowers = true)
+        {
+            // 1. Phục hồi 100% tất cả tường thành và rào chắn (kể cả những tường đã bị phá hủy / SetActive(false))
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall != null)
+                {
+                    wall.FullRestore();
+                }
+            }
+
+            // Đảm bảo cấu hình va chạm và chướng ngại vật
+            ConfigureAllCustomBarricades();
+
+            // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
+
+            // 3. Cập nhật NavMesh sau khi toàn bộ tường và chướng ngại vật được khôi phục
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+                NavMeshManager.Instance.RecalculateTriangulation(true);
+            }
+
+            // 4. Hồi phục 100% Căn Cứ Làng (Base HP)
+            _CurrentBaseHealth = _MaxBaseHealth;
+            if (Unit.PrehistoricVillageBase.Instance != null)
+            {
+                Unit.PrehistoricVillageBase.Instance.RestoreBase(_MaxBaseHealth);
+            }
+            OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
+
+            // 5. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders)
+            if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
+            {
+                var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
+                enemyAI.enabled = true;
+                enemyAI.ClearAllDefenders();
+                int defenderCount = Mathf.Clamp(4 + (_CurrentWave - 1) * 2, 4, 14);
+                enemyAI.EnsureDefendersAlive(defenderCount);
+            }
+
+            // 6. Xử lý các công trình phòng thủ của người chơi:
+            if (!keepPlayerTowers)
+            {
+                // Khi chơi lại từ đầu ván mới: dọn sạch tháp người chơi đã xây và đặt lại 500 vàng
+                if (TowerPlacer.Instance != null)
+                {
+                    TowerPlacer.Instance.ClearAllPlacedTowers();
+                    TowerPlacer.Instance.ResetGoldToDefault(StartingGold);
+                    TowerPlacer.Instance.DeselectTower();
+                }
+            }
+            else
+            {
+                // Giữa các wave (bàn mới): Hồi phục đầy đủ 100% máu cho các tháp phòng thủ của người chơi nếu bị hư hại
+                var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
+                foreach (var u in allUnits)
+                {
+                    if (u == null) continue;
+                    if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
+                    if (u is Unit.Wall || u is Unit.PrehistoricVillageBase) continue;
+                    if (u.MaxHealth > 0 && u.Health < u.MaxHealth)
+                    {
+                        u.Health = u.MaxHealth;
+                        u.EnsureHealthBarAttached();
+                    }
+                }
+            }
+
+            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% toàn bộ ngôi làng: Tường thành, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
+        }
+
         public void FullResetGame()
         {
             Time.timeScale = 1.0f;
@@ -1230,56 +1348,23 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // 3. Xóa sạch 100% các công trình / tháp phòng thủ mà người chơi đã đặt
-            if (TowerPlacer.Instance != null)
-            {
-                TowerPlacer.Instance.ClearAllPlacedTowers();
-                TowerPlacer.Instance.ResetGoldToDefault(StartingGold);
-                TowerPlacer.Instance.DeselectTower();
-            }
-
-            // 4. Khôi phục hoàn toàn Máu Làng về Max HP
-            _CurrentBaseHealth = _MaxBaseHealth;
-            if (Unit.PrehistoricVillageBase.Instance != null)
-            {
-                Unit.PrehistoricVillageBase.Instance.SetBaseStats(_MaxBaseHealth);
-            }
-            OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
-
-            // 5. Đặt lại Đợt chơi về Wave 1
+            // 3. Đặt lại Đợt chơi về Wave 1
             _CurrentWave = 1;
 
-            // 6. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
+            // 4. Reset 100% toàn bộ ngôi làng: phục hồi tường, căn cứ, NPC chiến binh, xóa tháp cũ và reset 500 vàng
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            // 5. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
             SetPhase(PrehistoricWavePhase.BuildingPhase);
 
-            // 7. Đồng bộ với RoundManager
+            // 6. Đồng bộ với RoundManager
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ResetRoundToStart();
             }
 
-            // 8. Đặt lại vị trí ban đầu của Camera và Nhân vật
+            // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
             ResetPlayerAndCameraPosition();
-
-            // 9. Nạp lại Scene để đảm bảo môi trường game nguyên bản 100%
-            try
-            {
-                string currentScene = SceneManager.GetActiveScene().name;
-                if (!string.IsNullOrEmpty(currentScene))
-                {
-                    SceneManager.LoadScene(currentScene);
-                    return;
-                }
-                else
-                {
-                    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-                    return;
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[Prehistoric TD] Scene reload exception fallback: {e.Message}");
-            }
 
             ShowAnnouncement("⚔ BẮT ĐẦU VÁN MỚI! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN TỪ ĐỢT 1! ⚔", 4.0f);
         }
@@ -1528,12 +1613,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawGameOverModal()
         {
+            GUI.depth = -1000;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
             // Lớp phủ nền mờ đen toàn màn hình
-            GUI.color = new Color(0f, 0f, 0f, 0.85f);
+            GUI.color = new Color(0f, 0f, 0f, 0.88f);
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = 600f;
+            float modalW = 620f;
             float modalH = 340f;
             float x = (Screen.width - modalW) / 2f;
             float y = (Screen.height - modalH) / 2f;
@@ -1550,13 +1639,23 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ cần được tái cấu trúc hoàn toàn từ đầu để bảo vệ ngôi làng.</color></size>");
             GUILayout.Space(22);
 
-            // Nút Thử Lại Duy Nhất: Reset toàn bộ game từ đầu
-            GUI.backgroundColor = new Color(0.9f, 0.25f, 0.2f, 1f);
-            if (GUILayout.Button("<b><size=18>🔄 THỬ LẠI TỪ ĐẦU (RESET TOÀN BỘ GAME)</size></b>\n<size=13>Phím tắt: [SPACE] / [ENTER] / [R]\n<i>(Reset nhà cửa, tháp đã xây, nhân vật, khủng long, bắt đầu lại từ Đợt 1 với 500 vàng)</i></size>", GUILayout.Height(75)))
+            // Hai nút lựa chọn rõ ràng: CHƠI LẠI hoặc THOÁT GAME
+            GUILayout.BeginHorizontal();
+
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.3f, 1f);
+            if (GUILayout.Button("<b><size=16>🔄 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím SPACE / ENTER / R]\n(Reset làng, làm lại từ Wave 1)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 65) / 2)))
             {
                 FullResetGame();
             }
+
+            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+            if (GUILayout.Button("<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 65) / 2)))
+            {
+                QuitGame();
+            }
+
             GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
             GUILayout.EndArea();
@@ -1565,13 +1664,17 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawVictoryModal()
         {
+            GUI.depth = -1000;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
             // Lớp phủ nền mờ
-            GUI.color = new Color(0f, 0.12f, 0.05f, 0.8f);
+            GUI.color = new Color(0f, 0.12f, 0.05f, 0.85f);
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = 580f;
-            float modalH = 300f;
+            float modalW = 620f;
+            float modalH = 340f;
             float x = (Screen.width - modalW) / 2f;
             float y = (Screen.height - modalH) / 2f;
 
@@ -1585,14 +1688,24 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(10);
             GUILayout.Label("<size=16>Chúc mừng bạn! Bạo Chúa T-Rex và toàn bộ bầy khủng long đã bị tiêu diệt hoàn toàn!</size>");
             GUILayout.Label($"<size=15>Ngôi làng tiền sử được bảo vệ trọn vẹn với <b>{_CurrentBaseHealth} HP</b> còn lại!</size>");
-            GUILayout.Space(20);
+            GUILayout.Space(22);
+
+            GUILayout.BeginHorizontal();
 
             GUI.backgroundColor = new Color(0.2f, 0.8f, 0.3f, 1f);
-            if (GUILayout.Button("<b><size=18>🎉 CHƠI LẠI TRẬN MỚI [PHÍM SPACE / ENTER / R]</size></b>\n<size=13><i>(Reset ván đấu, bắt đầu một trận mới hoàn toàn từ Đợt 1)</i></size>", GUILayout.Height(65)))
+            if (GUILayout.Button("<b><size=16>🎉 CHƠI LẠI TRẬN MỚI</size></b>\n<size=12>[Phím SPACE / ENTER / R]\n(Bắt đầu trận mới từ Wave 1)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 65) / 2)))
             {
                 FullResetGame();
             }
+
+            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+            if (GUILayout.Button("<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 65) / 2)))
+            {
+                QuitGame();
+            }
+
             GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
             GUILayout.EndArea();

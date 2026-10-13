@@ -82,6 +82,40 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
+        public void FullRestore()
+        {
+            if (Root != null)
+            {
+                Root.SetActive(true);
+            }
+            gameObject.SetActive(true);
+
+            if (MaxHealth <= 0) MaxHealth = 450;
+            Health = MaxHealth;
+
+            Collider[] cols = GetComponentsInChildren<Collider>(true);
+            foreach (var c in cols)
+            {
+                if (c != null) c.enabled = true;
+            }
+
+            NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>(true);
+            foreach (var obs in obstacles)
+            {
+                if (obs != null)
+                {
+                    obs.enabled = true;
+                    obs.carving = true;
+                }
+            }
+
+            EnsureHealthBarAttached();
+            if (HealthBar != null)
+            {
+                HealthBar.SetProgress(1.0f);
+            }
+        }
+
         private static bool s_IsWideningBreach = false;
 
         private static void WidenBreachOpening(Vector3 breachPos, float collapseRadius)

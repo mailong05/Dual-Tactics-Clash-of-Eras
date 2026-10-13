@@ -175,6 +175,15 @@ namespace LlamAcademy.Dinos.RoundManagement
                         _DefeatCheckTimer = 0f;
                     }
                 }
+                else if (AssaultPhase == PrehistoricAssaultPhase.Victory || AssaultPhase == PrehistoricAssaultPhase.Defeat)
+                {
+                    bool isEscPressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+                    bool isQPressed = Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame;
+                    if (isEscPressed || isQPressed)
+                    {
+                        QuitGame();
+                    }
+                }
             }
         }
 
@@ -731,10 +740,21 @@ namespace LlamAcademy.Dinos.RoundManagement
             TriggerAssaultVictory();
         }
 
+        public void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
         public void TriggerAssaultVictory()
         {
             if (AssaultPhase == PrehistoricAssaultPhase.Victory) return;
             AssaultPhase = PrehistoricAssaultPhase.Victory;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
             Debug.Log($"<color=green>[Assault Victory]</color> Chiếm thành thành công màn {AssaultLevel}!");
 
             if (PrehistoricGameplayManager.Instance != null)
@@ -747,6 +767,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (AssaultPhase == PrehistoricAssaultPhase.Defeat || AssaultPhase == PrehistoricAssaultPhase.Victory) return;
             AssaultPhase = PrehistoricAssaultPhase.Defeat;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
             Debug.Log($"<color=red>[Assault Defeat]</color> Toàn bộ khủng long đã tử trận màn {AssaultLevel}!");
         }
 
@@ -791,6 +813,20 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void SetupVillageDefensesForLevel(int level)
         {
+            // 0. Phục hồi 100% tất cả tường thành và rào chắn (kể cả những tường đã bị phá hủy / vô hiệu hóa ở màn trước)
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall != null)
+                {
+                    wall.FullRestore();
+                }
+            }
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
+
             // 1. Hồi phục 100% máu toàn bộ công trình phòng thủ làng đang còn trên sân
             var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
             foreach (var u in allUnits)
@@ -809,10 +845,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageBase();
             if (VillageBase != null)
             {
-                VillageBase.gameObject.SetActive(true);
                 int baseHp = 1000 + (level - 1) * 350;
-                VillageBase.SetBaseStats(baseHp);
-                VillageBase.EnsureHealthBarAttached();
+                VillageBase.RestoreBase(baseHp);
             }
 
             // 3. Tái lập & Bổ sung vũ khí phòng thủ (Máy bắn đá, Tháp nỏ, Cột sét, Bẫy chông, Rào cản)
@@ -976,9 +1010,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawAssaultVictoryModal()
         {
-            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), GUIContent.none);
+            GUI.depth = -1000;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
 
-            float width = 640f;
+            GUI.color = new Color(0f, 0f, 0f, 0.85f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
+            float width = 660f;
             float height = 390f;
             float x = (Screen.width - width) / 2f;
             float y = (Screen.height - height) / 2f;
@@ -1013,6 +1053,12 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RetryCurrentAssaultLevel();
             }
 
+            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME\n[Phím ESC / Q]</size></b>", GUILayout.Height(55)))
+            {
+                QuitGame();
+            }
+
             GUI.backgroundColor = Color.white;
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -1020,10 +1066,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawAssaultDefeatModal()
         {
-            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), GUIContent.none);
+            GUI.depth = -1000;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
 
-            float width = 560f;
-            float height = 300f;
+            GUI.color = new Color(0f, 0f, 0f, 0.85f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
+            float width = 580f;
+            float height = 310f;
             float x = (Screen.width - width) / 2f;
             float y = (Screen.height - height) / 2f;
 
@@ -1038,12 +1090,22 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.EndVertical();
 
             GUILayout.Space(18);
+            GUILayout.BeginHorizontal();
+
             GUI.backgroundColor = new Color(1f, 0.4f, 0.2f);
-            if (GUILayout.Button("<b><size=15>🔄 THỬ LẠI MÀN NÀY</size></b>", GUILayout.Height(50)))
+            if (GUILayout.Button("<b><size=15>🔄 THỬ LẠI MÀN NÀY\n[SPACE / R]</size></b>", GUILayout.Height(50)))
             {
                 RetryCurrentAssaultLevel();
             }
+
+            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME\n[ESC / Q]</size></b>", GUILayout.Height(50)))
+            {
+                QuitGame();
+            }
+
             GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
 
