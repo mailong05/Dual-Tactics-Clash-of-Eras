@@ -176,7 +176,25 @@ namespace LlamAcademy.Dinos.RoundManagement
                     StartNextWave();
                 }
             }
-            else if (_CurrentPhase == PrehistoricWavePhase.GameOver || _CurrentPhase == PrehistoricWavePhase.Victory)
+            else if (_CurrentPhase == PrehistoricWavePhase.GameOver)
+            {
+                bool isEscPressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+                bool isQPressed = Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame;
+
+                if (isSpacePressed || isEnterPressed)
+                {
+                    RetryCurrentWave();
+                }
+                else if (isRPressed)
+                {
+                    FullResetGame();
+                }
+                else if (isEscPressed || isQPressed)
+                {
+                    QuitGame();
+                }
+            }
+            else if (_CurrentPhase == PrehistoricWavePhase.Victory)
             {
                 bool isEscPressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
                 bool isQPressed = Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame;
@@ -1371,7 +1389,29 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void RetryCurrentWave()
         {
-            FullResetGame();
+            Time.timeScale = 1.0f;
+
+            if (WaveSpawnRoutine != null)
+            {
+                StopCoroutine(WaveSpawnRoutine);
+                WaveSpawnRoutine = null;
+            }
+            StopAllCoroutines();
+
+            ClearAllActiveMonsters();
+            PrehistoricDinoBase.ClearClipsCache();
+
+            // Phục hồi 100% toàn bộ ngôi làng: Tường, căn cứ, NPC, bộ nhớ AI; giữ nguyên các tháp phòng thủ của người chơi và hồi đầy máu cho tháp!
+            ResetEntireVillage(keepPlayerTowers: true);
+
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.ResetRoundToStart();
+            }
+
+            ResetPlayerAndCameraPosition();
+            ShowAnnouncement($"⚔ THỬ LẠI ĐỢT {_CurrentWave}! LÀNG ĐÃ ĐƯỢC PHỤC HỒI 100%! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
         }
 
         public void RestartGame()
@@ -1636,20 +1676,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Label("<b><size=22><color=#FF4444>☠ THẤT THỦ! LÀNG TIỀN SỬ ĐÃ BỊ PHÁ HỦY ☠</color></size></b>", GUILayout.ExpandWidth(true));
             GUILayout.Space(8);
             GUILayout.Label($"<size=16>Bầy khủng long hung hãn đã tràn qua tuyến phòng thủ ở <b>Đợt {_CurrentWave} / {_MaxWaves}</b>!</size>");
-            GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ cần được tái cấu trúc hoàn toàn từ đầu để bảo vệ ngôi làng.</color></size>");
-            GUILayout.Space(22);
+            GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ làng (Tường, Căn cứ, NPC) sẵn sàng phục hồi lại toàn bộ 100%.</color></size>");
+            GUILayout.Space(20);
 
-            // Hai nút lựa chọn rõ ràng: CHƠI LẠI hoặc THOÁT GAME
+            // 3 nút lựa chọn rõ ràng: Thử lại đợt này / Chơi từ Wave 1 / Thoát game
             GUILayout.BeginHorizontal();
 
-            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.3f, 1f);
-            if (GUILayout.Button("<b><size=16>🔄 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím SPACE / ENTER / R]\n(Reset làng, làm lại từ Wave 1)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 65) / 2)))
+            GUI.backgroundColor = new Color(0.2f, 0.85f, 0.35f, 1f);
+            if (GUILayout.Button($"<b><size=15>🔄 THỬ LẠI ĐỢT {_CurrentWave}</size></b>\n<size=12>[Phím SPACE / ENTER]\n(Reset làng 100%, giữ tháp)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 70) / 3)))
+            {
+                RetryCurrentWave();
+            }
+
+            GUI.backgroundColor = new Color(0.95f, 0.55f, 0.15f, 1f);
+            if (GUILayout.Button("<b><size=15>⏮️ CHƠI TỪ WAVE 1</size></b>\n<size=12>[Phím R]\n(Reset làng từ đầu, 500 vàng)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 70) / 3)))
             {
                 FullResetGame();
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button("<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 65) / 2)))
+            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>", GUILayout.Height(68), GUILayout.Width((modalW - 70) / 3)))
             {
                 QuitGame();
             }

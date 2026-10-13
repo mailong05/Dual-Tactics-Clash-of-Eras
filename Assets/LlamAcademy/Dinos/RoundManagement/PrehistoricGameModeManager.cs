@@ -892,10 +892,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 4. Bổ sung NPC Thợ săn / Cung thủ phòng thủ làng
+            // 4. Làm mới và hồi phục toàn bộ NPC Thợ săn / Cung thủ phòng thủ làng
             EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
             if (enemyAI != null)
             {
+                enemyAI.ClearAllDefenders();
                 enemyAI.EnsureDefendersAlive(4 + (level - 1) * 3);
             }
 

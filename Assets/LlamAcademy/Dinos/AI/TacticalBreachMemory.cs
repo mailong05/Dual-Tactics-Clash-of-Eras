@@ -264,11 +264,17 @@ namespace LlamAcademy.Dinos.AI
                 BreachPoint bp = _ActiveBreaches[i];
                 if (bp == null) continue;
 
-                // 1. NẾU UNIT ĐÃ VƯỢT QUA MẶT PHẲNG KHE HỞ NÀY (ĐÃ Ở TRONG LÀNG), BỎ QUA NGAY!
+                // 1. NẾU UNIT ĐÃ VƯỢT QUA MẶT PHẲNG KHE HỞ NÀY (ĐÃ Ở TRONG LÀNG), HOẶC ĐÃ Ở GẦN CĂN CỨ HƠN KHE HỞ, BỎ QUA NGAY!
                 // Tuyệt đối không để khủng long quay đầu lại khe hở mà nó vừa mới đi qua!
                 if (bp.HasPassedPlane(unitPos))
                 {
                     continue;
+                }
+
+                float breachDistToBase = Vector3.Distance(bp.Position, targetBasePos);
+                if (currentDistToBase <= breachDistToBase)
+                {
+                    continue; // Khủng long đã ở gần căn cứ hơn hoặc ngang hàng với khe hở này -> TUYỆT ĐỐI KHÔNG QUAY LẠI!
                 }
 
                 // 2. Điểm thâm nhập của khe hở phải thực sự giúp rút ngắn khoảng cách tới căn cứ
@@ -375,6 +381,13 @@ namespace LlamAcademy.Dinos.AI
                 if (dino == null || !dino.enabled || dino.Health <= 0) continue;
                 if (dino.IsNavigatingBreach) continue; // Đang đi qua khe hở rồi
                 if (breach.HasPassedPlane(dino.transform.position)) continue; // Đã ở trong làng
+
+                if (dino.TargetBase != null)
+                {
+                    float dinoDistToBase = Vector3.Distance(dino.transform.position, dino.TargetBase.position);
+                    float breachDistToBase = Vector3.Distance(breach.Position, dino.TargetBase.position);
+                    if (dinoDistToBase <= breachDistToBase) continue; // Đã ở gần căn cứ hơn khe hở, không bao giờ kéo ngược lại
+                }
 
                 float d = Vector3.Distance(dino.transform.position, breach.Position);
                 if (d <= 28f)
