@@ -52,14 +52,20 @@ namespace LlamAcademy.Dinos.AI
     public class TacticalBreachMemory : MonoBehaviour
     {
         private static TacticalBreachMemory _instance;
+        private static bool _isQuitting = false;
+
+        public static bool HasInstance => _instance != null && !_isQuitting;
+
         public static TacticalBreachMemory Instance
         {
             get
             {
+                if (_isQuitting) return null;
+
                 if (_instance == null)
                 {
                     _instance = FindFirstObjectByType<TacticalBreachMemory>();
-                    if (_instance == null)
+                    if (_instance == null && Application.isPlaying && !_isQuitting)
                     {
                         GameObject go = new GameObject("[AI_TacticalBreachMemory]");
                         _instance = go.AddComponent<TacticalBreachMemory>();
@@ -67,6 +73,13 @@ namespace LlamAcademy.Dinos.AI
                 }
                 return _instance;
             }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            _instance = null;
+            _isQuitting = false;
         }
 
         [SerializeField] private List<BreachPoint> _ActiveBreaches = new();
@@ -80,6 +93,7 @@ namespace LlamAcademy.Dinos.AI
             if (_instance == null)
             {
                 _instance = this;
+                _isQuitting = false;
             }
             else if (_instance != this)
             {
@@ -87,11 +101,17 @@ namespace LlamAcademy.Dinos.AI
             }
         }
 
+        private void OnApplicationQuit()
+        {
+            _isQuitting = true;
+        }
+
         private void OnDestroy()
         {
             if (_instance == this)
             {
                 _instance = null;
+                _isQuitting = true;
             }
         }
 

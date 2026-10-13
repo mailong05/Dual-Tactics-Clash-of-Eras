@@ -112,7 +112,7 @@ namespace LlamAcademy.Dinos.Enemy
                 NavMeshManager.Instance.OnNavMeshUpdated -= OnNavMeshUpdated;
             }
 
-            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.HasInstance)
             {
                 LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.OnBreachOpened -= HandleBreachOpened;
             }
