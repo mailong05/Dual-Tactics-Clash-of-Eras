@@ -82,6 +82,61 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
+        private static bool s_IsWideningBreach = false;
+
+        private static void WidenBreachOpening(Vector3 breachPos, float collapseRadius)
+        {
+            if (s_IsWideningBreach) return;
+            s_IsWideningBreach = true;
+            try
+            {
+                // 1. Phá hủy thêm đoạn tường gối đầu kế bên trong phạm vi 2.8m để mở toang lối đi rộng ~5.0m
+                Collider[] hits = Physics.OverlapSphere(breachPos, collapseRadius);
+                foreach (var hit in hits)
+                {
+                    if (hit == null) continue;
+                    Wall adjacentWall = hit.GetComponentInParent<Wall>();
+                    if (adjacentWall != null && adjacentWall.gameObject != null && adjacentWall.Health > 0)
+                    {
+                        float dist = Vector3.Distance(adjacentWall.transform.position, breachPos);
+                        if (dist > 0.4f && dist <= collapseRadius)
+                        {
+                            adjacentWall.Die();
+                            break; // 1 đoạn kế bên sụp là đã mở toang 5m+ cực kỳ rộng rãi!
+                        }
+                    }
+                }
+
+                // 2. Trim bớt BoxCollider và NavMeshObstacle của các tường đứng 2 bên mép (từ 2.8m đến 4.8m)
+                // để không cấn vào lối đi của khủng long to lớn như T-Rex và Ankylosaurus
+                Collider[] edgeHits = Physics.OverlapSphere(breachPos, 4.8f);
+                foreach (var hit in edgeHits)
+                {
+                    if (hit == null) continue;
+                    Wall edgeWall = hit.GetComponentInParent<Wall>();
+                    if (edgeWall != null && edgeWall.Health > 0)
+                    {
+                        if (edgeWall.TryGetComponent(out BoxCollider bc))
+                        {
+                            Vector3 sz = bc.size;
+                            sz.x = Mathf.Max(sz.x * 0.80f, 1.2f);
+                            bc.size = sz;
+                        }
+                        if (edgeWall.TryGetComponent(out NavMeshObstacle nmo))
+                        {
+                            Vector3 sz = nmo.size;
+                            sz.x = Mathf.Max(sz.x * 0.80f, 1.2f);
+                            nmo.size = sz;
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                s_IsWideningBreach = false;
+            }
+        }
+
         public override void Die()
         {
             // 1. Lập tức vô hiệu hóa Collider và NavMeshObstacle ngay trong frame này
@@ -91,9 +146,12 @@ namespace LlamAcademy.Dinos.Unit
             NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>();
             foreach (var obs in obstacles) if (obs != null) obs.enabled = false;
 
+            // 2. Tự động sụp đổ đoạn tường liền kề để tạo khoảng trống đột phá rộng 5m thênh thang
+            WidenBreachOpening(transform.position, 2.8f);
+
             UpdateNavMeshData.MoveObstacles();
 
-            // Đăng ký vị trí khe hở vào TacticalBreachMemory để điều phối quái và quân cố thủ
+            // 3. Đăng ký vị trí khe hở vào TacticalBreachMemory để điều phối quái và quân cố thủ
             Vector3 toBase = Vector3.forward;
             if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
             {
@@ -105,7 +163,7 @@ namespace LlamAcademy.Dinos.Unit
             }
             toBase.y = 0;
             if (toBase == Vector3.zero) toBase = transform.forward;
-            LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase);
+            LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase, 5.0f);
 
             PrehistoricDinoBase.OnWallBreached(this);
             if (gameObject.activeInHierarchy)

@@ -75,6 +75,80 @@ namespace LlamAcademy.Dinos.Unit
         protected float _DefaultAgentRadius = 0.45f;
         protected float _BreachTransitTimer = 0f;
 
+        private Vector3 _OrigBoxColliderSize = Vector3.zero;
+        private float _OrigCapsuleRadius = 0f;
+        private bool _HasModifiedCollider = false;
+
+        private void SlimColliderForBreach()
+        {
+            if (_HasModifiedCollider) return;
+
+            if (TryGetComponent(out CapsuleCollider cc))
+            {
+                _OrigCapsuleRadius = cc.radius;
+                cc.radius = Mathf.Min(cc.radius, 0.38f);
+                _HasModifiedCollider = true;
+            }
+            else if (TryGetComponent(out BoxCollider bc))
+            {
+                _OrigBoxColliderSize = bc.size;
+                bc.size = new Vector3(Mathf.Min(bc.size.x, 0.75f), bc.size.y, Mathf.Min(bc.size.z, 1.0f));
+                _HasModifiedCollider = true;
+            }
+
+            // Tạm thời vô hiệu hóa va chạm vật lý với tường lân cận để không bị kẹt góc
+            Collider myCol = GetComponent<Collider>();
+            if (myCol != null)
+            {
+                Collider[] wallsNear = Physics.OverlapSphere(transform.position, 12f, TargetLayers);
+                for (int i = 0; i < wallsNear.Length; i++)
+                {
+                    var wCol = wallsNear[i];
+                    if (wCol != null && wCol != myCol && (wCol.GetComponentInParent<Wall>() != null || wCol.CompareTag("Wall") || wCol.CompareTag("Obstacle")))
+                    {
+                        Physics.IgnoreCollision(myCol, wCol, true);
+                    }
+                }
+            }
+        }
+
+        private void RestoreOriginalColliderAndAgent()
+        {
+            if (Agent != null && Agent.enabled)
+            {
+                Agent.radius = _DefaultAgentRadius;
+                Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
+                Agent.avoidancePriority = 50;
+            }
+
+            if (_HasModifiedCollider)
+            {
+                if (TryGetComponent(out CapsuleCollider cc) && _OrigCapsuleRadius > 0f)
+                {
+                    cc.radius = _OrigCapsuleRadius;
+                }
+                else if (TryGetComponent(out BoxCollider bc) && _OrigBoxColliderSize != Vector3.zero)
+                {
+                    bc.size = _OrigBoxColliderSize;
+                }
+                _HasModifiedCollider = false;
+            }
+
+            Collider myCol = GetComponent<Collider>();
+            if (myCol != null)
+            {
+                Collider[] wallsNear = Physics.OverlapSphere(transform.position, 12f, TargetLayers);
+                for (int i = 0; i < wallsNear.Length; i++)
+                {
+                    var wCol = wallsNear[i];
+                    if (wCol != null && wCol != myCol && (wCol.GetComponentInParent<Wall>() != null || wCol.CompareTag("Wall") || wCol.CompareTag("Obstacle")))
+                    {
+                        Physics.IgnoreCollision(myCol, wCol, false);
+                    }
+                }
+            }
+        }
+
         public bool EnsureOnNavMesh(float maxDistance = 15f)
         {
             if (Agent == null) Agent = GetComponent<NavMeshAgent>();
@@ -135,6 +209,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 _CurrentBreachPoint.ReleaseSlot(this);
                 TacticalBreachMemory.Instance.DispatchNextDinosToBreach(_CurrentBreachPoint);
+                RestoreOriginalColliderAndAgent();
                 _CurrentBreachPoint = null;
                 _IsNavigatingBreach = false;
             }
@@ -225,12 +300,18 @@ namespace LlamAcademy.Dinos.Unit
             _BreachTransitTimer = 0f;
             CurrentTarget = null;
 
+            SlimColliderForBreach();
+
+            Vector3 assignedIngress = breach.GetIngressPointForUnit(this);
+
             if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
             {
                 Agent.radius = 0.20f;
+                Agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
+                Agent.avoidancePriority = 25 + breach.GetUnitSlotIndex(this) * 5;
                 Agent.isStopped = false;
                 Agent.ResetPath();
-                Agent.SetDestination(breach.IngressPoint);
+                Agent.SetDestination(assignedIngress);
             }
         }
 
@@ -241,6 +322,7 @@ namespace LlamAcademy.Dinos.Unit
             if (_IsNavigatingBreach && _CurrentBreachPoint == breach)
             {
                 if (breach != null) breach.ReleaseSlot(this);
+                RestoreOriginalColliderAndAgent();
                 _IsNavigatingBreach = false;
                 _CurrentBreachPoint = null;
             }
@@ -721,15 +803,17 @@ namespace LlamAcademy.Dinos.Unit
             if (_IsNavigatingBreach && _CurrentBreachPoint != null)
             {
                 _BreachTransitTimer += Time.deltaTime;
-                float distToBreach = Vector3.Distance(transform.position, _CurrentBreachPoint.Position);
+                Vector3 targetIngress = _CurrentBreachPoint.GetIngressPointForUnit(this);
+                float distToIngress = Vector3.Distance(transform.position, targetIngress);
                 bool hasPassedPlane = _CurrentBreachPoint.HasPassedPlane(transform.position);
 
-                // Khủng long đã vượt qua cửa ngõ thâm nhập vào sâu trong làng (hoặc đã quá 5.5s):
-                if (hasPassedPlane || distToBreach < 1.2f || _BreachTransitTimer > 5.5f)
+                // Khủng long đã thực sự vượt qua mặt phẳng tường vào sâu bên trong làng (hoặc an toàn quá 6s):
+                if (hasPassedPlane || distToIngress < 1.2f || _BreachTransitTimer > 6.0f)
                 {
+                    RestoreOriginalColliderAndAgent();
+
                     if (Agent != null && Agent.isOnNavMesh)
                     {
-                        Agent.radius = _DefaultAgentRadius;
                         Agent.isStopped = false;
                         Agent.ResetPath();
                         if (TargetBase != null) Agent.SetDestination(TargetBase.position);
@@ -743,29 +827,37 @@ namespace LlamAcademy.Dinos.Unit
                 }
                 else
                 {
-                    // Đang luồn lách qua khe hẹp:
+                    // Đang tiến qua làn đột phá:
                     if (Agent != null && Agent.isOnNavMesh)
                     {
                         Agent.radius = 0.20f;
+                        Agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
                         Agent.isStopped = false;
-                        if (!Agent.hasPath || Agent.destination != _CurrentBreachPoint.IngressPoint)
+                        if (!Agent.hasPath || Vector3.Distance(Agent.destination, targetIngress) > 0.6f)
                         {
-                            Agent.SetDestination(_CurrentBreachPoint.IngressPoint);
+                            Agent.SetDestination(targetIngress);
                         }
                     }
 
                     // Hỗ trợ lực đẩy tiến xuyên qua khe nếu vướng carving cục bộ
-                    if (distToBreach < 3.8f)
+                    Vector3 breachDir = (targetIngress - transform.position);
+                    breachDir.y = 0;
+                    if (breachDir.sqrMagnitude > 0.04f)
                     {
-                        Vector3 breachDir = (_CurrentBreachPoint.IngressPoint - transform.position).normalized;
-                        breachDir.y = 0;
-                        if (breachDir.sqrMagnitude > 0.01f)
+                        breachDir.Normalize();
+                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(breachDir), Time.deltaTime * 8f);
+
+                        // Sử dụng Agent.Move để đồng bộ tuyệt đối với NavMeshAgent, không gây giật lag hoặc kẹt
+                        if (Agent != null && Agent.isOnNavMesh)
                         {
-                            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(breachDir), Time.deltaTime * 8f);
-                            if (Agent != null && Agent.velocity.sqrMagnitude < 0.25f)
+                            if (Agent.velocity.sqrMagnitude < 0.35f)
                             {
-                                transform.position += breachDir * (MoveSpeed * 0.75f * Time.deltaTime);
+                                Agent.Move(breachDir * (MoveSpeed * 0.85f * Time.deltaTime));
                             }
+                        }
+                        else
+                        {
+                            transform.position += breachDir * (MoveSpeed * 0.85f * Time.deltaTime);
                         }
                     }
 
@@ -1243,6 +1335,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 _CurrentBreachPoint.ReleaseSlot(this);
                 TacticalBreachMemory.Instance.DispatchNextDinosToBreach(_CurrentBreachPoint);
+                RestoreOriginalColliderAndAgent();
                 _CurrentBreachPoint = null;
                 _IsNavigatingBreach = false;
             }

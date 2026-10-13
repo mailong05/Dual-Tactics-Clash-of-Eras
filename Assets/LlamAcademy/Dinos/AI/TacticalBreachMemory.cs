@@ -11,13 +11,14 @@ namespace LlamAcademy.Dinos.AI
         public Vector3 ApproachPoint;
         public Vector3 IngressPoint;
         public Vector3 Direction;
+        public Vector3 Lateral;
         public float Width;
         public float Timestamp;
         public int UnitsTraversed;
 
         // Giới hạn số lượng khủng long cùng lúc đi qua khe hở này (theo yêu cầu: 4 con)
         public const int MAX_CONCURRENT_UNITS = 4;
-        private readonly HashSet<Unit.Unit> _assignedUnits = new();
+        private readonly List<Unit.Unit> _assignedUnits = new();
 
         public int CurrentAssignedCount
         {
@@ -40,6 +41,47 @@ namespace LlamAcademy.Dinos.AI
         public bool IsUnitAssigned(Unit.Unit unit)
         {
             return unit != null && _assignedUnits.Contains(unit);
+        }
+
+        public int GetUnitSlotIndex(Unit.Unit unit)
+        {
+            if (unit == null) return 0;
+            CleanDeadUnits();
+            int idx = _assignedUnits.IndexOf(unit);
+            return idx >= 0 ? idx : 0;
+        }
+
+        /// <summary>
+        /// Phân chia 4 làn đường thâm nhập riêng biệt qua cửa đột phá rộng 5m
+        /// để 4 con khủng long không dẫm đạp hoặc chèn ép nhau.
+        /// </summary>
+        public Vector3 GetIngressPointForUnit(Unit.Unit unit)
+        {
+            int index = GetUnitSlotIndex(unit);
+            float lateralOffset = 0f;
+            switch (index)
+            {
+                case 0: lateralOffset = -0.9f; break;
+                case 1: lateralOffset = 0.9f; break;
+                case 2: lateralOffset = -1.8f; break;
+                case 3: lateralOffset = 1.8f; break;
+            }
+            float depthOffset = (index >= 2) ? 1.0f : 0f;
+            return IngressPoint + Lateral * lateralOffset + Direction * depthOffset;
+        }
+
+        public Vector3 GetApproachPointForUnit(Unit.Unit unit)
+        {
+            int index = GetUnitSlotIndex(unit);
+            float lateralOffset = 0f;
+            switch (index)
+            {
+                case 0: lateralOffset = -0.9f; break;
+                case 1: lateralOffset = 0.9f; break;
+                case 2: lateralOffset = -1.8f; break;
+                case 3: lateralOffset = 1.8f; break;
+            }
+            return ApproachPoint + Lateral * lateralOffset;
         }
 
         public bool TryClaimSlot(Unit.Unit unit)
@@ -71,22 +113,25 @@ namespace LlamAcademy.Dinos.AI
 
         private void CleanDeadUnits()
         {
-            _assignedUnits.RemoveWhere(u => u == null || !u.enabled || u.Health <= 0);
+            _assignedUnits.RemoveAll(u => u == null || !u.enabled || u.Health <= 0);
         }
 
-        public BreachPoint(Vector3 position, Vector3 direction, float width = 3.2f)
+        public BreachPoint(Vector3 position, Vector3 direction, float width = 5.0f)
         {
             Position = position;
             Direction = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector3.forward;
             Direction.y = 0;
             if (Direction == Vector3.zero) Direction = Vector3.forward;
 
+            Lateral = Vector3.Cross(Vector3.up, Direction).normalized;
+            if (Lateral == Vector3.zero) Lateral = Vector3.right;
+
             // Điểm tiếp cận phía ngoài hàng rào (bên ngoài làng)
-            ApproachPoint = position - Direction * 2.0f;
+            ApproachPoint = position - Direction * 3.0f;
             ApproachPoint.y = position.y;
 
-            // Điểm thâm nhập sâu vào bên trong làng (vượt qua hàng rào)
-            IngressPoint = position + Direction * 3.5f;
+            // Điểm thâm nhập sâu vào bên trong làng (vượt qua hàng rào 4.5m)
+            IngressPoint = position + Direction * 4.5f;
             IngressPoint.y = position.y;
 
             Width = width;
@@ -98,8 +143,8 @@ namespace LlamAcademy.Dinos.AI
         {
             Vector3 toUnit = unitPos - Position;
             toUnit.y = 0;
-            // Nếu vị trí của unit đã vượt qua mặt phẳng hàng rào về phía IngressPoint
-            return Vector3.Dot(toUnit, Direction) > 0.5f;
+            // Khủng long đã vượt qua mặt phẳng hàng rào vào sâu bên trong làng ít nhất 0.8m
+            return Vector3.Dot(toUnit, Direction) > 0.8f;
         }
     }
 
