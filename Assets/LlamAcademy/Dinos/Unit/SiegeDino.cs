@@ -29,13 +29,14 @@ namespace LlamAcademy.Dinos.Unit
                 return base.ScanForBlockers();
             }
 
-            // Nếu đã có khe hở gần đây, tuân thủ theo base để điều hướng qua khe hở thay vì đập thêm tường!
-            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null && TargetBase != null)
+            // Nếu đã có khe hở gần đây, tuân thủ theo base để điều hướng qua khe hở thay vì đập thêm tường (nếu còn slot)!
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.HasInstance && TargetBase != null)
             {
-                var nearbyBreach = LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, 20.0f);
-                if (nearbyBreach != null)
+                var nearbyBreach = LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 20.0f);
+                if (nearbyBreach != null && nearbyBreach.TryClaimSlot(this))
                 {
-                    return base.ScanForBlockers();
+                    AssignToBreach(nearbyBreach);
+                    return null;
                 }
             }
 

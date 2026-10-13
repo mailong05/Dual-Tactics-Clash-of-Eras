@@ -15,6 +15,65 @@ namespace LlamAcademy.Dinos.AI
         public float Timestamp;
         public int UnitsTraversed;
 
+        // Giới hạn số lượng khủng long cùng lúc đi qua khe hở này (theo yêu cầu: 4 con)
+        public const int MAX_CONCURRENT_UNITS = 4;
+        private readonly HashSet<Unit.Unit> _assignedUnits = new();
+
+        public int CurrentAssignedCount
+        {
+            get
+            {
+                CleanDeadUnits();
+                return _assignedUnits.Count;
+            }
+        }
+
+        public bool HasSlotAvailable
+        {
+            get
+            {
+                CleanDeadUnits();
+                return _assignedUnits.Count < MAX_CONCURRENT_UNITS;
+            }
+        }
+
+        public bool IsUnitAssigned(Unit.Unit unit)
+        {
+            return unit != null && _assignedUnits.Contains(unit);
+        }
+
+        public bool TryClaimSlot(Unit.Unit unit)
+        {
+            if (unit == null || unit.Health <= 0) return false;
+            CleanDeadUnits();
+            if (_assignedUnits.Contains(unit)) return true;
+            if (_assignedUnits.Count < MAX_CONCURRENT_UNITS)
+            {
+                _assignedUnits.Add(unit);
+                return true;
+            }
+            return false;
+        }
+
+        public void ReleaseSlot(Unit.Unit unit)
+        {
+            if (unit != null)
+            {
+                _assignedUnits.Remove(unit);
+            }
+            CleanDeadUnits();
+        }
+
+        public void ClearAssigned()
+        {
+            _assignedUnits.Clear();
+        }
+
+        private void CleanDeadUnits()
+        {
+            _assignedUnits.RemoveWhere(u => u == null || !u.enabled || u.Health <= 0);
+        }
+
         public BreachPoint(Vector3 position, Vector3 direction, float width = 3.2f)
         {
             Position = position;
@@ -46,8 +105,9 @@ namespace LlamAcademy.Dinos.AI
 
     /// <summary>
     /// Trung tâm Điều phối Tác chiến Khe hở (Tactical Breach Memory).
-    /// Ghi nhận tức thời mọi vị trí rào chắn bị phá hủy, điều phối bầy khủng long tràn qua cửa ngõ
-    /// và thông báo cho NPC Quân Cố thủ lập phòng tuyến chốt chặn chokepoint.
+    /// Ghi nhận tức thời mọi vị trí rào chắn bị phá hủy, điều phối tối đa 4 con khủng long gần nhất
+    /// đi qua mỗi khe hở, các con khác tỏa ra phá hủy tường chỗ khác.
+    /// Sau khi các con trước qua thành công, tiếp tục cho phép 4 con gần đó đi qua.
     /// </summary>
     public class TacticalBreachMemory : MonoBehaviour
     {
@@ -120,13 +180,12 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public BreachPoint RegisterBreach(Vector3 wallPosition, Vector3 directionTowardsBase, float width = 3.2f)
         {
-            // Kiểm tra xem đã có breach nào gần vị trí này (< 2.0m) chưa
             for (int i = 0; i < _ActiveBreaches.Count; i++)
             {
                 if (Vector3.Distance(_ActiveBreaches[i].Position, wallPosition) < 2.0f)
                 {
                     _ActiveBreaches[i].Timestamp = Time.time;
-                    _ActiveBreaches[i].Width += width * 0.5f; // Mở rộng khẩu độ khe hở
+                    _ActiveBreaches[i].Width += width * 0.5f;
                     return _ActiveBreaches[i];
                 }
             }
@@ -134,16 +193,16 @@ namespace LlamAcademy.Dinos.AI
             BreachPoint newBreach = new BreachPoint(wallPosition, directionTowardsBase, width);
             _ActiveBreaches.Add(newBreach);
 
-            Debug.Log($"<color=#FF5533><b>[Tactical AI Breach]</b></color> Đã phá thủng hàng rào tại ({wallPosition.x:F1}, {wallPosition.z:F1})! Mở đường thâm nhập vào làng!");
+            Debug.Log($"<color=#FF5533><b>[Tactical AI Breach]</b></color> Đã phá thủng hàng rào tại ({wallPosition.x:F1}, {wallPosition.z:F1})! Cấp phép 4 con gần nhất đi qua lối này, các con khác tỏa ra phá tường chỗ khác!");
 
             OnBreachOpened?.Invoke(newBreach);
             return newBreach;
         }
 
         /// <summary>
-        /// Tìm khe hở gần nhất có lợi thế hướng về căn cứ mục tiêu trong phạm vi cho phép.
+        /// Tìm khe hở tốt nhất hướng về căn cứ. Nếu chỉ định unit, chỉ trả về khe hở nếu unit đó đã được gán hoặc khe hở còn chỗ trống (< 4 con).
         /// </summary>
-        public BreachPoint GetBestBreachTowards(Vector3 unitPos, Vector3 targetBasePos, float maxSearchDistance = 25.0f)
+        public BreachPoint GetBestBreachTowards(Vector3 unitPos, Vector3 targetBasePos, Unit.Unit unit = null, float maxSearchDistance = 25.0f)
         {
             if (_ActiveBreaches.Count == 0) return null;
 
@@ -159,10 +218,15 @@ namespace LlamAcademy.Dinos.AI
                 BreachPoint bp = _ActiveBreaches[i];
                 if (bp == null) continue;
 
+                // Nếu unit được cung cấp: kiểm tra xem khe hở này có còn slot không hoặc unit đã được gán chưa
+                if (unit != null && !bp.IsUnitAssigned(unit) && !bp.HasSlotAvailable)
+                {
+                    continue; // Khe hở này đã đủ 4 con! Bỏ qua để unit đi phá tường chỗ khác
+                }
+
                 float distToBreach = Vector3.Distance(unitPos, bp.Position);
                 if (distToBreach > maxSearchDistance) continue;
 
-                // Điểm số tác chiến: càng gần khe hở càng tốt, và khe hở càng rút ngắn khoảng cách tới Base càng tốt
                 float distFromBreachToBase = Vector3.Distance(bp.IngressPoint, targetBasePos);
                 float progressBonus = distToBase - distFromBreachToBase;
 
@@ -178,11 +242,20 @@ namespace LlamAcademy.Dinos.AI
             return best;
         }
 
+        public BreachPoint GetBestBreachTowards(Vector3 unitPos, Vector3 targetBasePos, float maxSearchDistance)
+        {
+            return GetBestBreachTowards(unitPos, targetBasePos, null, maxSearchDistance);
+        }
+
+        public void NotifyUnitTraversed(BreachPoint breach)
+        {
+            OnUnitTraversedBreach(breach, null);
+        }
+
         /// <summary>
-        /// Kiểm tra xem một vị trí (hoặc một bức tường kế bên) có nằm sát một khe hở đã mở hay không.
-        /// Nếu nằm trong phạm vi (7m), khủng long TUYỆT ĐỐI KHÔNG TẤN CÔNG bức tường này mà phải chui qua khe hở!
+        /// Kiểm tra xem một vị trí tường có nằm sát một khe hở đã mở hay không.
         /// </summary>
-        public bool IsWallNearActiveBreach(Vector3 wallPos, float threshold = 7.0f)
+        public bool IsWallNearActiveBreach(Vector3 wallPos, float threshold = 6.5f)
         {
             if (_ActiveBreaches.Count == 0) return false;
 
@@ -199,16 +272,63 @@ namespace LlamAcademy.Dinos.AI
             return false;
         }
 
-        public void NotifyUnitTraversed(BreachPoint breach)
+        /// <summary>
+        /// Khi 1 con khủng long đã vượt qua khe hở thành công vào trong làng, giải phóng slot và tự động điều phối
+        /// con khủng long tiếp theo gần đó lấp vào slot vừa trống để đi qua!
+        /// </summary>
+        public void OnUnitTraversedBreach(BreachPoint breach, Unit.Unit unit)
         {
-            if (breach != null)
+            if (breach == null) return;
+            breach.ReleaseSlot(unit);
+            breach.UnitsTraversed++;
+
+            // Điều phối con tiếp theo gần đó lấp vào slot trống
+            DispatchNextDinosToBreach(breach);
+        }
+
+        /// <summary>
+        /// Tìm các con khủng long gần nhất chưa qua rào để cấp phép đi qua các slot còn trống (tối đa 4 con cùng lúc).
+        /// </summary>
+        public void DispatchNextDinosToBreach(BreachPoint breach)
+        {
+            if (breach == null || !breach.HasSlotAvailable) return;
+
+            // Tìm các khủng long còn sống ở gần khe hở nhưng chưa vượt qua hàng rào
+            List<Unit.PrehistoricDinoBase> candidates = new();
+            foreach (var dino in Unit.PrehistoricDinoBase.ActiveDinos)
             {
-                breach.UnitsTraversed++;
+                if (dino == null || !dino.enabled || dino.Health <= 0) continue;
+                if (dino.IsNavigatingBreach) continue; // Đang đi qua khe hở rồi
+                if (breach.HasPassedPlane(dino.transform.position)) continue; // Đã ở trong làng
+
+                float d = Vector3.Distance(dino.transform.position, breach.Position);
+                if (d <= 28f)
+                {
+                    candidates.Add(dino);
+                }
+            }
+
+            candidates.Sort((a, b) => 
+                Vector3.Distance(a.transform.position, breach.Position).CompareTo(Vector3.Distance(b.transform.position, breach.Position)));
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                if (!breach.HasSlotAvailable) break;
+
+                var dino = candidates[i];
+                if (breach.TryClaimSlot(dino))
+                {
+                    dino.AssignToBreach(breach);
+                }
             }
         }
 
         public void ClearAll()
         {
+            foreach (var b in _ActiveBreaches)
+            {
+                b?.ClearAssigned();
+            }
             _ActiveBreaches.Clear();
             OnBreachesCleared?.Invoke();
         }
