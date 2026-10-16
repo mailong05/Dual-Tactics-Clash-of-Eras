@@ -40,6 +40,30 @@ namespace LlamAcademy.Dinos.Enemy
         private Vector3 _DefaultPostPosition;
         private bool _HasRecordedDefaultPost = false;
 
+        [Header("Watchtower Stationing")]
+        public bool IsStationedAtTower { get; set; } = false;
+        public Vector3 TowerPostPosition { get; set; } = Vector3.zero;
+
+        public void StationAtTower(Vector3 postPosition)
+        {
+            IsStationedAtTower = true;
+            TowerPostPosition = postPosition;
+            IsEmergencyBaseDefender = false;
+            AssignedInvaderTarget = null;
+            _DefaultPostPosition = postPosition;
+            _HasRecordedDefaultPost = true;
+
+            if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+            {
+                Agent.isStopped = false;
+                Agent.SetDestination(postPosition);
+            }
+            else
+            {
+                SetDestination(postPosition);
+            }
+        }
+
         private float _LastAttackTime;
         private GameObject _HeldWeapon;
         private Transform _HandBone;
@@ -95,7 +119,7 @@ namespace LlamAcademy.Dinos.Enemy
             }
             else // Spearman
             {
-                AttackRange = 10.0f; // Tầm phóng giáo xa 10m, cận chiến < 2.5m
+                AttackRange = 14.0f; // Tầm phóng giáo xa 14m (đủ tầm từ chòi quan sát ném xuống cổng làng), cận chiến < 2.5m
                 AttackInterval = 1.6f;
                 AttackDamage = 38;
                 ProjectileSpeed = 26.0f;
@@ -117,6 +141,219 @@ namespace LlamAcademy.Dinos.Enemy
             }
 
             EquipWeaponVisual();
+
+            EnsureGrounded();
+        }
+
+        [Header("Physics & Gravity Falling System")]
+        [SerializeField] private float _Gravity = -16.0f;
+        [SerializeField] private float _TerminalVelocity = -22.0f;
+        private bool _IsFalling = false;
+        private float _VerticalVelocity = 0f;
+        public bool IsFalling => _IsFalling;
+
+        /// <summary>
+        /// Bắn raycast tìm mặt sàn hoặc mặt đất gần nhất bên dưới NPC, bỏ qua các collider của chính NPC và quái vật.
+        /// </summary>
+        public bool RaycastFloor(Vector3 origin, float distance, out RaycastHit bestHit)
+        {
+            bestHit = default;
+            RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, distance, ~0, QueryTriggerInteraction.Ignore);
+            float closestDist = float.MaxValue;
+            bool found = false;
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                RaycastHit h = hits[i];
+                if (h.collider == null) continue;
+                // Bỏ qua collider thuộc về chính NPC này (capsule, hitbox, weapon)
+                if (h.collider.transform.root == transform.root) continue;
+                if (h.collider.isTrigger) continue;
+
+                // Bỏ qua các sinh vật sống khác (khủng long, NPC khác) để NPC không bị đứng trên đầu sinh vật
+                if (h.collider.GetComponentInParent<Unit.Unit>() != null && h.collider.GetComponentInParent<Unit.Wall>() == null)
+                {
+                    continue;
+                }
+
+                if (h.distance < closestDist)
+                {
+                    closestDist = h.distance;
+                    bestHit = h;
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// Kích hoạt trạng thái rơi tự do cho NPC khi mất điểm tựa bên dưới chân.
+        /// </summary>
+        public void StartFalling()
+        {
+            if (_IsFalling) return;
+
+            _IsFalling = true;
+            _VerticalVelocity = 0f;
+
+            if (Agent != null && Agent.enabled)
+            {
+                Agent.enabled = false;
+            }
+        }
+
+        /// <summary>
+        /// Cập nhật trọng lực và cơ chế rơi tự do theo thời gian thực (chòi sập, cầu sập, sinh ra giữa không trung).
+        /// </summary>
+        public void UpdateFallingAndGravity()
+        {
+            if (Health <= 0) return;
+
+            // Nếu đang di chuyển qua NavMeshLink (ví dụ qua ngưỡng cửa chòi gác hoặc cầu thang link), không can thiệp
+            if (Agent != null && Agent.enabled && Agent.isOnOffMeshLink)
+            {
+                _IsFalling = false;
+                _VerticalVelocity = 0f;
+                return;
+            }
+
+            Vector3 rayOrigin = transform.position + Vector3.up * 0.4f;
+
+            if (_IsFalling)
+            {
+                // NPC đang rơi tự do dưới tác động của trọng lực
+                _VerticalVelocity = Mathf.Max(_VerticalVelocity + _Gravity * Time.deltaTime, _TerminalVelocity);
+                float fallStep = Mathf.Abs(_VerticalVelocity * Time.deltaTime);
+
+                // Bắn raycast kiểm tra tiếp xúc với mặt đất / sàn chòi / sàn cầu bên dưới
+                if (RaycastFloor(rayOrigin, fallStep + 0.45f, out RaycastHit landHit))
+                {
+                    LandOnSurface(landHit.point);
+                }
+                else
+                {
+                    // Rơi tự do xuống dưới
+                    transform.position += Vector3.up * (_VerticalVelocity * Time.deltaTime);
+
+                    // Failsafe chống rơi xuyên bản đồ xuống vực sâu vô tận
+                    if (transform.position.y < -10.0f)
+                    {
+                        Vector3 safeSpot = new Vector3(-4.0f, 0.05f, -20.0f);
+                        LandOnSurface(safeSpot);
+                    }
+                }
+            }
+            else
+            {
+                // NPC đang đứng trên bề mặt: kiểm tra xem mặt sàn bên dưới có bị biến mất (chòi/cầu bị phá) hay lơ lửng không
+                if (RaycastFloor(rayOrigin, 0.75f, out RaycastHit supportHit))
+                {
+                    float floorY = supportHit.point.y;
+                    float heightAboveFloor = transform.position.y - floorY;
+
+                    if (heightAboveFloor > 0.35f)
+                    {
+                        // Đang lơ lửng cách mặt đất/sàn > 0.35m => Bắt đầu rơi tự do theo trọng lực!
+                        StartFalling();
+                    }
+                    else if (heightAboveFloor < -0.2f)
+                    {
+                        // Chân bị lún sâu xuống sàn, nâng nhẹ lên đúng cao độ mặt sàn
+                        transform.position = new Vector3(transform.position.x, floorY, transform.position.z);
+                    }
+                }
+                else
+                {
+                    // Không có mặt sàn nào trong phạm vi 0.75m bên dưới chân (ví dụ chòi hoặc cầu vừa bị khủng long cắn phá biến mất)
+                    StartFalling();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Xử lý tiếp đất/sàn an toàn khi kết thúc rơi tự do.
+        /// </summary>
+        private void LandOnSurface(Vector3 surfacePoint)
+        {
+            _IsFalling = false;
+            _VerticalVelocity = 0f;
+
+            transform.position = surfacePoint;
+
+            // Nếu trước đó NPC đứng trên chòi gác cao (IsStationedAtTower),
+            // nhưng do chòi bị sập nên đã rơi xuống đất (độ cao Y < 2.0m),
+            // giải phóng vị trí chòi để NPC chuyển sang phòng thủ mặt đất!
+            if (IsStationedAtTower && transform.position.y < 2.0f)
+            {
+                IsStationedAtTower = false;
+                TowerPostPosition = Vector3.zero;
+                _DefaultPostPosition = transform.position;
+            }
+
+            // Gán vị trí hợp lệ trên NavMesh
+            if (NavMesh.SamplePosition(surfacePoint, out NavMeshHit navHit, 3.5f, NavMesh.AllAreas))
+            {
+                transform.position = navHit.position;
+            }
+            else if (NavMesh.SamplePosition(new Vector3(surfacePoint.x, 0.05f, surfacePoint.z), out NavMeshHit groundNavHit, 15.0f, NavMesh.AllAreas))
+            {
+                transform.position = groundNavHit.position;
+            }
+
+            // Kích hoạt lại NavMeshAgent một cách an toàn tuyệt đối
+            if (Agent != null)
+            {
+                Agent.enabled = true;
+                if (!Agent.isOnNavMesh)
+                {
+                    if (NavMesh.SamplePosition(transform.position, out NavMeshHit wideHit, 20.0f, NavMesh.AllAreas))
+                    {
+                        Agent.enabled = false;
+                        transform.position = wideHit.position;
+                        Agent.enabled = true;
+                    }
+                }
+
+                if (Agent.isOnNavMesh)
+                {
+                    Agent.isStopped = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Đảm bảo NPC luôn tiếp đất vững chắc hoặc kích hoạt rơi tự do nếu ở trên không.
+        /// </summary>
+        public void EnsureGrounded()
+        {
+            if (Health <= 0) return;
+            if (_IsFalling) return;
+
+            Vector3 rayOrigin = transform.position + Vector3.up * 0.4f;
+            if (RaycastFloor(rayOrigin, 0.75f, out RaycastHit supportHit))
+            {
+                float floorY = supportHit.point.y;
+                float heightAboveFloor = transform.position.y - floorY;
+
+                if (heightAboveFloor > 0.35f)
+                {
+                    StartFalling();
+                }
+                else if (Agent != null && Agent.enabled && !Agent.isOnNavMesh)
+                {
+                    if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
+                    {
+                        Agent.enabled = false;
+                        transform.position = hit.position;
+                        Agent.enabled = true;
+                    }
+                }
+            }
+            else
+            {
+                StartFalling();
+            }
         }
 
         private void OnEnable()
@@ -144,7 +381,7 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void HandleBreachOpened(LlamAcademy.Dinos.AI.BreachPoint breach)
         {
-            if (Health <= 0 || breach == null) return;
+            if (Health <= 0 || breach == null || IsStationedAtTower) return;
             float dist = Vector3.Distance(transform.position, breach.Position);
             if (dist > 38.0f) return; // Quá xa, giữ nguyên vị trí phân bổ làng
 
@@ -388,7 +625,7 @@ namespace LlamAcademy.Dinos.Enemy
                     {
                         d.IsEmergencyBaseDefender = false;
                         d.AssignedInvaderTarget = null;
-                        if (d._HasRecordedDefaultPost && d.Agent != null && d.Agent.enabled && d.Agent.isOnNavMesh)
+                        if (d._HasRecordedDefaultPost && d.Agent != null && d.Agent.enabled && d.Agent.isOnNavMesh && !d.Agent.isOnOffMeshLink)
                         {
                             d.Agent.SetDestination(d._DefaultPostPosition);
                         }
@@ -409,6 +646,16 @@ namespace LlamAcademy.Dinos.Enemy
             for (int i = 0; i < AllDefenders.Count; i++)
             {
                 var def = AllDefenders[i];
+                if (def == null) continue;
+
+                // Tuyệt đối không điều động chiến binh đang chốt giữ trên chòi cao đi chi viện mặt đất
+                if (def.IsStationedAtTower)
+                {
+                    def.IsEmergencyBaseDefender = false;
+                    def.AssignedInvaderTarget = null;
+                    continue;
+                }
+
                 if (i < quota)
                 {
                     def.IsEmergencyBaseDefender = true;
@@ -429,6 +676,12 @@ namespace LlamAcademy.Dinos.Enemy
 
             if (Health <= 0) return;
 
+            // Xử lý trọng lực và rơi tự do cho NPC khi sinh ra trên không trung hoặc khi chòi/cầu bị phá hủy
+            UpdateFallingAndGravity();
+
+            // Nếu đang rơi tự do giữa không trung, tạm dừng các hành vi mặt đất cho đến khi tiếp đất an toàn
+            if (_IsFalling) return;
+
             if (!_HasRecordedDefaultPost)
             {
                 _DefaultPostPosition = transform.position;
@@ -444,6 +697,80 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void HandleCombatBehavior()
         {
+            // Nếu NPC đang bước qua NavMeshLink (cầu thang, ngưỡng cửa chòi gác, hoặc cầu nối trên cao)
+            // TUYỆT ĐỐI không can thiệp lệnh di chuyển hoặc dừng để NavMeshAgent tự động hoàn tất di chuyển mượt mà!
+            if (Agent != null && Agent.isOnOffMeshLink)
+            {
+                return;
+            }
+
+            // 0. NẾU LÀ NPC ĐƯỢC PHÂN CÔNG CHỐT GIỮ TRÊN CHÒI CAO (WATCHTOWER STATIONED DEFENDER)
+            if (IsStationedAtTower)
+            {
+                // Lợi thế cao điểm: Tầm bắn/phóng giáo được tăng thêm 6m để bao quát tiền tuyến và cổng làng
+                float highGroundRange = AttackRange + 6.0f;
+                Collider towerTargetCol = FindNearestHostileMonster(highGroundRange);
+
+                if (towerTargetCol != null)
+                {
+                    Vector3 targetPos = towerTargetCol.bounds.center;
+                    float distToTarget = Vector3.Distance(transform.position, targetPos);
+
+                    // Xoay mặt về hướng quái
+                    Vector3 faceDir = (targetPos - transform.position);
+                    faceDir.y = 0;
+                    if (faceDir.sqrMagnitude > 0.001f)
+                    {
+                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(faceDir), Time.deltaTime * 10f);
+                    }
+
+                    // Đứng vững trên sàn chòi, tiêu diệt quái từ trên cao, TUYỆT ĐỐI không nhảy xuống đất đuổi theo quái
+                    if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                    {
+                        Agent.isStopped = true;
+                    }
+
+                    if (Time.time >= _LastAttackTime + AttackInterval)
+                    {
+                        _LastAttackTime = Time.time;
+                        PerformAttack(towerTargetCol, targetPos, distToTarget);
+                    }
+                }
+                else
+                {
+                    if (Animator != null)
+                    {
+                        Animator.SetBool(AnimationConstants.IS_ATTACKING_PARAMETER, false);
+                    }
+
+                    // Nếu chưa đến điểm chốt quan sát hoặc bị lệch khỏi chòi, di chuyển mượt mà về vị trí chốt
+                    float distToPost = Vector3.Distance(transform.position, TowerPostPosition);
+                    if (distToPost > 0.8f)
+                    {
+                        if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                        {
+                            Agent.isStopped = false;
+                            Agent.SetDestination(TowerPostPosition);
+                        }
+                        else
+                        {
+                            SetDestination(TowerPostPosition);
+                        }
+                    }
+                    else
+                    {
+                        if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                        {
+                            Agent.isStopped = true;
+                        }
+                        // Quay mặt về hướng tiền tuyến phía trước (hướng âm trục Z)
+                        Vector3 forwardFace = new Vector3(0, 0, -1f);
+                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(forwardFace), Time.deltaTime * 4f);
+                    }
+                }
+                return;
+            }
+
             // 1. NẾU LÀ NPC ĐƯỢC CHỌN CHI VIỆN CĂN CỨ: ƯU TIÊN SỐ 1 HẠ GỤC KHỦNG LONG TRONG CĂN CỨ
             if (IsEmergencyBaseDefender)
             {
@@ -798,20 +1125,24 @@ namespace LlamAcademy.Dinos.Enemy
         private void OnNavMeshUpdated()
         {
             if (Agent == null || !Agent.enabled) return;
+            if (Agent.isOnOffMeshLink) return; // Đang vượt cầu thang hoặc sàn chòi qua NavMeshLink, không được can thiệp
+            if (_IsFalling) return; // Đang rơi tự do, không can thiệp
 
-            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, Agent.radius,
+            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 4.0f,
                     new NavMeshQueryFilter() { agentTypeID = Agent.agentTypeID, areaMask = Agent.areaMask }))
             {
-                if (GraphAgent != null) GraphAgent.enabled = false;
-                Agent.enabled = false;
-                if (Rigidbody != null)
+                // Nếu tạm thời lệch khỏi NavMesh hợp lệ, kiểm tra xem có sàn bên dưới không
+                if (!RaycastFloor(transform.position + Vector3.up * 0.4f, 0.75f, out _))
                 {
-                    Rigidbody.isKinematic = false;
-                    Rigidbody.useGravity = true;
+                    // Sàn bên dưới đã biến mất (ví dụ chòi/cầu bị phá) => Rơi tự do!
+                    StartFalling();
                 }
-
-                RaiseDeathEvent();
-                Die();
+                else if (NavMesh.SamplePosition(transform.position, out NavMeshHit farHit, 12.0f, NavMesh.AllAreas))
+                {
+                    Agent.enabled = false;
+                    transform.position = farHit.position;
+                    Agent.enabled = true;
+                }
             }
         }
 

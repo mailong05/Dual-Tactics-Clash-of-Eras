@@ -34,6 +34,22 @@ namespace LlamAcademy.Dinos.Enemy
         [SerializeField] private List<WallData> WallDatas = new();
         [field: SerializeField] public int ResourcesToSpend { get; set; }
 
+        public static readonly Vector3[] SafeVillageGroundSpots = new Vector3[]
+        {
+            new Vector3(-4.0f, 0.05f, -22.0f),
+            new Vector3(0.0f, 0.05f, -22.0f),
+            new Vector3(-8.0f, 0.05f, -20.0f),
+            new Vector3(6.0f, 0.05f, -20.0f),
+            new Vector3(-5.0f, 0.05f, -16.0f),
+            new Vector3(4.0f, 0.05f, -16.0f),
+            new Vector3(-2.2f, 0.05f, -25.0f),
+            new Vector3(2.2f, 0.05f, -25.0f),
+            new Vector3(-10.0f, 0.05f, -24.0f),
+            new Vector3(10.0f, 0.05f, -24.0f),
+            new Vector3(-14.0f, 0.05f, -20.0f),
+            new Vector3(14.0f, 0.05f, -20.0f)
+        };
+
         private void Awake()
         {
             if (Instance != null)
@@ -202,6 +218,12 @@ namespace LlamAcademy.Dinos.Enemy
             {
                 Vector3[] defaultPatrolSpots = new Vector3[]
                 {
+                    new Vector3(-3.89f, 4.20f, -17.50f), // Chòi Tiền Tiêu Trung Tâm (Front Central Watchtower Platform Lookout)
+                    new Vector3(-23.99f, 4.20f, -17.50f), // Chòi Tiền Tiêu Cánh Trái (Left Watchtower Platform Lookout)
+                    new Vector3(26.11f, 4.20f, -17.50f), // Chòi Tiền Tiêu Cánh Phải (Right Watchtower Platform Lookout)
+                    new Vector3(-13.91f, 4.15f, -14.70f), // Cầu Đi Bộ Trên Cao 1 (Nối Chòi Trái <-> Chòi Giữa)
+                    new Vector3(6.09f, 4.15f, -14.70f),  // Cầu Đi Bộ Trên Cao 3 (Nối Chòi Giữa <-> Cầu 2)
+                    new Vector3(16.09f, 4.15f, -14.70f), // Cầu Đi Bộ Trên Cao 2 (Nối Cầu 3 <-> Chòi Phải)
                     new Vector3(-4.0f, 0f, -6.0f),
                     new Vector3(0.0f, 0f, -6.0f),
                     new Vector3(-2.2f, 0f, -9.0f),
@@ -446,13 +468,28 @@ namespace LlamAcademy.Dinos.Enemy
                         int cost = ActiveConfig.Units[i].UnitSO.Cost;
                         if (cost <= remainingSpend)
                         {
-                            int index = Random.Range(1, vertices.Length);
+                            Vector3 rawPos = SafeVillageGroundSpots[Random.Range(0, SafeVillageGroundSpots.Length)] +
+                                             new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-1.5f, 1.5f));
+                            Vector3 spawnPos = rawPos;
+                            if (NavMesh.SamplePosition(rawPos, out NavMeshHit navHit, 6.0f, NavMesh.AllAreas))
+                            {
+                                spawnPos = navHit.position;
+                            }
 
                             Defender defender = Instantiate(
                                 ActiveConfig.Units[i].UnitSO.Prefab,
-                                Vector3.Lerp(vertices[index - 1], vertices[index], Random.value),
+                                spawnPos,
                                 Quaternion.Euler(0, Random.Range(0, 360f), 0)
                             ) as Defender;
+
+                            if (defender != null)
+                            {
+                                defender.transform.position = spawnPos;
+                                if (defender.Agent != null && defender.Agent.isOnNavMesh)
+                                {
+                                    defender.Agent.Warp(spawnPos);
+                                }
+                            }
 
                             Defenders[ActiveConfig.Units[i].UnitSO.Type].Add(defender);
                             defender.OnDeath += Defender_OnDeath;
@@ -515,19 +552,59 @@ namespace LlamAcademy.Dinos.Enemy
                 pair.Value.RemoveWhere(d => d == null);
             }
 
+            // Kiểm tra xem đã có chiến binh nào chốt giữ Chòi Tiền Tiêu trung tâm chưa
+            bool hasCenterStationed = false;
+            foreach (var pair in Defenders)
+            {
+                foreach (var def in pair.Value)
+                {
+                    if (def != null && def.Health > 0 && def.IsStationedAtTower)
+                    {
+                        hasCenterStationed = true;
+                        break;
+                    }
+                }
+                if (hasCenterStationed) break;
+            }
+
+            // Nếu các NPC đã sinh ra từ trước nhưng chưa ai chốt giữ Chòi Tiền Tiêu, điều động ngay 1 chiến binh lên chòi
+            if (!hasCenterStationed && TotalAliveDefenders > 0)
+            {
+                foreach (var pair in Defenders)
+                {
+                    foreach (var def in pair.Value)
+                    {
+                        if (def != null && def.Health > 0)
+                        {
+                            def.StationAtTower(new Vector3(-3.89f, 4.20f, -17.50f));
+                            hasCenterStationed = true;
+                            break;
+                        }
+                    }
+                    if (hasCenterStationed) break;
+                }
+            }
+
             int currentCount = TotalAliveDefenders;
             if (currentCount < minDefenders)
             {
                 int needed = minDefenders - currentCount;
-                Vector3[] vertices = NavMeshManager.Instance.EnemyTriangulation.vertices;
 
                 for (int i = 0; i < needed; i++)
                 {
                     var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
                     if (unitConfig.UnitSO == null || unitConfig.UnitSO.Prefab == null) continue;
 
-                    int index = Random.Range(1, vertices.Length);
-                    Vector3 spawnPos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
+                    // Chọn điểm xuất phát an toàn trên mặt đất làng
+                    Vector3 candidatePos = SafeVillageGroundSpots[(currentCount + i) % SafeVillageGroundSpots.Length];
+                    candidatePos += new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-1.5f, 1.5f));
+
+                    // Xác định vị trí NavMesh chính xác bằng SamplePosition (tránh tuyệt đối nội suy vertex lơ lửng trên không)
+                    Vector3 spawnPos = candidatePos;
+                    if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 6.0f, NavMesh.AllAreas))
+                    {
+                        spawnPos = hit.position;
+                    }
 
                     Defender defender = Instantiate(
                         unitConfig.UnitSO.Prefab,
@@ -537,6 +614,11 @@ namespace LlamAcademy.Dinos.Enemy
 
                     if (defender != null)
                     {
+                        defender.transform.position = spawnPos;
+                        if (defender.Agent != null && defender.Agent.isOnNavMesh)
+                        {
+                            defender.Agent.Warp(spawnPos);
+                        }
                         if (!Defenders.ContainsKey(unitConfig.UnitSO.Type))
                         {
                             Defenders[unitConfig.UnitSO.Type] = new HashSet<Defender>();
@@ -544,7 +626,21 @@ namespace LlamAcademy.Dinos.Enemy
                         Defenders[unitConfig.UnitSO.Type].Add(defender);
                         defender.OnDeath += Defender_OnDeath;
                         OnSpawnDefender?.Invoke(defender);
-                        defender.Patrol(Waypoints);
+
+                        // Ưu tiên cử ít nhất 1 chiến binh/cung thủ lên chiếm giữ Chòi Tiền Tiêu phía trước để bắn phá khủng long từ trên cao
+                        if (!hasCenterStationed)
+                        {
+                            defender.StationAtTower(new Vector3(-3.89f, 4.20f, -17.50f));
+                            hasCenterStationed = true;
+                        }
+                        else if (i == 1 && needed > 2)
+                        {
+                            defender.StationAtTower(new Vector3(-23.99f, 4.20f, -17.50f));
+                        }
+                        else
+                        {
+                            defender.Patrol(Waypoints);
+                        }
                     }
                 }
             }

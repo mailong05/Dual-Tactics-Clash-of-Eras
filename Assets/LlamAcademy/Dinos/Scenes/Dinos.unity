@@ -2564,6 +2564,9 @@ MonoBehaviour:
   EnableMouseDrag: 1
   MouseDragSensitivity: 0.045
   InvertMouseDrag: 1
+  MobilePanMultiplier: 3.6
+  MobilePinchSensitivity: 0.015
+  InertiaFriction: 6.5
   EnableZoom: 1
   MinZoom: 0.45
   MaxZoom: 1.7
@@ -9870,11 +9873,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 77e2cb0bc80644c448eabe7cba60dc26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Mobile.MobileTouchController
-  TargetCamera: {fileID: 0}
   PanSensitivity: 0.04
   ZoomSensitivity: 0.08
-  MinZoom: 8
-  MaxZoom: 45
   RotateSensitivity: 0.25
   ForceMobileSimulation: 0
   TargetFrameRate: 60
@@ -9937,6 +9937,7 @@ MonoBehaviour:
   WaveCompletionBaseGold: 100
   MonstersAliveCount: 0
   TotalMonstersInWave: 0
+  ActiveMonsters: []
 --- !u!1 &381834926
 GameObject:
   m_ObjectHideFlags: 0
@@ -14107,10 +14108,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_SerializedVersion: 0
   m_OverrideArea: 1
-  m_Area: 1
+  m_Area: 0
   m_OverrideGenerateLinks: 0
   m_GenerateLinks: 0
-  m_IgnoreFromBuild: 1
+  m_IgnoreFromBuild: 0
   m_ApplyToChildren: 1
   m_AffectedAgents: f2652faea98c17eci
 --- !u!1 &641396525
@@ -26833,12 +26834,12 @@ NavMeshObstacle:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1216165327}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Shape: 1
   m_Extents: {x: 5.0142527, y: 2.20135, z: 2.3228016}
   m_MoveThreshold: 0.1
-  m_Carve: 1
+  m_Carve: 0
   m_CarveOnlyStationary: 0
   m_Center: {x: 0.0064811707, y: 2.2022526, z: 0}
   m_TimeToStationary: 0.5
@@ -26859,7 +26860,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 10.028505, y: 4.4027, z: 4.645603}
   m_Center: {x: 0.0064811707, y: 2.2022526, z: 0}
@@ -38786,10 +38787,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_SerializedVersion: 0
   m_OverrideArea: 1
-  m_Area: 1
+  m_Area: 0
   m_OverrideGenerateLinks: 0
   m_GenerateLinks: 0
-  m_IgnoreFromBuild: 1
+  m_IgnoreFromBuild: 0
   m_ApplyToChildren: 1
   m_AffectedAgents: f2652faea98c17eci
 --- !u!1 &1837943152
@@ -40677,7 +40678,7 @@ Transform:
   m_GameObject: {fileID: 1917300830}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 1, y: 0, z: 1.55}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -42111,12 +42112,12 @@ NavMeshObstacle:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1302160752}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Shape: 1
   m_Extents: {x: 5.0142527, y: 2.20135, z: 2.3228016}
   m_MoveThreshold: 0.1
-  m_Carve: 1
+  m_Carve: 0
   m_CarveOnlyStationary: 0
   m_Center: {x: 0.0064811707, y: 2.2022526, z: 0}
   m_TimeToStationary: 0.5
@@ -42137,7 +42138,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 10.028505, y: 4.4027, z: 4.645603}
   m_Center: {x: 0.0064811707, y: 2.2022526, z: 0}
@@ -42578,10 +42579,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_SerializedVersion: 0
   m_OverrideArea: 1
-  m_Area: 1
+  m_Area: 0
   m_OverrideGenerateLinks: 0
   m_GenerateLinks: 0
-  m_IgnoreFromBuild: 1
+  m_IgnoreFromBuild: 0
   m_ApplyToChildren: 1
   m_AffectedAgents: f2652faea98c17eci
 --- !u!1 &1967914907
@@ -46244,12 +46245,12 @@ NavMeshObstacle:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1815035811}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Shape: 1
   m_Extents: {x: 5.0142527, y: 2.20135, z: 2.3228016}
   m_MoveThreshold: 0.1
-  m_Carve: 1
+  m_Carve: 0
   m_CarveOnlyStationary: 0
   m_Center: {x: 0.0064811707, y: 2.2022526, z: 0}
   m_TimeToStationary: 0.5
@@ -46270,7 +46271,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 10.028505, y: 4.4027, z: 4.645603}
   m_Center: {x: 0.0064811707, y: 2.2022526, z: 0}

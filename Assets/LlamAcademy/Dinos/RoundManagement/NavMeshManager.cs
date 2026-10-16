@@ -58,6 +58,20 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             NavMesh.RemoveAllNavMeshData();
+
+            // Mở rộng volume baking của EnemySurface để bao phủ 100% các chòi gác tiền tiêu và cầu thang trên cao
+            if (EnemySurface != null)
+            {
+                EnemySurface.collectObjects = CollectObjects.Volume;
+                EnemySurface.center = new Vector3(0.5f, 4.0f, -18.0f);
+                EnemySurface.size = new Vector3(70.0f, 12.0f, 42.0f);
+            }
+
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.EnsureWatchtowersAndRampsWalkable();
+            }
+
             EnemySurface.BuildNavMesh();
             EnemyTriangulation = NavMesh.CalculateTriangulation();
             SetVisualizationFromTriangulation();
@@ -77,6 +91,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             NavMesh.RemoveAllNavMeshData();
             if (rebuildEnemySurface)
             {
+                if (EnemySurface != null)
+                {
+                    EnemySurface.collectObjects = CollectObjects.Volume;
+                    EnemySurface.center = new Vector3(0.5f, 4.0f, -18.0f);
+                    EnemySurface.size = new Vector3(70.0f, 12.0f, 42.0f);
+                }
+
+                if (PrehistoricGameplayManager.Instance != null)
+                {
+                    PrehistoricGameplayManager.Instance.EnsureWatchtowersAndRampsWalkable();
+                }
+
                 EnemySurface.BuildNavMesh();
             }
             else

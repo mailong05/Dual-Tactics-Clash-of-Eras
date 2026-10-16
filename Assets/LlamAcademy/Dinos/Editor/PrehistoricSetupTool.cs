@@ -510,6 +510,139 @@ namespace LlamAcademy.Dinos.Editor
             Debug.Log($"<color=green>[Prehistoric TD]</color> Đã quét và dọn dẹp thành công {cleanedCount} vật thể rác / nóc nhà / dưới lòng đất trong scene!");
         }
 
+        [MenuItem("Tools/Prehistoric TD/Fix Watchtowers & Ramps Walkable", priority = 14)]
+        [MenuItem("Prehistoric TD/Mở Khóa Chòi Tiền Tiêu & Cầu Thang Cho NPC", priority = 14)]
+        public static void MenuFixWatchtowers()
+        {
+            FixSceneWatchtowersAndRampsWalkable();
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            EditorUtility.DisplayDialog("Mở Khóa Chòi Tiền Tiêu Hoàn Tất", "Đã xóa bỏ toàn bộ các BoxCollider / NavMeshObstacle cản đường trên các Chòi Tiền Tiêu (Big Tower with Platform).\nĐã bổ sung Sàn Gỗ phẳng chịu lực và thiết lập NavMeshLink từ chân cầu thang lên thẳng sàn quan sát của Chòi để NPC có thể tự do lên đứng gác và xả tiễn / ném giáo!", "Đóng");
+        }
+
+        public static void FixSceneWatchtowersAndRampsWalkable()
+        {
+            var allTransforms = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name.ToLower();
+
+                // 1. Chòi Tiền Tiêu (Big Tower with Platform)
+                if (n.Contains("big tower") || (n.Contains("tower") && n.Contains("platform")))
+                {
+                    BoxCollider[] boxCols = t.GetComponents<BoxCollider>();
+                    foreach (var bc in boxCols)
+                    {
+                        if (bc.size.y > 1.5f) Undo.DestroyObjectImmediate(bc);
+                    }
+                    NavMeshObstacle[] obsList = t.GetComponents<NavMeshObstacle>();
+                    foreach (var o in obsList)
+                    {
+                        if (o.size.y > 1.5f) Undo.DestroyObjectImmediate(o);
+                    }
+                    if (t.TryGetComponent(out Unit.Wall wComp)) Undo.DestroyObjectImmediate(wComp);
+
+                    // Sàn gỗ chịu lực
+                    Transform deckTrans = t.Find("Platform_Deck_Collider");
+                    GameObject deckGO;
+                    if (deckTrans == null)
+                    {
+                        deckGO = new GameObject("Platform_Deck_Collider");
+                        Undo.RegisterCreatedObjectUndo(deckGO, "Create Platform Deck Floor");
+                        deckGO.transform.SetParent(t, false);
+                        deckGO.transform.localPosition = new Vector3(0f, 4.15f, 0f);
+                        deckGO.transform.localRotation = Quaternion.identity;
+                        deckGO.transform.localScale = Vector3.one;
+                        deckGO.layer = 0;
+                    }
+                    else
+                    {
+                        deckGO = deckTrans.gameObject;
+                    }
+                    BoxCollider deckCol = deckGO.GetComponent<BoxCollider>();
+                    if (deckCol == null) deckCol = Undo.AddComponent<BoxCollider>(deckGO);
+                    deckCol.center = Vector3.zero;
+                    deckCol.size = new Vector3(7.8f, 0.25f, 7.8f);
+                    deckCol.isTrigger = false;
+                    deckCol.enabled = true;
+
+                    if (!t.TryGetComponent(out Unity.AI.Navigation.NavMeshModifier tMod))
+                    {
+                        tMod = Undo.AddComponent<Unity.AI.Navigation.NavMeshModifier>(t.gameObject);
+                    }
+                    tMod.overrideArea = true;
+                    tMod.area = 0;
+                    tMod.ignoreFromBuild = false;
+
+                    MeshCollider[] mcs = t.GetComponentsInChildren<MeshCollider>(true);
+                    foreach (var mc in mcs)
+                    {
+                        if (mc != null && mc.convex) mc.convex = false;
+                    }
+                }
+
+                // 2. Cầu Thang Gỗ (Ramp_Tribal)
+                if (n.Contains("ramp"))
+                {
+                    if (t.TryGetComponent(out Unity.AI.Navigation.NavMeshModifier rMod))
+                    {
+                        rMod.overrideArea = true;
+                        rMod.area = 0;
+                        rMod.ignoreFromBuild = false;
+                        rMod.applyToChildren = true;
+                    }
+                    else
+                    {
+                        rMod = Undo.AddComponent<Unity.AI.Navigation.NavMeshModifier>(t.gameObject);
+                        rMod.overrideArea = true;
+                        rMod.area = 0;
+                        rMod.ignoreFromBuild = false;
+                        rMod.applyToChildren = true;
+                    }
+
+                    if (t.TryGetComponent(out MeshCollider rmc))
+                    {
+                        rmc.enabled = true;
+                        rmc.convex = false;
+                    }
+                }
+
+                // 3. Cầu nối (Arch Entry Wall & Bridge_Tribal)
+                if (n.Contains("arch entry") || n.Contains("bridge_tribal"))
+                {
+                    BoxCollider[] bcs = t.GetComponents<BoxCollider>();
+                    foreach (var bc in bcs)
+                    {
+                        if (bc.size.y > 1.5f) Undo.DestroyObjectImmediate(bc);
+                    }
+                    NavMeshObstacle[] obs = t.GetComponents<NavMeshObstacle>();
+                    foreach (var o in obs)
+                    {
+                        if (o.size.y > 1.5f) Undo.DestroyObjectImmediate(o);
+                    }
+                    if (t.TryGetComponent(out Unit.Wall wComp)) Undo.DestroyObjectImmediate(wComp);
+
+                    var links = t.GetComponentsInChildren<Unity.AI.Navigation.NavMeshLink>(true);
+                    foreach (var l in links)
+                    {
+                        if (l != null) l.enabled = true;
+                    }
+
+                    if (!t.TryGetComponent(out Unity.AI.Navigation.NavMeshModifier bMod))
+                    {
+                        bMod = Undo.AddComponent<Unity.AI.Navigation.NavMeshModifier>(t.gameObject);
+                    }
+                    bMod.overrideArea = true;
+                    bMod.area = 0;
+                    bMod.ignoreFromBuild = false;
+                    bMod.applyToChildren = true;
+                }
+            }
+
+            Debug.Log("<color=green>[Prehistoric TD]</color> Đã mở khóa thành công toàn bộ Chòi Tiền Tiêu và Cầu Thang cho NPC!");
+        }
+
         public static void DiagnoseAllDinos()
         {
             try
@@ -1989,7 +2122,7 @@ namespace LlamAcademy.Dinos.Editor
                 if (t == null) continue;
                 string n = t.gameObject.name.ToLower();
 
-                // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường
+                // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường, đặc biệt là chòi canh, cầu thang, cầu đi lại
                 if (n == "gate_complex" || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" || n == "right_flank_wall" ||
                     n.Contains("bridge") || n.Contains("floor") || n.Contains("ground") ||
                     n.Contains("camera") || n.Contains("light") || n.Contains("spawn") ||
@@ -2001,7 +2134,8 @@ namespace LlamAcademy.Dinos.Editor
                     n.Contains("totem") || n.Contains("hut") || n.Contains("mountain") ||
                     n.Contains("torch") || n.Contains("ramp") || n.Contains("particle") ||
                     n.Contains("look target") || n.Contains("navmesh") || n.Contains("vegetation") ||
-                    n.Contains("overhead"))
+                    n.Contains("overhead") || n.Contains("tower") || n.Contains("arch") || n.Contains("bastion") ||
+                    n.Contains("platform"))
                 {
                     continue;
                 }
@@ -2015,17 +2149,18 @@ namespace LlamAcademy.Dinos.Editor
                     continue;
                 }
 
-                // 3. Nhận diện toàn diện các object rào chắn, tường thành, pháo đài (kể cả Arch Entry Wall, Big Tower, v.v.)
+                // 3. Nhận diện các object rào chắn, tường thành, chướng ngại vật thực sự (TUYỆT ĐỐI không bao gồm Chòi tiền tiêu, Cầu thang, Cầu nối)
                 bool hasWallTag = false;
                 try { hasWallTag = t.CompareTag("Wall") || t.CompareTag("Obstacle"); } catch {}
 
-                bool isWallCandidate = n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
+                bool isWallCandidate = (n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
                                        n.Contains("palisade") || n.Contains("fence") || n.Contains("defense") ||
-                                       n.Contains("arch entry") || n.Contains("bastion") || n.Contains("big tower") ||
                                        n.Contains("gate") || n.Contains("barrier") || n.Contains("rampart") ||
                                        n.Contains("wooden__barricade") || n.Contains("wooden_barricade") ||
                                        hasWallTag ||
-                                       t.GetComponent<Unit.Wall>() != null;
+                                       t.GetComponent<Unit.Wall>() != null)
+                                       && !n.Contains("tower") && !n.Contains("ramp") && !n.Contains("bridge")
+                                       && !n.Contains("arch") && !n.Contains("bastion") && !n.Contains("platform");
 
                 if (!isWallCandidate) continue;
 
