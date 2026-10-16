@@ -121,6 +121,12 @@ namespace LlamAcademy.Dinos.UI
                 return;
             }
 
+            // PrehistoricGameplayManager đã tự render toolbar tiền sử tối ưu hóa & responsive
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                return;
+            }
+
             if (TowerPlacer.Instance == null) return;
 
             var towers = TowerPlacer.Instance.AvailableTowers;

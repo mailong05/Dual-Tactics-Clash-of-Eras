@@ -57,6 +57,22 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
             Instance = this;
+
+            EnsureAudioAndSettings();
+        }
+
+        private void EnsureAudioAndSettings()
+        {
+            if (Audio.PrehistoricAudioManager.Instance == null)
+            {
+                GameObject audioGO = new GameObject("PrehistoricAudioManager");
+                audioGO.AddComponent<Audio.PrehistoricAudioManager>();
+            }
+            if (UI.PrehistoricSettingsMenu.Instance == null)
+            {
+                GameObject settingsGO = new GameObject("PrehistoricSettingsMenu");
+                settingsGO.AddComponent<UI.PrehistoricSettingsMenu>();
+            }
         }
 
         private void Start()
@@ -322,38 +338,46 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnGUI()
         {
-            // 1. Top Bar: Mode Indicator & Switch Button
-            DrawTopModeBanner();
+            Mobile.MobileUIHelper.BeginScaling();
+            try
+            {
+                // 1. Top Bar: Mode Indicator & Switch Button
+                DrawTopModeBanner();
 
-            // 2. Mode Select Modal (when opened)
-            if (ShowModeSelectModal)
-            {
-                DrawModeSelectionModal();
-                return;
-            }
+                // 2. Mode Select Modal (when opened)
+                if (ShowModeSelectModal)
+                {
+                    DrawModeSelectionModal();
+                    return;
+                }
 
-            // 3. Victory Modal in Dino Assault mode
-            if (_CurrentMode == PrehistoricGameMode.DinoAssault && AssaultPhase == PrehistoricAssaultPhase.Victory)
-            {
-                DrawAssaultVictoryModal();
-                return;
-            }
+                // 3. Victory Modal in Dino Assault mode
+                if (_CurrentMode == PrehistoricGameMode.DinoAssault && AssaultPhase == PrehistoricAssaultPhase.Victory)
+                {
+                    DrawAssaultVictoryModal();
+                    return;
+                }
 
-            // 4. Defeat Modal in Dino Assault mode
-            if (_CurrentMode == PrehistoricGameMode.DinoAssault && AssaultPhase == PrehistoricAssaultPhase.Defeat)
-            {
-                DrawAssaultDefeatModal();
-                return;
-            }
+                // 4. Defeat Modal in Dino Assault mode
+                if (_CurrentMode == PrehistoricGameMode.DinoAssault && AssaultPhase == PrehistoricAssaultPhase.Defeat)
+                {
+                    DrawAssaultDefeatModal();
+                    return;
+                }
 
-            // 5. Mode-Specific Controls: Luôn hiển thị thanh chọn khủng long khi ở chế độ Công Thành
-            if (_CurrentMode == PrehistoricGameMode.DinoAssault)
-            {
-                DrawDinoAssaultHUD();
+                // 5. Mode-Specific Controls: Luôn hiển thị thanh chọn khủng long khi ở chế độ Công Thành
+                if (_CurrentMode == PrehistoricGameMode.DinoAssault)
+                {
+                    DrawDinoAssaultHUD();
+                }
+                else
+                {
+                    DrawTowerDefenseStartRoundButton();
+                }
             }
-            else
+            finally
             {
-                DrawTowerDefenseStartRoundButton();
+                Mobile.MobileUIHelper.EndScaling();
             }
         }
 
@@ -361,10 +385,13 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             float width = 390f;
             float height = 52f;
-            float x = Screen.width - width - 20f;
+            float x = Mobile.MobileUIHelper.ScreenWidth - width - 20f;
             float y = 15f;
 
-            GUILayout.BeginArea(new Rect(x, y, width, height), GUI.skin.box);
+            Rect bannerRect = new Rect(x, y, width, height);
+            Mobile.MobileUIHelper.RegisterUIRect(bannerRect);
+
+            GUILayout.BeginArea(bannerRect, GUI.skin.box);
             GUILayout.BeginHorizontal();
 
             string modeText;
@@ -396,6 +423,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(125), GUILayout.Height(38)))
                 {
                     ShowModeSelectModal = !ShowModeSelectModal;
+                    Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
                 }
             }
             GUI.backgroundColor = Color.white;
@@ -407,18 +435,22 @@ namespace LlamAcademy.Dinos.RoundManagement
         private void DrawModeSelectionModal()
         {
             // Dim background
-            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), GUIContent.none);
+            GUI.Box(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), GUIContent.none);
 
-            float modalWidth = 640f;
+            float modalWidth = Mathf.Min(640f, Mobile.MobileUIHelper.ScreenWidth - 24f);
             float modalHeight = 390f;
-            float modalX = (Screen.width - modalWidth) / 2f;
-            float modalY = (Screen.height - modalHeight) / 2f;
+            float modalX = (Mobile.MobileUIHelper.ScreenWidth - modalWidth) / 2f;
+            float modalY = (Mobile.MobileUIHelper.ScreenHeight - modalHeight) / 2f;
 
-            GUILayout.BeginArea(new Rect(modalX, modalY, modalWidth, modalHeight), GUI.skin.window);
+            Rect modalRect = new Rect(modalX, modalY, modalWidth, modalHeight);
+            Mobile.MobileUIHelper.RegisterUIRect(modalRect);
+
+            GUILayout.BeginArea(modalRect, GUI.skin.window);
 
             GUILayout.Space(10);
             GUILayout.Label("<size=20><b><color=#FFD700>⚔️ CHỌN CHẾ ĐỘ CHƠI PREHISTORIC TD ⚔️</color></b></size>", GUI.skin.label);
-            GUILayout.Label("<color=#CCCCCC>Chọn luật chơi bạn muốn trải nghiệm bên dưới (Có thể đổi bất kỳ lúc nào bằng phím M):</color>");
+            string escTip = Mobile.MobileUIHelper.IsMobile ? "Chọn luật chơi bạn muốn trải nghiệm bên dưới:" : "Chọn luật chơi bạn muốn trải nghiệm bên dưới (Có thể đổi bất kỳ lúc nào bằng phím M):";
+            GUILayout.Label($"<color=#CCCCCC>{escTip}</color>");
             GUILayout.Space(15);
 
             // Card 1: Tower Defense
@@ -447,7 +479,8 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUI.backgroundColor = Color.white;
             GUILayout.Space(10);
-            if (GUILayout.Button("Đóng Menu [ESC]", GUILayout.Height(30)))
+            string closeLabel = Mobile.MobileUIHelper.IsMobile ? "Đóng Menu" : "Đóng Menu [ESC]";
+            if (GUILayout.Button(closeLabel, GUILayout.Height(30)))
             {
                 ShowModeSelectModal = false;
             }
@@ -554,11 +587,22 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 float cardWidth = 145f;
                 float actionBtnWidth = 175f;
+                float maxDockW = Mobile.MobileUIHelper.ScreenWidth - 24f;
+                float baseTotalW = AvailableDinos.Count * cardWidth + actionBtnWidth + 24f;
+                if (baseTotalW > maxDockW)
+                {
+                    float shrinkRatio = maxDockW / baseTotalW;
+                    cardWidth *= shrinkRatio;
+                    actionBtnWidth *= shrinkRatio;
+                }
                 float totalWidth = AvailableDinos.Count * cardWidth + actionBtnWidth + 24f;
-                float startX = (Screen.width - totalWidth) / 2f;
-                float startY = Screen.height - 85f;
+                float startX = (Mobile.MobileUIHelper.ScreenWidth - totalWidth) / 2f;
+                float startY = Mobile.MobileUIHelper.ScreenHeight - 85f;
 
-                GUILayout.BeginArea(new Rect(startX, startY, totalWidth, 75), GUI.skin.box);
+                Rect dockRect = new Rect(startX, startY, totalWidth, 75);
+                Mobile.MobileUIHelper.RegisterUIRect(dockRect);
+
+                GUILayout.BeginArea(dockRect, GUI.skin.box);
                 GUILayout.BeginHorizontal();
 
                 for (int i = 0; i < AvailableDinos.Count; i++)
@@ -570,7 +614,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     bool isSelected = SelectedDino == d;
 
                     string displayName = GetDinoDisplayName(d);
-                    string btnLabel = $"<b>[{i + 1}] {displayName}</b>\n<color={(canAfford ? "#FFD700" : "#FFAAAA")}>{d.Cost} thịt</color>";
+                    string hotkey = (!Mobile.MobileUIHelper.IsMobile) ? $"[{i + 1}] " : "";
+                    string btnLabel = $"<b>{hotkey}{displayName}</b>\n<color={(canAfford ? "#FFD700" : "#FFAAAA")}>{d.Cost} thịt</color>";
 
                     if (isSelected) GUI.backgroundColor = new Color(1f, 0.3f, 0.2f);
                     else GUI.backgroundColor = canAfford ? new Color(0.2f, 0.25f, 0.3f, 0.95f) : new Color(0.4f, 0.4f, 0.4f, 0.6f);
@@ -578,6 +623,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (GUILayout.Button(btnLabel, GUILayout.Height(55), GUILayout.Width(cardWidth)))
                     {
                         SelectDino(isSelected ? null : d);
+                        Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
                     }
                 }
 
@@ -596,6 +642,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                         {
                             LaunchAssault();
                         }
+                        Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
                     }
                 }
                 else
@@ -1016,15 +1063,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             Cursor.visible = true;
 
             GUI.color = new Color(0f, 0f, 0f, 0.85f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = 660f;
+            float width = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
             float height = 390f;
-            float x = (Screen.width - width) / 2f;
-            float y = (Screen.height - height) / 2f;
+            float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
+            float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
-            GUILayout.BeginArea(new Rect(x, y, width, height), GUI.skin.window);
+            Rect modalRect = new Rect(x, y, width, height);
+            Mobile.MobileUIHelper.RegisterUIRect(modalRect);
+
+            GUILayout.BeginArea(modalRect, GUI.skin.window);
             GUILayout.Space(10);
             GUILayout.Label("<size=22><b><color=#FFD700>🏆 CHIẾM THÀNH THÀNH CÔNG! 🏆</color></b></size>", GUI.skin.label);
             GUILayout.Label($"<size=15>Bầy khủng long của bạn đã san phẳng Căn Cứ Làng Bộ Lạc ở <b>Màn {AssaultLevel}</b>!</size>");
@@ -1054,8 +1104,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RetryCurrentAssaultLevel();
             }
 
+            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT GAME</size></b>" : "<b><size=14>🚪 THOÁT GAME\n[Phím ESC / Q]</size></b>";
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME\n[Phím ESC / Q]</size></b>", GUILayout.Height(55)))
+            if (GUILayout.Button(quitLabel, GUILayout.Height(55)))
             {
                 QuitGame();
             }
@@ -1072,15 +1123,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             Cursor.visible = true;
 
             GUI.color = new Color(0f, 0f, 0f, 0.85f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = 580f;
+            float width = Mathf.Min(580f, Mobile.MobileUIHelper.ScreenWidth - 24f);
             float height = 310f;
-            float x = (Screen.width - width) / 2f;
-            float y = (Screen.height - height) / 2f;
+            float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
+            float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
-            GUILayout.BeginArea(new Rect(x, y, width, height), GUI.skin.window);
+            Rect modalRect = new Rect(x, y, width, height);
+            Mobile.MobileUIHelper.RegisterUIRect(modalRect);
+
+            GUILayout.BeginArea(modalRect, GUI.skin.window);
             GUILayout.Space(10);
             GUILayout.Label("<size=22><b><color=#FF4444>💀 BẦY KHỦNG LONG BỊ ĐẨY LÙI! 💀</color></b></size>", GUI.skin.label);
             GUILayout.Label($"<size=14>Toàn bộ khủng long đã ngã xuống trước phòng tuyến kiên cố của Làng ở Màn {AssaultLevel}!</size>");
@@ -1093,14 +1147,17 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(18);
             GUILayout.BeginHorizontal();
 
+            string retryLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=15>🔄 THỬ LẠI MÀN NÀY</size></b>" : "<b><size=15>🔄 THỬ LẠI MÀN NÀY\n[SPACE / R]</size></b>";
+            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=15>🚪 THOÁT GAME</size></b>" : "<b><size=15>🚪 THOÁT GAME\n[ESC / Q]</size></b>";
+
             GUI.backgroundColor = new Color(1f, 0.4f, 0.2f);
-            if (GUILayout.Button("<b><size=15>🔄 THỬ LẠI MÀN NÀY\n[SPACE / R]</size></b>", GUILayout.Height(50)))
+            if (GUILayout.Button(retryLabel, GUILayout.Height(50)))
             {
                 RetryCurrentAssaultLevel();
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME\n[ESC / Q]</size></b>", GUILayout.Height(50)))
+            if (GUILayout.Button(quitLabel, GUILayout.Height(50)))
             {
                 QuitGame();
             }
@@ -1120,11 +1177,14 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 float btnWidth = 220f;
                 float btnHeight = 55f;
-                float btnX = Screen.width - btnWidth - 25f;
-                float btnY = Screen.height - btnHeight - 25f;
+                float btnX = Mobile.MobileUIHelper.ScreenWidth - btnWidth - 25f;
+                float btnY = Mobile.MobileUIHelper.ScreenHeight - btnHeight - 25f;
+
+                Rect btnRect = new Rect(btnX, btnY, btnWidth, btnHeight);
+                Mobile.MobileUIHelper.RegisterUIRect(btnRect);
 
                 GUI.backgroundColor = new Color(0.2f, 0.85f, 0.4f);
-                if (GUI.Button(new Rect(btnX, btnY, btnWidth, btnHeight), "<b><size=15>🛡️ GỌI ĐỢT QUÁI\n(START WAVE)</size></b>"))
+                if (GUI.Button(btnRect, "<b><size=15>🛡️ GỌI ĐỢT QUÁI\n(START WAVE)</size></b>"))
                 {
                     if (RoundManager.Instance != null)
                     {

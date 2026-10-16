@@ -207,6 +207,57 @@ namespace LlamAcademy.Dinos.Player
             }
         }
 
+        /// <summary>
+        /// Moves the camera focus point smoothly across the map based on screen delta (for Touch & Mouse Drag)
+        /// </summary>
+        public void PanCamera(Vector2 screenDelta)
+        {
+            if (CinemachineCamera == null || CinemachineCamera.Follow == null) return;
+
+            Vector3 camRight = CinemachineCamera.transform.right;
+            camRight.y = 0f;
+            camRight.Normalize();
+
+            Vector3 camForward = CinemachineCamera.transform.forward;
+            camForward.y = 0f;
+            camForward.Normalize();
+
+            float dragScale = MouseDragSensitivity * _CurrentZoom * (1080f / Mathf.Max(Screen.height, 1f));
+            float sign = InvertMouseDrag ? -1f : 1f;
+            Vector3 move = (camRight * (screenDelta.x * sign) + camForward * (screenDelta.y * sign)) * dragScale;
+
+            CinemachineCamera.Follow.position += move;
+            ClampToWorld();
+        }
+
+        /// <summary>
+        /// Smoothly zooms the camera in/out based on pinch gesture or slider
+        /// </summary>
+        public void ZoomCamera(float pinchDelta)
+        {
+            float sensitivity = 0.003f * (1080f / Mathf.Max(Screen.height, 1f));
+            _TargetZoom -= pinchDelta * sensitivity;
+            _TargetZoom = Mathf.Clamp(_TargetZoom, MinZoom, MaxZoom);
+        }
+
+        /// <summary>
+        /// Quick zoom step for mobile UI buttons
+        /// </summary>
+        public void QuickZoom(bool zoomIn)
+        {
+            float step = (MaxZoom - MinZoom) * 0.15f;
+            _TargetZoom += zoomIn ? -step : step;
+            _TargetZoom = Mathf.Clamp(_TargetZoom, MinZoom, MaxZoom);
+        }
+
+        /// <summary>
+        /// Rotates the camera angle around Y axis
+        /// </summary>
+        public void OrbitCamera(float deltaAngle)
+        {
+            _OrbitAngleY += deltaAngle;
+        }
+
         private void UpdateFollowOffset()
         {
             if (_FollowComponent == null) return;
@@ -389,9 +440,24 @@ namespace LlamAcademy.Dinos.Player
 
         private void OnGUI()
         {
+            if (Mobile.MobileUIHelper.IsMobile)
+            {
+                // Trên Android: Hiển thị bộ nút camera nổi (Về làng, Đổi góc nhìn, Zoom +, Zoom -)
+                Mobile.MobileUIHelper.BeginScaling();
+                try
+                {
+                    DrawMobileCameraControls();
+                }
+                finally
+                {
+                    Mobile.MobileUIHelper.EndScaling();
+                }
+                return;
+            }
+
             if (!ShowControlsHint) return;
 
-            // Compact floating hint bar at bottom-left
+            // Compact floating hint bar at bottom-left cho bản PC
             float panelWidth = 330f;
             float panelHeight = 85f;
             float x = 15f;
@@ -416,6 +482,68 @@ namespace LlamAcademy.Dinos.Player
             GUILayout.Label("• <b>Chuột Giữa / Phải:</b> Giữ & kéo map tự do", GetHintTextStyle());
             GUILayout.Label("• <b>Cuộn chuột:</b> Zoom | <b>Q/E:</b> Xoay | <b>F:</b> Về làng | <b>C:</b> Góc nhìn", GetHintTextStyle());
 
+            GUILayout.EndArea();
+        }
+
+        private void DrawMobileCameraControls()
+        {
+            float btnW = 60f;
+            float btnH = 42f;
+            float spacing = 5f;
+            float totalH = 4 * btnH + 3 * spacing + 14f;
+            float totalW = btnW + 12f;
+
+            float x = Mobile.MobileUIHelper.ScreenWidth - totalW - 10f;
+            float y = 145f;
+
+            Rect dockRect = new Rect(x, y, totalW, totalH);
+            Mobile.MobileUIHelper.RegisterUIRect(dockRect);
+
+            GUI.backgroundColor = new Color(0.1f, 0.15f, 0.2f, 0.8f);
+            GUI.Box(dockRect, GUIContent.none);
+
+            GUILayout.BeginArea(new Rect(x + 6f, y + 7f, btnW, totalH - 14f));
+            GUILayout.BeginVertical();
+
+            // 1. Reset Center to Village
+            GUI.backgroundColor = new Color(0.2f, 0.7f, 1f, 0.95f);
+            if (GUILayout.Button("<b><size=11>🎯 VỀ\nLÀNG</size></b>", GUILayout.Width(btnW), GUILayout.Height(btnH)))
+            {
+                ResetToCenter();
+                Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+            }
+
+            GUILayout.Space(spacing);
+
+            // 2. Toggle Perspective
+            GUI.backgroundColor = new Color(0.95f, 0.65f, 0.2f, 0.95f);
+            string perspLabel = _CurrentPerspective == CameraPerspective.Rear_TowerDefense ? "<b><size=11>📷 GÓC\nTRƯỚC</size></b>" : "<b><size=11>📷 GÓC\nSAU</size></b>";
+            if (GUILayout.Button(perspLabel, GUILayout.Width(btnW), GUILayout.Height(btnH)))
+            {
+                TogglePerspective();
+                Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+            }
+
+            GUILayout.Space(spacing);
+
+            // 3. Zoom In
+            GUI.backgroundColor = new Color(0.3f, 0.8f, 0.4f, 0.95f);
+            if (GUILayout.Button("<b><size=16>🔍+</size></b>", GUILayout.Width(btnW), GUILayout.Height(btnH)))
+            {
+                QuickZoom(true);
+            }
+
+            GUILayout.Space(spacing);
+
+            // 4. Zoom Out
+            GUI.backgroundColor = new Color(0.3f, 0.8f, 0.4f, 0.95f);
+            if (GUILayout.Button("<b><size=16>🔍−</size></b>", GUILayout.Width(btnW), GUILayout.Height(btnH)))
+            {
+                QuickZoom(false);
+            }
+
+            GUI.backgroundColor = Color.white;
+            GUILayout.EndVertical();
             GUILayout.EndArea();
         }
 

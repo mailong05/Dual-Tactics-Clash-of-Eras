@@ -160,43 +160,60 @@ namespace LlamAcademy.Dinos.Player
             return false;
         }
 
+        private Vector3 _LastAimGroundPosition = Vector3.zero;
+        private bool _HasValidAimPosition = false;
+        private Vector2 _TouchDownPos = Vector2.zero;
+        private float _TouchDownTime = 0f;
+
         private void HandleHotkeys()
         {
-            if (Keyboard.current.escapeKey.wasReleasedThisFrame || Mouse.current.rightButton.wasReleasedThisFrame)
+            if (Keyboard.current != null)
             {
-                DeselectTower();
-                return;
-            }
-
-            // G key: Bật/Tắt Lưới Căn Chỉnh Tự Động (Grid Snapping)
-            if (Keyboard.current.gKey.wasReleasedThisFrame)
-            {
-                _UseGridSnap = !_UseGridSnap;
-            }
-
-            // R key: Xoay góc công trình 45 độ (Giữ Shift để xoay ngược)
-            if (Keyboard.current.rKey.wasReleasedThisFrame)
-            {
-                float step = (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed) ? -45f : 45f;
-                _CurrentRotationY = (_CurrentRotationY + step + 360f) % 360f;
-            }
-
-            // Cuộn chuột giữa để xoay góc nhanh
-            if (SelectedTower != null && Mouse.current != null)
-            {
-                float scroll = Mouse.current.scroll.ReadValue().y;
-                if (scroll > 0.1f) _CurrentRotationY = (_CurrentRotationY + 45f) % 360f;
-                else if (scroll < -0.1f) _CurrentRotationY = (_CurrentRotationY - 45f + 360f) % 360f;
-            }
-
-            // Phím số 1-9 để chọn tháp phòng thủ
-            for (int i = 0; i < AvailableTowers.Count && i < 9; i++)
-            {
-                Key key = Key.Digit1 + i;
-                if (Keyboard.current[key].wasReleasedThisFrame)
+                if (Keyboard.current.escapeKey.wasReleasedThisFrame)
                 {
-                    SelectTower(AvailableTowers[i]);
-                    break;
+                    DeselectTower();
+                    return;
+                }
+
+                // G key: Bật/Tắt Lưới Căn Chỉnh Tự Động (Grid Snapping)
+                if (Keyboard.current.gKey.wasReleasedThisFrame)
+                {
+                    _UseGridSnap = !_UseGridSnap;
+                }
+
+                // R key: Xoay góc công trình 45 độ (Giữ Shift để xoay ngược)
+                if (Keyboard.current.rKey.wasReleasedThisFrame)
+                {
+                    float step = (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed) ? -45f : 45f;
+                    _CurrentRotationY = (_CurrentRotationY + step + 360f) % 360f;
+                }
+
+                // Phím số 1-9 để chọn tháp phòng thủ
+                for (int i = 0; i < AvailableTowers.Count && i < 9; i++)
+                {
+                    Key key = Key.Digit1 + i;
+                    if (Keyboard.current[key].wasReleasedThisFrame)
+                    {
+                        SelectTower(AvailableTowers[i]);
+                        break;
+                    }
+                }
+            }
+
+            if (Mouse.current != null)
+            {
+                if (Mouse.current.rightButton.wasReleasedThisFrame)
+                {
+                    DeselectTower();
+                    return;
+                }
+
+                // Cuộn chuột giữa để xoay góc nhanh
+                if (SelectedTower != null)
+                {
+                    float scroll = Mouse.current.scroll.ReadValue().y;
+                    if (scroll > 0.1f) _CurrentRotationY = (_CurrentRotationY + 45f) % 360f;
+                    else if (scroll < -0.1f) _CurrentRotationY = (_CurrentRotationY - 45f + 360f) % 360f;
                 }
             }
         }
@@ -205,45 +222,123 @@ namespace LlamAcademy.Dinos.Player
         {
             if (SelectedTower == null || Visualization == null || PlayerCamera == null) return;
 
-            Ray ray = PlayerCamera.ScreenPointToRay(Mouse.current.position.ReadValue());
-            if (Physics.Raycast(ray, out RaycastHit hit, float.MaxValue, GroundLayer))
+            Vector2 pointerPos = Vector2.zero;
+            bool hasPointer = false;
+            bool isTapRelease = false;
+
+            // 1. Quét cảm ứng chạm trên Android / Mobile Touchscreen
+            if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
             {
-                Vector3 placePos = hit.point;
-
-                // Căn chỉnh vị trí theo Lưới Thông Minh (Grid Snapping) nếu đang bật
-                if (_UseGridSnap)
+                var touch = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0];
+                if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
                 {
-                    placePos.x = Mathf.Round(placePos.x / _GridSnapSize) * _GridSnapSize;
-                    placePos.z = Mathf.Round(placePos.z / _GridSnapSize) * _GridSnapSize;
+                    _TouchDownPos = touch.screenPosition;
+                    _TouchDownTime = Time.unscaledTime;
+                }
 
-                    // Đo lại độ cao mặt đất chính xác tại tọa độ ô lưới đã làm tròn
-                    if (Physics.Raycast(new Vector3(placePos.x, hit.point.y + 10f, placePos.z), Vector3.down, out RaycastHit snapHit, 20f, GroundLayer))
+                if (!Mobile.MobileUIHelper.IsPointerOverUI(touch.screenPosition))
+                {
+                    pointerPos = touch.screenPosition;
+                    hasPointer = true;
+
+                    if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended)
                     {
-                        placePos.y = snapHit.point.y;
+                        float dist = Vector2.Distance(touch.screenPosition, _TouchDownPos);
+                        float dur = Time.unscaledTime - _TouchDownTime;
+                        // Chạm thả nhanh trên mặt đất mà không kéo camera -> đặt tháp
+                        if (dist < 25f && dur < 0.45f)
+                        {
+                            isTapRelease = true;
+                        }
                     }
                 }
-
-                // Khống chế độ cao tiếp đất trong khoảng mặt đất tự nhiên (tránh bị nhảy lên không trung hay nóc tường)
-                placePos.y = Mathf.Clamp(placePos.y, -0.5f, 1.5f);
-
-                Visualization.transform.position = placePos;
-                Visualization.transform.rotation = Quaternion.Euler(0f, _CurrentRotationY, 0f);
-
-                bool hasPrefab = SelectedTower != null && SelectedTower.Prefab != null;
-                bool hasEnoughGold = SelectedTower != null && Gold >= SelectedTower.Cost;
-                bool isPathBlocked = CheckIfPlacementBlocksPath(placePos);
-
-                Visualization.ValidatePlacement(hasEnoughGold && hasPrefab, isPathBlocked);
-
-                // Click chuột trái để hoàn tất đặt công trình
-                if (Mouse.current.leftButton.wasReleasedThisFrame
-                    && Visualization.IsValidPlacementLocation
-                    && hasPrefab
-                    && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
+            }
+            else if (Mouse.current != null)
+            {
+                pointerPos = Mouse.current.position.ReadValue();
+                hasPointer = true;
+                if (Mouse.current.leftButton.wasReleasedThisFrame)
                 {
-                    PlaceTowerAt(placePos);
+                    isTapRelease = true;
                 }
             }
+
+            Vector3 placePos = _LastAimGroundPosition;
+
+            if (hasPointer)
+            {
+                Ray ray = PlayerCamera.ScreenPointToRay(pointerPos);
+                if (Physics.Raycast(ray, out RaycastHit hit, float.MaxValue, GroundLayer))
+                {
+                    placePos = hit.point;
+
+                    // Căn chỉnh vị trí theo Lưới Thông Minh (Grid Snapping) nếu đang bật
+                    if (_UseGridSnap)
+                    {
+                        placePos.x = Mathf.Round(placePos.x / _GridSnapSize) * _GridSnapSize;
+                        placePos.z = Mathf.Round(placePos.z / _GridSnapSize) * _GridSnapSize;
+
+                        // Đo lại độ cao mặt đất chính xác tại tọa độ ô lưới đã làm tròn
+                        if (Physics.Raycast(new Vector3(placePos.x, hit.point.y + 10f, placePos.z), Vector3.down, out RaycastHit snapHit, 20f, GroundLayer))
+                        {
+                            placePos.y = snapHit.point.y;
+                        }
+                    }
+
+                    // Khống chế độ cao tiếp đất trong khoảng mặt đất tự nhiên (tránh bị nhảy lên không trung hay nóc tường)
+                    placePos.y = Mathf.Clamp(placePos.y, -0.5f, 1.5f);
+                    _LastAimGroundPosition = placePos;
+                    _HasValidAimPosition = true;
+                }
+            }
+            else if (!_HasValidAimPosition)
+            {
+                // Mặc định ban đầu đưa preview ra trước camera
+                Ray centerRay = PlayerCamera.ViewportPointToRay(new Vector3(0.5f, 0.4f, 0f));
+                if (Physics.Raycast(centerRay, out RaycastHit cHit, float.MaxValue, GroundLayer))
+                {
+                    placePos = cHit.point;
+                    placePos.y = Mathf.Clamp(placePos.y, -0.5f, 1.5f);
+                    _LastAimGroundPosition = placePos;
+                    _HasValidAimPosition = true;
+                }
+            }
+
+            Visualization.transform.position = placePos;
+            Visualization.transform.rotation = Quaternion.Euler(0f, _CurrentRotationY, 0f);
+
+            bool hasPrefab = SelectedTower != null && SelectedTower.Prefab != null;
+            bool hasEnoughGold = SelectedTower != null && Gold >= SelectedTower.Cost;
+            bool isPathBlocked = CheckIfPlacementBlocksPath(placePos);
+
+            Visualization.ValidatePlacement(hasEnoughGold && hasPrefab, isPathBlocked);
+
+            // Xác nhận đặt công trình khi người chơi click/chạm hợp lệ trên mặt đất
+            if (isTapRelease
+                && Visualization.IsValidPlacementLocation
+                && hasPrefab
+                && hasEnoughGold
+                && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                && !Mobile.MobileUIHelper.IsPointerOverUI(pointerPos))
+            {
+                PlaceTowerAt(placePos);
+            }
+        }
+
+        public void RotateTower45()
+        {
+            _CurrentRotationY = (_CurrentRotationY + 45f) % 360f;
+        }
+
+        public void ConfirmPlacementFromUI()
+        {
+            if (SelectedTower == null || SelectedTower.Prefab == null) return;
+            if (Visualization == null || !Visualization.IsValidPlacementLocation) return;
+            if (Gold < SelectedTower.Cost) return;
+
+            Vector3 pos = _HasValidAimPosition ? _LastAimGroundPosition : Visualization.transform.position;
+            PlaceTowerAt(pos);
+            Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
         }
 
         private void PlaceTowerAt(Vector3 position)
@@ -273,9 +368,12 @@ namespace LlamAcademy.Dinos.Player
 
             OnTowerPlaced?.Invoke(towerUnit);
             _PlacedTowerObjects.Add(towerUnit.gameObject);
+            Audio.PrehistoricAudioManager.Instance?.PlayTowerPlaced();
+            Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
 
             // If Shift is NOT held, deselect. If held, keep placing more of the same tower!
-            if (!Keyboard.current.leftShiftKey.isPressed && !Keyboard.current.rightShiftKey.isPressed)
+            bool shiftHeld = Keyboard.current != null && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+            if (!shiftHeld)
             {
                 DeselectTower();
             }
@@ -351,6 +449,81 @@ namespace LlamAcademy.Dinos.Player
             if (SelectedTower == null) return;
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense) return;
 
+            Mobile.MobileUIHelper.BeginScaling();
+            try
+            {
+                if (Mobile.MobileUIHelper.IsMobile)
+                {
+                    DrawMobilePlacementBar();
+                }
+                else
+                {
+                    DrawDesktopPlacementTooltip();
+                }
+            }
+            finally
+            {
+                Mobile.MobileUIHelper.EndScaling();
+            }
+        }
+
+        private void DrawMobilePlacementBar()
+        {
+            float barW = Mathf.Min(560f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float barH = 56f;
+            float x = (Mobile.MobileUIHelper.ScreenWidth - barW) / 2f;
+            float y = Mobile.MobileUIHelper.ScreenHeight - 146f; // Vị trí nổi ngay trên thanh chọn tháp
+
+            Rect barRect = new Rect(x, y, barW, barH);
+            Mobile.MobileUIHelper.RegisterUIRect(barRect);
+
+            GUI.backgroundColor = new Color(0.12f, 0.16f, 0.22f, 0.95f);
+            GUILayout.BeginArea(barRect, GUI.skin.box);
+            GUILayout.BeginHorizontal();
+
+            bool canAfford = Gold >= SelectedTower.Cost;
+            bool canPlace = canAfford && Visualization != null && Visualization.IsValidPlacementLocation;
+
+            // 1. NÚT ĐẶT THÁP (CONFIRM)
+            GUI.enabled = canPlace;
+            GUI.backgroundColor = canPlace ? new Color(0.2f, 0.85f, 0.35f, 1f) : new Color(0.45f, 0.45f, 0.45f, 0.7f);
+            if (GUILayout.Button($"<b><size=14>✓ ĐẶT THÁP\n({SelectedTower.Cost}g)</size></b>", GUILayout.Height(46), GUILayout.Width((barW - 30f) * 0.35f)))
+            {
+                ConfirmPlacementFromUI();
+            }
+            GUI.enabled = true;
+
+            // 2. NÚT XOAY 45 ĐỘ
+            GUI.backgroundColor = new Color(0.25f, 0.65f, 0.95f, 1f);
+            if (GUILayout.Button($"<b><size=13>🔄 XOAY\n({_CurrentRotationY}°)</size></b>", GUILayout.Height(46), GUILayout.Width((barW - 30f) * 0.23f)))
+            {
+                RotateTower45();
+                Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+            }
+
+            // 3. NÚT SNAP LƯỚI
+            GUI.backgroundColor = _UseGridSnap ? new Color(0.2f, 0.75f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.5f, 1f);
+            string snapText = _UseGridSnap ? "🔲 LƯỚI\nBẬT" : "🔲 LƯỚI\nTẮT";
+            if (GUILayout.Button($"<b><size=13>{snapText}</size></b>", GUILayout.Height(46), GUILayout.Width((barW - 30f) * 0.22f)))
+            {
+                _UseGridSnap = !_UseGridSnap;
+                Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+            }
+
+            // 4. NÚT HỦY
+            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+            if (GUILayout.Button("<b><size=14>✕ HỦY</size></b>", GUILayout.Height(46), GUILayout.Width((barW - 30f) * 0.20f)))
+            {
+                DeselectTower();
+            }
+
+            GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+        }
+
+        private void DrawDesktopPlacementTooltip()
+        {
             float w = 580f;
             float h = 60f;
             float x = (Screen.width - w) / 2f;

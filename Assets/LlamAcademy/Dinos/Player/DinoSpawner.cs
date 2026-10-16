@@ -113,8 +113,35 @@ namespace LlamAcademy.Dinos.Player
             {
                 if (Camera == null) Camera = Camera.main;
 
-                if (Camera != null && Physics.Raycast(
-                           Camera.ScreenPointToRay(Mouse.current.position.ReadValue()),
+                Vector2 pointerPos = Vector2.zero;
+                bool hasPointer = false;
+                bool isReleaseAction = false;
+
+                if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+                {
+                    var touch = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0];
+                    if (!Mobile.MobileUIHelper.IsPointerOverUI(touch.screenPosition))
+                    {
+                        pointerPos = touch.screenPosition;
+                        hasPointer = true;
+                        if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended)
+                        {
+                            isReleaseAction = true;
+                        }
+                    }
+                }
+                else if (Mouse.current != null)
+                {
+                    pointerPos = Mouse.current.position.ReadValue();
+                    hasPointer = true;
+                    if (Mouse.current.leftButton.wasReleasedThisFrame)
+                    {
+                        isReleaseAction = true;
+                    }
+                }
+
+                if (hasPointer && Camera != null && Physics.Raycast(
+                           Camera.ScreenPointToRay(pointerPos),
                            out RaycastHit hit,
                            float.MaxValue,
                            GroundLayer))
@@ -124,13 +151,14 @@ namespace LlamAcademy.Dinos.Player
                         Visualization.transform.position = hit.point;
                     }
 
-                    if (Mouse.current.leftButton.wasReleasedThisFrame
+                    if (isReleaseAction
                          && SpawnDino != null
                          && HasResourcesToSpawn(SpawnDino)
                          && Visualization != null
                          && Visualization.IsValidPlacementLocation
                          && hit.collider != null
-                         && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
+                         && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                         && !Mobile.MobileUIHelper.IsPointerOverUI(pointerPos))
                     {
                         ResourcesToSpend -= SpawnDino.Cost;
                         Quaternion rot = Quaternion.identity;
@@ -216,9 +244,11 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         OnSpawnDino?.Invoke(spawnedDino);
+                        Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
 
                         // Nếu không giữ Shift, hủy chọn sau khi đặt
-                        if (!Keyboard.current.leftShiftKey.isPressed && !Keyboard.current.rightShiftKey.isPressed)
+                        bool shiftHeld = Keyboard.current != null && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+                        if (!shiftHeld)
                         {
                             SpawnDino = null;
                             if (Visualization != null) Visualization.ChangeDino(null);
@@ -226,7 +256,7 @@ namespace LlamAcademy.Dinos.Player
                     }
                 }
 
-                if (Keyboard.current.escapeKey.wasReleasedThisFrame)
+                if (Keyboard.current != null && Keyboard.current.escapeKey.wasReleasedThisFrame)
                 {
                     SpawnDino = null;
                     if (Visualization != null) Visualization.ChangeDino(null);
