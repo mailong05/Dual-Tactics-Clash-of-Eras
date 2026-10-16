@@ -89,6 +89,10 @@ namespace LlamAcademy.Dinos.Mobile
                     else
                     {
                         _ignoredTouchId = -1;
+                        if (!isPlacingTower && !isPlacingDino)
+                        {
+                            CameraControl.Instance?.OnTouchBegan();
+                        }
                     }
                 }
 
@@ -98,11 +102,18 @@ namespace LlamAcademy.Dinos.Mobile
                     return;
                 }
 
-                if (_ignoredTouchId != t.touchId && t.phase == UnityEngine.InputSystem.TouchPhase.Moved)
+                if (_ignoredTouchId != t.touchId)
                 {
-                    if (CameraControl.Instance != null)
+                    if (t.phase == UnityEngine.InputSystem.TouchPhase.Moved)
                     {
-                        CameraControl.Instance.PanCamera(t.delta * PanSensitivity);
+                        if (t.delta.sqrMagnitude > 0.6f && CameraControl.Instance != null)
+                        {
+                            CameraControl.Instance.PanCamera(t.delta * PanSensitivity, isTouch: true);
+                        }
+                    }
+                    else if (t.phase == UnityEngine.InputSystem.TouchPhase.Ended || t.phase == UnityEngine.InputSystem.TouchPhase.Canceled)
+                    {
+                        CameraControl.Instance?.OnTouchEnded();
                     }
                 }
             }
@@ -112,6 +123,11 @@ namespace LlamAcademy.Dinos.Mobile
                 var t0 = touches[0];
                 var t1 = touches[1];
 
+                if (t0.phase == UnityEngine.InputSystem.TouchPhase.Began || t1.phase == UnityEngine.InputSystem.TouchPhase.Began)
+                {
+                    CameraControl.Instance?.OnTouchBegan();
+                }
+
                 Vector2 prevPos0 = t0.screenPosition - t0.delta;
                 Vector2 prevPos1 = t1.screenPosition - t1.delta;
 
@@ -120,28 +136,34 @@ namespace LlamAcademy.Dinos.Mobile
                 float pinchDelta = curDist - prevDist;
 
                 // 2-Finger Pinch to Zoom
-                if (Mathf.Abs(pinchDelta) > 1.2f)
+                if (Mathf.Abs(pinchDelta) > 0.8f)
                 {
                     if (CameraControl.Instance != null)
                     {
-                        CameraControl.Instance.ZoomCamera(pinchDelta * ZoomSensitivity);
+                        CameraControl.Instance.ZoomCamera(pinchDelta * ZoomSensitivity, isTouch: true);
                     }
                 }
 
                 // 2-Finger Midpoint Pan
                 Vector2 midDelta = (t0.delta + t1.delta) * 0.5f;
-                if (midDelta.sqrMagnitude > 0.5f && CameraControl.Instance != null)
+                if (midDelta.sqrMagnitude > 0.4f && CameraControl.Instance != null)
                 {
-                    CameraControl.Instance.PanCamera(midDelta * PanSensitivity);
+                    CameraControl.Instance.PanCamera(midDelta * PanSensitivity, isTouch: true);
                 }
 
                 // 2-Finger Twist to Rotate
                 Vector2 prevDir = (prevPos1 - prevPos0).normalized;
                 Vector2 curDir = (t1.screenPosition - t0.screenPosition).normalized;
                 float angleDelta = Vector2.SignedAngle(prevDir, curDir);
-                if (Mathf.Abs(angleDelta) > 0.4f && CameraControl.Instance != null)
+                if (Mathf.Abs(angleDelta) > 0.35f && CameraControl.Instance != null)
                 {
                     CameraControl.Instance.OrbitCamera(-angleDelta * RotateSensitivity);
+                }
+
+                if ((t0.phase == UnityEngine.InputSystem.TouchPhase.Ended || t0.phase == UnityEngine.InputSystem.TouchPhase.Canceled) &&
+                    (t1.phase == UnityEngine.InputSystem.TouchPhase.Ended || t1.phase == UnityEngine.InputSystem.TouchPhase.Canceled))
+                {
+                    CameraControl.Instance?.OnTouchEnded();
                 }
             }
         }

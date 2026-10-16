@@ -114,6 +114,21 @@ namespace LlamAcademy.Dinos.Player
                 GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius");
             }
 
+            // Tự động kiểm tra và nạp dự phòng danh sách tháp nếu chưa được gán
+            if (_AvailableTowers == null || _AvailableTowers.Count == 0)
+            {
+                _AvailableTowers = new List<TowerSO>();
+                string[] defaultTowerNames = new string[] {
+                    "Tower_Watchtower", "Tower_Ballista", "Tower_Catapult", 
+                    "Tower_ShamanTotem", "Tower_TarPit", "Tower_SpikeTrap", "Tower_Barricade"
+                };
+                foreach (var tName in defaultTowerNames)
+                {
+                    TowerSO so = Resources.Load<TowerSO>($"Config/Prehistoric/{tName}") ?? Resources.Load<TowerSO>(tName);
+                    if (so != null) _AvailableTowers.Add(so);
+                }
+            }
+
             OnGoldChanged?.Invoke(Gold);
         }
 
@@ -343,7 +358,21 @@ namespace LlamAcademy.Dinos.Player
 
         private void PlaceTowerAt(Vector3 position)
         {
-            if (SelectedTower == null || SelectedTower.Prefab == null)
+            if (SelectedTower == null) return;
+
+            // Truy xuất Prefab với cơ chế tự phục hồi từ thư mục Resources nếu asset bị mất liên kết
+            Unit.Unit prefabToSpawn = SelectedTower.Prefab;
+            if (prefabToSpawn == null)
+            {
+                string pName = "Prefab_" + SelectedTower.name.Replace("Tower_", "");
+                GameObject resPrefab = Resources.Load<GameObject>($"Prefabs/Prehistoric/{pName}");
+                if (resPrefab != null)
+                {
+                    prefabToSpawn = resPrefab.GetComponent<Unit.Unit>();
+                }
+            }
+
+            if (prefabToSpawn == null)
             {
                 Debug.LogWarning($"[TowerPlacer] Cannot place tower '{SelectedTower?.DisplayName}': Prefab is not assigned or null!");
                 return;
@@ -352,12 +381,12 @@ namespace LlamAcademy.Dinos.Player
             if (!TrySpendGold(SelectedTower.Cost)) return;
 
             Quaternion targetRotation = Quaternion.Euler(0f, _CurrentRotationY, 0f);
-            Unit.Unit towerUnit = Instantiate(SelectedTower.Prefab, position, targetRotation);
+            Unit.Unit towerUnit = Instantiate(prefabToSpawn, position, targetRotation);
             towerUnit.transform.rotation = targetRotation;
-            towerUnit.transform.localScale = SelectedTower.Prefab.transform.localScale; // Đảm bảo scale đúng 100% theo prefab gốc
+            towerUnit.transform.localScale = prefabToSpawn.transform.localScale; // Đảm bảo scale đúng 100% theo prefab gốc
             towerUnit.UnitType = SelectedTower;
 
-            // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không
+            // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không hay chìm dưới đất
             AlignTowerToGround(towerUnit.gameObject, position.y);
 
             // Recalculate NavMesh if placing a wall or obstacle structure
@@ -381,6 +410,8 @@ namespace LlamAcademy.Dinos.Player
 
         private bool CheckIfPlacementBlocksPath(Vector3 candidatePosition)
         {
+            // Chỉ kiểm tra chặn đường đối với tường rào cản (IsWall == true); các tháp bắn và bẫy được tự do đặt
+            if (SelectedTower == null || !SelectedTower.IsWall) return false;
             if (RoundManager.Instance == null || RoundManager.Instance.DinoTarget == null) return false;
             if (MonsterSpawnPoints == null || MonsterSpawnPoints.Length == 0) return false;
 
@@ -427,20 +458,39 @@ namespace LlamAcademy.Dinos.Player
         private static void AlignTowerToGround(GameObject towerObj, float targetGroundY)
         {
             if (towerObj == null) return;
-            Renderer[] rends = towerObj.GetComponentsInChildren<Renderer>();
-            if (rends == null || rends.Length == 0) return;
+            // Chỉ quét MeshRenderer và SkinnedMeshRenderer (bỏ qua ParticleSystemRenderer, TrailRenderer,...)
+            MeshRenderer[] meshRends = towerObj.GetComponentsInChildren<MeshRenderer>();
+            SkinnedMeshRenderer[] skinRends = towerObj.GetComponentsInChildren<SkinnedMeshRenderer>();
+            if ((meshRends == null || meshRends.Length == 0) && (skinRends == null || skinRends.Length == 0)) return;
 
             float lowestY = float.MaxValue;
-            foreach (Renderer r in rends)
+            if (meshRends != null)
             {
-                if (r == null || !r.enabled) continue;
-                if (r.bounds.size.magnitude < 0.001f) continue;
-                lowestY = Mathf.Min(lowestY, r.bounds.min.y);
+                foreach (var r in meshRends)
+                {
+                    if (r == null || !r.enabled) continue;
+                    if (r.bounds.size.magnitude < 0.001f) continue;
+                    lowestY = Mathf.Min(lowestY, r.bounds.min.y);
+                }
+            }
+            if (skinRends != null)
+            {
+                foreach (var r in skinRends)
+                {
+                    if (r == null || !r.enabled) continue;
+                    if (r.bounds.size.magnitude < 0.001f) continue;
+                    lowestY = Mathf.Min(lowestY, r.bounds.min.y);
+                }
             }
 
-            if (lowestY < float.MaxValue && Mathf.Abs(lowestY - targetGroundY) > 0.02f)
+            if (lowestY < float.MaxValue)
             {
-                towerObj.transform.position += Vector3.up * (targetGroundY - lowestY);
+                float diffY = targetGroundY - lowestY;
+                // Khống chế mức điều chỉnh trong khoảng an toàn [-1.5m, 1.5m] để tránh tháp bị bay lên trời hoặc chìm sâu dưới đáy vực
+                if (Mathf.Abs(diffY) > 0.02f)
+                {
+                    towerObj.transform.position += Vector3.up * Mathf.Clamp(diffY, -1.5f, 1.5f);
+                }
             }
         }
 

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using LlamAcademy.Dinos.Config;
 using LlamAcademy.Dinos.RoundManagement;
+using LlamAcademy.Dinos.Unit;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -17,7 +18,7 @@ namespace LlamAcademy.Dinos.Player
 
         private GameObject CurrentPreviewInstance;
         private List<Renderer> Renderers = new();
-        private Collider[] OverlapHits = new Collider[5];
+        private Collider[] OverlapHits = new Collider[32];
         private TowerSO CurrentTower;
 
         private static readonly int TINT = Shader.PropertyToID("_Tint");
@@ -27,6 +28,10 @@ namespace LlamAcademy.Dinos.Player
 
         private void Awake()
         {
+            if (ObstacleLayers.value == 0)
+            {
+                ObstacleLayers = LayerMask.GetMask("Default", "Building");
+            }
             if (RangeIndicator == null)
             {
                 RangeIndicator = GetComponentInChildren<LineRenderer>();
@@ -71,7 +76,22 @@ namespace LlamAcademy.Dinos.Player
             Renderers.Clear();
             CurrentTower = towerSO;
 
-            if (towerSO == null || towerSO.Prefab == null)
+            if (towerSO == null)
+            {
+                if (RangeIndicator != null) RangeIndicator.enabled = false;
+                if (FootprintIndicator != null) FootprintIndicator.enabled = false;
+                return;
+            }
+
+            // Retrieve prefab with fallback to Resources
+            GameObject prefabObj = towerSO.Prefab != null ? towerSO.Prefab.gameObject : null;
+            if (prefabObj == null)
+            {
+                string pName = "Prefab_" + towerSO.name.Replace("Tower_", "");
+                prefabObj = Resources.Load<GameObject>($"Prefabs/Prehistoric/{pName}");
+            }
+
+            if (prefabObj == null)
             {
                 if (RangeIndicator != null) RangeIndicator.enabled = false;
                 if (FootprintIndicator != null) FootprintIndicator.enabled = false;
@@ -80,26 +100,39 @@ namespace LlamAcademy.Dinos.Player
 
             EnsureFootprintIndicator();
 
-            // Instantiate ghost preview — dùng SetParent(true) để giữ nguyên world scale gốc của prefab,
-            // tránh bị phóng to/thu nhỏ sai nếu parent transform có scale khác (1,1,1)
-            CurrentPreviewInstance = Instantiate(towerSO.Prefab.gameObject, transform.position, Quaternion.identity);
+            // Instantiate ghost preview — dùng SetParent(true) để giữ nguyên world scale gốc của prefab
+            CurrentPreviewInstance = Instantiate(prefabObj, transform.position, Quaternion.identity);
             CurrentPreviewInstance.transform.SetParent(transform, true);
             CurrentPreviewInstance.transform.localPosition = Vector3.zero;
 
-            // Disable all colliders and NavMeshAgents on ghost
-            foreach (Collider c in CurrentPreviewInstance.GetComponentsInChildren<Collider>())
+            // Vô hiệu hóa toàn bộ Collider trên preview ghost
+            foreach (Collider c in CurrentPreviewInstance.GetComponentsInChildren<Collider>(true))
             {
                 c.enabled = false;
             }
 
-            NavMeshAgent agent = CurrentPreviewInstance.GetComponent<NavMeshAgent>();
-            if (agent != null) agent.enabled = false;
+            // Vô hiệu hóa NavMeshAgent & NavMeshObstacle trên preview ghost
+            foreach (NavMeshAgent a in CurrentPreviewInstance.GetComponentsInChildren<NavMeshAgent>(true))
+            {
+                a.enabled = false;
+            }
+            foreach (NavMeshObstacle o in CurrentPreviewInstance.GetComponentsInChildren<NavMeshObstacle>(true))
+            {
+                o.enabled = false;
+            }
 
-            NavMeshObstacle obstacle = CurrentPreviewInstance.GetComponent<NavMeshObstacle>();
-            if (obstacle != null) obstacle.enabled = false;
+            // VÔ HIỆU HÓA TOÀN BỘ SCRIPT (BallistaTower, CatapultTower, ArcherTower, Unit,...)
+            // để ghost preview KHÔNG tự động bắn quái, KHÔNG xoay lệch, và KHÔNG tạo thanh máu thừa
+            foreach (MonoBehaviour mb in CurrentPreviewInstance.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (mb != null && mb != this)
+                {
+                    mb.enabled = false;
+                }
+            }
 
             // Collect renderers and apply ghost material if provided
-            Renderer[] childRenderers = CurrentPreviewInstance.GetComponentsInChildren<Renderer>();
+            Renderer[] childRenderers = CurrentPreviewInstance.GetComponentsInChildren<Renderer>(true);
             foreach (Renderer r in childRenderers)
             {
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -111,13 +144,13 @@ namespace LlamAcademy.Dinos.Player
             }
 
             // Setup Range Indicator circle
-            SetupRangeIndicator(towerSO);
+            SetupRangeIndicator(towerSO, prefabObj);
 
             // Setup Footprint Indicator circle
             SetupFootprintIndicator(towerSO);
         }
 
-        private void SetupRangeIndicator(TowerSO towerSO)
+        private void SetupRangeIndicator(TowerSO towerSO, GameObject prefabObj)
         {
             if (RangeIndicator == null) return;
 
@@ -125,6 +158,15 @@ namespace LlamAcademy.Dinos.Player
             if (towerSO.AttackConfig != null)
             {
                 range = towerSO.AttackConfig.GetMaxAttackRange();
+            }
+
+            // Fallback: nếu AttackConfig chưa gán, đọc tầm đánh trực tiếp từ các component tháp
+            if (range <= 0.1f && prefabObj != null)
+            {
+                if (prefabObj.TryGetComponent(out Unit.BallistaTower _)) range = 16.0f;
+                else if (prefabObj.TryGetComponent(out Unit.CatapultTower _)) range = 14.0f;
+                else if (prefabObj.TryGetComponent(out Unit.ArcherTower _)) range = 16.0f;
+                else if (prefabObj.name.Contains("Totem") || towerSO.name.Contains("Totem")) range = 12.0f;
             }
 
             if (range <= 0.1f)
@@ -174,20 +216,51 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            float checkRadius = CurrentTower.PlacementRadius > 0 ? CurrentTower.PlacementRadius : 0.8f;
-            int hitCount = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up * 0.3f, checkRadius * 0.85f, OverlapHits, ObstacleLayers);
+            if (ObstacleLayers.value == 0)
+            {
+                ObstacleLayers = LayerMask.GetMask("Default", "Building");
+            }
 
-            // Must have enough gold, no overlapping obstacles, and valid surface
-            bool isPhysicsClear = hitCount == 0;
+            float checkRadius = CurrentTower.PlacementRadius > 0 ? CurrentTower.PlacementRadius : 0.8f;
+            float sphereRadius = checkRadius * 0.82f;
+            // Đặt tâm sphere ở độ cao vừa khít (sphereRadius + 0.12m) để đáy hình cầu không chạm xuống đất,
+            // tránh bị Collider mặt đất (Terrain/Default) gây cản trở sai khiến tháp bị báo đỏ không thể đặt
+            Vector3 checkCenter = transform.position + Vector3.up * (sphereRadius + 0.12f);
+
+            int hitCount = Physics.OverlapSphereNonAlloc(checkCenter, sphereRadius, OverlapHits, ObstacleLayers);
+
+            int solidObstacleCount = 0;
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider col = OverlapHits[i];
+                if (col == null || col.isTrigger) continue;
+                if (CurrentPreviewInstance != null && col.transform.IsChildOf(CurrentPreviewInstance.transform)) continue;
+                if (col.transform.IsChildOf(transform)) continue;
+
+                // Bỏ qua mặt đất, địa hình hẻm núi tự nhiên
+                if (col is TerrainCollider) continue;
+                string colName = col.gameObject.name.ToLower();
+                if (colName.Contains("terrain") || colName.Contains("ground") || colName.Contains("floor") || 
+                    colName.Contains("canyon") || colName.Contains("sand") || colName.Contains("dirt")) continue;
+                if (col.CompareTag("Terrain")) continue;
+
+                // Bỏ qua các mục tiêu đã chết
+                if (col.TryGetComponent(out IDamageable dmg) && dmg.Health <= 0) continue;
+                if (col.GetComponentInParent<IDamageable>() is IDamageable pDmg && pDmg.Health <= 0) continue;
+
+                solidObstacleCount++;
+            }
+
+            bool isPhysicsClear = (solidObstacleCount == 0);
             bool validSurface = true;
             if (CurrentTower.IsWall)
             {
-                // Rào cọc gỗ cần nằm trên hoặc gần đường di chuyển NavMesh
-                validSurface = NavMesh.SamplePosition(transform.position, out _, 1.5f, NavMesh.AllAreas);
+                // Rào cọc gỗ cần nằm gần đường di chuyển NavMesh (cho phép dung sai 2.5m)
+                validSurface = NavMesh.SamplePosition(transform.position, out _, 2.5f, NavMesh.AllAreas);
             }
             else
             {
-                // Các tháp nỏ, chòi canh, máy bắn đá có thể đặt thoải mái trên mặt đất bên lề đường
+                // Các tháp nỏ, chòi canh, máy bắn đá có thể đặt thoải mái trên mặt đất
                 validSurface = true;
             }
 

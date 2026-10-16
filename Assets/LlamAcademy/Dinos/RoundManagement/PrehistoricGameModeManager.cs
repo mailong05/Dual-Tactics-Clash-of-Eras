@@ -73,6 +73,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject settingsGO = new GameObject("PrehistoricSettingsMenu");
                 settingsGO.AddComponent<UI.PrehistoricSettingsMenu>();
             }
+            if (Save.PrehistoricSaveManager.Instance == null)
+            {
+                GameObject saveGO = new GameObject("PrehistoricSaveManager");
+                saveGO.AddComponent<Save.PrehistoricSaveManager>();
+            }
         }
 
         private void Start()

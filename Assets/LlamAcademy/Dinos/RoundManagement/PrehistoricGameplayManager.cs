@@ -117,6 +117,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject arGO = new GameObject("ARTabletopController");
                 arGO.AddComponent<AR.ARTabletopController>();
             }
+            if (Save.PrehistoricSaveManager.Instance == null)
+            {
+                GameObject saveGO = new GameObject("PrehistoricSaveManager");
+                saveGO.AddComponent<Save.PrehistoricSaveManager>();
+            }
         }
 
         private void Start()
@@ -575,6 +580,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 TowerPlacer.Instance.AddGold(reward);
             }
 
+            Save.PrehistoricSaveManager.Instance?.RecordMonsterKilled();
+
             // Heatmap feedback
             if (DeadlinessHeatmap.Instance != null && deadMonster != null)
             {
@@ -636,6 +643,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             ShowAnnouncement($"★ CHIẾN THẮNG ĐỢT {_CurrentWave}! THƯỞNG +{rewardGold} VÀNG! ★", 3.5f);
             OnWaveCompleted?.Invoke(_CurrentWave, rewardGold);
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             StartCoroutine(TransitionToNextWaveRoutine());
         }
@@ -661,6 +669,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.GameOver);
             StopAllCoroutines();
             Audio.PrehistoricAudioManager.Instance?.PlayGameOver();
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: false);
 
             // Mở khóa con trỏ chuột để người chơi tương tác với menu
             Cursor.lockState = CursorLockMode.None;
@@ -676,6 +685,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.Victory);
             StopAllCoroutines();
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: false);
 
             // Mở khóa con trỏ chuột
             Cursor.lockState = CursorLockMode.None;

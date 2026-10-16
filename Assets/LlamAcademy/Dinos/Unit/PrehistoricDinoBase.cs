@@ -1003,7 +1003,10 @@ namespace LlamAcademy.Dinos.Unit
                 float distToTarget = Vector3.Distance(transform.position, closestPoint);
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-                float effectiveAttackRange = AttackRange + agentRadius + 0.5f;
+                // Tường/rào cọc gỗ có NavMeshObstacle tạo khoảng đệm (carve buffer), mở rộng tầm đánh 1.5m để quái luôn đánh được
+                float effectiveAttackRange = (CurrentTarget is Wall) 
+                    ? (AttackRange + agentRadius + 1.5f) 
+                    : (AttackRange + agentRadius + 0.5f);
 
                 if (distToTarget <= effectiveAttackRange)
                 {
@@ -1030,7 +1033,21 @@ namespace LlamAcademy.Dinos.Unit
                     if (Agent != null && Agent.isOnNavMesh)
                     {
                         Agent.isStopped = false;
-                        Agent.SetDestination(closestPoint);
+                        Vector3 walkTarget = closestPoint;
+                        if (CurrentTarget is Wall)
+                        {
+                            Vector3 dirOut = (transform.position - closestPoint);
+                            dirOut.y = 0;
+                            if (dirOut.sqrMagnitude > 0.001f) dirOut.Normalize();
+                            else dirOut = (transform.position - targetCenter).normalized;
+
+                            Vector3 standAttempt = closestPoint + dirOut * 1.2f;
+                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 2.5f, NavMesh.AllAreas))
+                            {
+                                walkTarget = sHit.position;
+                            }
+                        }
+                        Agent.SetDestination(walkTarget);
                     }
                     return;
                 }

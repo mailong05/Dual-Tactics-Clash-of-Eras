@@ -79,18 +79,61 @@ namespace LlamAcademy.Dinos.Enemy
             if (wall == null || wall.Transform == null) return;
             if (RoundManager.Instance == null || RoundManager.Instance.State != GameState.Running) return;
 
+            Vector3 wallPos = wall.Transform.position;
+            Vector3 basePos = Defender.GetBasePosition();
+            Vector3 dirToBase = (basePos - wallPos);
+            dirToBase.y = 0;
+            if (dirToBase.sqrMagnitude < 0.01f) dirToBase = Vector3.back;
+            else dirToBase.Normalize();
+
+            // Vị trí cố thủ phòng ngự lý tưởng: cách tường 4.0m về phía trong làng (hướng về căn cứ)
+            // Giúp NPC chiến binh đứng an toàn phía sau chướng ngại vật/cổng làng và xả tên/phóng giáo vào quái
+            Vector3 defensiveStandPos = wallPos + dirToBase * 4.0f;
+
             foreach (Defender defender in Defenders.SelectMany(keyValuePair => keyValuePair.Value.Where((def) => UnitShouldChangeTarget(def, wall))))
             {
-                if (NavMesh.SamplePosition(wall.Transform.position, out NavMeshHit hit, 10,
-                        new NavMeshQueryFilter()
-                            { agentTypeID = defender.Agent.agentTypeID, areaMask = defender.Agent.areaMask }))
+                if (defender == null || defender.Health <= 0) continue;
+
+                Vector3 targetDest = defensiveStandPos;
+                bool found = false;
+
+                // 1. Thử tìm vị trí NavMesh hợp lệ xung quanh điểm cố thủ phòng ngự với agent filter
+                if (defender.Agent != null && NavMesh.SamplePosition(defensiveStandPos, out NavMeshHit hit, 12f,
+                        new NavMeshQueryFilter { agentTypeID = defender.Agent.agentTypeID, areaMask = defender.Agent.areaMask }))
                 {
-                    defender.SetDestination(hit.position);
+                    targetDest = hit.position;
+                    found = true;
                 }
-                else
+                // 2. Fallback sang NavMesh.AllAreas diện rộng 18m xung quanh điểm cố thủ
+                else if (NavMesh.SamplePosition(defensiveStandPos, out hit, 18f, NavMesh.AllAreas))
                 {
-                    Debug.LogWarning($"Could not find location close to wall {wall.Transform.name} to send defender to!");
+                    targetDest = hit.position;
+                    found = true;
                 }
+                // 3. Fallback quanh chính vị trí tường
+                else if (NavMesh.SamplePosition(wallPos, out hit, 18f, NavMesh.AllAreas))
+                {
+                    targetDest = hit.position;
+                    found = true;
+                }
+                // 4. Fallback quanh vị trí hiện tại của defender hướng về tường
+                else if (defender.Agent != null && defender.Agent.isOnNavMesh)
+                {
+                    Vector3 advancePos = Vector3.MoveTowards(defender.transform.position, defensiveStandPos, 6.0f);
+                    if (NavMesh.SamplePosition(advancePos, out hit, 10f, NavMesh.AllAreas))
+                    {
+                        targetDest = hit.position;
+                        found = true;
+                    }
+                }
+
+                if (found)
+                {
+                    defender.SetDestination(targetDest);
+                }
+
+                // Phát tín hiệu đe dọa tường bị cắn phá cho Defender để ngay lập tức nhắm bắn quái
+                defender.AlertWallThreat(wallPos);
             }
         }
 
