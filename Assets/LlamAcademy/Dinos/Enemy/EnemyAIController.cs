@@ -25,27 +25,84 @@ namespace LlamAcademy.Dinos.Enemy
 
         public static readonly Vector3[] VillageDefenseSpots = new Vector3[]
         {
-            new Vector3(-2.2f, 0.1f, -8.0f),   // Chốt 1: Trực diện trước cổng làng
-            new Vector3(-4.5f, 0.1f, -8.5f),   // Chốt 2: Cánh trái cổng làng (bọc lót chòi trái)
-            new Vector3(0.5f, 0.1f, -8.5f),    // Chốt 3: Cánh phải cổng làng (bọc lót chòi phải)
-            new Vector3(-2.2f, 0.1f, -12.5f),  // Chốt 4: Sân trung tâm làng
-            new Vector3(-5.5f, 0.1f, -12.5f),  // Chốt 5: Trước lều dân làng trái
-            new Vector3(1.8f, 0.1f, -12.5f),   // Chốt 6: Trước lều dân làng phải
-            new Vector3(-2.2f, 0.1f, -16.0f),  // Chốt 7: Lối vào căn cứ trung tâm
-            new Vector3(-4.5f, 0.1f, -16.5f),  // Chốt 8: Tuyến phòng ngự sau bên trái
-            new Vector3(1.0f, 0.1f, -16.5f),   // Chốt 9: Tuyến phòng ngự sau bên phải
-            new Vector3(-2.2f, 0.1f, -19.5f),  // Chốt 10: Tiền đồn bảo vệ căn cứ làng
-            new Vector3(-4.0f, 0.1f, -19.5f),  // Chốt 11: Cánh trái căn cứ
-            new Vector3(0.5f, 0.1f, -19.5f),   // Chốt 12: Cánh phải căn cứ
-            new Vector3(-3.5f, 0.1f, -10.5f),  // Chốt 13: Dự bị cơ động cổng trái
-            new Vector3(-0.8f, 0.1f, -10.5f),  // Chốt 14: Dự bị cơ động cổng phải
-            new Vector3(-2.2f, 0.1f, -14.5f),  // Chốt 15: Dự bị cơ động trung tâm
-            new Vector3(-5.0f, 0.1f, -14.5f),  // Chốt 16: Hậu cần lều trái
-            new Vector3(1.5f, 0.1f, -14.5f),   // Chốt 17: Hậu cần lều phải
-            new Vector3(-2.2f, 0.1f, -22.0f),  // Chốt 18: Vệ binh căn cứ chính
-            new Vector3(-3.5f, 0.1f, -22.0f),  // Chốt 19: Vệ binh cánh trái
-            new Vector3(0.0f, 0.1f, -22.0f)    // Chốt 20: Vệ binh cánh phải
+            // --- SÂN TRÁI & PHẢI CỔNG LÀNG (Sân cát thoáng đãng nhìn thẳng từ Camera) ---
+            new Vector3(-6.5f, 0.0f, -14.0f),  // Chốt 1: Sân trái phía trước (bọc sườn chòi trái)
+            new Vector3(4.5f, 0.0f, -14.0f),   // Chốt 2: Sân phải phía trước (bọc sườn chòi phải)
+            new Vector3(-4.5f, 0.0f, -16.5f),  // Chốt 3: Sân trái trung tâm (cạnh cầu gỗ)
+            new Vector3(2.8f, 0.0f, -16.5f),   // Chốt 4: Sân phải trung tâm (trước lều rơm)
+
+            // --- TUYẾN PHÒNG THỦ CHIẾN THUẬT & TRỤC GIỮA (Wave 2 & 3) ---
+            new Vector3(-2.2f, 0.0f, -15.5f),  // Chốt 5: Trục chính sân làng (sau nhịp cầu)
+            new Vector3(-8.5f, 0.0f, -16.5f),  // Chốt 6: Cánh tây sân trái (sát hàng rào)
+            new Vector3(6.8f, 0.0f, -16.5f),   // Chốt 7: Cánh đông sân phải (sát hàng rào)
+            new Vector3(-6.5f, 0.0f, -19.0f),  // Chốt 8: Hậu tuyến sân trái
+            new Vector3(4.5f, 0.0f, -19.0f),   // Chốt 9: Hậu tuyến sân phải
+            new Vector3(-2.2f, 0.0f, -18.5f),  // Chốt 10: Tiền trạm trung tâm căn cứ
+
+            // --- TUYẾN DỰ BỊ VÀ TIỀN ĐỒN BẢO VỆ CĂN CỨ (Wave 4+) ---
+            new Vector3(-8.5f, 0.0f, -13.5f),  // Chốt 11: Góc tây bắc sân trái
+            new Vector3(6.5f, 0.0f, -13.5f),   // Chốt 12: Góc đông bắc sân phải
+            new Vector3(-5.0f, 0.0f, -21.0f),  // Chốt 13: Lối ngõ sườn trái về căn cứ
+            new Vector3(3.5f, 0.0f, -21.0f),   // Chốt 14: Lối ngõ sườn phải về căn cứ
+            new Vector3(-0.5f, 0.0f, -15.0f),  // Chốt 15: Cánh hữu trung tâm
+            new Vector3(-3.8f, 0.0f, -15.0f),  // Chốt 16: Cánh tả trung tâm
+            new Vector3(-2.2f, 0.0f, -24.0f),  // Chốt 17: Vệ binh tiền đồn căn cứ
+            new Vector3(-4.5f, 0.0f, -25.5f),  // Chốt 18: Vệ binh cánh trái căn cứ
+            new Vector3(0.5f, 0.0f, -25.5f),   // Chốt 19: Vệ binh cánh phải căn cứ
+            new Vector3(-2.2f, 0.0f, -27.5f)   // Chốt 20: Cận vệ bảo vệ Trứng / Căn Cứ Làng
         };
+
+        /// <summary>
+        /// Tìm tọa độ điểm xuất hiện đảm bảo 100% nằm trên NavMesh của chiến binh làng (Humanoid).
+        /// </summary>
+        public static Vector3 GetValidDefenderSpawnPosition(int index)
+        {
+            Vector3 targetSpot = VillageDefenseSpots[Mathf.Abs(index) % VillageDefenseSpots.Length];
+
+            NavMeshQueryFilter filter = new NavMeshQueryFilter
+            {
+                agentTypeID = 0, // Humanoid
+                areaMask = NavMesh.AllAreas
+            };
+
+            // 1. Thử sample vị trí với filter Humanoid quanh 4m
+            if (NavMesh.SamplePosition(targetSpot, out NavMeshHit hit, 4.0f, filter))
+            {
+                return hit.position;
+            }
+
+            // 2. Thử sample vị trí rộng hơn 8m
+            if (NavMesh.SamplePosition(targetSpot, out NavMeshHit hitWide, 8.0f, filter))
+            {
+                return hitWide.position;
+            }
+
+            // 3. Dự phòng bằng các đỉnh đã bake trên EnemySurface trong phạm vi sân làng (Z: -28 đến -12)
+            if (NavMeshManager.Instance != null && NavMeshManager.Instance.EnemyTriangulation.vertices != null && NavMeshManager.Instance.EnemyTriangulation.vertices.Length > 0)
+            {
+                var verts = NavMeshManager.Instance.EnemyTriangulation.vertices;
+                float bestDist = float.MaxValue;
+                Vector3 bestVert = targetSpot;
+                for (int v = 0; v < verts.Length; v++)
+                {
+                    if (verts[v].z >= -28f && verts[v].z <= -12f && Mathf.Abs(verts[v].x) <= 12f)
+                    {
+                        float d = Vector3.Distance(targetSpot, verts[v]);
+                        if (d < bestDist)
+                        {
+                            bestDist = d;
+                            bestVert = verts[v];
+                        }
+                    }
+                }
+                if (bestDist < 40f)
+                {
+                    return bestVert;
+                }
+            }
+
+            return targetSpot;
+        }
 
         public delegate void DefenderEvent(Defender defender);
         public delegate void WallEvent(Wall wall);
@@ -570,16 +627,32 @@ namespace LlamAcademy.Dinos.Enemy
             // 3. Sinh đúng chính xác targetCount NPC tại các chốt phòng thủ trọng yếu trong sân làng
             for (int i = 0; i < targetCount; i++)
             {
-                Vector3 postPos = VillageDefenseSpots[i % VillageDefenseSpots.Length];
-                if (NavMesh.SamplePosition(postPos, out NavMeshHit hit, 8f, NavMesh.AllAreas))
-                {
-                    postPos = hit.position;
-                }
+                Vector3 postPos = GetValidDefenderSpawnPosition(i);
 
                 // Luôn quay mặt về phía Bắc (Vector3.forward, Y = 0) hướng ra cổng làng
                 Defender newDef = Instantiate(defenderPrefab, postPos, Quaternion.Euler(0, 0, 0)) as Defender;
                 if (newDef != null)
                 {
+                    newDef.gameObject.SetActive(true);
+
+                    // Đồng bộ an toàn NavMeshAgent lên NavMesh của làng
+                    var agent = newDef.GetComponent<NavMeshAgent>();
+                    if (agent != null)
+                    {
+                        agent.enabled = false;
+                        newDef.transform.position = postPos;
+                        Physics.SyncTransforms();
+                        agent.enabled = true;
+                        if (NavMesh.SamplePosition(postPos, out NavMeshHit snapHit, 3.0f, NavMesh.AllAreas))
+                        {
+                            agent.Warp(snapHit.position);
+                        }
+                        else
+                        {
+                            agent.Warp(postPos);
+                        }
+                    }
+
                     // Cân đối 50% Archer (bắn cung), 50% Spearman (phóng giáo & cận chiến)
                     newDef.Role = (i % 2 == 0) ? DefenderRole.Archer : DefenderRole.Spearman;
                     newDef.MaxHealth = Mathf.Max(newDef.MaxHealth, 180);
@@ -588,12 +661,6 @@ namespace LlamAcademy.Dinos.Enemy
                     if (HealthBarCanvas.HasInstance)
                     {
                         HealthBarCanvas.Instance.CreateHealthBarForUnit(newDef);
-                    }
-
-                    var agent = newDef.GetComponent<NavMeshAgent>();
-                    if (agent != null)
-                    {
-                        agent.Warp(postPos);
                     }
 
                     UnitType uType = newDef.UnitType != null ? newDef.UnitType.Type : UnitType.Archer;
@@ -608,8 +675,8 @@ namespace LlamAcademy.Dinos.Enemy
                     List<Vector3> myPatrol = new List<Vector3>
                     {
                         postPos,
-                        postPos + new Vector3(1.2f, 0f, 0.4f),
-                        postPos + new Vector3(-1.2f, 0f, -0.4f)
+                        postPos + new Vector3(0.8f, 0f, 0.3f),
+                        postPos + new Vector3(-0.8f, 0f, -0.3f)
                     };
                     newDef.Patrol(myPatrol);
                     newDef.SetDestination(postPos);
@@ -671,12 +738,7 @@ namespace LlamAcademy.Dinos.Enemy
 
                     if (prefabToUse == null) continue;
 
-                    int spotIndex = (currentCount + i) % VillageDefenseSpots.Length;
-                    Vector3 postPos = VillageDefenseSpots[spotIndex];
-                    if (NavMesh.SamplePosition(postPos, out NavMeshHit hit, 8f, NavMesh.AllAreas))
-                    {
-                        postPos = hit.position;
-                    }
+                    Vector3 postPos = GetValidDefenderSpawnPosition(currentCount + i);
 
                     Defender defender = Instantiate(
                         prefabToUse,
@@ -686,6 +748,26 @@ namespace LlamAcademy.Dinos.Enemy
 
                     if (defender != null)
                     {
+                        defender.gameObject.SetActive(true);
+
+                        // Đồng bộ an toàn NavMeshAgent lên NavMesh của làng
+                        var agent = defender.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                        if (agent != null)
+                        {
+                            agent.enabled = false;
+                            defender.transform.position = postPos;
+                            Physics.SyncTransforms();
+                            agent.enabled = true;
+                            if (NavMesh.SamplePosition(postPos, out NavMeshHit snapHit, 3.0f, NavMesh.AllAreas))
+                            {
+                                agent.Warp(snapHit.position);
+                            }
+                            else
+                            {
+                                agent.Warp(postPos);
+                            }
+                        }
+
                         defender.Role = ((currentCount + i) % 2 == 0) ? DefenderRole.Archer : DefenderRole.Spearman;
                         defender.MaxHealth = Mathf.Max(defender.MaxHealth, 180);
                         defender.Health = defender.MaxHealth;
@@ -693,12 +775,6 @@ namespace LlamAcademy.Dinos.Enemy
                         if (HealthBarCanvas.HasInstance)
                         {
                             HealthBarCanvas.Instance.CreateHealthBarForUnit(defender);
-                        }
-
-                        var agent = defender.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                        if (agent != null)
-                        {
-                            agent.Warp(postPos);
                         }
 
                         if (!Defenders.ContainsKey(uType))
@@ -712,8 +788,8 @@ namespace LlamAcademy.Dinos.Enemy
                         List<Vector3> myPatrol = new List<Vector3>
                         {
                             postPos,
-                            postPos + new Vector3(1.2f, 0f, 0.4f),
-                            postPos + new Vector3(-1.2f, 0f, -0.4f)
+                            postPos + new Vector3(0.8f, 0f, 0.3f),
+                            postPos + new Vector3(-0.8f, 0f, -0.3f)
                         };
                         defender.Patrol(myPatrol);
                         defender.SetDestination(postPos);
