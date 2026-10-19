@@ -523,39 +523,56 @@ namespace LlamAcademy.Dinos.Enemy
                     ? NavMeshManager.Instance.EnemyTriangulation.vertices
                     : null;
 
+                Vector3 villageCenter = Defender.GetBasePosition();
+                if (villageCenter.z < -25f || villageCenter.sqrMagnitude < 0.001f)
+                {
+                    villageCenter = new Vector3(-2.0f, 0.2f, 0.0f);
+                }
+
                 for (int i = 0; i < needed; i++)
                 {
                     var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
                     if (unitConfig.UnitSO == null || unitConfig.UnitSO.Prefab == null) continue;
 
-                    Vector3 spawnPos;
-                    if (vertices != null && vertices.Length >= 2)
+                    Vector3 candidatePos;
+                    if (Waypoints != null && Waypoints.Count > 0)
+                    {
+                        candidatePos = Waypoints[Random.Range(0, Waypoints.Count)] + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f));
+                    }
+                    else if (vertices != null && vertices.Length >= 2)
                     {
                         int index = Random.Range(1, vertices.Length);
-                        spawnPos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
-                    }
-                    else if (Waypoints != null && Waypoints.Count > 0)
-                    {
-                        spawnPos = Waypoints[Random.Range(0, Waypoints.Count)] + new Vector3(Random.Range(-1.5f, 1.5f), 0, Random.Range(-1.5f, 1.5f));
+                        candidatePos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
                     }
                     else
                     {
-                        spawnPos = new Vector3(Random.Range(-5f, 5f), 0f, Random.Range(-25f, -10f));
+                        candidatePos = villageCenter + new Vector3(Random.Range(-6f, 6f), 0f, Random.Range(-4f, 6f));
                     }
 
-                    if (NavMesh.SamplePosition(spawnPos, out NavMeshHit hit, 15f, NavMesh.AllAreas))
+                    Vector3 finalSpawnPos = candidatePos;
+                    if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 25f, NavMesh.AllAreas))
                     {
-                        spawnPos = hit.position;
+                        finalSpawnPos = hit.position;
+                    }
+                    else if (NavMesh.SamplePosition(villageCenter, out NavMeshHit centerHit, 30f, NavMesh.AllAreas))
+                    {
+                        finalSpawnPos = centerHit.position;
                     }
 
                     Defender defender = Instantiate(
                         unitConfig.UnitSO.Prefab,
-                        spawnPos,
+                        finalSpawnPos,
                         Quaternion.Euler(0, Random.Range(0, 360f), 0)
                     ) as Defender;
 
                     if (defender != null)
                     {
+                        var agent = defender.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                        if (agent != null)
+                        {
+                            agent.Warp(finalSpawnPos);
+                        }
+
                         if (!Defenders.ContainsKey(unitConfig.UnitSO.Type))
                         {
                             Defenders[unitConfig.UnitSO.Type] = new HashSet<Defender>();

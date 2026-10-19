@@ -95,9 +95,77 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (_MaxBaseHealth < 1000) _MaxBaseHealth = 1000;
             _CurrentBaseHealth = _MaxBaseHealth;
 
+            CleanupInvisibleAndStrayObjects();
             EnsureVillageFortressWallActive();
             ConfigureAllCustomBarricades();
             EnsureAudioManagerAndSettingsMenu();
+        }
+
+        public void CleanupInvisibleAndStrayObjects()
+        {
+            // Danh sách các vật thể tàng hình, chìm dưới lòng đất hoặc tàn tích cũ chắn đường trước làng
+            string[] invisibleOrStrayNames = new string[]
+            {
+                "Big Tower with Platform",
+                "Big Tower with Platform (1)",
+                "Big Tower with Platform (2)",
+                "Arch Entry Wall",
+                "Arch Entry Wall (1)",
+                "Arch Entry Wall (2)",
+                "Arch Entry Wall (3)",
+                "Village_Left_Gap_Wall_128_neg152"
+            };
+
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // 1. Xóa các chòi gỗ tàng hình và tàn tích cũ chắn đường
+                foreach (string strayName in invisibleOrStrayNames)
+                {
+                    if (n.Equals(strayName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Destroy(t.gameObject);
+                        break;
+                    }
+                }
+
+                // 2. Xóa các thanh cản hoặc tường lạc ở tọa độ bất thường ngoài bản đồ
+                if (t != null && (t.position.x > 80f || t.position.z < -100f))
+                {
+                    if (n.Contains("Wall") || n.Contains("Barricade") || n.Contains("Gap"))
+                    {
+                        Destroy(t.gameObject);
+                    }
+                }
+
+                // 3. Đảm bảo Cầu Gỗ (Bridge) tuyệt đối là đường đi thông suốt, KHÔNG bị gán Wall/Obstacle
+                if (t != null && n.IndexOf("bridge", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (t.TryGetComponent(out Unit.Wall bw)) Destroy(bw);
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle bo)) Destroy(bo);
+                    for (int c = t.childCount - 1; c >= 0; c--)
+                    {
+                        Transform child = t.GetChild(c);
+                        if (child != null && child.name.Contains("HealthBar"))
+                        {
+                            Destroy(child.gameObject);
+                        }
+                    }
+                }
+            }
+
+            // 4. Dọn sạch các thanh HealthBar rác không có cha bị lưu nhầm vào scene
+            var allRootGOs = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+            foreach (var go in allRootGOs)
+            {
+                if (go != null && go.name.StartsWith("HealthBar_"))
+                {
+                    Destroy(go);
+                }
+            }
         }
 
         private void EnsureAudioManagerAndSettingsMenu()
@@ -1086,8 +1154,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name.ToLower();
 
-                // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường
+                // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường, và TUYỆT ĐỐI không biến cầu/đường đi thành tường
                 if (n == "gate_complex" || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" || n == "right_flank_wall" ||
+                    n.Contains("bridge") || n.Contains("plank") || n.Contains("road") || n.Contains("path") || n.Contains("walkway") ||
                     n.Contains("floor") || n.Contains("ground") ||
                     n.Contains("camera") || n.Contains("light") || n.Contains("spawn") ||
                     n.Contains("system") || n.Contains("event") || n.Contains("healthbar") ||
@@ -1098,7 +1167,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     n.Contains("totem") || n.Contains("hut") || n.Contains("mountain") ||
                     n.Contains("torch") || n.Contains("ramp") || n.Contains("particle") ||
                     n.Contains("look target") || n.Contains("navmesh") || n.Contains("vegetation") ||
-                    n.Contains("overhead"))
+                    n.Contains("overhead") || n.Contains("gap"))
                 {
                     continue;
                 }
@@ -1112,18 +1181,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
-                // 3. Nhận diện toàn diện các object rào chắn, tường thành, pháo đài (kể cả Arch Entry Wall, Big Tower, v.v.)
+                // 3. Nhận diện các object rào chắn, tường thành thực sự (bỏ qua cầu, đường đi, và phế tích cũ)
                 bool hasWallTag = false;
                 try { hasWallTag = t.CompareTag("Wall") || t.CompareTag("Obstacle"); } catch {}
 
-                bool isWallCandidate = n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
-                                       n.Contains("palisade") || n.Contains("fence") || n.Contains("defense") ||
-                                       n.Contains("arch entry") || n.Contains("bastion") || n.Contains("big tower") ||
-                                       n.Contains("gate") || n.Contains("barrier") || n.Contains("rampart") ||
+                bool isWallCandidate = (n.Contains("barricade") || n.Contains("palisade") || n.Contains("fence") ||
                                        n.Contains("wooden__barricade") || n.Contains("wooden_barricade") ||
-                                       n.Contains("bridge") ||
+                                       (n.Contains("wall") && !n.Contains("arch entry")) ||
                                        hasWallTag ||
-                                       t.GetComponent<Unit.Wall>() != null;
+                                       (t.GetComponent<Unit.Wall>() != null && !n.Contains("bridge") && !n.Contains("plank")))
+                                       && !n.Contains("big tower") && !n.Contains("arch entry");
 
                 if (!isWallCandidate) continue;
 
@@ -1321,6 +1388,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void ResetEntireVillage(bool keepPlayerTowers = true)
         {
+            CleanupInvisibleAndStrayObjects();
+
             // 1. Phục hồi 100% tất cả tường thành và rào chắn (kể cả những tường đã bị phá hủy / SetActive(false))
             var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var wall in allWalls)

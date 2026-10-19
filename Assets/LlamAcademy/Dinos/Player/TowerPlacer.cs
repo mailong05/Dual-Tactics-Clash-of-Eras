@@ -114,18 +114,25 @@ namespace LlamAcademy.Dinos.Player
                 GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius");
             }
 
-            // Tự động kiểm tra và nạp dự phòng danh sách tháp nếu chưa được gán
-            if (_AvailableTowers == null || _AvailableTowers.Count == 0)
+            if (_AvailableTowers == null) _AvailableTowers = new List<TowerSO>();
+
+            string[] defaultTowerNames = new string[] {
+                "Tower_Watchtower", "Tower_Ballista", "Tower_Catapult", 
+                "Tower_ShamanTotem", "Tower_TarPit", "Tower_SpikeTrap", "Tower_Barricade", "Tower_TribalWarrior"
+            };
+
+            foreach (var tName in defaultTowerNames)
             {
-                _AvailableTowers = new List<TowerSO>();
-                string[] defaultTowerNames = new string[] {
-                    "Tower_Watchtower", "Tower_Ballista", "Tower_Catapult", 
-                    "Tower_ShamanTotem", "Tower_TarPit", "Tower_SpikeTrap", "Tower_Barricade"
-                };
-                foreach (var tName in defaultTowerNames)
+                TowerSO so = Resources.Load<TowerSO>($"Config/Prehistoric/{tName}") ?? Resources.Load<TowerSO>(tName);
+#if UNITY_EDITOR
+                if (so == null)
                 {
-                    TowerSO so = Resources.Load<TowerSO>($"Config/Prehistoric/{tName}") ?? Resources.Load<TowerSO>(tName);
-                    if (so != null) _AvailableTowers.Add(so);
+                    so = UnityEditor.AssetDatabase.LoadAssetAtPath<TowerSO>($"Assets/Config/Prehistoric/{tName}.asset");
+                }
+#endif
+                if (so != null && !_AvailableTowers.Contains(so))
+                {
+                    _AvailableTowers.Add(so);
                 }
             }
 
@@ -386,8 +393,41 @@ namespace LlamAcademy.Dinos.Player
             towerUnit.transform.localScale = prefabToSpawn.transform.localScale; // Đảm bảo scale đúng 100% theo prefab gốc
             towerUnit.UnitType = SelectedTower;
 
-            // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không hay chìm dưới đất
-            AlignTowerToGround(towerUnit.gameObject, position.y);
+            // Nếu công trình đặt là đơn vị NPC chiến binh (Defender)
+            if (towerUnit is Enemy.Defender defender)
+            {
+                var agent = defender.GetComponent<NavMeshAgent>();
+                if (agent != null)
+                {
+                    if (NavMesh.SamplePosition(position, out NavMeshHit navHit, 15f, NavMesh.AllAreas))
+                    {
+                        agent.Warp(navHit.position);
+                    }
+                    else
+                    {
+                        agent.Warp(position);
+                    }
+                }
+
+                // Thiết lập điểm bảo vệ/tuần tra khu vực quanh điểm đặt
+                List<Vector3> patrolPoints = new List<Vector3>()
+                {
+                    position,
+                    position + targetRotation * Vector3.forward * 2f,
+                    position + targetRotation * Vector3.back * 1.5f
+                };
+                defender.Patrol(patrolPoints);
+
+                if (Enemy.EnemyAIController.Instance != null)
+                {
+                    Enemy.EnemyAIController.Instance.OnSpawnDefender?.Invoke(defender);
+                }
+            }
+            else
+            {
+                // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không hay chìm dưới đất
+                AlignTowerToGround(towerUnit.gameObject, position.y);
+            }
 
             // Recalculate NavMesh if placing a wall or obstacle structure
             if (SelectedTower.IsWall && NavMeshManager.Instance != null)

@@ -16,7 +16,24 @@ namespace LlamAcademy.Dinos.Audio
     [DefaultExecutionOrder(-20)]
     public class PrehistoricAudioManager : MonoBehaviour
     {
-        public static PrehistoricAudioManager Instance { get; private set; }
+        private static PrehistoricAudioManager _instance;
+        public static PrehistoricAudioManager Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = FindFirstObjectByType<PrehistoricAudioManager>();
+                    if (_instance == null)
+                    {
+                        GameObject go = new GameObject("PrehistoricAudioManager");
+                        _instance = go.AddComponent<PrehistoricAudioManager>();
+                    }
+                }
+                return _instance;
+            }
+            private set => _instance = value;
+        }
 
         private const string PREF_MASTER_VOL = "Prehistoric_MasterVol";
         private const string PREF_BGM_VOL = "Prehistoric_BgmVol";
@@ -111,14 +128,15 @@ namespace LlamAcademy.Dinos.Audio
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
+            if (_instance != null && _instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
-            Instance = this;
+            _instance = this;
             DontDestroyOnLoad(gameObject);
 
+            EnsureAudioListenerExists();
             LoadPreferences();
             SetupAudioSources();
             LoadAllAudioClips();
@@ -127,8 +145,33 @@ namespace LlamAcademy.Dinos.Audio
 
         private void Start()
         {
-            // Mở đầu phát nhạc mở đầu (Opening BGM)
-            PlayOpeningBgm();
+            EnsureAudioListenerExists();
+            // Tự động kích hoạt nhạc nền theo chế độ chơi hiện tại
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                PlayBgmForMode(PrehistoricGameModeManager.Instance.CurrentMode);
+            }
+            else
+            {
+                PlayOpeningBgm();
+            }
+        }
+
+        public void EnsureAudioListenerExists()
+        {
+            AudioListener listener = FindFirstObjectByType<AudioListener>();
+            if (listener == null)
+            {
+                Camera cam = Camera.main;
+                if (cam != null)
+                {
+                    cam.gameObject.AddComponent<AudioListener>();
+                }
+                else
+                {
+                    gameObject.AddComponent<AudioListener>();
+                }
+            }
         }
 
         private void LoadPreferences()
@@ -162,33 +205,50 @@ namespace LlamAcademy.Dinos.Audio
         private void LoadAllAudioClips()
         {
             // 1. Nhạc nền (BGM)
-            _openingBgmClip = LoadClip("Audio/nhac_mo_dau", "Assets/Audio/nhac_mo_dau.mp3");
-            _defenseBgmClip = LoadClip("Audio/nhac_nen_cho_thu_thanh", "Assets/Audio/nhac_nen_cho_thu_thanh.mp3");
-            _assaultBgmClip = LoadClip("Audio/nhac_nen_cho_cong_thanh", "Assets/Audio/nhac_nen_cho_cong_thanh.mp3");
-            _commonBgmClip = LoadClip("Audio/nhac_nen_chung_cho_2_che_do", "Assets/Audio/nhac_nen_chung_cho_2_che_do.mp3");
-            _alternativeBgmClip = LoadClip("Audio/nhac_nen_2", "Assets/Audio/nhac_nen_2.mp3");
+            _openingBgmClip = LoadClip("Audio/nhac_mo_dau", "nhac_mo_dau");
+            _defenseBgmClip = LoadClip("Audio/nhac_nen_cho_thu_thanh", "nhac_nen_cho_thu_thanh");
+            _assaultBgmClip = LoadClip("Audio/nhac_nen_cho_cong_thanh", "nhac_nen_cho_cong_thanh");
+            _commonBgmClip = LoadClip("Audio/nhac_nen_chung_cho_2_che_do", "nhac_nen_chung_cho_2_che_do");
+            _alternativeBgmClip = LoadClip("Audio/nhac_nen_2", "nhac_nen_2");
 
             // 2. Âm thanh tiếng kêu / gầm khủng long (Dino SFX)
-            _pterodactylClip = LoadClip("Audio/dragon-studio-pterodactyl-call-382716", "Assets/Audio/dragon-studio-pterodactyl-call-382716.mp3");
-            _trexClip = LoadClip("Audio/dffdv-dinosaur-roar-with-screams-and-growls-193210", "Assets/Audio/dffdv-dinosaur-roar-with-screams-and-growls-193210.mp3");
-            _raptorClip = LoadClip("Audio/freesound_community-dinosaur-99810", "Assets/Audio/freesound_community-dinosaur-99810.mp3");
+            _pterodactylClip = LoadClip("Audio/dragon-studio-pterodactyl-call-382716", "dragon-studio-pterodactyl-call-382716");
+            _trexClip = LoadClip("Audio/dffdv-dinosaur-roar-with-screams-and-growls-193210", "dffdv-dinosaur-roar-with-screams-and-growls-193210");
+            _raptorClip = LoadClip("Audio/freesound_community-dinosaur-99810", "freesound_community-dinosaur-99810");
             _ankylosaurusClip = _trexClip != null ? _trexClip : _raptorClip;
 
             // 3. Âm thanh thắng / thua / giao diện
-            _victoryClip = LoadClip("Audio/floraphonic-you-win-sequence-2-183949", "Assets/Audio/floraphonic-you-win-sequence-2-183949.mp3");
-            _defeatClip = LoadClip("Audio/u_l5xum8z250-losing-horn-313723", "Assets/Audio/u_l5xum8z250-losing-horn-313723.mp3");
+            _victoryClip = LoadClip("Audio/floraphonic-you-win-sequence-2-183949", "floraphonic-you-win-sequence-2-183949");
+            _defeatClip = LoadClip("Audio/u_l5xum8z250-losing-horn-313723", "u_l5xum8z250-losing-horn-313723");
 
             // Tạo các clip bổ trợ nếu thiếu
             GenerateFallbackClipsIfNull();
         }
 
-        private AudioClip LoadClip(string resourcePath, string editorPath)
+        private AudioClip LoadClip(string resourcePath, string fileBaseName)
         {
             AudioClip clip = Resources.Load<AudioClip>(resourcePath);
-#if UNITY_EDITOR
-            if (clip == null && !string.IsNullOrEmpty(editorPath))
+            if (clip != null) return clip;
+
+            if (!resourcePath.StartsWith("Audio/"))
             {
-                clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(editorPath);
+                clip = Resources.Load<AudioClip>("Audio/" + resourcePath);
+                if (clip != null) return clip;
+            }
+
+#if UNITY_EDITOR
+            if (!string.IsNullOrEmpty(fileBaseName))
+            {
+                string[] candidates = new string[]
+                {
+                    $"Assets/Resources/Audio/{fileBaseName}.mp3",
+                    $"Assets/Audio/{fileBaseName}.mp3"
+                };
+                foreach (string p in candidates)
+                {
+                    clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(p);
+                    if (clip != null) return clip;
+                }
             }
 #endif
             return clip;
