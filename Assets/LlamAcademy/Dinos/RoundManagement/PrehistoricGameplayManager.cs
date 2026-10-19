@@ -884,14 +884,17 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public int GetTargetDefendersForWave(int wave)
         {
-            return Mathf.Clamp(4 + (wave - 1) * 2, 4, 14);
+            // Màn 1: 4 NPC | Màn 2: 7 NPC | Màn 3: 10 NPC (VD: 10 NPC) | Màn 4: 13 NPC | Màn 5: 16 NPC
+            return Mathf.Clamp(4 + (wave - 1) * 3, 4, 25);
         }
 
         public void EnsureVillageDefendersActive()
         {
-            if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
+            var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+                ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
+                : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
+            if (ai != null)
             {
-                var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 ai.enabled = true;
                 ai.ResourcesToSpend += 300 + (_CurrentWave * 80);
                 ai.EnsureDefendersAlive(GetTargetDefendersForWave(_CurrentWave));
@@ -1550,14 +1553,24 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             // 6. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders) theo màn hiện tại
-            if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
+            var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+                ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
+                : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
+            if (enemyAI != null)
             {
-                var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 enemyAI.enabled = true;
-                // Xóa sạch toàn bộ NPC cũ (bao gồm cả NPC người chơi đặt nếu xóa tháp)
-                enemyAI.ClearAllDefenders(includePlayerPlaced: !keepPlayerTowers);
                 int defenderCount = GetTargetDefendersForWave(_CurrentWave);
-                enemyAI.EnsureDefendersAlive(defenderCount);
+                if (!keepPlayerTowers)
+                {
+                    // Chơi lại màn X hoặc Chơi lại từ đầu: Reset chính xác 100% số lượng NPC theo quy định của màn
+                    enemyAI.ResetDefendersToExactCount(defenderCount);
+                }
+                else
+                {
+                    // Chuyển màn mới thông thường: Giữ NPC của người chơi, bổ sung đủ số lượng NPC làng
+                    enemyAI.ClearAllDefenders(includePlayerPlaced: false);
+                    enemyAI.EnsureDefendersAlive(defenderCount);
+                }
             }
 
             // 7. Dọn sạch các thanh máu rác/mồ côi nếu có trên màn hình

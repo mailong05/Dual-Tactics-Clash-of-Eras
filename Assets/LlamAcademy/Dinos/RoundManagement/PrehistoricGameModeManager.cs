@@ -953,8 +953,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
             if (enemyAI != null)
             {
-                enemyAI.ClearAllDefenders();
-                enemyAI.EnsureDefendersAlive(4 + (level - 1) * 3);
+                enemyAI.ResetDefendersToExactCount(4 + (level - 1) * 3);
             }
 
             // 5. Cập nhật NavMesh
