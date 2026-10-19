@@ -163,22 +163,37 @@ namespace LlamAcademy.Dinos.Audio
             if (listener == null)
             {
                 Camera cam = Camera.main;
+                if (cam == null) cam = FindFirstObjectByType<Camera>();
                 if (cam != null)
                 {
-                    cam.gameObject.AddComponent<AudioListener>();
+                    listener = cam.gameObject.AddComponent<AudioListener>();
+                    Debug.Log($"<color=cyan>[AudioManager]</color> Added AudioListener to camera: {cam.gameObject.name}");
                 }
                 else
                 {
-                    gameObject.AddComponent<AudioListener>();
+                    listener = gameObject.AddComponent<AudioListener>();
+                    Debug.Log("<color=cyan>[AudioManager]</color> Added AudioListener to AudioManager GO");
                 }
             }
+            if (listener != null)
+            {
+                listener.enabled = true;
+            }
+            AudioListener.pause = false;
+            AudioListener.volume = _MasterVolume;
         }
 
         private void LoadPreferences()
         {
-            _MasterVolume = PlayerPrefs.GetFloat(PREF_MASTER_VOL, 0.85f);
-            _BgmVolume = PlayerPrefs.GetFloat(PREF_BGM_VOL, 0.70f);
-            _SfxVolume = PlayerPrefs.GetFloat(PREF_SFX_VOL, 0.90f);
+            _MasterVolume = PlayerPrefs.GetFloat(PREF_MASTER_VOL, 1.0f);
+            if (_MasterVolume <= 0.05f) _MasterVolume = 1.0f;
+
+            _BgmVolume = PlayerPrefs.GetFloat(PREF_BGM_VOL, 0.85f);
+            if (_BgmVolume <= 0.05f) _BgmVolume = 0.85f;
+
+            _SfxVolume = PlayerPrefs.GetFloat(PREF_SFX_VOL, 1.0f);
+            if (_SfxVolume <= 0.05f) _SfxVolume = 1.0f;
+
             _IsBgmEnabled = PlayerPrefs.GetInt(PREF_BGM_ON, 1) == 1;
             _IsSfxEnabled = PlayerPrefs.GetInt(PREF_SFX_ON, 1) == 1;
         }
@@ -191,6 +206,11 @@ namespace LlamAcademy.Dinos.Audio
                 _bgmSource.loop = true;
                 _bgmSource.playOnAwake = false;
                 _bgmSource.spatialBlend = 0f; // 2D Stereo
+                _bgmSource.mute = false;
+                _bgmSource.bypassEffects = true;
+                _bgmSource.bypassListenerEffects = true;
+                _bgmSource.bypassReverbZones = true;
+                _bgmSource.volume = _BgmVolume;
             }
 
             if (_sfxSource == null)
@@ -198,7 +218,12 @@ namespace LlamAcademy.Dinos.Audio
                 _sfxSource = gameObject.AddComponent<AudioSource>();
                 _sfxSource.loop = false;
                 _sfxSource.playOnAwake = false;
-                _sfxSource.spatialBlend = 0f;
+                _sfxSource.spatialBlend = 0f; // 2D Stereo
+                _sfxSource.mute = false;
+                _sfxSource.bypassEffects = true;
+                _sfxSource.bypassListenerEffects = true;
+                _sfxSource.bypassReverbZones = true;
+                _sfxSource.volume = _SfxVolume;
             }
         }
 
@@ -228,16 +253,13 @@ namespace LlamAcademy.Dinos.Audio
         private AudioClip LoadClip(string resourcePath, string fileBaseName)
         {
             AudioClip clip = Resources.Load<AudioClip>(resourcePath);
-            if (clip != null) return clip;
-
-            if (!resourcePath.StartsWith("Audio/"))
+            if (clip == null && !resourcePath.StartsWith("Audio/"))
             {
                 clip = Resources.Load<AudioClip>("Audio/" + resourcePath);
-                if (clip != null) return clip;
             }
 
 #if UNITY_EDITOR
-            if (!string.IsNullOrEmpty(fileBaseName))
+            if (clip == null && !string.IsNullOrEmpty(fileBaseName))
             {
                 string[] candidates = new string[]
                 {
@@ -247,10 +269,22 @@ namespace LlamAcademy.Dinos.Audio
                 foreach (string p in candidates)
                 {
                     clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(p);
-                    if (clip != null) return clip;
+                    if (clip != null) break;
                 }
             }
 #endif
+            if (clip != null)
+            {
+                if (clip.loadState != AudioDataLoadState.Loaded)
+                {
+                    clip.LoadAudioData();
+                }
+                Debug.Log($"<color=lime>[AudioManager]</color> Loaded clip: {clip.name} ({clip.length:F1}s)");
+            }
+            else
+            {
+                Debug.LogWarning($"<color=red>[AudioManager]</color> Could not find clip: {resourcePath} ({fileBaseName})");
+            }
             return clip;
         }
 
