@@ -859,7 +859,7 @@ namespace LlamAcademy.Dinos.Unit
 
             if (Agent != null && (!Agent.enabled || !Agent.isOnNavMesh))
             {
-                EnsureOnNavMesh(15.0f);
+                EnsureOnNavMesh(25.0f);
             }
 
             float currentSpeed = (Agent != null && Agent.enabled && Agent.isOnNavMesh) ? Agent.velocity.magnitude : 0f;
