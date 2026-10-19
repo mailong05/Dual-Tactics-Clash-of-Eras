@@ -75,10 +75,10 @@ NavMeshProjectSettings:
     agentTypeID: 0
     agentRadius: 0.25
     agentHeight: 1.16
-    agentSlope: 45
-    agentClimb: 0.3
-    ledgeDropHeight: 0
-    maxJumpAcrossDistance: 0
+    agentSlope: 60
+    agentClimb: 1.2
+    ledgeDropHeight: 1.5
+    maxJumpAcrossDistance: 0.8
     minRegionArea: 2
     manualCellSize: 0
     cellSize: 0.16666667
@@ -93,10 +93,10 @@ NavMeshProjectSettings:
     agentTypeID: -1372625422
     agentRadius: 1
     agentHeight: 2.5
-    agentSlope: 45
-    agentClimb: 0.55
-    ledgeDropHeight: 0.25
-    maxJumpAcrossDistance: 0.25
+    agentSlope: 60
+    agentClimb: 1.8
+    ledgeDropHeight: 2.5
+    maxJumpAcrossDistance: 1.5
     minRegionArea: 2
     manualCellSize: 0
     cellSize: 0.16666667
@@ -111,10 +111,10 @@ NavMeshProjectSettings:
     agentTypeID: -334000983
     agentRadius: 0.5
     agentHeight: 1.25
-    agentSlope: 45
-    agentClimb: 0.4
-    ledgeDropHeight: 0
-    maxJumpAcrossDistance: 0
+    agentSlope: 60
+    agentClimb: 1.4
+    ledgeDropHeight: 2.0
+    maxJumpAcrossDistance: 1.0
     minRegionArea: 2
     manualCellSize: 0
     cellSize: 0.16666667
@@ -129,10 +129,10 @@ NavMeshProjectSettings:
     agentTypeID: 1479372276
     agentRadius: 0.5
     agentHeight: 1.5
-    agentSlope: 45
-    agentClimb: 0.6
-    ledgeDropHeight: 0
-    maxJumpAcrossDistance: 0
+    agentSlope: 60
+    agentClimb: 1.5
+    ledgeDropHeight: 2.0
+    maxJumpAcrossDistance: 1.2
     minRegionArea: 2
     manualCellSize: 0
     cellSize: 0.16666667

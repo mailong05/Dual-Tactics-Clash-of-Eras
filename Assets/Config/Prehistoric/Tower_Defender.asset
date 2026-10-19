@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fd77451a1bc87348a5f0b14fc7eb45f, type: 3}
+  m_Name: Tower_Defender
+  m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Config.TowerSO
+  <Type>k__BackingField: 0
+  <ArmorType>k__BackingField: {fileID: 0}
+  <Prefab>k__BackingField: {fileID: 6784079604773145008, guid: eaf379ffbb71a8144b6c0735ec152a95, type: 3}
+  <Health>k__BackingField: 150
+  <HealthToCostRatio>k__BackingField: 0.2
+  <AttackConfig>k__BackingField: {fileID: 0}
+  <Upgrade>k__BackingField: {fileID: 0}
+  <DisplayName>k__BackingField: "Chi\u1EBFn Binh L\xE0ng"
+  <Description>k__BackingField: "Chi\u1EBFn binh th\u1ED5 d\xE2n d\u0169ng c\u1EA3m (Cung th\u1EE7 / Ph\xF3ng gi\xE1o). C\xF3 th\u1EC3 \u0111\u1EB7t tr\xEAn ch\xF2i g\xE1c, c\u1EA7u \u0111i l\u1EA1i ho\u1EB7c m\u1EB7t \u0111\u1EA5t."
+  <Sprite>k__BackingField: {fileID: 0}
+  <Cost>k__BackingField: 35
+  <Hotkey>k__BackingField: 48
+  <IsWall>k__BackingField: 0
+  <CanTargetFlying>k__BackingField: 1
+  <PlacementRadius>k__BackingField: 0.8

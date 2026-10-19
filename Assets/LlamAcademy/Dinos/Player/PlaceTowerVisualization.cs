@@ -28,6 +28,10 @@ namespace LlamAcademy.Dinos.Player
 
         private void Awake()
         {
+            if (transform.position.y < 0.10f)
+            {
+                transform.position = new Vector3(transform.position.x, 0.5f, transform.position.z);
+            }
             if (ObstacleLayers.value == 0)
             {
                 ObstacleLayers = LayerMask.GetMask("Default", "Building");
@@ -100,8 +104,12 @@ namespace LlamAcademy.Dinos.Player
 
             EnsureFootprintIndicator();
 
+            Vector3 spawnPos = transform.position;
+            if (spawnPos.y < 0.10f) spawnPos.y = 0.5f;
+
             // Instantiate ghost preview — dùng SetParent(true) để giữ nguyên world scale gốc của prefab
-            CurrentPreviewInstance = Instantiate(prefabObj, transform.position, Quaternion.identity);
+            CurrentPreviewInstance = Instantiate(prefabObj, spawnPos, Quaternion.identity);
+
             CurrentPreviewInstance.transform.SetParent(transform, true);
             CurrentPreviewInstance.transform.localPosition = Vector3.zero;
 
@@ -242,7 +250,7 @@ namespace LlamAcademy.Dinos.Player
                 string colName = col.gameObject.name.ToLower();
                 if (colName.Contains("terrain") || colName.Contains("ground") || colName.Contains("floor") || 
                     colName.Contains("canyon") || colName.Contains("sand") || colName.Contains("dirt")) continue;
-                if (col.CompareTag("Terrain")) continue;
+                try { if (col.CompareTag("Terrain")) continue; } catch {}
 
                 // Bỏ qua các mục tiêu đã chết
                 if (col.TryGetComponent(out IDamageable dmg) && dmg.Health <= 0) continue;
@@ -257,6 +265,21 @@ namespace LlamAcademy.Dinos.Player
             {
                 // Rào cọc gỗ cần nằm gần đường di chuyển NavMesh (cho phép dung sai 2.5m)
                 validSurface = NavMesh.SamplePosition(transform.position, out _, 2.5f, NavMesh.AllAreas);
+            }
+            else if (CurrentTower.name.Contains("Defender") || (CurrentTower.Prefab != null && CurrentTower.Prefab is Enemy.Defender))
+            {
+                // NPC chiến binh làng cần được đặt trên mặt đất hoặc mặt sàn cầu gỗ có NavMesh hợp lệ
+                // Tuyệt đối không cho phép đặt lơ lửng trên không trung hoặc trên nóc chòi canh
+                if (NavMesh.SamplePosition(transform.position, out NavMeshHit navHit, 1.2f, NavMesh.AllAreas))
+                {
+                    float verticalDiff = Mathf.Abs(transform.position.y - navHit.position.y);
+                    bool isFirmWalkableFloor = navHit.position.y <= 1.2f || Enemy.Defender.IsOnValidHighGroundPlane(navHit.position);
+                    validSurface = verticalDiff <= 0.8f && isFirmWalkableFloor;
+                }
+                else
+                {
+                    validSurface = false;
+                }
             }
             else
             {

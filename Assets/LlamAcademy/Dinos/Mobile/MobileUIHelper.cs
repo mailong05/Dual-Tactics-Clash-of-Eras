@@ -52,18 +52,32 @@ namespace LlamAcademy.Dinos.Mobile
         private static bool _isScalingActive = false;
 
         // Dynamic registry of active UI Rectangles (in virtual GUI coordinate space)
-        private static readonly List<Rect> _activeUIRects = new();
+        // Tracks registration frame to automatically purge stale rects when dialogs/modals close
+        private static int _currentFrame = -1;
+        private static readonly List<Rect> _currentFrameRects = new();
+        private static readonly List<Rect> _lastFrameRects = new();
 
         public static void ClearUIRects()
         {
-            _activeUIRects.Clear();
+            _currentFrameRects.Clear();
+            _lastFrameRects.Clear();
+            _currentFrame = -1;
         }
 
         public static void RegisterUIRect(Rect virtualRect)
         {
-            if (!_activeUIRects.Contains(virtualRect))
+            int frame = Time.frameCount;
+            if (frame != _currentFrame)
             {
-                _activeUIRects.Add(virtualRect);
+                _lastFrameRects.Clear();
+                _lastFrameRects.AddRange(_currentFrameRects);
+                _currentFrameRects.Clear();
+                _currentFrame = frame;
+            }
+
+            if (!_currentFrameRects.Contains(virtualRect))
+            {
+                _currentFrameRects.Add(virtualRect);
             }
         }
 
@@ -76,9 +90,19 @@ namespace LlamAcademy.Dinos.Mobile
             if (!IsMobile) return;
             _cachedMatrix = GUI.matrix;
             _isScalingActive = true;
+            ClearFrameRectsIfStale();
 
             float s = ScaleFactor;
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(s, s, 1.0f));
+        }
+
+        private static void ClearFrameRectsIfStale()
+        {
+            if (Time.frameCount - _currentFrame > 2)
+            {
+                _currentFrameRects.Clear();
+                _lastFrameRects.Clear();
+            }
         }
 
         /// <summary>
@@ -115,11 +139,27 @@ namespace LlamAcademy.Dinos.Mobile
             float virtualGuiY = (Screen.height - screenPosition.y) / s;
             Vector2 guiPoint = new Vector2(virtualGuiX, virtualGuiY);
 
-            for (int i = 0; i < _activeUIRects.Count; i++)
+            int frameDiff = Time.frameCount - _currentFrame;
+            // Only evaluate rects if they were registered in this frame or immediately preceding frame
+            if (frameDiff >= 0 && frameDiff <= 1)
             {
-                if (_activeUIRects[i].Contains(guiPoint))
+                for (int i = 0; i < _currentFrameRects.Count; i++)
                 {
-                    return true;
+                    if (_currentFrameRects[i].Contains(guiPoint))
+                    {
+                        return true;
+                    }
+                }
+
+                if (frameDiff == 0)
+                {
+                    for (int i = 0; i < _lastFrameRects.Count; i++)
+                    {
+                        if (_lastFrameRects[i].Contains(guiPoint))
+                        {
+                            return true;
+                        }
+                    }
                 }
             }
 

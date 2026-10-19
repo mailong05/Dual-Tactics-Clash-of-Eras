@@ -36,18 +36,18 @@ namespace LlamAcademy.Dinos.Enemy
 
         public static readonly Vector3[] SafeVillageGroundSpots = new Vector3[]
         {
-            new Vector3(-4.0f, 0.05f, -22.0f),
-            new Vector3(0.0f, 0.05f, -22.0f),
-            new Vector3(-8.0f, 0.05f, -20.0f),
-            new Vector3(6.0f, 0.05f, -20.0f),
-            new Vector3(-5.0f, 0.05f, -16.0f),
-            new Vector3(4.0f, 0.05f, -16.0f),
-            new Vector3(-2.2f, 0.05f, -25.0f),
-            new Vector3(2.2f, 0.05f, -25.0f),
-            new Vector3(-10.0f, 0.05f, -24.0f),
-            new Vector3(10.0f, 0.05f, -24.0f),
-            new Vector3(-14.0f, 0.05f, -20.0f),
-            new Vector3(14.0f, 0.05f, -20.0f)
+            new Vector3(-3.0f, 0.10f, -30.0f),
+            new Vector3(0.0f, 0.10f, -31.0f),
+            new Vector3(3.0f, 0.10f, -30.0f),
+            new Vector3(-6.0f, 0.10f, -32.0f),
+            new Vector3(6.0f, 0.10f, -32.0f),
+            new Vector3(-2.2f, 0.10f, -34.0f),
+            new Vector3(2.2f, 0.10f, -34.0f),
+            new Vector3(-8.0f, 0.10f, -33.0f),
+            new Vector3(8.0f, 0.10f, -33.0f),
+            new Vector3(-10.0f, 0.10f, -35.0f),
+            new Vector3(10.0f, 0.10f, -35.0f),
+            new Vector3(0.0f, 0.10f, -36.0f)
         };
 
         private void Awake()
@@ -218,9 +218,9 @@ namespace LlamAcademy.Dinos.Enemy
             {
                 Vector3[] defaultPatrolSpots = new Vector3[]
                 {
-                    new Vector3(-3.89f, 4.20f, -17.50f), // Chòi Tiền Tiêu Trung Tâm (Front Central Watchtower Platform Lookout)
-                    new Vector3(-23.99f, 4.20f, -17.50f), // Chòi Tiền Tiêu Cánh Trái (Left Watchtower Platform Lookout)
-                    new Vector3(26.11f, 4.20f, -17.50f), // Chòi Tiền Tiêu Cánh Phải (Right Watchtower Platform Lookout)
+                    new Vector3(-3.89f, 4.20f, -14.70f), // Chòi Tiền Tiêu Trung Tâm (Trực tiếp trên sàn boong quan sát)
+                    new Vector3(-23.87f, 4.20f, -14.70f), // Chòi Tiền Tiêu Cánh Trái
+                    new Vector3(26.10f, 4.20f, -14.80f), // Chòi Tiền Tiêu Cánh Phải
                     new Vector3(-13.91f, 4.15f, -14.70f), // Cầu Đi Bộ Trên Cao 1 (Nối Chòi Trái <-> Chòi Giữa)
                     new Vector3(6.09f, 4.15f, -14.70f),  // Cầu Đi Bộ Trên Cao 3 (Nối Chòi Giữa <-> Cầu 2)
                     new Vector3(16.09f, 4.15f, -14.70f), // Cầu Đi Bộ Trên Cao 2 (Nối Cầu 3 <-> Chòi Phải)
@@ -468,13 +468,23 @@ namespace LlamAcademy.Dinos.Enemy
                         int cost = ActiveConfig.Units[i].UnitSO.Cost;
                         if (cost <= remainingSpend)
                         {
-                            Vector3 rawPos = SafeVillageGroundSpots[Random.Range(0, SafeVillageGroundSpots.Length)] +
-                                             new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-1.5f, 1.5f));
-                            Vector3 spawnPos = rawPos;
-                            if (NavMesh.SamplePosition(rawPos, out NavMeshHit navHit, 6.0f, NavMesh.AllAreas))
+                            Vector3 tacticalSlot = GetNextAvailableTacticalSlot(ActiveConfig.Units[i].UnitSO.Type, out DefenderSector sector, out List<Vector3> waypoints);
+                            bool isHigh = (sector == DefenderSector.HighGroundWatchtowers);
+
+                            NavMeshAgent prefabAgent = ActiveConfig.Units[i].UnitSO.Prefab.GetComponent<NavMeshAgent>();
+                            int agentType = prefabAgent != null ? prefabAgent.agentTypeID : 0;
+                            NavMeshQueryFilter agentFilter = new NavMeshQueryFilter { agentTypeID = agentType, areaMask = NavMesh.AllAreas };
+
+                            Vector3 spawnPos = tacticalSlot;
+                            if (TryFindSolidSpawnPosition(tacticalSlot, isHigh, agentFilter, out Vector3 solidPos))
                             {
-                                spawnPos = navHit.position;
+                                spawnPos = solidPos;
                             }
+                            else if (NavMesh.SamplePosition(tacticalSlot, out NavMeshHit navHit, 3.5f, agentFilter))
+                            {
+                                if (navHit.position.y >= 0.08f) spawnPos = navHit.position;
+                            }
+                            if (!isHigh && spawnPos.y < 0.10f) spawnPos.y = 0.10f;
 
                             Defender defender = Instantiate(
                                 ActiveConfig.Units[i].UnitSO.Prefab,
@@ -485,9 +495,18 @@ namespace LlamAcademy.Dinos.Enemy
                             if (defender != null)
                             {
                                 defender.transform.position = spawnPos;
-                                if (defender.Agent != null && defender.Agent.isOnNavMesh)
+                                if (defender.Agent != null)
                                 {
-                                    defender.Agent.Warp(spawnPos);
+                                    defender.Agent.radius = 0.22f;
+                                    defender.Agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;
+                                    defender.Agent.autoTraverseOffMeshLink = true;
+                                    defender.Agent.enabled = true;
+                                    defender.SafeWarpOrPlace(spawnPos, 3.5f);
+                                }
+                                if (defender.TryGetComponent(out Rigidbody rb))
+                                {
+                                    rb.isKinematic = true;
+                                    rb.useGravity = false;
                                 }
                             }
 
@@ -496,11 +515,11 @@ namespace LlamAcademy.Dinos.Enemy
                             OnSpawnDefender?.Invoke(defender);
 
                             failedToSpawnUnit = false;
-                            Debug.Log($"Spawning defender of type {defender.UnitType.Type} for cost {cost}");
+                            Debug.Log($"Spawning defender of type {defender.UnitType.Type} for cost {cost} at {spawnPos} in sector {sector}");
                             remainingSpend -= cost;
                             ResourcesToSpend -= cost;
 
-                            defender.Patrol(Waypoints);
+                            defender.AssignDefensiveSector(sector, tacticalSlot, waypoints);
                             break;
                         }
                     }
@@ -540,6 +559,390 @@ namespace LlamAcademy.Dinos.Enemy
             }
         }
 
+        public List<Vector3> WaypointsList => Waypoints;
+
+        public void RegisterDefender(Defender defender)
+        {
+            if (defender == null) return;
+            UnitType type = defender.UnitType != null ? defender.UnitType.Type : UnitType.Archer;
+            if (!Defenders.ContainsKey(type))
+            {
+                Defenders[type] = new HashSet<Defender>();
+            }
+            Defenders[type].Add(defender);
+            defender.OnDeath += Defender_OnDeath;
+            OnSpawnDefender?.Invoke(defender);
+        }
+
+        public static readonly Vector3[] CenterTowerLookoutSlots = new Vector3[]
+        {
+            new Vector3(-3.89f, 4.15f, -11.80f), // Tiền duyên chính diện đón đầu quái (ban công trước thoáng đãng)
+            new Vector3(-5.50f, 4.15f, -12.30f), // Ban công chếch trái
+            new Vector3(-2.20f, 4.15f, -12.30f), // Ban công chếch phải
+            new Vector3(-6.20f, 4.15f, -14.70f), // Cửa ngõ thông sang Cầu 1 (Trái)
+            new Vector3(-1.50f, 4.15f, -14.70f), // Cửa ngõ thông sang Cầu 3 (Phải)
+            new Vector3(-3.89f, 4.15f, -17.50f)  // Boong sau hướng đón thang lên từ làng
+        };
+
+        public static readonly Vector3[] LeftTowerLookoutSlots = new Vector3[]
+        {
+            new Vector3(-23.87f, 4.15f, -11.80f), // Tiền duyên chính diện (ban công trước)
+            new Vector3(-25.50f, 4.15f, -12.30f), // Ban công chếch trái
+            new Vector3(-22.20f, 4.15f, -12.30f), // Ban công chếch phải
+            new Vector3(-21.00f, 4.15f, -14.70f), // Cửa ngõ thông sang Cầu 1
+            new Vector3(-23.87f, 4.15f, -17.50f)  // Boong sau đón thang lên từ làng
+        };
+
+        public static readonly Vector3[] RightTowerLookoutSlots = new Vector3[]
+        {
+            new Vector3(26.10f, 4.15f, -11.80f), // Tiền duyên chính diện (ban công trước)
+            new Vector3(24.40f, 4.15f, -12.30f), // Ban công chếch trái
+            new Vector3(27.80f, 4.15f, -12.30f), // Ban công chếch phải
+            new Vector3(23.50f, 4.15f, -14.70f), // Cửa ngõ thông sang Cầu 2
+            new Vector3(26.10f, 4.15f, -17.50f)  // Boong sau đón thang lên từ làng
+        };
+
+        // Cầu Gỗ Tây: Z = -14.70m, X từ -16.5m đến -11.3m (3 vị trí chiến thuật cố định)
+        public static readonly Vector3[] WestBridgeSlots = new Vector3[]
+        {
+            new Vector3(-16.50f, 4.10f, -14.70f),
+            new Vector3(-13.91f, 4.10f, -14.70f),
+            new Vector3(-11.30f, 4.10f, -14.70f)
+        };
+
+        // Cầu Gỗ Đông: Z = -14.70m, X từ 3.5m đến 18.5m (5 vị trí chiến thuật cố định)
+        public static readonly Vector3[] EastBridgeSlots = new Vector3[]
+        {
+            new Vector3(3.50f, 4.10f, -14.70f),
+            new Vector3(7.20f, 4.10f, -14.70f),
+            new Vector3(11.10f, 4.10f, -14.70f),
+            new Vector3(15.00f, 4.10f, -14.70f),
+            new Vector3(18.50f, 4.10f, -14.70f)
+        };
+
+        public static readonly Vector3[] BridgeLookoutSlots = new Vector3[]
+        {
+            new Vector3(-16.50f, 4.10f, -14.70f),
+            new Vector3(-13.91f, 4.10f, -14.70f),
+            new Vector3(-11.30f, 4.10f, -14.70f),
+            new Vector3(3.50f, 4.10f, -14.70f),
+            new Vector3(7.20f, 4.10f, -14.70f),
+            new Vector3(11.10f, 4.10f, -14.70f),
+            new Vector3(15.00f, 4.10f, -14.70f),
+            new Vector3(18.50f, 4.10f, -14.70f)
+        };
+
+        public static readonly Vector3[] WestBridgePatrolWaypoints = new Vector3[]
+        {
+            new Vector3(-17.00f, 4.10f, -14.70f),
+            new Vector3(-13.91f, 4.10f, -14.70f),
+            new Vector3(-11.00f, 4.10f, -14.70f)
+        };
+
+        public static readonly Vector3[] EastBridgePatrolWaypoints = new Vector3[]
+        {
+            new Vector3(3.00f, 4.10f, -14.70f),
+            new Vector3(8.00f, 4.10f, -14.70f),
+            new Vector3(13.00f, 4.10f, -14.70f),
+            new Vector3(18.00f, 4.10f, -14.70f)
+        };
+
+        // Tuyến phòng thủ tiền tuyến mặt đất: Dàn trải đều theo hàng ngang đón đầu quái vật (Z = -7.0m đến -10.0m)
+        public static readonly Vector3[] FrontlineGroundSlots = new Vector3[]
+        {
+            // Cửa chính trung tâm tiền tuyến
+            new Vector3(0.00f, 0.10f, -7.00f),
+            new Vector3(-3.50f, 0.10f, -7.50f),
+            new Vector3(3.50f, 0.10f, -7.50f),
+
+            // Tiền tuyến Cánh Trái (trải rộng bảo vệ sườn Tây)
+            new Vector3(-8.00f, 0.10f, -8.00f),
+            new Vector3(-13.00f, 0.10f, -8.50f),
+            new Vector3(-18.00f, 0.10f, -9.00f),
+            new Vector3(-22.00f, 0.10f, -9.50f),
+
+            // Tiền tuyến Cánh Phải (trải rộng bảo vệ sườn Đông)
+            new Vector3(8.00f, 0.10f, -8.00f),
+            new Vector3(13.00f, 0.10f, -8.50f),
+            new Vector3(18.00f, 0.10f, -9.00f),
+            new Vector3(22.00f, 0.10f, -9.50f)
+        };
+
+        // Tuyến trung tâm bảo vệ chân dốc thang và cổng làng (Z = -16.0m đến -21.0m)
+        public static readonly Vector3[] MidfieldGroundSlots = new Vector3[]
+        {
+            new Vector3(-3.89f, 0.10f, -20.50f), // Chân dốc lên chòi giữa
+            new Vector3(-23.87f, 0.10f, -20.50f), // Chân dốc lên chòi trái
+            new Vector3(26.10f, 0.10f, -20.50f), // Chân dốc lên chòi phải
+            new Vector3(-7.00f, 0.10f, -16.00f),
+            new Vector3(7.00f, 0.10f, -16.00f)
+        };
+
+        // Tuyến sân làng và đường làng thông thoáng (Z = -19.0m đến -26.0m, hoàn toàn tránh xa hàng rào chông Z = -30.62m)
+        public static readonly Vector3[] WoodenRoadSlots = new Vector3[]
+        {
+            new Vector3(-16.00f, 0.10f, -22.50f),
+            new Vector3(-11.50f, 0.10f, -24.00f),
+            new Vector3(-7.00f, 0.10f, -21.00f),
+            new Vector3(-2.00f, 0.10f, -23.50f),
+            new Vector3(3.00f, 0.10f, -22.00f),
+            new Vector3(8.00f, 0.10f, -24.00f),
+            new Vector3(12.50f, 0.10f, -21.50f),
+            new Vector3(17.00f, 0.10f, -23.00f),
+            new Vector3(-5.00f, 0.10f, -25.50f),
+            new Vector3(5.00f, 0.10f, -25.50f)
+        };
+
+        public static readonly Vector3[] HighGroundPatrolWaypoints = new Vector3[]
+        {
+            new Vector3(-23.87f, 4.15f, -11.80f), // Ban công Chòi Trái (thoáng đãng)
+            new Vector3(-15.50f, 4.15f, -14.70f), // Tim Cầu 1 (nối Trái - Giữa)
+            new Vector3(-3.89f, 4.15f, -11.80f),  // Ban công Chòi Giữa (thoáng đãng)
+            new Vector3(5.50f, 4.15f, -14.70f),   // Tim Cầu 3 (nối Giữa - Phải)
+            new Vector3(15.50f, 4.15f, -14.70f),  // Tim Cầu 2 (đoạn nối tiếp)
+            new Vector3(26.10f, 4.15f, -11.80f)   // Ban công Chòi Phải (thoáng đãng)
+        };
+
+        public static readonly Vector3[] FrontlinePatrolWaypoints = new Vector3[]
+        {
+            new Vector3(-18.00f, 0.10f, -8.50f), // Cánh trái
+            new Vector3(-7.00f, 0.10f, -7.50f),  // Trung trái
+            new Vector3(0.00f, 0.10f, -7.00f),   // Cửa chính
+            new Vector3(7.00f, 0.10f, -7.50f),   // Trung phải
+            new Vector3(18.00f, 0.10f, -8.50f)   // Cánh phải
+        };
+
+        public static readonly Vector3[] WoodenRoadPatrolWaypoints = new Vector3[]
+        {
+            new Vector3(-15.00f, 0.10f, -22.50f),
+            new Vector3(-7.00f, 0.10f, -24.00f),
+            new Vector3(0.00f, 0.10f, -21.50f),
+            new Vector3(7.00f, 0.10f, -24.00f),
+            new Vector3(15.00f, 0.10f, -22.50f)
+        };
+
+        private static int s_NextZoneRoundRobin = 0;
+
+        public static bool TryFindSolidSpawnPosition(Vector3 targetPos, bool isHighGround, NavMeshQueryFilter filter, out Vector3 validSpawnPos)
+        {
+            validSpawnPos = targetPos;
+
+            // 1. Raycast từ trên cao xuống để tìm chính xác mặt sàn / mặt đất cứng
+            float rayStartY = isHighGround ? 8.0f : 5.0f;
+            Vector3 rayOrigin = new Vector3(targetPos.x, rayStartY, targetPos.z);
+
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 16.0f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                // Bỏ qua nếu trúng sinh vật sống (Unit khác)
+                if (hit.collider.GetComponentInParent<Unit.Unit>() == null || hit.collider.GetComponentInParent<Unit.Wall>() != null)
+                {
+                    if (isHighGround)
+                    {
+                        // Sàn chòi / cầu trên cao ở khoảng Y = 3.8m đến 4.6m (tránh nóc lều Y = 7.2m)
+                        if (hit.point.y >= 3.8f && hit.point.y <= 4.6f)
+                        {
+                            if (NavMesh.SamplePosition(hit.point, out NavMeshHit nHit, 2.0f, filter))
+                            {
+                                if (nHit.position.y >= 3.8f)
+                                {
+                                    validSpawnPos = nHit.position;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Mặt đất tự nhiên của làng ở khoảng Y = 0.05m đến 0.50m (tuyệt đối không spawn trên đỉnh cọc rào / tường Y = 1m - 3m)
+                        if (hit.point.y >= 0.05f && hit.point.y <= 0.50f)
+                        {
+                            if (NavMesh.SamplePosition(hit.point, out NavMeshHit nHit, 3.0f, filter))
+                            {
+                                if (nHit.position.y <= 0.60f)
+                                {
+                                    validSpawnPos = nHit.position;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback sang NavMesh.SamplePosition với bộ lọc cao độ chặt chẽ
+            if (isHighGround)
+            {
+                Vector3 highTarget = new Vector3(targetPos.x, 4.15f, targetPos.z);
+                if (NavMesh.SamplePosition(highTarget, out NavMeshHit nHit, 2.5f, filter))
+                {
+                    if (nHit.position.y >= 3.8f)
+                    {
+                        validSpawnPos = nHit.position;
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                Vector3 groundTarget = new Vector3(targetPos.x, 0.10f, targetPos.z);
+                if (NavMesh.SamplePosition(groundTarget, out NavMeshHit nHit, 3.5f, filter))
+                {
+                    if (nHit.position.y <= 0.60f)
+                    {
+                        validSpawnPos = nHit.position;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public bool IsSlotOccupied(Vector3 slotPos, float thresholdRadius = 1.8f)
+        {
+            float sqrThresh = thresholdRadius * thresholdRadius;
+            foreach (var pair in Defenders)
+            {
+                foreach (var d in pair.Value)
+                {
+                    if (d == null || d.Health <= 0) continue;
+                    Vector3 assigned = d.IsStationedAtTower ? d.TowerPostPosition : d.DefaultPostPosition;
+                    Vector3 diff = assigned - slotPos;
+                    diff.y = 0;
+                    if (diff.sqrMagnitude < sqrThresh) return true;
+                }
+            }
+            return false;
+        }
+
+        public Vector3 GetNextAvailableTacticalSlot(UnitType unitType, out DefenderSector sector, out List<Vector3> patrolWaypoints)
+        {
+            // Luân phiên phân bổ đồng đều 100% giữa 3 khu vực chiến thuật do người dùng yêu cầu:
+            // Sector 0: Trên chòi và cầu gỗ trên cao (HighGroundWatchtowers)
+            // Sector 1: Dưới đất tiền tuyến phía trước (GroundFrontline)
+            // Sector 2: Trên con đường và sân làng thông thoáng (VillageWoodenRoad)
+            int startSector = (s_NextZoneRoundRobin++) % 3;
+
+            for (int s = 0; s < 3; s++)
+            {
+                int currentSector = (startSector + s) % 3;
+                switch (currentSector)
+                {
+                    case 0: // Cầu gỗ trên cao (3 vị trí cố định Cầu Tây, 5 vị trí cố định Cầu Đông; KHÔNG trên chòi)
+                    {
+                        foreach (var slot in WestBridgeSlots)
+                        {
+                            if (!IsSlotOccupied(slot, 2.0f))
+                            {
+                                sector = DefenderSector.HighGroundWatchtowers;
+                                patrolWaypoints = new List<Vector3>(WestBridgePatrolWaypoints);
+                                return slot;
+                            }
+                        }
+                        foreach (var slot in EastBridgeSlots)
+                        {
+                            if (!IsSlotOccupied(slot, 2.0f))
+                            {
+                                sector = DefenderSector.HighGroundWatchtowers;
+                                patrolWaypoints = new List<Vector3>(EastBridgePatrolWaypoints);
+                                return slot;
+                            }
+                        }
+                        break;
+                    }
+
+                    case 1: // Dưới đất tiền tuyến đón đầu quái
+                    {
+                        foreach (var slot in FrontlineGroundSlots)
+                        {
+                            if (!IsSlotOccupied(slot, 2.0f))
+                            {
+                                sector = DefenderSector.GroundFrontline;
+                                patrolWaypoints = new List<Vector3>(FrontlinePatrolWaypoints);
+                                return slot;
+                            }
+                        }
+                        foreach (var slot in MidfieldGroundSlots)
+                        {
+                            if (!IsSlotOccupied(slot, 2.0f))
+                            {
+                                sector = DefenderSector.GroundFrontline;
+                                patrolWaypoints = new List<Vector3>(FrontlinePatrolWaypoints);
+                                return slot;
+                            }
+                        }
+                        break;
+                    }
+
+                    case 2: // Sân làng và lối đi nội bộ thông thoáng
+                    {
+                        foreach (var slot in WoodenRoadSlots)
+                        {
+                            if (!IsSlotOccupied(slot, 2.0f))
+                            {
+                                sector = DefenderSector.VillageWoodenRoad;
+                                patrolWaypoints = new List<Vector3>(WoodenRoadPatrolWaypoints);
+                                return slot;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Fallback ngẫu nhiên trên sân làng an toàn
+            sector = DefenderSector.VillageWoodenRoad;
+            patrolWaypoints = new List<Vector3>(WoodenRoadPatrolWaypoints);
+            float randomX = Random.Range(-16.0f, 16.0f);
+            float randomZ = Random.Range(-20.0f, -25.5f);
+            Vector3 fallbackPos = new Vector3(randomX, 0.10f, randomZ);
+            if (NavMesh.SamplePosition(fallbackPos, out NavMeshHit fHit, 4.0f, NavMesh.AllAreas))
+            {
+                return fHit.position;
+            }
+            return fallbackPos;
+        }
+
+        public Vector3 GetNextAvailableTacticalSlot(UnitType unitType, out bool isHighGround)
+        {
+            Vector3 slot = GetNextAvailableTacticalSlot(unitType, out DefenderSector sector, out _);
+            isHighGround = (sector == DefenderSector.HighGroundWatchtowers);
+            return slot;
+        }
+
+        public void AssignAllDefendersTacticalPositions()
+        {
+            foreach (var pair in Defenders)
+            {
+                foreach (var def in pair.Value)
+                {
+                    if (def != null && def.Health > 0 && !def.HasRecordedDefaultPost)
+                    {
+                        Vector3 slot = GetNextAvailableTacticalSlot(pair.Key, out DefenderSector sector, out List<Vector3> waypoints);
+                        def.AssignDefensiveSector(sector, slot, waypoints);
+                    }
+                }
+            }
+        }
+
+        public Vector3 GetAvailableTowerSlot(Vector3 referencePos)
+        {
+            Vector3[] slots = CenterTowerLookoutSlots;
+            float distCenter = Vector3.Distance(new Vector3(-3.89f, 0, -14.70f), new Vector3(referencePos.x, 0, referencePos.z));
+            float distLeft = Vector3.Distance(new Vector3(-23.87f, 0, -14.70f), new Vector3(referencePos.x, 0, referencePos.z));
+            float distRight = Vector3.Distance(new Vector3(26.10f, 0, -14.80f), new Vector3(referencePos.x, 0, referencePos.z));
+
+            if (distLeft < distCenter && distLeft < distRight) slots = LeftTowerLookoutSlots;
+            else if (distRight < distCenter && distRight < distLeft) slots = RightTowerLookoutSlots;
+
+            foreach (var slot in slots)
+            {
+                if (!IsSlotOccupied(slot, 1.5f)) return slot;
+            }
+
+            return slots[0];
+        }
+
         public void EnsureDefendersAlive(int minDefenders = 4)
         {
             if (ActiveConfig == null || ActiveConfig.Units == null || ActiveConfig.Units.Count == 0) return;
@@ -552,38 +955,8 @@ namespace LlamAcademy.Dinos.Enemy
                 pair.Value.RemoveWhere(d => d == null);
             }
 
-            // Kiểm tra xem đã có chiến binh nào chốt giữ Chòi Tiền Tiêu trung tâm chưa
-            bool hasCenterStationed = false;
-            foreach (var pair in Defenders)
-            {
-                foreach (var def in pair.Value)
-                {
-                    if (def != null && def.Health > 0 && def.IsStationedAtTower)
-                    {
-                        hasCenterStationed = true;
-                        break;
-                    }
-                }
-                if (hasCenterStationed) break;
-            }
-
-            // Nếu các NPC đã sinh ra từ trước nhưng chưa ai chốt giữ Chòi Tiền Tiêu, điều động ngay 1 chiến binh lên chòi
-            if (!hasCenterStationed && TotalAliveDefenders > 0)
-            {
-                foreach (var pair in Defenders)
-                {
-                    foreach (var def in pair.Value)
-                    {
-                        if (def != null && def.Health > 0)
-                        {
-                            def.StationAtTower(new Vector3(-3.89f, 4.20f, -17.50f));
-                            hasCenterStationed = true;
-                            break;
-                        }
-                    }
-                    if (hasCenterStationed) break;
-                }
-            }
+            // Đảm bảo toàn bộ chiến binh đang sống được phân bổ vào các vị trí chiến thuật
+            AssignAllDefendersTacticalPositions();
 
             int currentCount = TotalAliveDefenders;
             if (currentCount < minDefenders)
@@ -595,16 +968,23 @@ namespace LlamAcademy.Dinos.Enemy
                     var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
                     if (unitConfig.UnitSO == null || unitConfig.UnitSO.Prefab == null) continue;
 
-                    // Chọn điểm xuất phát an toàn trên mặt đất làng
-                    Vector3 candidatePos = SafeVillageGroundSpots[(currentCount + i) % SafeVillageGroundSpots.Length];
-                    candidatePos += new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-1.5f, 1.5f));
+                    Vector3 tacticalSlot = GetNextAvailableTacticalSlot(unitConfig.UnitSO.Type, out DefenderSector sector, out List<Vector3> waypoints);
+                    bool isHigh = (sector == DefenderSector.HighGroundWatchtowers);
 
-                    // Xác định vị trí NavMesh chính xác bằng SamplePosition (tránh tuyệt đối nội suy vertex lơ lửng trên không)
-                    Vector3 spawnPos = candidatePos;
-                    if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 6.0f, NavMesh.AllAreas))
+                    NavMeshAgent prefabAgent = unitConfig.UnitSO.Prefab.GetComponent<NavMeshAgent>();
+                    int agentType = prefabAgent != null ? prefabAgent.agentTypeID : 0;
+                    NavMeshQueryFilter agentFilter = new NavMeshQueryFilter { agentTypeID = agentType, areaMask = NavMesh.AllAreas };
+
+                    Vector3 spawnPos = tacticalSlot;
+                    if (TryFindSolidSpawnPosition(tacticalSlot, isHigh, agentFilter, out Vector3 solidPos))
                     {
-                        spawnPos = hit.position;
+                        spawnPos = solidPos;
                     }
+                    else if (NavMesh.SamplePosition(tacticalSlot, out NavMeshHit hit, 3.5f, agentFilter))
+                    {
+                        if (hit.position.y >= 0.08f) spawnPos = hit.position;
+                    }
+                    if (!isHigh && spawnPos.y < 0.10f) spawnPos.y = 0.10f;
 
                     Defender defender = Instantiate(
                         unitConfig.UnitSO.Prefab,
@@ -615,9 +995,18 @@ namespace LlamAcademy.Dinos.Enemy
                     if (defender != null)
                     {
                         defender.transform.position = spawnPos;
-                        if (defender.Agent != null && defender.Agent.isOnNavMesh)
+                        if (defender.Agent != null)
                         {
-                            defender.Agent.Warp(spawnPos);
+                            defender.Agent.radius = 0.22f;
+                            defender.Agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;
+                            defender.Agent.autoTraverseOffMeshLink = true;
+                            defender.Agent.enabled = true;
+                            defender.SafeWarpOrPlace(spawnPos, 3.5f);
+                        }
+                        if (defender.TryGetComponent(out Rigidbody rb))
+                        {
+                            rb.isKinematic = true;
+                            rb.useGravity = false;
                         }
                         if (!Defenders.ContainsKey(unitConfig.UnitSO.Type))
                         {
@@ -627,20 +1016,7 @@ namespace LlamAcademy.Dinos.Enemy
                         defender.OnDeath += Defender_OnDeath;
                         OnSpawnDefender?.Invoke(defender);
 
-                        // Ưu tiên cử ít nhất 1 chiến binh/cung thủ lên chiếm giữ Chòi Tiền Tiêu phía trước để bắn phá khủng long từ trên cao
-                        if (!hasCenterStationed)
-                        {
-                            defender.StationAtTower(new Vector3(-3.89f, 4.20f, -17.50f));
-                            hasCenterStationed = true;
-                        }
-                        else if (i == 1 && needed > 2)
-                        {
-                            defender.StationAtTower(new Vector3(-23.99f, 4.20f, -17.50f));
-                        }
-                        else
-                        {
-                            defender.Patrol(Waypoints);
-                        }
+                        defender.AssignDefensiveSector(sector, tacticalSlot, waypoints);
                     }
                 }
             }
@@ -659,6 +1035,72 @@ namespace LlamAcademy.Dinos.Enemy
                 }
                 pair.Value.Clear();
             }
+        }
+
+        private Coroutine _StuckValidationCoroutine;
+
+        /// <summary>
+        /// Kích hoạt quét và dọn dẹp các NPC bị kẹt ngay khi bắt đầu ván mới hoặc bắt đầu round mới (chỉ chạy trong lúc chuẩn bị, tuyệt đối không chạy khi đang đánh nhau).
+        /// </summary>
+        public void TriggerStuckValidation()
+        {
+            if (_StuckValidationCoroutine != null)
+            {
+                StopCoroutine(_StuckValidationCoroutine);
+            }
+            _StuckValidationCoroutine = StartCoroutine(ValidateAndRespawnStuckDefendersRoutine());
+        }
+
+        public IEnumerator ValidateAndRespawnStuckDefendersRoutine()
+        {
+            // Chỉ chạy trong giai đoạn chuẩn bị / round mới, tuyệt đối KHÔNG chạy khi đang trong trận chiến
+            if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running)
+            {
+                yield break;
+            }
+
+            yield return new WaitForSeconds(0.5f);
+
+            if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running)
+            {
+                yield break;
+            }
+
+            foreach (var pair in Defenders)
+            {
+                foreach (var def in pair.Value)
+                {
+                    if (def == null || def.Health <= 0) continue;
+
+                    Vector3 pos = def.transform.position;
+                    // Nếu NPC mất kết nối NavMesh hoặc bị rơi lơ lửng, đưa về vị trí chốt đã phân công
+                    if (def.Agent == null || !def.Agent.enabled || !def.Agent.isOnNavMesh)
+                    {
+                        Vector3 targetPos = def.HasRecordedDefaultPost ? def.DefaultPostPosition : pos;
+                        def.SafeWarpOrPlace(targetPos, 4.0f);
+                    }
+                    else if (pos.y >= 3.0f && !Defender.IsOnValidHighGroundPlane(pos))
+                    {
+                        // Nếu ở trên cao nhưng lệch khỏi cầu gỗ, đưa về vị trí chốt an toàn trên cầu
+                        Vector3 targetPos = def.HasRecordedDefaultPost ? def.DefaultPostPosition : pos;
+                        def.SafeWarpOrPlace(targetPos, 4.0f);
+                    }
+                }
+            }
+        }
+
+        private Vector3 GetRandomSafeGroundSlot()
+        {
+            List<Vector3> available = new List<Vector3>();
+            foreach (var s in FrontlineGroundSlots) { if (!IsSlotOccupied(s, 1.8f)) available.Add(s); }
+            foreach (var s in MidfieldGroundSlots) { if (!IsSlotOccupied(s, 1.8f)) available.Add(s); }
+            foreach (var s in WoodenRoadSlots) { if (!IsSlotOccupied(s, 1.8f)) available.Add(s); }
+
+            if (available.Count > 0)
+            {
+                return available[Random.Range(0, available.Count)];
+            }
+            return new Vector3(Random.Range(-10f, 10f), 0.10f, Random.Range(-18f, -24f));
         }
 
         [System.Serializable]

@@ -101,6 +101,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             ConfigureAllCustomBarricades();
             EnsureWatchtowersAndRampsWalkable();
             EnsureAudioManagerAndSettingsMenu();
+
+            if (FindFirstObjectByType<AudioListener>() == null)
+            {
+                Camera cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+                if (cam != null) cam.gameObject.AddComponent<AudioListener>();
+            }
         }
 
         private void EnsureAudioManagerAndSettingsMenu()
@@ -322,13 +328,13 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             Transform sp1 = spRoot.transform.Find("Spawn_North");
-            if (sp1 == null) { GameObject g = new GameObject("Spawn_North"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(-2.2f, 0f, 35f); sp1 = g.transform; }
+            if (sp1 == null) { GameObject g = new GameObject("Spawn_North"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(-2.2f, 0.10f, 35f); sp1 = g.transform; }
 
             Transform sp2 = spRoot.transform.Find("Spawn_East");
-            if (sp2 == null) { GameObject g = new GameObject("Spawn_East"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(25f, 0f, 20f); sp2 = g.transform; }
+            if (sp2 == null) { GameObject g = new GameObject("Spawn_East"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(25f, 0.10f, 20f); sp2 = g.transform; }
 
             Transform sp3 = spRoot.transform.Find("Spawn_West");
-            if (sp3 == null) { GameObject g = new GameObject("Spawn_West"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(-30f, 0f, 15f); sp3 = g.transform; }
+            if (sp3 == null) { GameObject g = new GameObject("Spawn_West"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(-30f, 0.10f, 15f); sp3 = g.transform; }
 
             SpawnPoints = new Transform[] { sp1, sp2, sp3 };
         }
@@ -392,13 +398,51 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (dinoPrefab != null)
                 {
                     Transform spawnPoint = SpawnPoints[UnityEngine.Random.Range(0, SpawnPoints.Length)];
-                    Vector3 spawnPos = spawnPoint.position + new Vector3(UnityEngine.Random.Range(-2.5f, 2.5f), 0f, UnityEngine.Random.Range(-2.5f, 2.5f));
+                    Vector3 rawSpawnPos = spawnPoint.position + new Vector3(UnityEngine.Random.Range(-2.5f, 2.5f), 0f, UnityEngine.Random.Range(-2.5f, 2.5f));
+                    Vector3 spawnPos = rawSpawnPos;
+                    NavMeshAgent agentTemplate = dinoPrefab.GetComponent<NavMeshAgent>();
+                    int dinoAgentType = agentTemplate != null ? agentTemplate.agentTypeID : 0;
+                    NavMeshQueryFilter dinoFilter = new NavMeshQueryFilter { agentTypeID = dinoAgentType, areaMask = NavMesh.AllAreas };
+
+                    if (NavMesh.SamplePosition(rawSpawnPos, out NavMeshHit spawnHit, 20f, dinoFilter))
+                    {
+                        spawnPos = spawnHit.position;
+                    }
+                    else if (NavMesh.SamplePosition(spawnPoint.position, out spawnHit, 50f, dinoFilter))
+                    {
+                        spawnPos = spawnHit.position;
+                    }
+                    else if (NavMesh.SamplePosition(rawSpawnPos, out spawnHit, 25f, NavMesh.AllAreas))
+                    {
+                        spawnPos = spawnHit.position;
+                    }
+                    else if (NavMesh.SamplePosition(spawnPoint.position, out spawnHit, 50f, NavMesh.AllAreas))
+                    {
+                        spawnPos = spawnHit.position;
+                    }
+                    else if (NavMesh.SamplePosition(new Vector3(0f, 0.10f, 25f), out spawnHit, 80f, NavMesh.AllAreas))
+                    {
+                        spawnPos = spawnHit.position;
+                    }
 
                     Vector3 dir = BaseTarget != null ? (BaseTarget.position - spawnPos).normalized : Vector3.back;
                     dir.y = 0;
                     Quaternion rot = dir != Vector3.zero ? Quaternion.LookRotation(dir) : Quaternion.identity;
 
+                    bool agentPrev = false;
+                    if (agentTemplate != null)
+                    {
+                        agentPrev = agentTemplate.enabled;
+                        agentTemplate.enabled = false;
+                    }
+
                     GameObject spawned = Instantiate(dinoPrefab, spawnPos, rot);
+
+                    if (agentTemplate != null)
+                    {
+                        agentTemplate.enabled = agentPrev;
+                    }
+
                     if (spawned.TryGetComponent(out Unit.Unit unitComp))
                     {
                         ActiveMonsters.Add(unitComp);
@@ -789,36 +833,22 @@ namespace LlamAcademy.Dinos.RoundManagement
                 var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 ai.enabled = true;
                 ai.ResourcesToSpend += 300 + (_CurrentWave * 80);
-                ai.EnsureDefendersAlive(Mathf.Clamp(3 + _CurrentWave / 2, 4, 8));
+                // Tăng số lượng chiến binh theo độ khó màn chơi (Wave 1: 4, Wave 2: 6, Wave 3: 8, Wave 4: 10,...)
+                int defenderCount = Mathf.Clamp(4 + (_CurrentWave - 1) * 2, 4, 16);
+                ai.EnsureDefendersAlive(defenderCount);
+                ai.TriggerStuckValidation();
             }
         }
 
         public void EnsureVillageFortressWallActive()
         {
-            // TÔN TRỌNG HOÀN TOÀN 100% CÁC CHỈNH SỬA THỦ CÔNG CỦA NGƯỜI CHƠI TRÊN SCENE:
-            // Tuyệt đối không xóa và không tự động sinh lại (respawn) bất kỳ vật thể nào khi chạy game.
-            return;
             GameObject existing = GameObject.Find("Village_Fortress_Wall");
+            if (existing != null)
             {
-                // Kiểm tra xem đã có đủ 2 chòi cung thủ tiền tiêu và số đoạn tường mới chưa
-                Transform wtLeft = existing.transform.Find("Village_Watchtower_Left");
-                Transform wtRight = existing.transform.Find("Village_Watchtower_Right");
-                Transform leftWing = existing.transform.Find("Left_Wing_Wall");
-                Transform rightWing = existing.transform.Find("Right_Wing_Wall");
-                Transform customGapWall = existing.transform.Find("Village_Left_Gap_Wall_128_neg152");
-
-                Transform rightFlank = existing.transform.Find("Right_Flank_Wall");
-
-                bool hasWatchtowers = wtLeft != null && wtRight != null;
-                bool hasFullWings = leftWing != null && leftWing.childCount >= 14 && rightWing != null && rightWing.childCount >= 18 && rightFlank != null;
-                bool hasCustomGap = customGapWall != null;
-
-                if (hasWatchtowers && hasFullWings && hasCustomGap)
-                {
-                    return; // Đã là tường thành khép kín hoàn chỉnh chuẩn 100%
-                }
-
-                Destroy(existing);
+                // Bảo toàn 100% các công trình sẵn có trên Scene
+                // Bịt kín hoàn toàn lỗ hổng ở Cánh Trái (Right side nhìn từ camera Công Thành) nối liền vào vách núi
+                EnsureLeftWingWallClosed(existing);
+                return;
             }
 
             // Xóa mọi chòi cung thủ cũ/ẩn hoặc lạc đàn
@@ -1105,6 +1135,37 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
+                // 2.5 BỎ QUA VÀ DỌN SẠCH TOÀN BỘ CÁC VẬT THỂ TRÊN CAO (CHÒI, CẦU, CẦU THANG):
+                // Barricade / Tường chắn chỉ thuộc về mặt đất tự nhiên (Y <= 1.2m).
+                // Bất kỳ rào chắn, lan can nào nằm trên cao (Y > 1.2m) hoặc có cha là Chòi/Cầu/Cầu thang
+                // TUYỆT ĐỐI KHÔNG ĐƯỢC làm Wall / NavMeshObstacle cản đường NPC qua cầu!
+                bool isHighGround = t.position.y > 1.2f;
+                Transform curr = t.parent;
+                while (curr != null && !isHighGround)
+                {
+                    string pName = curr.name.ToLower();
+                    if (pName.Contains("tower") || pName.Contains("bridge") || pName.Contains("ramp") || 
+                        pName.Contains("platform") || pName.Contains("arch") || curr.position.y > 1.2f)
+                    {
+                        isHighGround = true;
+                        break;
+                    }
+                    curr = curr.parent;
+                }
+
+                if (isHighGround)
+                {
+                    // Dọn dẹp sạch sẽ nếu trước đó lỡ bị gắn Unit.Wall hoặc NavMeshObstacle cản trở đường đi trên cầu/chòi
+                    if (t.TryGetComponent(out Unit.Wall strayWall)) Destroy(strayWall);
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle strayObs))
+                    {
+                        strayObs.enabled = false;
+                        strayObs.carving = false;
+                        Destroy(strayObs);
+                    }
+                    continue;
+                }
+
                 // 3. Nhận diện các object rào chắn, tường thành, chướng ngại vật thực sự (TUYỆT ĐỐI không bao gồm Chòi tiền tiêu, Cầu thang, Cầu nối)
                 bool hasWallTag = false;
                 try { hasWallTag = t.CompareTag("Wall") || t.CompareTag("Obstacle"); } catch {}
@@ -1256,6 +1317,109 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        private void EnsureLeftWingWallClosed(GameObject fortressRoot)
+        {
+            Transform leftWing = fortressRoot.transform.Find("Left_Wing_Wall");
+            if (leftWing == null)
+            {
+                GameObject lwg = new GameObject("Left_Wing_Wall");
+                lwg.transform.SetParent(fortressRoot.transform, false);
+                leftWing = lwg.transform;
+            }
+
+            GameObject barricadePrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Barricade");
+            GameObject towerPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Fortress_Tower");
+            Config.TowerSO barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
+            if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
+
+            const float wallZ = -2.5f;
+            float[] missingLeftPositionsX = new float[] {
+                -28.4f, -31.0f, -33.6f, -36.2f, -38.8f, -41.4f
+            };
+
+            bool addedAny = false;
+
+            // Kiểm tra và bổ sung các đoạn rào chắn còn thiếu ở Cánh Trái (từ X = -28.4f đến -41.4f)
+            for (int i = 0; i < missingLeftPositionsX.Length; i++)
+            {
+                float targetX = missingLeftPositionsX[i];
+                bool segmentExists = false;
+
+                for (int c = 0; c < leftWing.childCount; c++)
+                {
+                    Transform child = leftWing.GetChild(c);
+                    if (child != null && Mathf.Abs(child.position.x - targetX) < 1.3f)
+                    {
+                        segmentExists = true;
+                        break;
+                    }
+                }
+
+                if (!segmentExists && barricadePrefab != null)
+                {
+                    GameObject seg = Instantiate(barricadePrefab, new Vector3(targetX, 0f, wallZ), Quaternion.identity, leftWing);
+                    seg.name = $"Left_Wall_Segment_CloseGap_{10 + i}";
+                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
+                    if (seg.TryGetComponent(out Unit.Unit uw))
+                    {
+                        if (barricadeSO != null) uw.UnitType = barricadeSO;
+                        uw.Health = 450;
+                        uw.MaxHealth = 450;
+                        uw.EnsureHealthBarAttached();
+                    }
+                    if (!seg.TryGetComponent(out Unit.Wall _)) seg.AddComponent<Unit.Wall>();
+                    EnsureBoxCollider(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+                    EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
+                    addedAny = true;
+                }
+            }
+
+            // Kiểm tra và bổ sung Pháo Đài Góc Trái sát vách núi (X = -44.0f)
+            bool bastionExists = false;
+            for (int c = 0; c < leftWing.childCount; c++)
+            {
+                Transform child = leftWing.GetChild(c);
+                if (child != null && (child.name.Contains("Bastion") || Mathf.Abs(child.position.x - (-44.0f)) < 2.0f))
+                {
+                    bastionExists = true;
+                    break;
+                }
+            }
+
+            if (!bastionExists)
+            {
+                GameObject bastionObj = null;
+                if (towerPrefab != null)
+                {
+                    bastionObj = Instantiate(towerPrefab, new Vector3(-44.0f, 0f, wallZ), Quaternion.Euler(0f, 30f, 0f), leftWing);
+                    bastionObj.name = "Left_Bastion_Tower";
+                    bastionObj.transform.localScale = Vector3.one * 0.7f;
+                }
+                else if (barricadePrefab != null)
+                {
+                    bastionObj = Instantiate(barricadePrefab, new Vector3(-44.0f, 0f, wallZ), Quaternion.identity, leftWing);
+                    bastionObj.name = "Left_Bastion_Barricade";
+                    bastionObj.transform.localScale = new Vector3(1.8f, 1.4f, 1.0f);
+                }
+
+                if (bastionObj != null)
+                {
+                    EnsureBoxCollider(bastionObj, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
+                    EnsureNavMeshObstacle(bastionObj, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
+                    addedAny = true;
+                }
+            }
+
+            if (addedAny)
+            {
+                Debug.Log("<color=green>[Prehistoric TD]</color> Đã bịt kín hoàn toàn lỗ hổng ở hàng rào Cánh Trái (X: -28.4f đến -44.0f) nối liền vách núi!");
+                if (NavMeshManager.Instance != null)
+                {
+                    NavMeshManager.Instance.RecalculateTriangulation(true);
+                }
+            }
+        }
+
         private static BoxCollider EnsureBoxCollider(GameObject go, Vector3 size, Vector3 center)
         {
             if (!go.TryGetComponent(out BoxCollider col)) col = go.AddComponent<BoxCollider>();
@@ -1327,13 +1491,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                         }
                     }
 
-                    // 1.4 Xóa BoxCollider kích thước lớn bao trùm chòi và gỡ bỏ Wall component
-                    BoxCollider[] boxCols = t.GetComponents<BoxCollider>();
+                    // 1.4 Xóa toàn bộ BoxCollider cản trở trên chòi và các GameObject con
+                    BoxCollider[] boxCols = t.GetComponentsInChildren<BoxCollider>(true);
                     foreach (var bc in boxCols)
                     {
-                        if (bc.size.y > 1.5f) Destroy(bc);
+                        if (bc != null && bc.gameObject.name != "Platform_Deck_Collider" && bc.gameObject.name != "Central_Hut_Collider")
+                        {
+                            Destroy(bc);
+                        }
                     }
-                    if (t.TryGetComponent(out Unit.Wall wComp)) Destroy(wComp);
+                    Unit.Wall[] towerWalls = t.GetComponentsInChildren<Unit.Wall>(true);
+                    foreach (var w in towerWalls) if (w != null) Destroy(w);
 
                     // 1.5 Xử lý MeshCollider: TẮT HOÀN TOÀN MeshCollider trên chòi!
                     // Mô hình SM_Tower_Tribal_Tier1 có hàng rào lan can gỗ chạy dọc các cạnh sàn,
@@ -1348,6 +1516,14 @@ namespace LlamAcademy.Dinos.RoundManagement
                             mc.enabled = false;
                         }
                     }
+                    CapsuleCollider[] ccs = t.GetComponentsInChildren<CapsuleCollider>(true);
+                    foreach (var cc in ccs)
+                    {
+                        if (cc != null)
+                        {
+                            cc.enabled = false;
+                        }
+                    }
 
                     // 1.6 Sàn gỗ phẳng chịu lực (Platform Deck Floor) tại Y = 4.15m để NPC đứng và di chuyển
                     Transform deckTrans = t.Find("Platform_Deck_Collider");
@@ -1356,7 +1532,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         deckGO = new GameObject("Platform_Deck_Collider");
                         deckGO.transform.SetParent(t, false);
-                        deckGO.transform.localPosition = new Vector3(0f, 4.15f, 0f);
+                        deckGO.transform.localPosition = new Vector3(0f, 4.00f, 0f);
                         deckGO.transform.localRotation = Quaternion.identity;
                         deckGO.transform.localScale = Vector3.one;
                         deckGO.layer = 0; // Default layer
@@ -1364,22 +1540,32 @@ namespace LlamAcademy.Dinos.RoundManagement
                     else
                     {
                         deckGO = deckTrans.gameObject;
+                        deckGO.transform.localPosition = new Vector3(0f, 4.00f, 0f);
                     }
                     BoxCollider deckCol = deckGO.GetComponent<BoxCollider>();
                     if (deckCol == null) deckCol = deckGO.AddComponent<BoxCollider>();
-                    deckCol.center = Vector3.zero;
-                    deckCol.size = new Vector3(8.6f, 0.25f, 8.6f);
+                    deckCol.center = new Vector3(0f, 0f, 0.4f);
+                    deckCol.size = new Vector3(8.0f, 0.20f, 8.8f);
                     deckCol.isTrigger = false;
                     deckCol.enabled = true;
 
-                    // 1.7 Khối chặn lõi lều trung tâm (Central Hut Collider) để NPC tự động né lều và đi quanh boong quan sát
+                    if (!deckGO.TryGetComponent(out NavMeshModifier deckMod))
+                    {
+                        deckMod = deckGO.AddComponent<NavMeshModifier>();
+                    }
+                    deckMod.overrideArea = true;
+                    deckMod.area = 1; // Not Walkable: Cấm tạo NavMesh trên chòi canh
+                    deckMod.ignoreFromBuild = false;
+
+                    // 1.7 Khối chặn lõi nóc lều trung tâm (Central Hut Roof Collider) để ngăn NavMesh bake lên nóc lều (Y = 7.25m),
+                    // TUYỆT ĐỐI KHÔNG chạm vào mặt sàn boong quan sát (Y = 4.15m) để NPC và quái tự do đi lại thông suốt khắp sàn chòi!
                     Transform hutTrans = t.Find("Central_Hut_Collider");
                     GameObject hutGO;
                     if (hutTrans == null)
                     {
                         hutGO = new GameObject("Central_Hut_Collider");
                         hutGO.transform.SetParent(t, false);
-                        hutGO.transform.localPosition = new Vector3(0f, 5.5f, 0f);
+                        hutGO.transform.localPosition = new Vector3(0f, 7.2f, 0f);
                         hutGO.transform.localRotation = Quaternion.identity;
                         hutGO.transform.localScale = Vector3.one;
                         hutGO.layer = 0;
@@ -1387,31 +1573,32 @@ namespace LlamAcademy.Dinos.RoundManagement
                     else
                     {
                         hutGO = hutTrans.gameObject;
+                        hutGO.transform.localPosition = new Vector3(0f, 7.2f, 0f);
                     }
                     BoxCollider hutCol = hutGO.GetComponent<BoxCollider>();
                     if (hutCol == null) hutCol = hutGO.AddComponent<BoxCollider>();
                     hutCol.center = Vector3.zero;
-                    hutCol.size = new Vector3(2.8f, 3.5f, 2.8f);
+                    hutCol.size = new Vector3(3.0f, 1.2f, 3.0f);
                     hutCol.isTrigger = false;
                     hutCol.enabled = true;
 
-                    // QUAN TRỌNG: Đánh dấu khối lều trung tâm là Not Walkable để NavMesh KHÔNG bake lên nóc lều (Y = 7.25m),
-                    // triệt tiêu triệt để hiện tượng NPC bị đứng trên nóc lều giữa không trung!
+                    // QUAN TRỌNG: Đánh dấu khối nóc lều là Not Walkable để NavMesh KHÔNG bake lên nóc lều giữa không trung,
+                    // trong khi sàn boong quan sát bên dưới (Y = 4.15m) hoàn toàn thông suốt 100%!
                     NavMeshModifier hutMod = hutGO.GetComponent<NavMeshModifier>();
                     if (hutMod == null) hutMod = hutGO.AddComponent<NavMeshModifier>();
                     hutMod.overrideArea = true;
                     hutMod.area = 1; // Not Walkable
                     hutMod.ignoreFromBuild = false;
 
-                    // 1.8 Đảm bảo NavMeshModifier trên chòi là Walkable cho toàn bộ sàn
+                    // 1.8 Đảm bảo NavMeshModifier trên chòi là Not Walkable để cấm tạo NavMesh trên toàn bộ chòi
                     if (!t.TryGetComponent(out NavMeshModifier tMod))
                     {
                         tMod = t.gameObject.AddComponent<NavMeshModifier>();
                     }
                     tMod.overrideArea = true;
-                    tMod.area = 0; // Walkable
+                    tMod.area = 1; // Not Walkable
                     tMod.ignoreFromBuild = false;
-                    tMod.applyToChildren = false; // Chỉ áp dụng cho sàn chính, không ghi đè lên hutMod
+                    tMod.applyToChildren = true;
                 }
 
                 // 2. Xử lý Cầu Thang Gỗ (Ramp_Tribal, Ramp_Tribal 1, 2, v.v.)
@@ -1434,16 +1621,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                         rMod.applyToChildren = true;
                     }
 
-                    // Đảm bảo MeshCollider của Ramp hoạt động tốt
-                    if (t.TryGetComponent(out MeshCollider rmc))
+                    // Vô hiệu hóa MeshCollider mấp mô / có cột lan can của Ramp để EnsureRampTransitionConnector (thân dốc phẳng)
+                    // làm mặt phẳng chịu lực mượt mà, giúp NPC và khủng long bước lên như đi trên gò cao mà không bị vướng
+                    MeshCollider[] rmcs = t.GetComponentsInChildren<MeshCollider>(true);
+                    foreach (var rmc in rmcs)
                     {
-                        rmc.enabled = true;
-                        rmc.convex = false;
+                        if (rmc != null) rmc.enabled = false;
                     }
                 }
 
-                // 3. Xử lý Cầu nối / Lối đi trên cao giữa các chòi (Arch Entry Wall & Bridge_Tribal)
-                if (n.Contains("arch entry") || n.Contains("bridge_tribal") || n.Contains("bridge"))
+                // 3. Xử lý Cầu nối trên cao giữa các chòi (Arch Entry Wall & High-Ground Bridges)
+                if (n.Contains("arch entry") || (n.Contains("bridge") && t.position.z > -25.0f))
                 {
                     // 3.1 Vô hiệu hóa và xóa sạch toàn bộ NavMeshObstacle trên cầu và mọi GameObject con
                     NavMeshObstacle[] allObs = t.GetComponentsInChildren<NavMeshObstacle>(true);
@@ -1468,31 +1656,32 @@ namespace LlamAcademy.Dinos.RoundManagement
                         }
                     }
 
-                    // 3.3 Tắt toàn bộ GameObject con có tên chứa obstacle hoặc modifier
+                    // 3.3 Tắt toàn bộ GameObject con có tên chứa obstacle, modifier, dino rebake hoặc navmeshlink cũ
                     foreach (Transform child in t.GetComponentsInChildren<Transform>(true))
                     {
                         if (child != null && child != t)
                         {
                             string cName = child.name.ToLower();
-                            if (cName.Contains("obstacle") || cName.Contains("modifier"))
+                            if (cName.Contains("obstacle") || cName.Contains("modifier") || cName.Contains("dino rebake") || cName.Contains("navmeshlink"))
                             {
                                 child.gameObject.SetActive(false);
                             }
                         }
                     }
 
-                    // 3.4 Xóa BoxCollider kích thước lớn (đặc biệt khối 10m x 4.4m x 4.6m nhô lên cao chắn ngang lối đi)
+                    // 3.4 Xóa toàn bộ BoxCollider trên cầu ngoại trừ sàn Bridge_Deck_Collider
                     BoxCollider[] bcs = t.GetComponentsInChildren<BoxCollider>(true);
                     foreach (var bc in bcs)
                     {
-                        if (bc != null && bc.gameObject.name != "Bridge_Deck_Collider" && bc.size.y > 0.5f)
+                        if (bc != null && bc.gameObject.name != "Bridge_Deck_Collider")
                         {
                             Destroy(bc);
                         }
                     }
-                    if (t.TryGetComponent(out Unit.Wall wComp)) Destroy(wComp);
+                    Unit.Wall[] bridgeWalls = t.GetComponentsInChildren<Unit.Wall>(true);
+                    foreach (var w in bridgeWalls) if (w != null) Destroy(w);
 
-                    // 3.5 Tắt hoàn toàn MeshCollider có convex = true hoặc cản trở lối đi của cầu
+                    // 3.5 Tắt hoàn toàn MeshCollider & CapsuleCollider trên cầu (loại bỏ toàn bộ các cột gỗ lan can nhô lên cản lối)
                     MeshCollider[] bmcs = t.GetComponentsInChildren<MeshCollider>(true);
                     foreach (var mc in bmcs)
                     {
@@ -1501,15 +1690,23 @@ namespace LlamAcademy.Dinos.RoundManagement
                             mc.enabled = false;
                         }
                     }
+                    CapsuleCollider[] bccs = t.GetComponentsInChildren<CapsuleCollider>(true);
+                    foreach (var cc in bccs)
+                    {
+                        if (cc != null)
+                        {
+                            cc.enabled = false;
+                        }
+                    }
 
-                    // 3.6 Đảm bảo mặt sàn phẳng chịu lực (Bridge Deck Floor) tại Y = 4.15m để NPC di chuyển mượt mà
+                    // 3.6 Đảm bảo mặt sàn phẳng chịu lực (Bridge Deck Floor) tại Y = 4.15m để NPC & khủng long di chuyển mượt mà
                     Transform deckTrans = t.Find("Bridge_Deck_Collider");
                     GameObject deckGO;
                     if (deckTrans == null)
                     {
                         deckGO = new GameObject("Bridge_Deck_Collider");
                         deckGO.transform.SetParent(t, false);
-                        deckGO.transform.localPosition = new Vector3(0f, 4.15f, 0f);
+                        deckGO.transform.localPosition = new Vector3(0f, 4.00f, 0f);
                         deckGO.transform.localRotation = Quaternion.identity;
                         deckGO.transform.localScale = Vector3.one;
                         deckGO.layer = 0;
@@ -1517,13 +1714,24 @@ namespace LlamAcademy.Dinos.RoundManagement
                     else
                     {
                         deckGO = deckTrans.gameObject;
+                        deckGO.transform.localPosition = new Vector3(0f, 4.00f, 0f);
                     }
                     BoxCollider deckCol = deckGO.GetComponent<BoxCollider>();
                     if (deckCol == null) deckCol = deckGO.AddComponent<BoxCollider>();
                     deckCol.center = Vector3.zero;
-                    deckCol.size = new Vector3(12.4f, 0.25f, 2.4f);
+                    // Kích thước vẽ lại chuẩn xác 100% khớp với mô hình 3D SM_Bridge_Tribal_Tier1 (dài 10m, rộng 3.2m, dày 0.20m):
+                    // Tuyệt đối không để collider nhô ra ngoài không khí hay sang hai bên mép cầu
+                    deckCol.size = new Vector3(10.0f, 0.20f, 3.2f);
                     deckCol.isTrigger = false;
                     deckCol.enabled = true;
+
+                    if (!deckGO.TryGetComponent(out NavMeshModifier bDeckMod))
+                    {
+                        bDeckMod = deckGO.AddComponent<NavMeshModifier>();
+                    }
+                    bDeckMod.overrideArea = true;
+                    bDeckMod.area = 0; // Walkable
+                    bDeckMod.ignoreFromBuild = false;
 
                     // 3.7 Cấu hình NavMeshModifier Walkable
                     if (!t.TryGetComponent(out NavMeshModifier bMod))
@@ -1535,27 +1743,186 @@ namespace LlamAcademy.Dinos.RoundManagement
                     bMod.ignoreFromBuild = false;
                     bMod.applyToChildren = true;
                 }
+                // 3.8 Xử lý đường cọc gỗ chạy ngang làng (Village Wooden Road at Z ≈ -30.6m)
+                else if (n.Contains("bridge_tribal") || (n.Contains("bridge") && t.position.z <= -25.0f))
+                {
+                    // Đối với các bridge_tribal ở độ sâu ngầm (Y < -0.5m), TUYỆT ĐỐI KHÔNG bake NavMesh vào lòng đất!
+                    if (t.position.y < -0.5f)
+                    {
+                        if (!t.TryGetComponent(out NavMeshModifier bIgnoreMod))
+                        {
+                            bIgnoreMod = t.gameObject.AddComponent<NavMeshModifier>();
+                        }
+                        bIgnoreMod.ignoreFromBuild = true;
+                        bIgnoreMod.applyToChildren = true;
+
+                        MeshCollider[] rMeshCols = t.GetComponentsInChildren<MeshCollider>(true);
+                        foreach (var mc in rMeshCols)
+                        {
+                            if (mc != null) mc.enabled = false;
+                        }
+
+                        Transform roadFloor = t.Find("Village_Road_Floor_Collider");
+                        if (roadFloor != null) Destroy(roadFloor.gameObject);
+                    }
+                }
             }
 
-            // 4. TẠO CÁC NAVMESHLINK KẾT NỐI MƯỢT MÀ TỪ MẶT ĐẤT LÊN ĐỈNH CẦU THANG VÀ VÀO SÀN CHÒI TIỀN TIÊU
-            EnsureTowerNavMeshLink("Center", new Vector3(-3.89f, 0.05f, -28.0f), new Vector3(-3.89f, 4.20f, -19.40f), new Vector3(-3.89f, 4.20f, -17.50f));
-            EnsureTowerNavMeshLink("Left", new Vector3(-23.99f, 0.05f, -28.0f), new Vector3(-23.99f, 4.20f, -19.40f), new Vector3(-23.99f, 4.20f, -17.50f));
-            EnsureTowerNavMeshLink("Right", new Vector3(26.11f, 0.05f, -28.0f), new Vector3(26.11f, 4.20f, -19.40f), new Vector3(26.11f, 4.20f, -17.50f));
+            // 3.9 DỌN DẸP SẠCH SẼ VÀ TRIỆT ĐỂ MỌI RÀO CHẮN, TƯỜNG (WALL), NAVMESH OBSTACLE VÀ LAN CAN CẢN ĐƯỜNG TRÊN CAO (Y > 1.2m)
+            // Đảm bảo không còn bất kỳ "Rào Cọc Gỗ Cản Đường", NavMeshObstacle carving hay BoxCollider nào cản trở đường đi trên chòi và cầu
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                if (t.position.y > 1.2f)
+                {
+                    string nameLow = t.gameObject.name.ToLower();
+                    if (nameLow.Contains("plank") || nameLow.Contains("fence") || nameLow.Contains("railing") || 
+                        nameLow.Contains("barricade") || nameLow.Contains("palisade") || nameLow.Contains("wall") ||
+                        nameLow.Contains("arch entry"))
+                    {
+                        if (t.TryGetComponent(out Unit.Wall stWall)) Destroy(stWall);
+                        if (t.TryGetComponent(out NavMeshObstacle stObs))
+                        {
+                            stObs.enabled = false;
+                            stObs.carving = false;
+                            Destroy(stObs);
+                        }
+                        Collider[] stCols = t.GetComponents<Collider>();
+                        foreach (var c in stCols)
+                        {
+                            if (c != null && !c.isTrigger && c.gameObject.name != "Bridge_Deck_Collider" && c.gameObject.name != "Platform_Deck_Collider")
+                            {
+                                c.enabled = false;
+                            }
+                        }
+                    }
+                }
+            }
 
-            // 5. TẠO CÁC NAVMESHLINK HAI CHIỀU KẾT NỐI TOÀN BỘ CẦU ĐI LẠI TRÊN CAO VÀ CÁC SÀN CHÒI (HUMANOID BIDIRECTIONAL)
-            // 5.1 Chòi Trái <-> Cầu 1
-            EnsureBridgeNavMeshLink("LeftTower_To_Bridge1", new Vector3(-21.0f, 4.15f, -14.70f), new Vector3(-18.5f, 4.15f, -14.70f));
-            // 5.2 Cầu 1 <-> Chòi Giữa
-            EnsureBridgeNavMeshLink("Bridge1_To_CenterTower", new Vector3(-9.2f, 4.15f, -14.70f), new Vector3(-6.8f, 4.15f, -14.70f));
-            // 5.3 Chòi Giữa <-> Cầu 3
-            EnsureBridgeNavMeshLink("CenterTower_To_Bridge3", new Vector3(-1.0f, 4.15f, -14.70f), new Vector3(1.4f, 4.15f, -14.70f));
-            // 5.4 Cầu 3 <-> Cầu 2
-            EnsureBridgeNavMeshLink("Bridge3_To_Bridge2", new Vector3(10.2f, 4.15f, -14.70f), new Vector3(12.8f, 4.15f, -14.70f));
-            // 5.5 Cầu 2 <-> Chòi Phải
-            EnsureBridgeNavMeshLink("Bridge2_To_RightTower", new Vector3(20.8f, 4.15f, -14.75f), new Vector3(23.2f, 4.15f, -14.75f));
+            // 4. KẾT NỐI MỐI NỐI CẦU GỖ VÀ DỌN DẸP TOÀN BỘ CONNECTOR ẢO QUÁ KHỔ
+            // Xóa sạch các connector cũ có kích thước quá khổ từng tạo ra sàn ảo lơ lửng ngoài không trung
+            string[] oldConnectors = {
+                "LeftTower_Bridge1_Connector",
+                "Bridge1_CenterTower_Connector",
+                "CenterTower_Bridge3_Connector",
+                "Bridge2_RightTower_Connector"
+            };
+            foreach (var connName in oldConnectors)
+            {
+                GameObject oldConn = GameObject.Find(connName);
+                if (oldConn != null) Destroy(oldConn);
+            }
+
+            // Chỉ duy trì duy nhất 1 mối nối khít giữa 2 nhịp Cầu Đông (Arch Entry Wall 3 và 2 tại X = 11.09m), bề ngang 3.2m bằng đúng chiều rộng cầu gỗ
+            EnsureBridgeDeckConnector("Bridge3_Bridge2_Connector", new Vector3(11.09f, 4.00f, -14.70f), new Vector3(1.0f, 0.20f, 3.2f));
+
+            // Dọn sạch các NavMeshLink trung gian trên cầu vì các sàn boong và connector đã tạo thành 1 dải NavMesh phẳng liền mạch 100%
+            string[] bridgeLinkNames = { "Walkway_BridgeLink_LeftTower_To_Bridge1", "Walkway_BridgeLink_Bridge1_To_CenterTower",
+                                         "Walkway_BridgeLink_CenterTower_To_Bridge3", "Walkway_BridgeLink_Bridge3_To_Bridge2",
+                                         "Walkway_BridgeLink_Bridge2_To_RightTower" };
+            foreach (var blName in bridgeLinkNames)
+            {
+                GameObject oldLink = GameObject.Find(blName);
+                if (oldLink != null) Destroy(oldLink);
+            }
+
+            // Dọn dẹp NavMeshLinks nối từ thang vào chòi canh vì chòi canh không còn là điểm đứng của NPC
+            string[] towerLinkRoots = { "Tower_NavMeshLinks_Center", "Tower_NavMeshLinks_Left", "Tower_NavMeshLinks_Right" };
+            foreach (var tlr in towerLinkRoots)
+            {
+                GameObject oldTL = GameObject.Find(tlr);
+                if (oldTL != null) Destroy(oldTL);
+            }
+
+            // Đảm bảo dải sàn chịu lực kiên cố cho toàn bộ con đường cọc gỗ chạy ngang làng (Z ≈ -30.62m)
+            EnsureVillageRoadContinuousFloor();
         }
 
-        private void EnsureBridgeNavMeshLink(string linkId, Vector3 fromPos, Vector3 toPos, float width = 2.4f)
+        private void EnsureVillageRoadContinuousFloor()
+        {
+            string roadName = "Village_Wooden_Road_Continuous_Floor";
+            GameObject roadGO = GameObject.Find(roadName);
+            if (roadGO == null)
+            {
+                roadGO = new GameObject(roadName);
+                DontDestroyOnLoad(roadGO);
+            }
+            roadGO.transform.position = new Vector3(0f, -0.05f, -30.62f);
+            roadGO.transform.rotation = Quaternion.identity;
+            roadGO.transform.localScale = Vector3.one;
+            roadGO.layer = 0;
+
+            BoxCollider col = roadGO.GetComponent<BoxCollider>();
+            if (col == null) col = roadGO.AddComponent<BoxCollider>();
+            col.center = Vector3.zero;
+            col.size = new Vector3(64.0f, 0.30f, 5.0f); // Bao phủ toàn bộ chiều ngang làng từ X = -32m đến 32m
+            col.isTrigger = false;
+            col.enabled = true;
+
+            NavMeshModifier mod = roadGO.GetComponent<NavMeshModifier>();
+            if (mod == null) mod = roadGO.AddComponent<NavMeshModifier>();
+            mod.overrideArea = true;
+            mod.area = 0; // Walkable
+            mod.ignoreFromBuild = false;
+        }
+
+        private void EnsureBridgeDeckConnector(string name, Vector3 pos, Vector3 size)
+        {
+            GameObject conn = GameObject.Find(name);
+            if (conn == null)
+            {
+                conn = new GameObject(name);
+                DontDestroyOnLoad(conn);
+            }
+            conn.transform.position = pos;
+            conn.transform.rotation = Quaternion.identity;
+            conn.transform.localScale = Vector3.one;
+            conn.layer = 0; // Default
+
+            BoxCollider col = conn.GetComponent<BoxCollider>();
+            if (col == null) col = conn.AddComponent<BoxCollider>();
+            col.center = Vector3.zero;
+            col.size = size;
+            col.isTrigger = false;
+            col.enabled = true;
+
+            NavMeshModifier mod = conn.GetComponent<NavMeshModifier>();
+            if (mod == null) mod = conn.AddComponent<NavMeshModifier>();
+            mod.overrideArea = true;
+            mod.area = 0; // Walkable
+            mod.ignoreFromBuild = false;
+        }
+
+        private void EnsureRampTransitionConnector(string name, Vector3 pos, Vector3 size, float tiltAngle = -12.0f)
+        {
+            GameObject conn = GameObject.Find(name);
+            if (conn == null)
+            {
+                conn = new GameObject(name);
+                DontDestroyOnLoad(conn);
+            }
+            conn.transform.position = pos;
+            conn.transform.rotation = Quaternion.Euler(tiltAngle, 0f, 0f);
+            conn.transform.localScale = Vector3.one;
+            conn.layer = 0;
+
+            BoxCollider col = conn.GetComponent<BoxCollider>();
+            if (col == null) col = conn.AddComponent<BoxCollider>();
+            col.center = Vector3.zero;
+            col.size = size;
+            col.isTrigger = false;
+            col.enabled = true;
+
+            NavMeshModifier mod = conn.GetComponent<NavMeshModifier>();
+            if (mod == null) mod = conn.AddComponent<NavMeshModifier>();
+            mod.overrideArea = true;
+            mod.area = 0; // Walkable
+            mod.ignoreFromBuild = false;
+        }
+
+        private static readonly int[] AllNavMeshAgentTypes = new int[] { 0, -1372625422, -334000983, 1479372276 };
+
+        private void EnsureBridgeNavMeshLink(string linkId, Vector3 fromPos, Vector3 toPos, float width = 4.0f)
         {
             string rootName = $"Walkway_BridgeLink_{linkId}";
             GameObject linkRoot = GameObject.Find(rootName);
@@ -1568,15 +1935,24 @@ namespace LlamAcademy.Dinos.RoundManagement
             linkRoot.transform.rotation = Quaternion.identity;
             linkRoot.transform.localScale = Vector3.one;
 
-            var link = linkRoot.GetComponent<NavMeshLink>();
-            if (link == null) link = linkRoot.AddComponent<NavMeshLink>();
-            link.startPoint = fromPos;
-            link.endPoint = toPos;
-            link.width = width;
-            link.bidirectional = true;
-            link.area = 0; // Walkable
-            link.agentTypeID = 0; // Humanoid
-            link.enabled = true;
+            foreach (int agentType in AllNavMeshAgentTypes)
+            {
+                string childName = $"Link_Type_{agentType}";
+                Transform childTrans = linkRoot.transform.Find(childName);
+                GameObject linkGO = (childTrans != null) ? childTrans.gameObject : new GameObject(childName);
+                linkGO.transform.SetParent(linkRoot.transform, false);
+                linkGO.transform.position = Vector3.zero;
+
+                var link = linkGO.GetComponent<NavMeshLink>();
+                if (link == null) link = linkGO.AddComponent<NavMeshLink>();
+                link.startPoint = fromPos;
+                link.endPoint = toPos;
+                link.width = width;
+                link.bidirectional = true;
+                link.area = 0; // Walkable
+                link.agentTypeID = agentType;
+                link.enabled = true;
+            }
         }
 
         private void EnsureTowerNavMeshLink(string tag, Vector3 groundPos, Vector3 rampTopPos, Vector3 deckLookoutPos)
@@ -1592,38 +1968,42 @@ namespace LlamAcademy.Dinos.RoundManagement
             linkRoot.transform.rotation = Quaternion.identity;
             linkRoot.transform.localScale = Vector3.one;
 
-            // Link 1: Mặt đất -> Chân cầu thang Ramp (nối ngắn qua mép tiếp xúc giữa mặt đất và bậc đầu tiên)
-            // Cầu thang Ramp đã có NavMesh dốc tự nhiên để NPC bước lên bậc thang,
-            // chỉ dùng NavMeshLink ngắn (1.4m) ở hai đầu mép để tránh NPC bay lơ lửng xuyên không trung
-            Transform l1Trans = linkRoot.transform.Find("Link_Ground_To_RampTop");
-            GameObject l1GO = (l1Trans != null) ? l1Trans.gameObject : new GameObject("Link_Ground_To_RampTop");
-            l1GO.transform.SetParent(linkRoot.transform, false);
-            l1GO.transform.position = Vector3.zero;
-            var link1 = l1GO.GetComponent<NavMeshLink>();
-            if (link1 == null) link1 = l1GO.AddComponent<NavMeshLink>();
             Vector3 rampBasePos = new Vector3(groundPos.x, 0.35f, groundPos.z + 1.4f);
-            link1.startPoint = groundPos;
-            link1.endPoint = rampBasePos;
-            link1.width = 3.2f;
-            link1.bidirectional = true;
-            link1.area = 0; // Walkable
-            link1.agentTypeID = 0; // Humanoid
-            link1.enabled = true;
 
-            // Link 2: Đỉnh cầu thang -> Bước vào sàn boong quan sát của Chòi (bảo đảm 100% không bao giờ bị kẹt tại khe cửa)
-            Transform l2Trans = linkRoot.transform.Find("Link_RampTop_To_Deck");
-            GameObject l2GO = (l2Trans != null) ? l2Trans.gameObject : new GameObject("Link_RampTop_To_Deck");
-            l2GO.transform.SetParent(linkRoot.transform, false);
-            l2GO.transform.position = Vector3.zero;
-            var link2 = l2GO.GetComponent<NavMeshLink>();
-            if (link2 == null) link2 = l2GO.AddComponent<NavMeshLink>();
-            link2.startPoint = rampTopPos;
-            link2.endPoint = deckLookoutPos;
-            link2.width = 3.2f;
-            link2.bidirectional = true;
-            link2.area = 0; // Walkable
-            link2.agentTypeID = 0; // Humanoid
-            link2.enabled = true;
+            foreach (int agentType in AllNavMeshAgentTypes)
+            {
+                // Link 1: Mặt đất -> Chân cầu thang Ramp
+                string l1Name = $"Link1_Type_{agentType}";
+                Transform l1Trans = linkRoot.transform.Find(l1Name);
+                GameObject l1GO = (l1Trans != null) ? l1Trans.gameObject : new GameObject(l1Name);
+                l1GO.transform.SetParent(linkRoot.transform, false);
+                l1GO.transform.position = Vector3.zero;
+                var link1 = l1GO.GetComponent<NavMeshLink>();
+                if (link1 == null) link1 = l1GO.AddComponent<NavMeshLink>();
+                link1.startPoint = groundPos;
+                link1.endPoint = rampBasePos;
+                link1.width = 4.2f;
+                link1.bidirectional = true;
+                link1.area = 0; // Walkable
+                link1.agentTypeID = agentType;
+                link1.enabled = true;
+
+                // Link 2: Đỉnh cầu thang -> Bước vào sàn boong quan sát của Chòi
+                string l2Name = $"Link2_Type_{agentType}";
+                Transform l2Trans = linkRoot.transform.Find(l2Name);
+                GameObject l2GO = (l2Trans != null) ? l2Trans.gameObject : new GameObject(l2Name);
+                l2GO.transform.SetParent(linkRoot.transform, false);
+                l2GO.transform.position = Vector3.zero;
+                var link2 = l2GO.GetComponent<NavMeshLink>();
+                if (link2 == null) link2 = l2GO.AddComponent<NavMeshLink>();
+                link2.startPoint = rampTopPos;
+                link2.endPoint = deckLookoutPos;
+                link2.width = 4.5f;
+                link2.bidirectional = true;
+                link2.area = 0; // Walkable
+                link2.agentTypeID = agentType;
+                link2.enabled = true;
+            }
         }
 
         public void ResetPlayerAndCameraPosition()
@@ -1706,8 +2086,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 enemyAI.enabled = true;
                 enemyAI.ClearAllDefenders();
-                int defenderCount = Mathf.Clamp(4 + (_CurrentWave - 1) * 2, 4, 14);
+                int defenderCount = Mathf.Clamp(4 + (_CurrentWave - 1) * 2, 4, 16);
                 enemyAI.EnsureDefendersAlive(defenderCount);
+                enemyAI.TriggerStuckValidation();
             }
 
             // 6. Xử lý các công trình phòng thủ của người chơi:

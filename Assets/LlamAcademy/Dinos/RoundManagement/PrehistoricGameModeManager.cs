@@ -116,7 +116,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Debug.Log("<color=orange><b>[AI Chỉ Huy Làng]</b></color> Phát hiện Khủng Long Giáp (Ankylosaurus)! Quân cố thủ dàn đội hình chống phá thành!");
                 if (EnemyAIController.Instance != null)
                 {
-                    EnemyAIController.Instance.EnsureDefendersAlive(Mathf.Clamp(4 + AssaultLevel * 2, 4, 10));
+                    EnemyAIController.Instance.EnsureDefendersAlive(Mathf.Clamp(4 + AssaultLevel * 3, 4, 18));
+                    EnemyAIController.Instance.TriggerStuckValidation();
                 }
             }
             else if (dino is Unit.RunnerDino)
@@ -213,6 +214,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             _CurrentMode = newMode;
             ApplyModeConfiguration(_CurrentMode);
             ShowModeSelectModal = false;
+            Mobile.MobileUIHelper.ClearUIRects();
             OnGameModeChanged?.Invoke(_CurrentMode);
             Debug.Log($"<color=cyan>[GameModeManager]</color> Switched to Mode: <b>{_CurrentMode}</b>");
         }
@@ -266,7 +268,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 enemyAI.enabled = true;
                 if (Application.isPlaying)
                 {
-                    enemyAI.EnsureDefendersAlive(4 + (AssaultLevel - 1) * 2);
+                    enemyAI.EnsureDefendersAlive(Mathf.Clamp(4 + (AssaultLevel - 1) * 3, 4, 18));
+                    enemyAI.TriggerStuckValidation();
                 }
             }
 
@@ -488,6 +491,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (GUILayout.Button(closeLabel, GUILayout.Height(30)))
             {
                 ShowModeSelectModal = false;
+                Mobile.MobileUIHelper.ClearUIRects();
             }
 
             GUILayout.EndArea();
@@ -949,7 +953,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (enemyAI != null)
             {
                 enemyAI.ClearAllDefenders();
-                enemyAI.EnsureDefendersAlive(4 + (level - 1) * 3);
+                enemyAI.EnsureDefendersAlive(Mathf.Clamp(4 + (level - 1) * 3, 4, 18));
+                enemyAI.TriggerStuckValidation();
             }
 
             // 5. Cập nhật NavMesh

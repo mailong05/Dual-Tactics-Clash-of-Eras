@@ -120,12 +120,28 @@ namespace LlamAcademy.Dinos.Player
                 _AvailableTowers = new List<TowerSO>();
                 string[] defaultTowerNames = new string[] {
                     "Tower_Watchtower", "Tower_Ballista", "Tower_Catapult", 
-                    "Tower_ShamanTotem", "Tower_TarPit", "Tower_SpikeTrap", "Tower_Barricade"
+                    "Tower_ShamanTotem", "Tower_TarPit", "Tower_SpikeTrap", "Tower_Barricade", "Tower_Defender"
                 };
                 foreach (var tName in defaultTowerNames)
                 {
                     TowerSO so = Resources.Load<TowerSO>($"Config/Prehistoric/{tName}") ?? Resources.Load<TowerSO>(tName);
                     if (so != null) _AvailableTowers.Add(so);
+                }
+            }
+            else
+            {
+                // Đảm bảo Tower_Defender luôn có mặt trong danh sách AvailableTowers nếu chưa có
+                bool hasDefender = _AvailableTowers.Exists(t => t != null && t.name.Contains("Defender"));
+                if (!hasDefender)
+                {
+                    TowerSO defSO = Resources.Load<TowerSO>("Config/Prehistoric/Tower_Defender") ?? Resources.Load<TowerSO>("Tower_Defender");
+#if UNITY_EDITOR
+                    if (defSO == null)
+                    {
+                        defSO = UnityEditor.AssetDatabase.LoadAssetAtPath<TowerSO>("Assets/Config/Prehistoric/Tower_Defender.asset");
+                    }
+#endif
+                    if (defSO != null) _AvailableTowers.Add(defSO);
                 }
             }
 
@@ -300,8 +316,25 @@ namespace LlamAcademy.Dinos.Player
                         }
                     }
 
-                    // Khống chế độ cao tiếp đất trong khoảng mặt đất tự nhiên (tránh bị nhảy lên không trung hay nóc tường)
-                    placePos.y = Mathf.Clamp(placePos.y, -0.5f, 1.5f);
+                    // Đảm bảo không bị lún dưới lòng đất: cao độ mặt đất tối thiểu Y >= 0.10m
+                    // Nếu người chơi trỏ lên chòi cao / cầu gỗ (Y > 2.5m), bảo toàn cao độ thực tế của mặt sàn
+                    if (placePos.y < 0.10f)
+                    {
+                        placePos.y = 0.10f;
+                    }
+
+                    // Đối với NPC Defender: tự động snap vị trí ngắm chính xác xuống mặt sàn NavMesh
+                    if (SelectedTower != null && (SelectedTower.name.Contains("Defender") || (SelectedTower.Prefab != null && SelectedTower.Prefab is Enemy.Defender)))
+                    {
+                        if (NavMesh.SamplePosition(placePos, out NavMeshHit snapNav, 1.2f, NavMesh.AllAreas))
+                        {
+                            if (Mathf.Abs(placePos.y - snapNav.position.y) <= 0.8f)
+                            {
+                                placePos = snapNav.position;
+                            }
+                        }
+                    }
+
                     _LastAimGroundPosition = placePos;
                     _HasValidAimPosition = true;
                 }
@@ -313,7 +346,10 @@ namespace LlamAcademy.Dinos.Player
                 if (Physics.Raycast(centerRay, out RaycastHit cHit, float.MaxValue, GroundLayer))
                 {
                     placePos = cHit.point;
-                    placePos.y = Mathf.Clamp(placePos.y, -0.5f, 1.5f);
+                    if (placePos.y < 0.10f)
+                    {
+                        placePos.y = 0.10f;
+                    }
                     _LastAimGroundPosition = placePos;
                     _HasValidAimPosition = true;
                 }
@@ -385,6 +421,40 @@ namespace LlamAcademy.Dinos.Player
             towerUnit.transform.rotation = targetRotation;
             towerUnit.transform.localScale = prefabToSpawn.transform.localScale; // Đảm bảo scale đúng 100% theo prefab gốc
             towerUnit.UnitType = SelectedTower;
+
+            if (towerUnit is Enemy.Defender def)
+            {
+                // Xác minh vị trí tiếp đất an toàn trên NavMesh (không cho phép đặt trên không trung hay nóc chòi canh)
+                if (!NavMesh.SamplePosition(position, out NavMeshHit navHit, 1.5f, NavMesh.AllAreas) ||
+                    Mathf.Abs(position.y - navHit.position.y) > 1.0f ||
+                    (navHit.position.y > 1.2f && !Enemy.Defender.IsOnValidHighGroundPlane(navHit.position)))
+                {
+                    Debug.LogWarning($"[TowerPlacer] Vị trí đặt Defender không hợp lệ trên không hoặc chòi canh: {position}. Đã hủy đặt.");
+                    Gold += SelectedTower.Cost;
+                    Destroy(towerUnit.gameObject);
+                    return;
+                }
+
+                Vector3 validPos = navHit.position;
+                bool isHigh = validPos.y > 2.5f;
+
+                def.transform.position = validPos;
+                Physics.SyncTransforms();
+
+                def.SafeWarpOrPlace(validPos, 1.5f);
+                if (def.Agent != null)
+                {
+                    def.Agent.autoTraverseOffMeshLink = true;
+                }
+
+                // Đặt cố thủ phòng ngự chính xác tại tọa độ người chơi đã chỉ định (đặt trực tiếp, không rơi tự do)
+                def.AssignDefensivePost(validPos, isHigh);
+
+                if (Enemy.EnemyAIController.Instance != null)
+                {
+                    Enemy.EnemyAIController.Instance.RegisterDefender(def);
+                }
+            }
 
             // Đảm bảo chân tháp/bẫy luôn tiếp đất chuẩn xác 100%, không bị lơ lửng trên không hay chìm dưới đất
             AlignTowerToGround(towerUnit.gameObject, position.y);
@@ -458,6 +528,7 @@ namespace LlamAcademy.Dinos.Player
         private static void AlignTowerToGround(GameObject towerObj, float targetGroundY)
         {
             if (towerObj == null) return;
+            if (towerObj.TryGetComponent(out Enemy.Defender _)) return;
             // Chỉ quét MeshRenderer và SkinnedMeshRenderer (bỏ qua ParticleSystemRenderer, TrailRenderer,...)
             MeshRenderer[] meshRends = towerObj.GetComponentsInChildren<MeshRenderer>();
             SkinnedMeshRenderer[] skinRends = towerObj.GetComponentsInChildren<SkinnedMeshRenderer>();

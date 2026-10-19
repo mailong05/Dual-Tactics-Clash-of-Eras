@@ -102,10 +102,27 @@ namespace LlamAcademy.Dinos.Audio
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            EnsureAudioListener();
             LoadPreferences();
             SetupAudioSources();
             GenerateProceduralAudioClips();
             ApplyVolumes();
+        }
+
+        private void EnsureAudioListener()
+        {
+            if (FindFirstObjectByType<AudioListener>() == null)
+            {
+                Camera mainCam = Camera.main;
+                if (mainCam != null)
+                {
+                    mainCam.gameObject.AddComponent<AudioListener>();
+                }
+                else
+                {
+                    gameObject.AddComponent<AudioListener>();
+                }
+            }
         }
 
         private void Start()

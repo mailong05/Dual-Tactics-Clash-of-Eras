@@ -29,6 +29,14 @@ namespace LlamAcademy.Dinos.Player
         private static readonly int TINT = Shader.PropertyToID("_Tint");
         private static readonly int FRESNEL_COLOR = Shader.PropertyToID("_FresnelColor");
 
+        private void Awake()
+        {
+            if (transform.position.y < 0.10f)
+            {
+                transform.position = new Vector3(transform.position.x, 0.5f, transform.position.z);
+            }
+        }
+
         private void Start()
         {
             if (SafeZone != null) SafeZone.SetActive(false);
@@ -111,7 +119,7 @@ namespace LlamAcademy.Dinos.Player
             Renderers.Clear();
             Dino = dinoSO;
 
-            if (dinoSO == null)
+            if (dinoSO == null || dinoSO.Prefab == null)
             {
                 if (SafeZone != null && SafeZone.activeSelf) SafeZone.SetActive(false);
                 return;
@@ -119,22 +127,33 @@ namespace LlamAcademy.Dinos.Player
 
             if (SafeZone != null && SafeZone.activeSelf) SafeZone.SetActive(false);
 
+            Vector3 spawnPos = transform.position;
+            if (NavMesh.SamplePosition(spawnPos, out NavMeshHit navHit, 30f, NavMesh.AllAreas))
+            {
+                spawnPos = navHit.position;
+            }
+            else
+            {
+                spawnPos = new Vector3(0f, 0.15f, -12.0f);
+            }
+
             for (int i = 0; i < Count; i++)
             {
                 Quaternion rot = Quaternion.identity;
                 if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
                 {
-                    rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - transform.position).normalized);
+                    rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - spawnPos).normalized);
                 }
-                Unit.Unit dino = Instantiate(dinoSO.Prefab, transform.position, rot);
+                Unit.Unit dino = Instantiate(dinoSO.Prefab, spawnPos, rot);
                 dino.transform.SetParent(transform, true);
                 dino.enabled = false; // Vô hiệu hóa để không bị coi là unit chiến đấu thật
 
-                foreach (Collider collider in dino.GetComponentsInChildren<Collider>())
+                foreach (Collider collider in dino.GetComponentsInChildren<Collider>(true))
                 {
                     collider.enabled = false;
                 }
-                if (dino.TryGetComponent(out NavMeshAgent agent))
+                // Ghost preview không bao giờ cần NavMeshAgent
+                foreach (NavMeshAgent agent in dino.GetComponentsInChildren<NavMeshAgent>(true))
                 {
                     agent.enabled = false;
                 }
@@ -169,11 +188,11 @@ namespace LlamAcademy.Dinos.Player
                 bool canAfford = DinoSpawner.Instance != null && DinoSpawner.Instance.ResourcesToSpend >= Dino.Cost;
                 
                 // Đảm bảo khủng long được triệu hồi trên hoặc gần đường di chuyển NavMesh
-                bool onNavMesh = NavMesh.SamplePosition(Visualizations[i].transform.position, out _, 3.0f, NavMesh.AllAreas);
+                bool onNavMesh = NavMesh.SamplePosition(Visualizations[i].transform.position, out _, 25.0f, NavMesh.AllAreas);
 
-                // Khủng long bay có thể triệu hồi thoải mái hơn, khủng long bộ cần trên NavMesh
+                // Khủng long bay có thể triệu hồi thoải mái hơn, khủng long bộ cần trên đường chiến trường
                 bool isAerial = Dino != null && Dino.name.ToLower().Contains("ptero");
-                bool validPath = onNavMesh || isAerial;
+                bool validPath = onNavMesh || isAerial || Visualizations[i].transform.position.z >= -10.0f;
 
                 bool isValid = canAfford && validPath;
                 IsValidPlacementLocation = isValid;

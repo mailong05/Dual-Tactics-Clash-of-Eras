@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.AI;
 
 namespace LlamAcademy.Dinos.Utility
@@ -17,8 +17,15 @@ namespace LlamAcademy.Dinos.Utility
             return distance;
         }
 
-        public static bool IsAtTargetLocation(NavMeshAgent agent) =>
-            (!agent.hasPath && !agent.pathPending)
+        public static bool IsAtTargetLocation(NavMeshAgent agent)
+        {
+            if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh)
+            {
+                return true;
+            }
+
+            return (!agent.hasPath && !agent.pathPending)
                 || (agent.hasPath && agent.remainingDistance <= agent.stoppingDistance + agent.radius);
+        }
     }
 }

@@ -59,12 +59,14 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             NavMesh.RemoveAllNavMeshData();
 
-            // Mở rộng volume baking của EnemySurface để bao phủ 100% các chòi gác tiền tiêu và cầu thang trên cao
+            // Giới hạn volume baking của EnemySurface strictly ở Y >= 0.05m:
+            // Bao phủ toàn bộ mặt đất làng (Y = 0.10m), cầu thang ramp và chòi cao (Y = 4.15m),
+            // TRIỆT ĐỂ LOẠI BỎ 100% mọi vật thể ngầm ở Y = -3.35m để KHÔNG BAO GIỜ sinh ra NavMesh dưới lòng đất!
             if (EnemySurface != null)
             {
                 EnemySurface.collectObjects = CollectObjects.Volume;
-                EnemySurface.center = new Vector3(0.5f, 4.0f, -18.0f);
-                EnemySurface.size = new Vector3(70.0f, 12.0f, 42.0f);
+                EnemySurface.center = new Vector3(0.5f, 4.5f, -18.0f);
+                EnemySurface.size = new Vector3(75.0f, 8.9f, 45.0f);
             }
 
             if (PrehistoricGameplayManager.Instance != null)
@@ -78,7 +80,13 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             foreach (NavMeshSurface surface in DinoSurfaces)
             {
-                surface.BuildNavMesh();
+                if (surface != null)
+                {
+                    surface.collectObjects = CollectObjects.Volume;
+                    surface.center = new Vector3(0.5f, 4.5f, -18.0f);
+                    surface.size = new Vector3(75.0f, 8.9f, 45.0f);
+                    surface.BuildNavMesh();
+                }
             }
         }
 
@@ -94,8 +102,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (EnemySurface != null)
                 {
                     EnemySurface.collectObjects = CollectObjects.Volume;
-                    EnemySurface.center = new Vector3(0.5f, 4.0f, -18.0f);
-                    EnemySurface.size = new Vector3(70.0f, 12.0f, 42.0f);
+                    EnemySurface.center = new Vector3(0.5f, 4.5f, -18.0f);
+                    EnemySurface.size = new Vector3(75.0f, 8.9f, 45.0f);
                 }
 
                 if (PrehistoricGameplayManager.Instance != null)
@@ -104,17 +112,31 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
 
                 EnemySurface.BuildNavMesh();
+
+                foreach (NavMeshSurface surface in DinoSurfaces)
+                {
+                    if (surface != null)
+                    {
+                        surface.collectObjects = CollectObjects.Volume;
+                        surface.center = new Vector3(0.5f, 4.5f, -18.0f);
+                        surface.size = new Vector3(75.0f, 8.9f, 45.0f);
+                        surface.BuildNavMesh();
+                    }
+                }
             }
             else
             {
                 NavMesh.AddNavMeshData(EnemySurface.navMeshData);
+                foreach (NavMeshSurface surface in DinoSurfaces)
+                {
+                    if (surface != null && surface.navMeshData != null)
+                    {
+                        NavMesh.AddNavMeshData(surface.navMeshData);
+                    }
+                }
             }
             EnemyTriangulation = NavMesh.CalculateTriangulation();
             SetVisualizationFromTriangulation();
-            foreach (NavMeshSurface surface in DinoSurfaces)
-            {
-                NavMesh.AddNavMeshData(surface.navMeshData);
-            }
 
             OnNavMeshUpdated?.Invoke();
         }

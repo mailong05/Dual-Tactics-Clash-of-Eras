@@ -10,11 +10,32 @@ namespace LlamAcademy.Dinos.Utility
             Vector3 targetLocation,
             float positionLeniency = 0)
         {
-            NavMeshPath path = new();
+            if (agent == null || !agent.isActiveAndEnabled)
+            {
+                return false;
+            }
+
             NavMeshQueryFilter queryFilter = new() {
                 agentTypeID = agent.agentTypeID,
                 areaMask = agent.areaMask
             };
+
+            // Nếu agent chưa ở trên NavMesh (ví dụ vừa spawn, đang rơi hoặc bị hẫng chân):
+            // Thử đưa agent về điểm NavMesh hợp lệ gần nhất
+            if (!agent.isOnNavMesh)
+            {
+                if (NavMesh.SamplePosition(agent.transform.position, out NavMeshHit agentHit, 4.0f, queryFilter))
+                {
+                    agent.Warp(agentHit.position);
+                }
+
+                if (!agent.isOnNavMesh)
+                {
+                    return false;
+                }
+            }
+
+            NavMeshPath path = new();
             if (positionLeniency != 0)
             {
                 if (!NavMesh.SamplePosition(targetLocation, out NavMeshHit hit, positionLeniency, queryFilter))
@@ -32,12 +53,21 @@ namespace LlamAcademy.Dinos.Utility
                 path
             );
 
-            if (canSetPath)
+            if (canSetPath && path.status != NavMeshPathStatus.PathInvalid && agent.isActiveAndEnabled && agent.isOnNavMesh)
             {
-                agent.SetPath(path);
+                try
+                {
+                    agent.SetPath(path);
+                    return true;
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[NavMeshAgentExtensions] Failed to SetPath: {ex.Message}");
+                    return false;
+                }
             }
 
-            return canSetPath;
+            return false;
         }
     }
 }
