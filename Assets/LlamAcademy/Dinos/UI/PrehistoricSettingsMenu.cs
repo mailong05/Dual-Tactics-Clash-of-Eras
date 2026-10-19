@@ -3,6 +3,7 @@ using LlamAcademy.Dinos.Audio;
 using LlamAcademy.Dinos.Mobile;
 using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
+using LlamAcademy.Dinos.Save;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -11,7 +12,7 @@ namespace LlamAcademy.Dinos.UI
     /// <summary>
     /// In-Game Settings and Options Menu.
     /// Provides audio configuration (Master, BGM, SFX), game controls (Retry, Reset, Camera perspective, AR toggle),
-    /// and quit functionality across both PC (exe) and Mobile (apk).
+    /// progression save management (Local auto-save & optional cloud sync), and quit functionality across PC and Mobile.
     /// </summary>
     [DefaultExecutionOrder(-5)]
     public class PrehistoricSettingsMenu : MonoBehaviour
@@ -19,6 +20,11 @@ namespace LlamAcademy.Dinos.UI
         public static PrehistoricSettingsMenu Instance { get; private set; }
 
         public bool IsOpen { get; set; } = false;
+
+        private Vector2 _scrollPos = Vector2.zero;
+        private string _chiefNameInput = "";
+        private string _saveFeedbackMsg = "";
+        private float _saveFeedbackTimer = 0f;
 
         private void Awake()
         {
@@ -29,6 +35,14 @@ namespace LlamAcademy.Dinos.UI
             }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+        }
+
+        private void Start()
+        {
+            if (PrehistoricSaveManager.Instance != null)
+            {
+                _chiefNameInput = PrehistoricSaveManager.Instance.CurrentData.PlayerChiefName;
+            }
         }
 
         private void Update()
@@ -43,11 +57,24 @@ namespace LlamAcademy.Dinos.UI
                     ToggleMenu();
                 }
             }
+
+            if (_saveFeedbackTimer > 0f)
+            {
+                _saveFeedbackTimer -= Time.unscaledDeltaTime;
+                if (_saveFeedbackTimer <= 0f)
+                {
+                    _saveFeedbackMsg = "";
+                }
+            }
         }
 
         public void ToggleMenu()
         {
             IsOpen = !IsOpen;
+            if (IsOpen && PrehistoricSaveManager.Instance != null)
+            {
+                _chiefNameInput = PrehistoricSaveManager.Instance.CurrentData.PlayerChiefName;
+            }
             PrehistoricAudioManager.Instance?.PlayButtonClick();
             MobileTouchController.Instance?.TriggerHapticFeedback();
         }
@@ -72,7 +99,6 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawSettingsToggleButton()
         {
-            // Floating gear button at top-left (below status banner)
             float btnW = 145f;
             float btnH = 34f;
             float x = 20f;
@@ -98,12 +124,12 @@ namespace LlamAcademy.Dinos.UI
             Cursor.visible = true;
 
             // Dark semi-transparent full-screen backdrop
-            GUI.color = new Color(0f, 0f, 0f, 0.85f);
+            GUI.color = new Color(0f, 0f, 0f, 0.88f);
             GUI.DrawTexture(new Rect(0, 0, MobileUIHelper.ScreenWidth, MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = Mathf.Min(600f, MobileUIHelper.ScreenWidth - 30f);
-            float modalH = Mathf.Min(520f, MobileUIHelper.ScreenHeight - 30f);
+            float modalW = Mathf.Min(650f, MobileUIHelper.ScreenWidth - 24f);
+            float modalH = Mathf.Min(600f, MobileUIHelper.ScreenHeight - 20f);
             float x = (MobileUIHelper.ScreenWidth - modalW) / 2f;
             float y = (MobileUIHelper.ScreenHeight - modalH) / 2f;
 
@@ -113,7 +139,7 @@ namespace LlamAcademy.Dinos.UI
             GUI.backgroundColor = new Color(0.12f, 0.16f, 0.22f, 0.98f);
             GUI.Box(modalRect, GUIContent.none);
 
-            GUILayout.BeginArea(new Rect(x + 20, y + 15, modalW - 40, modalH - 30));
+            GUILayout.BeginArea(new Rect(x + 18, y + 14, modalW - 36, modalH - 28));
             GUILayout.BeginVertical();
 
             // Header
@@ -127,22 +153,24 @@ namespace LlamAcademy.Dinos.UI
             }
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(8);
+            GUILayout.Space(6);
+
+            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(modalH - 100));
 
             // ==========================================
             // Section 1: Audio Controls (Master, BGM, SFX)
             // ==========================================
             GUILayout.BeginVertical(GUI.skin.box);
-            GUILayout.Label("<b><size=14><color=#55FF55>🔊 CÀI ĐẶT ÂM THANH & NHẠC NỀN</color></size></b>");
-            GUILayout.Space(4);
+            GUILayout.Label("<b><size=13><color=#55FF55>🔊 CÀI ĐẶT ÂM THANH & NHẠC NỀN</color></size></b>");
+            GUILayout.Space(2);
 
             var audio = PrehistoricAudioManager.Instance;
             if (audio != null)
             {
                 // Master Volume
                 GUILayout.BeginHorizontal();
-                GUILayout.Label($"<b>Âm lượng Tổng:</b> {Mathf.RoundToInt(audio.MasterVolume * 100)}%", GUILayout.Width(170));
-                float newMaster = GUILayout.HorizontalSlider(audio.MasterVolume, 0f, 1f, GUILayout.Height(20));
+                GUILayout.Label($"<b>Âm lượng Tổng:</b> {Mathf.RoundToInt(audio.MasterVolume * 100)}%", GUILayout.Width(165));
+                float newMaster = GUILayout.HorizontalSlider(audio.MasterVolume, 0f, 1f, GUILayout.Height(18));
                 if (Mathf.Abs(newMaster - audio.MasterVolume) > 0.01f)
                 {
                     audio.MasterVolume = newMaster;
@@ -151,14 +179,14 @@ namespace LlamAcademy.Dinos.UI
 
                 // BGM Volume & Toggle
                 GUILayout.BeginHorizontal();
-                GUILayout.Label($"<b>Nhạc nền (BGM):</b> {Mathf.RoundToInt(audio.BgmVolume * 100)}%", GUILayout.Width(170));
-                float newBgm = GUILayout.HorizontalSlider(audio.BgmVolume, 0f, 1f, GUILayout.Height(20));
+                GUILayout.Label($"<b>Nhạc nền (BGM):</b> {Mathf.RoundToInt(audio.BgmVolume * 100)}%", GUILayout.Width(165));
+                float newBgm = GUILayout.HorizontalSlider(audio.BgmVolume, 0f, 1f, GUILayout.Height(18));
                 if (Mathf.Abs(newBgm - audio.BgmVolume) > 0.01f)
                 {
                     audio.BgmVolume = newBgm;
                 }
                 GUI.backgroundColor = audio.IsBgmEnabled ? new Color(0.2f, 0.8f, 0.3f) : new Color(0.6f, 0.2f, 0.2f);
-                if (GUILayout.Button(audio.IsBgmEnabled ? "BẬT" : "TẮT", GUILayout.Width(55), GUILayout.Height(22)))
+                if (GUILayout.Button(audio.IsBgmEnabled ? "BẬT" : "TẮT", GUILayout.Width(50), GUILayout.Height(20)))
                 {
                     audio.IsBgmEnabled = !audio.IsBgmEnabled;
                     audio.PlayButtonClick();
@@ -168,21 +196,21 @@ namespace LlamAcademy.Dinos.UI
 
                 // SFX Volume & Toggle
                 GUILayout.BeginHorizontal();
-                GUILayout.Label($"<b>Hiệu ứng (SFX):</b> {Mathf.RoundToInt(audio.SfxVolume * 100)}%", GUILayout.Width(170));
-                float newSfx = GUILayout.HorizontalSlider(audio.SfxVolume, 0f, 1f, GUILayout.Height(20));
+                GUILayout.Label($"<b>Hiệu ứng (SFX):</b> {Mathf.RoundToInt(audio.SfxVolume * 100)}%", GUILayout.Width(165));
+                float newSfx = GUILayout.HorizontalSlider(audio.SfxVolume, 0f, 1f, GUILayout.Height(18));
                 if (Mathf.Abs(newSfx - audio.SfxVolume) > 0.01f)
                 {
                     audio.SfxVolume = newSfx;
                 }
                 GUI.backgroundColor = audio.IsSfxEnabled ? new Color(0.2f, 0.8f, 0.3f) : new Color(0.6f, 0.2f, 0.2f);
-                if (GUILayout.Button(audio.IsSfxEnabled ? "BẬT" : "TẮT", GUILayout.Width(55), GUILayout.Height(22)))
+                if (GUILayout.Button(audio.IsSfxEnabled ? "BẬT" : "TẮT", GUILayout.Width(50), GUILayout.Height(20)))
                 {
                     audio.IsSfxEnabled = !audio.IsSfxEnabled;
                     audio.PlayButtonClick();
                 }
                 GUI.backgroundColor = Color.white;
 
-                if (GUILayout.Button("🔊 Thử", GUILayout.Width(55), GUILayout.Height(22)))
+                if (GUILayout.Button("🔊 Thử", GUILayout.Width(50), GUILayout.Height(20)))
                 {
                     audio.PlayWaveHorn();
                 }
@@ -190,42 +218,136 @@ namespace LlamAcademy.Dinos.UI
             }
             GUILayout.EndVertical();
 
-            GUILayout.Space(8);
+            GUILayout.Space(6);
 
             // ==========================================
-            // Section 2: Gameplay Actions (Retry, Reset, Camera, AR)
+            // Section 2: Save Progression & Cloud Sync
             // ==========================================
             GUILayout.BeginVertical(GUI.skin.box);
-            GUILayout.Label("<b><size=14><color=#00FFFF>⚔️ ĐIỀU KHIỂN TRẬN ĐẤU & CHẾ ĐỘ</color></size></b>");
+            GUILayout.Label("<b><size=13><color=#FFD700>💾 LƯU TIẾN TRÌNH & ĐỒNG BỘ CLOUD</color></size></b>");
+            GUILayout.Space(2);
+
+            var saveMgr = PrehistoricSaveManager.Instance;
+            if (saveMgr != null)
+            {
+                var data = saveMgr.CurrentData;
+
+                // Player chief name edit
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("<b>Tên Tù Trưởng:</b>", GUILayout.Width(110));
+                string editedName = GUILayout.TextField(_chiefNameInput, 20, GUILayout.Height(22));
+                if (editedName != _chiefNameInput)
+                {
+                    _chiefNameInput = editedName;
+                    saveMgr.SetPlayerChiefName(_chiefNameInput);
+                }
+                GUILayout.EndHorizontal();
+
+                // Stats overview
+                GUILayout.Label($"<size=11>🏆 Đợt cao nhất: <b>Đợt {data.HighestWaveReached}</b> | Điểm kỷ lục: <b>{data.TotalScore}</b> | Quái đã diệt: <b>{data.TotalMonstersKilled}</b></size>");
+                if (!string.IsNullOrEmpty(data.LastSavedTimestamp))
+                {
+                    GUILayout.Label($"<size=10><color=#A0A0A0>🕒 Lần lưu gần nhất: {data.LastSavedTimestamp}</color></size>");
+                }
+
+                if (!string.IsNullOrEmpty(_saveFeedbackMsg))
+                {
+                    GUILayout.Label($"<size=11><color=#00FFAA><b>{_saveFeedbackMsg}</b></color></size>");
+                }
+
+                GUILayout.Space(3);
+                GUILayout.BeginHorizontal();
+
+                // Quick Save Local
+                GUI.backgroundColor = new Color(0.2f, 0.7f, 0.9f);
+                if (GUILayout.Button("<b>💾 LƯU MÁY (LOCAL)</b>", GUILayout.Height(28)))
+                {
+                    saveMgr.AutoSaveCurrentRun(hasActiveRun: true);
+                    _saveFeedbackMsg = "✓ Đã lưu thành công vào bộ nhớ máy (Local JSON)!";
+                    _saveFeedbackTimer = 3.0f;
+                    audio?.PlayButtonClick();
+                }
+
+                // Cloud Sync
+                GUI.backgroundColor = new Color(0.25f, 0.8f, 0.45f);
+                if (GUILayout.Button("<b>☁ ĐỒNG BỘ CLOUD</b>", GUILayout.Height(28)))
+                {
+                    saveMgr.SyncToCloud((success, msg) =>
+                    {
+                        _saveFeedbackMsg = msg;
+                        _saveFeedbackTimer = 3.5f;
+                    });
+                    audio?.PlayButtonClick();
+                }
+
+                // Reset Save
+                GUI.backgroundColor = new Color(0.7f, 0.25f, 0.25f);
+                if (GUILayout.Button("<b>🗑 XÓA SAVE</b>", GUILayout.Width(85), GUILayout.Height(28)))
+                {
+                    saveMgr.ResetSaveData();
+                    _saveFeedbackMsg = "Đã đặt lại dữ liệu lưu tiến trình.";
+                    _saveFeedbackTimer = 3.0f;
+                    audio?.PlayButtonClick();
+                }
+
+                GUI.backgroundColor = Color.white;
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndVertical();
+
             GUILayout.Space(6);
+
+            // ==========================================
+            // Section 3: Gameplay Actions (Retry, Reset, Camera, AR)
+            // ==========================================
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("<b><size=13><color=#00FFFF>⚔️ ĐIỀU KHIỂN TRẬN ĐẤU & GÓC NHÌN</color></size></b>");
+            GUILayout.Space(4);
 
             GUILayout.BeginHorizontal();
 
-            // Retry Current Wave
+            // Retry Current Wave / Level
             GUI.backgroundColor = new Color(0.2f, 0.75f, 0.4f);
-            if (GUILayout.Button("<b><size=13>🔄 THỬ LẠI ĐỢT</size></b>\n<size=10>(Reset làng, giữ tháp)</size>", GUILayout.Height(46)))
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+            string retryTitle = isAssault ? "<b><size=12>🔄 THỬ LẠI MÀN</size></b>\n<size=10>(Màn hiện tại)</size>" : "<b><size=12>🔄 THỬ LẠI ĐỢT</size></b>\n<size=10>(Reset làng, giữ tháp)</size>";
+            if (GUILayout.Button(retryTitle, GUILayout.Height(42)))
             {
                 IsOpen = false;
-                PrehistoricGameplayManager.Instance?.RetryCurrentWave();
+                if (isAssault)
+                {
+                    PrehistoricGameModeManager.Instance?.RetryCurrentAssaultLevel();
+                }
+                else
+                {
+                    PrehistoricGameplayManager.Instance?.RetryCurrentWave();
+                }
             }
 
             // Full Reset Game
             GUI.backgroundColor = new Color(0.9f, 0.55f, 0.2f);
-            if (GUILayout.Button("<b><size=13>⏮️ CHƠI TỪ ĐẦU</size></b>\n<size=10>(Về Wave 1, 500g)</size>", GUILayout.Height(46)))
+            string resetTitle = isAssault ? "<b><size=12>⏮️ CHƠI TỪ ĐẦU</size></b>\n<size=10>(Về Màn 1)</size>" : "<b><size=12>⏮️ CHƠI TỪ ĐẦU</size></b>\n<size=10>(Về Wave 1, 500g)</size>";
+            if (GUILayout.Button(resetTitle, GUILayout.Height(42)))
             {
                 IsOpen = false;
-                PrehistoricGameplayManager.Instance?.FullResetGame();
+                if (isAssault)
+                {
+                    PrehistoricGameModeManager.Instance?.RestartAssaultFromLevel1();
+                }
+                else
+                {
+                    PrehistoricGameplayManager.Instance?.FullResetGame();
+                }
             }
 
             GUI.backgroundColor = Color.white;
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(6);
+            GUILayout.Space(4);
             GUILayout.BeginHorizontal();
 
             // Toggle Camera Perspective
             GUI.backgroundColor = new Color(0.3f, 0.65f, 0.95f);
-            if (GUILayout.Button("<b>📷 ĐỔI GÓC NHÌN</b>\n<size=10>(Trước ↔ Sau Làng)</size>", GUILayout.Height(42)))
+            if (GUILayout.Button("<b>📷 ĐỔI GÓC NHÌN</b>\n<size=10>(Trước ↔ Sau Làng)</size>", GUILayout.Height(38)))
             {
                 CameraControl.Instance?.TogglePerspective();
             }
@@ -234,7 +356,7 @@ namespace LlamAcademy.Dinos.UI
             bool isARActive = ARTabletopController.Instance != null && ARTabletopController.Instance.IsARModeActive;
             GUI.backgroundColor = isARActive ? new Color(0.9f, 0.3f, 0.2f) : new Color(0.1f, 0.65f, 0.95f);
             string arLabel = isARActive ? "<b>📱 THOÁT AR</b>\n<size=10>(Trở về góc 3D)</size>" : "<b>📱 BẬT CHẾ ĐỘ AR</b>\n<size=10>(Camera Pass-through)</size>";
-            if (GUILayout.Button(arLabel, GUILayout.Height(42)))
+            if (GUILayout.Button(arLabel, GUILayout.Height(38)))
             {
                 ARTabletopController.Instance?.ToggleARMode();
             }
@@ -243,22 +365,24 @@ namespace LlamAcademy.Dinos.UI
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
 
-            GUILayout.Space(10);
+            GUILayout.EndScrollView();
+
+            GUILayout.Space(6);
 
             // ==========================================
-            // Section 3: Bottom Action Buttons (Resume, Quit)
+            // Section 4: Bottom Action Buttons (Resume, Quit)
             // ==========================================
             GUILayout.BeginHorizontal();
 
             GUI.backgroundColor = new Color(0.2f, 0.85f, 0.4f);
-            if (GUILayout.Button("<b><size=15>▶ TIẾP TỤC CHƠI (RESUME)</size></b>", GUILayout.Height(48)))
+            if (GUILayout.Button("<b><size=14>▶ TIẾP TỤC CHƠI (RESUME)</size></b>", GUILayout.Height(42)))
             {
                 IsOpen = false;
                 PrehistoricAudioManager.Instance?.PlayButtonClick();
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f);
-            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME (QUIT)</size></b>", GUILayout.Height(48), GUILayout.Width(170)))
+            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME (QUIT)</size></b>", GUILayout.Height(42), GUILayout.Width(160)))
             {
                 QuitGame();
             }
@@ -273,6 +397,7 @@ namespace LlamAcademy.Dinos.UI
         private void QuitGame()
         {
             PrehistoricAudioManager.Instance?.PlayButtonClick();
+            PrehistoricSaveManager.Instance?.AutoSaveCurrentRun();
             Debug.Log("<color=red>[Game]</color> Quitting application...");
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

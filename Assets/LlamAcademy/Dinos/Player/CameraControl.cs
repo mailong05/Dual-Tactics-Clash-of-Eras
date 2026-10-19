@@ -32,6 +32,13 @@ namespace LlamAcademy.Dinos.Player
         [SerializeField] [Range(0.01f, 0.2f)] private float MouseDragSensitivity = 0.045f;
         [SerializeField] private bool InvertMouseDrag = true; // Grab style: dragging cursor moves terrain with cursor
 
+        [Header("Mobile Touch Sensitivity & Inertia")]
+        [SerializeField] [Range(1.5f, 8.0f)] private float MobilePanMultiplier = 3.6f;
+        [SerializeField] [Range(0.005f, 0.04f)] private float MobilePinchSensitivity = 0.015f;
+        [SerializeField] [Range(2.0f, 15.0f)] private float InertiaFriction = 6.5f;
+        private Vector2 _touchPanVelocity = Vector2.zero;
+        private bool _isTouchActive = false;
+
         [Header("Mouse Zoom")]
         [SerializeField] private bool EnableZoom = true;
         [SerializeField] [Range(0.3f, 1.0f)] private float MinZoom = 0.45f;
@@ -148,6 +155,7 @@ namespace LlamAcademy.Dinos.Player
             _CurrentZoom = Mathf.Lerp(_CurrentZoom, _TargetZoom, Time.deltaTime * ZoomSmoothSpeed);
             UpdateFollowOffset();
 
+            HandleTouchInertia();
             ClampToWorld();
         }
 
@@ -210,7 +218,7 @@ namespace LlamAcademy.Dinos.Player
         /// <summary>
         /// Moves the camera focus point smoothly across the map based on screen delta (for Touch & Mouse Drag)
         /// </summary>
-        public void PanCamera(Vector2 screenDelta)
+        public void PanCamera(Vector2 screenDelta, bool isTouch = false)
         {
             if (CinemachineCamera == null || CinemachineCamera.Follow == null) return;
 
@@ -222,20 +230,74 @@ namespace LlamAcademy.Dinos.Player
             camForward.y = 0f;
             camForward.Normalize();
 
-            float dragScale = MouseDragSensitivity * _CurrentZoom * (1080f / Mathf.Max(Screen.height, 1f));
+            float multiplier = isTouch ? MobilePanMultiplier : 1.0f;
+            float dragScale = MouseDragSensitivity * multiplier * _CurrentZoom * (1080f / Mathf.Max(Screen.height, 1f));
             float sign = InvertMouseDrag ? -1f : 1f;
             Vector3 move = (camRight * (screenDelta.x * sign) + camForward * (screenDelta.y * sign)) * dragScale;
 
             CinemachineCamera.Follow.position += move;
             ClampToWorld();
+
+            if (isTouch)
+            {
+                _isTouchActive = true;
+                // Calculate and smooth swipe velocity for inertia
+                Vector2 instantVelocity = screenDelta / Mathf.Max(Time.unscaledDeltaTime, 0.001f);
+                _touchPanVelocity = Vector2.Lerp(_touchPanVelocity, instantVelocity, 0.65f);
+            }
+        }
+
+        public void OnTouchBegan()
+        {
+            _isTouchActive = true;
+            _touchPanVelocity = Vector2.zero;
+        }
+
+        public void OnTouchEnded()
+        {
+            _isTouchActive = false;
+            // Cap maximum inertia velocity to avoid sudden extreme jumps
+            float maxVelocity = 4000f;
+            if (_touchPanVelocity.magnitude > maxVelocity)
+            {
+                _touchPanVelocity = _touchPanVelocity.normalized * maxVelocity;
+            }
+        }
+
+        private void HandleTouchInertia()
+        {
+            if (_isTouchActive || _touchPanVelocity.sqrMagnitude < 0.05f) return;
+            if (CinemachineCamera == null || CinemachineCamera.Follow == null) return;
+
+            Vector3 camRight = CinemachineCamera.transform.right;
+            camRight.y = 0f;
+            camRight.Normalize();
+
+            Vector3 camForward = CinemachineCamera.transform.forward;
+            camForward.y = 0f;
+            camForward.Normalize();
+
+            float dragScale = MouseDragSensitivity * MobilePanMultiplier * _CurrentZoom * (1080f / Mathf.Max(Screen.height, 1f));
+            float sign = InvertMouseDrag ? -1f : 1f;
+
+            Vector3 move = (camRight * (_touchPanVelocity.x * sign) + camForward * (_touchPanVelocity.y * sign)) * (dragScale * Time.deltaTime);
+            CinemachineCamera.Follow.position += move;
+
+            // Exponential smooth deceleration damping
+            _touchPanVelocity = Vector2.Lerp(_touchPanVelocity, Vector2.zero, InertiaFriction * Time.deltaTime);
+            if (_touchPanVelocity.sqrMagnitude < 0.1f)
+            {
+                _touchPanVelocity = Vector2.zero;
+            }
         }
 
         /// <summary>
         /// Smoothly zooms the camera in/out based on pinch gesture or slider
         /// </summary>
-        public void ZoomCamera(float pinchDelta)
+        public void ZoomCamera(float pinchDelta, bool isTouch = false)
         {
-            float sensitivity = 0.003f * (1080f / Mathf.Max(Screen.height, 1f));
+            float baseSens = isTouch ? MobilePinchSensitivity : 0.003f;
+            float sensitivity = baseSens * (1080f / Mathf.Max(Screen.height, 1f));
             _TargetZoom -= pinchDelta * sensitivity;
             _TargetZoom = Mathf.Clamp(_TargetZoom, MinZoom, MaxZoom);
         }

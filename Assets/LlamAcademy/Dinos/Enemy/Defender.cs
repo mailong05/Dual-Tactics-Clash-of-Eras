@@ -48,6 +48,14 @@ namespace LlamAcademy.Dinos.Enemy
         private bool _IsThrusting = false;
         private Vector3 _OriginalWeaponLocalPos;
         private Quaternion _OriginalWeaponLocalRot;
+        private Vector3 _ThreatenedWallPos = Vector3.zero;
+        private float _LastThreatTime = -99f;
+
+        public void AlertWallThreat(Vector3 threatenedWallPos)
+        {
+            _ThreatenedWallPos = threatenedWallPos;
+            _LastThreatTime = Time.time;
+        }
 
         protected override void Awake()
         {
@@ -498,6 +506,12 @@ namespace LlamAcademy.Dinos.Enemy
             // 2. TÁC CHIẾN BÌNH THƯỜNG (KHI KHÔNG CÓ BÁO ĐỘNG HOẶC LÀ NPC TUYẾN NGOÀI)
             Collider targetCol = FindNearestHostileMonster(AttackRange + 3.0f);
 
+            // Nếu không có quái ngay sát cạnh, nhưng tường/cổng làng đang bị tấn công gần đây (< 8 giây)
+            if (targetCol == null && Time.time - _LastThreatTime < 8.0f && _ThreatenedWallPos != Vector3.zero)
+            {
+                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 14.0f);
+            }
+
             if (targetCol != null)
             {
                 Vector3 targetPos = targetCol.bounds.center;
@@ -756,6 +770,25 @@ namespace LlamAcademy.Dinos.Enemy
                 if (score > bestPriorityScore)
                 {
                     bestPriorityScore = score;
+                    best = col;
+                }
+            }
+            return best;
+        }
+
+        private Collider FindHostileMonsterNearPoint(Vector3 point, float radius)
+        {
+            int count = Physics.OverlapSphereNonAlloc(point, radius, _ScanBuffer);
+            Collider best = null;
+            float closestDist = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                Collider col = _ScanBuffer[i];
+                if (!IsHostileMonster(col)) continue;
+                float d = Vector3.Distance(transform.position, col.bounds.center);
+                if (d < closestDist)
+                {
+                    closestDist = d;
                     best = col;
                 }
             }

@@ -44,10 +44,10 @@ namespace LlamAcademy.Dinos.Player
             Instance = this;
             ResourcesToSpend = 0;
 
-            // Mở rộng GroundLayer quét toàn bộ bề mặt địa hình/đường đi/sàn (trừ Ignore Raycast và UI)
+            // Mở rộng GroundLayer quét toàn bộ bề mặt địa hình/đường đi/sàn (trừ Ignore Raycast, UI, quái, và trigger bán kính đánh)
             if (GroundLayer.value == 0 || GroundLayer.value == 64)
             {
-                GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI");
+                GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius");
             }
         }
 
@@ -144,7 +144,8 @@ namespace LlamAcademy.Dinos.Player
                            Camera.ScreenPointToRay(pointerPos),
                            out RaycastHit hit,
                            float.MaxValue,
-                           GroundLayer))
+                           GroundLayer,
+                           QueryTriggerInteraction.Ignore))
                 {
                     if (Visualization != null)
                     {
@@ -178,7 +179,7 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         Vector3 spawnPos = hit.point;
-                        if (UnityEngine.AI.NavMesh.SamplePosition(hit.point, out UnityEngine.AI.NavMeshHit navHit, 15.0f, UnityEngine.AI.NavMesh.AllAreas))
+                        if (UnityEngine.AI.NavMesh.SamplePosition(hit.point, out UnityEngine.AI.NavMeshHit navHit, 25.0f, UnityEngine.AI.NavMesh.AllAreas))
                         {
                             spawnPos = navHit.position;
                         }
@@ -204,13 +205,22 @@ namespace LlamAcademy.Dinos.Player
 
                         if (spawnedDino is Unit.PrehistoricDinoBase pDino)
                         {
-                            pDino.EnsureOnNavMesh(15.0f);
+                            pDino.EnsureOnNavMesh(25.0f);
                             pDino.ConfigureNavMeshAgent();
                         }
                         else if (navAgent != null)
                         {
-                            navAgent.enabled = true;
-                            navAgent.Warp(spawnPos);
+                            if (!navAgent.isOnNavMesh)
+                            {
+                                navAgent.enabled = false;
+                                spawnedDino.transform.position = spawnPos;
+                                Physics.SyncTransforms();
+                                navAgent.enabled = true;
+                            }
+                            if (navAgent.isOnNavMesh)
+                            {
+                                navAgent.Warp(spawnPos);
+                            }
                         }
 
                         bool isCombatActive = isAssault && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.IsAssaultActive;
@@ -244,6 +254,7 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         OnSpawnDino?.Invoke(spawnedDino);
+                        Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(SpawnDino);
                         Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
 
                         // Nếu không giữ Shift, hủy chọn sau khi đặt
@@ -270,6 +281,10 @@ namespace LlamAcademy.Dinos.Player
             if (Visualization != null)
             {
                 Visualization.ChangeDino(Dino);
+            }
+            if (Dino != null)
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(Dino);
             }
         }
 

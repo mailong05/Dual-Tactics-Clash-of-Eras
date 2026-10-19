@@ -8335,6 +8335,7 @@ GameObject:
   - component: {fileID: 324391029}
   - component: {fileID: 324391028}
   - component: {fileID: 324391027}
+  - component: {fileID: 324391030}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -9798,6 +9799,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4afc219e12266754e999e8eeb5635e73, type: 2}
   - {fileID: 11400000, guid: e84b76fc858fb744ba93c17e6434a59c, type: 2}
   - {fileID: 11400000, guid: 962652fedbd94944d808290c275ab388, type: 2}
+  - {fileID: 11400000, guid: 5906034421f64a18aca214cc8a1229d8, type: 2}
   MonsterSpawnPoints: []
   _UseGridSnap: 1
   _GridSnapSize: 1.5
@@ -46302,3 +46304,11 @@ SceneRoots:
   - {fileID: 2043159173}
   - {fileID: 1966194039}
   - {fileID: 1159695075}
+--- !u!81 &324391030
+AudioListener:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 324391024}
+  m_Enabled: 1

@@ -151,26 +151,42 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
-        public bool EnsureOnNavMesh(float maxDistance = 15f)
+        public bool EnsureOnNavMesh(float maxDistance = 25f)
         {
             if (Agent == null) Agent = GetComponent<NavMeshAgent>();
             if (Agent == null) return false;
 
-            if (!Agent.enabled) Agent.enabled = true;
-
-            if (Agent.isOnNavMesh) return true;
+            if (Agent.enabled && Agent.isOnNavMesh) return true;
 
             if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, maxDistance, NavMesh.AllAreas))
             {
-                Agent.Warp(hit.position);
-                transform.position = hit.position;
+                if (Agent.isOnNavMesh)
+                {
+                    Agent.Warp(hit.position);
+                }
+                else
+                {
+                    Agent.enabled = false;
+                    transform.position = hit.position;
+                    Physics.SyncTransforms();
+                    Agent.enabled = true;
+                }
                 return Agent.isOnNavMesh;
             }
 
             if (NavMesh.SamplePosition(transform.position + Vector3.up * 1.5f, out hit, maxDistance * 1.5f, NavMesh.AllAreas))
             {
-                Agent.Warp(hit.position);
-                transform.position = hit.position;
+                if (Agent.isOnNavMesh)
+                {
+                    Agent.Warp(hit.position);
+                }
+                else
+                {
+                    Agent.enabled = false;
+                    transform.position = hit.position;
+                    Physics.SyncTransforms();
+                    Agent.enabled = true;
+                }
                 return Agent.isOnNavMesh;
             }
 
@@ -843,7 +859,7 @@ namespace LlamAcademy.Dinos.Unit
 
             if (Agent != null && (!Agent.enabled || !Agent.isOnNavMesh))
             {
-                EnsureOnNavMesh(15.0f);
+                EnsureOnNavMesh(25.0f);
             }
 
             float currentSpeed = (Agent != null && Agent.enabled && Agent.isOnNavMesh) ? Agent.velocity.magnitude : 0f;
@@ -1003,7 +1019,10 @@ namespace LlamAcademy.Dinos.Unit
                 float distToTarget = Vector3.Distance(transform.position, closestPoint);
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-                float effectiveAttackRange = AttackRange + agentRadius + 0.5f;
+                // Tường/rào cọc gỗ có NavMeshObstacle tạo khoảng đệm (carve buffer), mở rộng tầm đánh 1.5m để quái luôn đánh được
+                float effectiveAttackRange = (CurrentTarget is Wall) 
+                    ? (AttackRange + agentRadius + 1.5f) 
+                    : (AttackRange + agentRadius + 0.5f);
 
                 if (distToTarget <= effectiveAttackRange)
                 {
@@ -1030,7 +1049,21 @@ namespace LlamAcademy.Dinos.Unit
                     if (Agent != null && Agent.isOnNavMesh)
                     {
                         Agent.isStopped = false;
-                        Agent.SetDestination(closestPoint);
+                        Vector3 walkTarget = closestPoint;
+                        if (CurrentTarget is Wall)
+                        {
+                            Vector3 dirOut = (transform.position - closestPoint);
+                            dirOut.y = 0;
+                            if (dirOut.sqrMagnitude > 0.001f) dirOut.Normalize();
+                            else dirOut = (transform.position - targetCenter).normalized;
+
+                            Vector3 standAttempt = closestPoint + dirOut * 1.2f;
+                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 2.5f, NavMesh.AllAreas))
+                            {
+                                walkTarget = sHit.position;
+                            }
+                        }
+                        Agent.SetDestination(walkTarget);
                     }
                     return;
                 }
@@ -1265,11 +1298,17 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             string n = targetT.gameObject.name.ToLower();
+
+            // Tuyệt đối KHÔNG biến cầu, sàn gỗ, đường đi, mặt đất thành tường
+            if (n.Contains("bridge") || n.Contains("plank") || n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
+            {
+                return null;
+            }
+
             bool hasWallTag = false;
             try { hasWallTag = col.CompareTag("Wall") || col.CompareTag("Obstacle"); } catch {}
 
-            if (n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
-                n.Contains("arch entry") || n.Contains("big tower") || n.Contains("bastion") ||
+            if (n.Contains("wall") || n.Contains("barricade") ||
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
                 hasWallTag)
             {

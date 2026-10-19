@@ -77,18 +77,41 @@ namespace LlamAcademy.Dinos.RoundManagement
             NavMesh.RemoveAllNavMeshData();
             if (rebuildEnemySurface)
             {
-                EnemySurface.BuildNavMesh();
+                if (EnemySurface != null)
+                {
+                    EnemySurface.BuildNavMesh();
+                }
+
+                if (DinoSurfaces != null)
+                {
+                    foreach (NavMeshSurface surface in DinoSurfaces)
+                    {
+                        if (surface != null)
+                        {
+                            surface.BuildNavMesh();
+                        }
+                    }
+                }
             }
             else
             {
-                NavMesh.AddNavMeshData(EnemySurface.navMeshData);
+                if (EnemySurface != null && EnemySurface.navMeshData != null)
+                {
+                    NavMesh.AddNavMeshData(EnemySurface.navMeshData);
+                }
+                if (DinoSurfaces != null)
+                {
+                    foreach (NavMeshSurface surface in DinoSurfaces)
+                    {
+                        if (surface != null && surface.navMeshData != null)
+                        {
+                            NavMesh.AddNavMeshData(surface.navMeshData);
+                        }
+                    }
+                }
             }
             EnemyTriangulation = NavMesh.CalculateTriangulation();
             SetVisualizationFromTriangulation();
-            foreach (NavMeshSurface surface in DinoSurfaces)
-            {
-                NavMesh.AddNavMeshData(surface.navMeshData);
-            }
 
             OnNavMeshUpdated?.Invoke();
         }

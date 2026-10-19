@@ -51,7 +51,7 @@ namespace LlamAcademy.Dinos.Mobile
         private static Matrix4x4 _cachedMatrix = Matrix4x4.identity;
         private static bool _isScalingActive = false;
 
-        // Dynamic registry of active UI Rectangles (in virtual GUI coordinate space)
+        private static int _lastRegisteredFrame = -1;
         private static readonly List<Rect> _activeUIRects = new();
 
         public static void ClearUIRects()
@@ -61,6 +61,13 @@ namespace LlamAcademy.Dinos.Mobile
 
         public static void RegisterUIRect(Rect virtualRect)
         {
+            // Tự động làm mới danh sách rect theo frame, loại bỏ hoàn toàn các modal cũ đã đóng
+            if (Time.frameCount != _lastRegisteredFrame)
+            {
+                _activeUIRects.Clear();
+                _lastRegisteredFrame = Time.frameCount;
+            }
+
             if (!_activeUIRects.Contains(virtualRect))
             {
                 _activeUIRects.Add(virtualRect);
@@ -107,6 +114,12 @@ namespace LlamAcademy.Dinos.Mobile
             if (GUIUtility.hotControl != 0)
             {
                 return true;
+            }
+
+            // Nếu các UI rect không thuộc frame hiện tại hoặc frame liền trước, không chặn
+            if (Time.frameCount > _lastRegisteredFrame + 1)
+            {
+                return false;
             }
 
             // 3. Convert screen coordinates (bottom-left origin) to virtual GUI coordinates (top-left origin)
