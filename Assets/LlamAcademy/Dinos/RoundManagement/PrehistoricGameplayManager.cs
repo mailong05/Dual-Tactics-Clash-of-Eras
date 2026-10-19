@@ -7,6 +7,7 @@ using LlamAcademy.Dinos.Enemy;
 using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.UI;
 using LlamAcademy.Dinos.Unit;
+using LlamAcademy.Dinos.Utility;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
@@ -83,6 +84,12 @@ namespace LlamAcademy.Dinos.RoundManagement
         private Quaternion _InitialPlayerRot;
         private GameObject _PlayerObj;
 
+        // Điều khiển thanh đặt tháp và cuộn ngang linh hoạt (PC & Mobile)
+        private Vector2 _ToolbarScrollPosition = Vector2.zero;
+        private bool _IsDraggingToolbar = false;
+        private float _ToolbarDragStartMouseX = 0f;
+        private float _ToolbarDragStartScrollX = 0f;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -103,10 +110,12 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void CleanupInvisibleAndStrayObjects()
         {
-            // Danh sách các vật thể lạc ngoài map hoặc rác thực sự
+            // Danh sách các vật thể lạc ngoài map hoặc rác thực sự (bao gồm 2 chòi canh thủ gỗ tàng hình)
             string[] invisibleOrStrayNames = new string[]
             {
-                "Village_Left_Gap_Wall_128_neg152"
+                "Village_Left_Gap_Wall_128_neg152",
+                "Village_Watchtower_Left",
+                "Village_Watchtower_Right"
             };
 
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -115,11 +124,15 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                // 1. Xóa các vật thể rác hoặc lỗi tọa độ ngoài bản đồ
+                // 1. Xóa các vật thể rác hoặc lỗi tọa độ ngoài bản đồ (kể cả 2 chòi canh tàng hình)
                 foreach (string strayName in invisibleOrStrayNames)
                 {
                     if (n.Equals(strayName, StringComparison.OrdinalIgnoreCase))
                     {
+                        if (t.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
+                        {
+                            HealthBarCanvas.Instance.Unregister(u);
+                        }
                         Destroy(t.gameObject);
                         break;
                     }
@@ -153,7 +166,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
 
                 // 4. Đảm bảo Cầu Gỗ (Bridge) và Sàn Gỗ (Plank) tuyệt đối là đường đi thông suốt, KHÔNG bị gán Wall/Obstacle
-                if (t != null && (n.IndexOf("bridge", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("plank", StringComparison.OrdinalIgnoreCase) >= 0))
+                // CHÚ Ý QUAN TRỌNG: Tuyệt đối KHÔNG xóa nhầm hàng rào gỗ phòng thủ Plank_Defenses!
+                if (t != null && !n.Contains("defenses") && (n.IndexOf("bridge", StringComparison.OrdinalIgnoreCase) >= 0 || (n.IndexOf("plank", StringComparison.OrdinalIgnoreCase) >= 0 && n.IndexOf("defenses", StringComparison.OrdinalIgnoreCase) < 0)))
                 {
                     // Bật hiển thị cầu
                     Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
@@ -182,6 +196,20 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (go != null && go.name.StartsWith("HealthBar_"))
                 {
                     Destroy(go);
+                }
+            }
+
+            // 6. Xóa triệt để các thanh máu lơ lửng của 2 chòi canh gỗ tàng hình dưới HealthBarCanvas
+            if (HealthBarCanvas.HasInstance)
+            {
+                var canvas = HealthBarCanvas.Instance;
+                for (int i = canvas.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform c = canvas.transform.GetChild(i);
+                    if (c != null && (c.name.Contains("Village_Watchtower_Left") || c.name.Contains("Village_Watchtower_Right")))
+                    {
+                        Destroy(c.gameObject);
+                    }
                 }
             }
         }
@@ -876,21 +904,97 @@ namespace LlamAcademy.Dinos.RoundManagement
             return ActiveMonsters.Contains(unit);
         }
 
+        public int GetTargetDefendersForWave(int wave)
+        {
+            // Màn 1: 4 NPC | Màn 2: 7 NPC | Màn 3: 10 NPC (VD: 10 NPC) | Màn 4: 13 NPC | Màn 5: 16 NPC
+            return Mathf.Clamp(4 + (wave - 1) * 3, 4, 25);
+        }
+
         public void EnsureVillageDefendersActive()
         {
-            if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
+            var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+                ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
+                : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
+            if (ai != null)
             {
-                var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 ai.enabled = true;
                 ai.ResourcesToSpend += 300 + (_CurrentWave * 80);
-                ai.EnsureDefendersAlive(Mathf.Clamp(3 + _CurrentWave / 2, 4, 8));
+                ai.EnsureDefendersAlive(GetTargetDefendersForWave(_CurrentWave));
+            }
+        }
+
+        /// <summary>
+        /// Người dùng yêu cầu xóa bỏ 2 chòi canh thủ gỗ bị tàng hình.
+        /// Hàm này dọn sạch mọi instance còn sót lại và thanh máu lơ lửng của chúng.
+        /// </summary>
+        public void EnsureVillageWatchtowers()
+        {
+            CleanupVillageWatchtowers();
+        }
+
+        public void CleanupVillageWatchtowers()
+        {
+            GameObject fortressRoot = GameObject.Find("Village_Fortress_Wall");
+            if (fortressRoot != null)
+            {
+                Transform leftWt = fortressRoot.transform.Find("Village_Watchtower_Left");
+                if (leftWt != null)
+                {
+                    if (leftWt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
+                    {
+                        HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    Destroy(leftWt.gameObject);
+                }
+
+                Transform rightWt = fortressRoot.transform.Find("Village_Watchtower_Right");
+                if (rightWt != null)
+                {
+                    if (rightWt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
+                    {
+                        HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    Destroy(rightWt.gameObject);
+                }
+            }
+
+            GameObject strayLt = GameObject.Find("Village_Watchtower_Left");
+            if (strayLt != null)
+            {
+                if (strayLt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
+                {
+                    HealthBarCanvas.Instance.Unregister(u);
+                }
+                Destroy(strayLt);
+            }
+
+            GameObject strayRt = GameObject.Find("Village_Watchtower_Right");
+            if (strayRt != null)
+            {
+                if (strayRt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
+                {
+                    HealthBarCanvas.Instance.Unregister(u);
+                }
+                Destroy(strayRt);
+            }
+
+            if (HealthBarCanvas.HasInstance)
+            {
+                var canvas = HealthBarCanvas.Instance;
+                for (int i = canvas.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform c = canvas.transform.GetChild(i);
+                    if (c != null && (c.name.Contains("Village_Watchtower_Left") || c.name.Contains("Village_Watchtower_Right")))
+                    {
+                        Destroy(c.gameObject);
+                    }
+                }
             }
         }
 
         public void EnsureVillageFortressWallActive()
         {
-            // TÔN TRỌNG HOÀN TOÀN 100% CÁC CHỈNH SỬA THỦ CÔNG CỦA NGƯỜI CHƠI TRÊN SCENE:
-            // Tuyệt đối không xóa và không tự động sinh lại (respawn) bất kỳ vật thể nào khi chạy game.
+            CleanupVillageWatchtowers();
             return;
             GameObject existing = GameObject.Find("Village_Fortress_Wall");
             {
@@ -1174,7 +1278,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                 // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường, và TUYỆT ĐỐI không biến cầu/đường đi thành tường
                 if (n == "gate_complex" || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" || n == "right_flank_wall" ||
-                    n.Contains("bridge") || n.Contains("plank") || n.Contains("road") || n.Contains("path") || n.Contains("walkway") ||
+                    n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) || n.Contains("road") || n.Contains("path") || n.Contains("walkway") ||
                     n.Contains("floor") || n.Contains("ground") ||
                     n.Contains("camera") || n.Contains("light") || n.Contains("spawn") ||
                     n.Contains("system") || n.Contains("event") || n.Contains("healthbar") ||
@@ -1199,15 +1303,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
-                // 3. Nhận diện các object rào chắn, tường thành thực sự (bỏ qua cầu, đường đi, và phế tích cũ)
+                // 3. Nhận diện các object rào chắn, tường thành thực sự (kể cả hàng rào sườn phải Plank_Defenses)
                 bool hasWallTag = false;
                 try { hasWallTag = t.CompareTag("Wall") || t.CompareTag("Obstacle"); } catch {}
 
                 bool isWallCandidate = (n.Contains("barricade") || n.Contains("palisade") || n.Contains("fence") ||
                                        n.Contains("wooden__barricade") || n.Contains("wooden_barricade") ||
+                                       n.Contains("plank_defenses") ||
                                        (n.Contains("wall") && !n.Contains("arch entry")) ||
                                        hasWallTag ||
-                                       (t.GetComponent<Unit.Wall>() != null && !n.Contains("bridge") && !n.Contains("plank")))
+                                       (t.GetComponent<Unit.Wall>() != null && !n.Contains("bridge") && (!n.Contains("plank") || n.Contains("defenses"))))
                                        && !n.Contains("big tower") && !n.Contains("arch entry");
 
                 if (!isWallCandidate) continue;
@@ -1305,13 +1410,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (link != null) link.enabled = false;
                 }
 
-                // 6. BoxCollider bao phủ toàn bộ bề mặt rào chắn / tường
+                // 6. BoxCollider bao phủ toàn bộ bề mặt rào chắn / tường (bảo tồn nguyên vẹn cấu trúc nếu collider đã tồn tại)
                 if (!go.TryGetComponent(out BoxCollider col))
                 {
                     col = go.AddComponent<BoxCollider>();
+                    col.center = localCenter;
+                    col.size = localSize;
                 }
-                col.center = localCenter;
-                col.size = localSize;
+                else if (col.size.sqrMagnitude < 0.01f)
+                {
+                    col.center = localCenter;
+                    col.size = localSize;
+                }
                 col.enabled = true;
 
                 // 7. NavMeshObstacle Carving được bật tức thì (carveOnlyStationary = false)
@@ -1319,10 +1429,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (!go.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
                 {
                     obs = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                    obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                    obs.center = col.center;
+                    obs.size = col.size;
                 }
-                obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
-                obs.center = col.center;
-                obs.size = col.size;
+                else if (obs.size.sqrMagnitude < 0.01f)
+                {
+                    obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                    obs.center = col.center;
+                    obs.size = col.size;
+                }
                 obs.carving = true;
                 obs.carveOnlyStationary = false;
                 obs.enabled = true;
@@ -1421,6 +1537,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Đảm bảo cấu hình va chạm và chướng ngại vật
             ConfigureAllCustomBarricades();
 
+            // Phục hồi và đảm bảo 2 chòi canh trên bờ tường thành (Village_Watchtower_Left & Right)
+            EnsureVillageWatchtowers();
+
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
             {
@@ -1442,24 +1561,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
 
-            // 5. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders)
-            if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
-            {
-                var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
-                enemyAI.enabled = true;
-                enemyAI.ClearAllDefenders();
-                int defenderCount = Mathf.Clamp(4 + (_CurrentWave - 1) * 2, 4, 14);
-                enemyAI.EnsureDefendersAlive(defenderCount);
-            }
-
-            // 6. Xử lý các công trình phòng thủ của người chơi:
+            // 5. Xử lý các công trình phòng thủ của người chơi:
             if (!keepPlayerTowers)
             {
-                // Khi chơi lại từ đầu ván mới: dọn sạch tháp người chơi đã xây và đặt lại 500 vàng
+                // Xóa bỏ tất cả các vật thể người chơi đã đặt (tháp, bẫy, NPC warrior) và reset vàng theo màn hiện tại
                 if (TowerPlacer.Instance != null)
                 {
                     TowerPlacer.Instance.ClearAllPlacedTowers();
-                    TowerPlacer.Instance.ResetGoldToDefault(StartingGold);
+                    int waveGold = StartingGold + (_CurrentWave - 1) * 200;
+                    TowerPlacer.Instance.ResetGoldToDefault(waveGold);
                     TowerPlacer.Instance.DeselectTower();
                 }
             }
@@ -1480,7 +1590,34 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% toàn bộ ngôi làng: Tường thành, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
+            // 6. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders) theo màn hiện tại
+            var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+                ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
+                : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
+            if (enemyAI != null)
+            {
+                enemyAI.enabled = true;
+                int defenderCount = GetTargetDefendersForWave(_CurrentWave);
+                if (!keepPlayerTowers)
+                {
+                    // Chơi lại màn X hoặc Chơi lại từ đầu: Reset chính xác 100% số lượng NPC theo quy định của màn
+                    enemyAI.ResetDefendersToExactCount(defenderCount);
+                }
+                else
+                {
+                    // Chuyển màn mới thông thường: Giữ NPC của người chơi, bổ sung đủ số lượng NPC làng
+                    enemyAI.ClearAllDefenders(includePlayerPlaced: false);
+                    enemyAI.EnsureDefendersAlive(defenderCount);
+                }
+            }
+
+            // 7. Dọn sạch các thanh máu rác/mồ côi nếu có trên màn hình
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+
+            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% ngôi làng cho Màn {_CurrentWave}: Tường thành, 2 Chòi Canh Làng, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
         }
 
         public void FullResetGame()
@@ -1499,25 +1636,25 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // 3. Đặt lại Đợt chơi về Wave 1
+            // 3. Đặt lại Đợt chơi về Màn 1
             _CurrentWave = 1;
 
-            // 4. Reset 100% toàn bộ ngôi làng: phục hồi tường, căn cứ, NPC chiến binh, xóa tháp cũ và reset 500 vàng
-            ResetEntireVillage(keepPlayerTowers: false);
-
-            // 5. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
-            SetPhase(PrehistoricWavePhase.BuildingPhase);
-
-            // 6. Đồng bộ với RoundManager
+            // 4. Đồng bộ với RoundManager TRƯỚC KHI reset làng để dọn dẹp state và hủy các Invoke cũ
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ResetRoundToStart();
             }
 
+            // 5. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, 4 NPC)
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            // 6. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
+
             // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
             ResetPlayerAndCameraPosition();
 
-            ShowAnnouncement("⚔ BẮT ĐẦU VÁN MỚI! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN TỪ ĐỢT 1! ⚔", 4.0f);
+            ShowAnnouncement("⚔ CHƠI LẠI TỪ ĐẦU (MÀN 1)! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN! ⚔", 4.0f);
         }
 
         public void RetryCurrentWave()
@@ -1534,17 +1671,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // Phục hồi 100% toàn bộ ngôi làng: Tường, căn cứ, NPC, bộ nhớ AI; giữ nguyên các tháp phòng thủ của người chơi và hồi đầy máu cho tháp!
-            ResetEntireVillage(keepPlayerTowers: true);
-
-            SetPhase(PrehistoricWavePhase.BuildingPhase);
+            // Đồng bộ với RoundManager TRƯỚC KHI reset làng
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.SetCurrentRound(_CurrentWave);
             }
 
+            // Chơi lại màn X: Reset theo màn (tất cả mọi thứ NPC, vật thể, xóa bỏ tất cả các vật thể người chơi đã đặt)
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
+
             ResetPlayerAndCameraPosition();
-            ShowAnnouncement($"🔄 THỬ LẠI ĐỢT {_CurrentWave}! PHÒNG TUYẾN LÀNG ĐÃ ĐƯỢC PHỤC HỒI 100%! BẤM SPACE ĐỂ XUẤT TRẬN! ⚔", 4.0f);
+            ShowAnnouncement($"🔄 CHƠI LẠI MÀN {_CurrentWave}! PHÒNG TUYẾN ĐÃ ĐƯỢC RESET! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
         }
 
         public void RestartGame()
@@ -1604,18 +1743,89 @@ namespace LlamAcademy.Dinos.RoundManagement
             var towers = TowerPlacer.Instance.AvailableTowers;
             int gold = TowerPlacer.Instance.Gold;
 
-            float maxToolbarW = Mobile.MobileUIHelper.ScreenWidth - 24f;
-            float slotWidth = Mathf.Min(115f, (maxToolbarW - 20f) / towers.Count);
-            float toolbarWidth = towers.Count * slotWidth + 20f;
-            float toolbarHeight = 72f;
-            float x = (Mobile.MobileUIHelper.ScreenWidth - toolbarWidth) / 2f;
-            float y = Mobile.MobileUIHelper.ScreenHeight - toolbarHeight - 12f;
+            float screenW = Mobile.MobileUIHelper.ScreenWidth;
+            float screenH = Mobile.MobileUIHelper.ScreenHeight;
+
+            // Kích thước chuẩn từng nút công trình đảm bảo text không bao giờ bị cắt cụt
+            float slotWidth = 118f;
+            float slotHeight = 56f;
+            float spacing = 6f;
+
+            // Tổng chiều dài nội dung cần để chứa toàn bộ danh sách tháp/NPC
+            float totalContentWidth = towers.Count * (slotWidth + spacing) + 12f;
+
+            // Chiều rộng khung chứa toolbar ở đáy màn hình
+            float toolbarWidth = Mathf.Min(screenW - 20f, totalContentWidth + 24f);
+            float toolbarHeight = 80f;
+            float x = (screenW - toolbarWidth) / 2f;
+            float y = screenH - toolbarHeight - 10f;
 
             Rect toolbarRect = new Rect(x, y, toolbarWidth, toolbarHeight);
             Mobile.MobileUIHelper.RegisterUIRect(toolbarRect);
 
-            GUILayout.BeginArea(toolbarRect, GUI.skin.box);
-            GUILayout.BeginHorizontal();
+            // Kiểm tra xem danh sách có cần cuộn không
+            bool needsScroll = totalContentWidth > (toolbarWidth - 20f);
+            float maxScrollX = Mathf.Max(0f, totalContentWidth - (toolbarWidth - (needsScroll ? 78f : 20f)));
+
+            // Xử lý sự kiện kéo chuột / chạm vuốt (Drag to Scroll) và cuộn con lăn chuột (Mouse Scrollwheel)
+            Event currentEvent = Event.current;
+            if (currentEvent != null)
+            {
+                if (currentEvent.type == EventType.ScrollWheel && toolbarRect.Contains(currentEvent.mousePosition))
+                {
+                    _ToolbarScrollPosition.x = Mathf.Clamp(_ToolbarScrollPosition.x + currentEvent.delta.y * 45f, 0f, maxScrollX);
+                    currentEvent.Use();
+                }
+                else if (currentEvent.type == EventType.MouseDown && toolbarRect.Contains(currentEvent.mousePosition))
+                {
+                    _IsDraggingToolbar = true;
+                    _ToolbarDragStartMouseX = currentEvent.mousePosition.x;
+                    _ToolbarDragStartScrollX = _ToolbarScrollPosition.x;
+                }
+                else if (currentEvent.type == EventType.MouseDrag && _IsDraggingToolbar)
+                {
+                    float delta = currentEvent.mousePosition.x - _ToolbarDragStartMouseX;
+                    _ToolbarScrollPosition.x = Mathf.Clamp(_ToolbarDragStartScrollX - delta, 0f, maxScrollX);
+                }
+                else if (currentEvent.rawType == EventType.MouseUp)
+                {
+                    _IsDraggingToolbar = false;
+                }
+            }
+
+            // Vẽ khung nền toolbar thanh lịch, mờ nhẹ
+            GUI.backgroundColor = new Color(0.1f, 0.14f, 0.2f, 0.95f);
+            GUI.Box(toolbarRect, "");
+            GUI.backgroundColor = Color.white;
+
+            // Nếu danh sách bị tràn, vẽ thêm 2 nút mũi tên [◀] và [▶] hai bên để bấm cuộn cực kỳ tiện lợi trên cả PC và Mobile
+            float leftArrowWidth = needsScroll ? 28f : 0f;
+            float rightArrowWidth = needsScroll ? 28f : 0f;
+            float scrollAreaWidth = toolbarWidth - leftArrowWidth - rightArrowWidth - 8f;
+
+            if (needsScroll)
+            {
+                Rect leftBtnRect = new Rect(x + 4, y + (toolbarHeight - slotHeight) / 2f, leftArrowWidth - 2, slotHeight);
+                GUI.backgroundColor = _ToolbarScrollPosition.x > 5f ? new Color(0.3f, 0.7f, 1f, 1f) : new Color(0.5f, 0.5f, 0.5f, 0.5f);
+                if (GUI.Button(leftBtnRect, "<b>◀</b>"))
+                {
+                    _ToolbarScrollPosition.x = Mathf.Max(0f, _ToolbarScrollPosition.x - (slotWidth + spacing));
+                }
+
+                Rect rightBtnRect = new Rect(x + toolbarWidth - rightArrowWidth - 2, y + (toolbarHeight - slotHeight) / 2f, rightArrowWidth - 2, slotHeight);
+                GUI.backgroundColor = _ToolbarScrollPosition.x < maxScrollX - 5f ? new Color(0.3f, 0.7f, 1f, 1f) : new Color(0.5f, 0.5f, 0.5f, 0.5f);
+                if (GUI.Button(rightBtnRect, "<b>▶</b>"))
+                {
+                    _ToolbarScrollPosition.x = Mathf.Min(maxScrollX, _ToolbarScrollPosition.x + (slotWidth + spacing));
+                }
+                GUI.backgroundColor = Color.white;
+            }
+
+            // Vùng ScrollView chứa danh sách các tháp / NPC
+            Rect scrollAreaRect = new Rect(x + leftArrowWidth + 4, y + 6, scrollAreaWidth, toolbarHeight - 12);
+            Rect viewContentRect = new Rect(0, 0, totalContentWidth, slotHeight + 6);
+
+            _ToolbarScrollPosition = GUI.BeginScrollView(scrollAreaRect, _ToolbarScrollPosition, viewContentRect, false, false);
 
             for (int i = 0; i < towers.Count; i++)
             {
@@ -1627,14 +1837,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                 GUI.enabled = canAfford || isSelected;
 
-                if (isSelected) GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 1f);
-                else if (!canAfford) GUI.backgroundColor = new Color(0.45f, 0.45f, 0.45f, 0.75f);
+                if (isSelected) GUI.backgroundColor = new Color(0.2f, 0.95f, 0.35f, 1f);
+                else if (!canAfford) GUI.backgroundColor = new Color(0.4f, 0.4f, 0.4f, 0.75f);
                 else GUI.backgroundColor = Color.white;
 
                 string hotkeyStr = (!Mobile.MobileUIHelper.IsMobile && i < 9) ? $"[{i + 1}] " : "";
                 string label = $"{hotkeyStr}<b>{t.DisplayName}</b>\n<color=#FFD700>{t.Cost}g</color>";
 
-                if (GUILayout.Button(label, GUILayout.Width(slotWidth), GUILayout.Height(54)))
+                Rect btnRect = new Rect(i * (slotWidth + spacing) + 4, 3, slotWidth, slotHeight);
+
+                if (GUI.Button(btnRect, label))
                 {
                     if (isSelected)
                     {
@@ -1650,18 +1862,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUI.enabled = true;
             GUI.backgroundColor = Color.white;
-
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+            GUI.EndScrollView();
 
             if (TowerPlacer.Instance.ActiveTower != null && !Mobile.MobileUIHelper.IsMobile)
             {
-                float tipW = 480f;
+                float tipW = 500f;
                 float tipH = 30f;
-                float tipX = (Mobile.MobileUIHelper.ScreenWidth - tipW) / 2f;
+                float tipX = (screenW - tipW) / 2f;
                 float tipY = y - tipH - 4f;
 
-                GUI.backgroundColor = new Color(0f, 0f, 0f, 0.85f);
+                GUI.backgroundColor = new Color(0f, 0f, 0f, 0.88f);
                 GUI.Box(new Rect(tipX, tipY, tipW, tipH), $"<size=12><color=#55FF55>Đang chọn: <b>{TowerPlacer.Instance.ActiveTower.DisplayName}</b> | [Chuột Trái] Đặt | [Shift] Đặt nhiều | [Chuột Phải/ESC] Hủy</color></size>");
                 GUI.backgroundColor = Color.white;
             }
@@ -1849,16 +2059,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginHorizontal();
 
             string retryBtnText = Mobile.MobileUIHelper.IsMobile 
-                ? $"<b><size=15>🔄 THỬ LẠI ĐỢT {_CurrentWave}</size></b>\n<size=12>(Reset làng 100%)</size>"
-                : $"<b><size=15>🔄 THỬ LẠI ĐỢT {_CurrentWave}</size></b>\n<size=12>[Phím SPACE / ENTER]\n(Reset làng 100%, giữ tháp)</size>";
+                ? $"<b><size=15>🔄 CHƠI LẠI MÀN {_CurrentWave}</size></b>"
+                : $"<b><size=15>🔄 CHƠI LẠI MÀN {_CurrentWave}</size></b>\n<size=12>[Phím SPACE / ENTER]</size>";
 
             string resetBtnText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=15>⏮️ CHƠI TỪ WAVE 1</size></b>\n<size=12>(Reset 500 vàng)</size>"
-                : "<b><size=15>⏮️ CHƠI TỪ WAVE 1</size></b>\n<size=12>[Phím R]\n(Reset làng từ đầu, 500 vàng)</size>";
+                ? "<b><size=15>⏮️ CHƠI LẠI TỪ ĐẦU</size></b>"
+                : "<b><size=15>⏮️ CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím R]</size>";
 
             string quitBtnText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>(Rời trò chơi)</size>"
-                : "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>";
+                ? "<b><size=15>🚪 THOÁT GAME</size></b>"
+                : "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]</size>";
 
             GUI.backgroundColor = new Color(0.2f, 0.85f, 0.35f, 1f);
             if (GUILayout.Button(retryBtnText, GUILayout.Height(68), GUILayout.Width((modalW - 55) / 3)))
@@ -1920,8 +2130,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginHorizontal();
 
             string replayText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=16>🎉 CHƠI LẠI TRẬN MỚI</size></b>\n<size=12>(Bắt đầu từ Wave 1)</size>"
-                : "<b><size=16>🎉 CHƠI LẠI TRẬN MỚI</size></b>\n<size=12>[Phím SPACE / ENTER / R]\n(Bắt đầu trận mới từ Wave 1)</size>";
+                ? "<b><size=16>🎉 CHƠI LẠI TỪ ĐẦU</size></b>"
+                : "<b><size=16>🎉 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím SPACE / ENTER / R]</size>";
 
             string quitText = Mobile.MobileUIHelper.IsMobile
                 ? "<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>(Rời trò chơi)</size>"

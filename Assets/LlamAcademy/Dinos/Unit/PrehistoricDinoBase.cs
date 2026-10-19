@@ -32,6 +32,7 @@ namespace LlamAcademy.Dinos.Unit
         public Transform TargetBase { get; protected set; }
         protected float LastAttackTime;
         protected IDamageable CurrentTarget;
+        public IDamageable TargetDamageable => CurrentTarget;
         protected Collider[] ScanBuffer = new Collider[32];
 
         // GLB Animation Cache & Clips
@@ -1300,7 +1301,7 @@ namespace LlamAcademy.Dinos.Unit
             string n = targetT.gameObject.name.ToLower();
 
             // Tuyệt đối KHÔNG biến cầu, sàn gỗ, đường đi, mặt đất thành tường
-            if (n.Contains("bridge") || n.Contains("plank") || n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
+            if (n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) || n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
             {
                 return null;
             }
@@ -1310,6 +1311,7 @@ namespace LlamAcademy.Dinos.Unit
 
             if (n.Contains("wall") || n.Contains("barricade") ||
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
+                n.Contains("plank_defenses") ||
                 hasWallTag)
             {
                 GameObject go = targetT.gameObject;
@@ -1505,6 +1507,16 @@ namespace LlamAcademy.Dinos.Unit
         {
             int damage = target is Wall ? Mathf.CeilToInt(AttackDamage * BuildingDamageMultiplier) : AttackDamage;
             target.TakeDamage(damage);
+
+            // Báo động nguy cơ phá thành lũy/căn cứ cho toàn bộ Defender
+            if (target is Wall wallTarget)
+            {
+                Enemy.Defender.BroadcastWallThreat(wallTarget.transform.position, this);
+            }
+            else if (target is PrehistoricVillageBase baseTarget)
+            {
+                Enemy.Defender.BroadcastWallThreat(baseTarget.transform.position, this);
+            }
 
             bool hasAttackClip = ModelLegacyAnimation != null 
                 && !string.IsNullOrEmpty(_AttackClipName) 

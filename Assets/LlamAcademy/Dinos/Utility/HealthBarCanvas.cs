@@ -105,6 +105,19 @@ namespace LlamAcademy.Dinos.Utility
             }
         }
 
+        private void Start()
+        {
+            // Đảm bảo tất cả các tường rào chắn (kể cả Plank_Defenses sườn phải) đều được gắn và đăng ký thanh máu
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall != null && wall.gameObject.activeInHierarchy)
+                {
+                    wall.EnsureHealthBarAttached();
+                }
+            }
+        }
+
         private void LateUpdate()
         {
             Camera cam = Camera.main;
@@ -113,12 +126,27 @@ namespace LlamAcademy.Dinos.Utility
             bool missedCleaningAUnit = false;
             foreach (KeyValuePair<Unit.Unit, HealthBar> keyValuePair in HealthBars)
             {
-                if (keyValuePair.Key == null)
+                if (keyValuePair.Key == null || keyValuePair.Value == null)
                 {
                     missedCleaningAUnit = true;
                 }
-                else if (keyValuePair.Value != null)
+                else
                 {
+                    // Nếu Unit bị ẩn (inactive) hoặc đã chết: Ẩn thanh máu đi, không để bay lơ lửng trên màn hình
+                    if (!keyValuePair.Key.gameObject.activeInHierarchy || keyValuePair.Key.Health <= 0)
+                    {
+                        if (keyValuePair.Value.gameObject.activeSelf)
+                        {
+                            keyValuePair.Value.gameObject.SetActive(false);
+                        }
+                        continue;
+                    }
+
+                    if (!keyValuePair.Value.gameObject.activeSelf)
+                    {
+                        keyValuePair.Value.gameObject.SetActive(true);
+                    }
+
                     Vector3 targetPos;
                     if (keyValuePair.Key.TryGetComponent(out Collider col))
                     {
@@ -142,18 +170,40 @@ namespace LlamAcademy.Dinos.Utility
 
             if (missedCleaningAUnit)
             {
-                var deadPairs = HealthBars.Where(kvp => kvp.Key == null).ToArray();
-                for (int i = deadPairs.Length - 1; i >= 0; i--)
+                ClearOrphaned();
+            }
+        }
+
+        public void ClearAll()
+        {
+            foreach (var kvp in HealthBars)
+            {
+                if (kvp.Value != null && kvp.Value.gameObject != null)
                 {
-                    var kvp = deadPairs[i];
+                    Destroy(kvp.Value.gameObject);
+                }
+            }
+            HealthBars.Clear();
+        }
+
+        public void ClearOrphaned()
+        {
+            var validPairs = new Dictionary<Unit.Unit, HealthBar>();
+            foreach (var kvp in HealthBars)
+            {
+                if (kvp.Key == null || kvp.Value == null)
+                {
                     if (kvp.Value != null && kvp.Value.gameObject != null)
                     {
                         Destroy(kvp.Value.gameObject);
                     }
-
-                    HealthBars.Remove(kvp.Key);
+                }
+                else
+                {
+                    validPairs[kvp.Key] = kvp.Value;
                 }
             }
+            HealthBars = validPairs;
         }
 
         [SerializeField] private HealthBar HealthBarPrefab;
@@ -293,7 +343,7 @@ namespace LlamAcademy.Dinos.Utility
             if (unit is CatapultTower) return "☄️ Máy Bắn Đá";
             if (unit is TeslaTower) return "⚡ Trụ Sấm Sét";
             if (unit is FrostTower) return "❄️ Tháp Băng Tiền Sử";
-            if (unit is Wall) return "🪵 Rào Cọc Gỗ";
+            if (unit.gameObject.name.ToLower().Contains("plank_defenses") || unit is Wall) return "🪵 Rào Cọc Gỗ Cản Đường";
 
             string lower = unit.gameObject.name.ToLower();
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";

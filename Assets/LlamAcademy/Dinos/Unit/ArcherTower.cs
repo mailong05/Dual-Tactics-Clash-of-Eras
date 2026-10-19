@@ -155,7 +155,7 @@ namespace LlamAcademy.Dinos.Unit
             Renderer rend = shaft.GetComponent<Renderer>();
             if (rend != null)
             {
-                rend.material.color = new Color(0.45f, 0.28f, 0.14f);
+                rend.sharedMaterial = Rendering.PrehistoricShaderUtility.CreateSafeMaterial(new Color(0.48f, 0.30f, 0.15f), 0.15f);
             }
 
             // Arrow tip
@@ -168,7 +168,7 @@ namespace LlamAcademy.Dinos.Unit
             Renderer tipRend = tip.GetComponent<Renderer>();
             if (tipRend != null)
             {
-                tipRend.material.color = new Color(0.3f, 0.3f, 0.35f); // Flint grey
+                tipRend.sharedMaterial = Rendering.PrehistoricShaderUtility.CreateSafeMaterial(new Color(0.22f, 0.24f, 0.26f), 0.35f); // Flint grey
             }
 
             Destroy(arrow, 4f);
@@ -186,7 +186,16 @@ namespace LlamAcademy.Dinos.Unit
         public override void Die()
         {
             RaiseDeathEvent();
-            Destroy(gameObject);
+            if (name.Contains("Village_Watchtower") || (transform.parent != null && transform.parent.name.Contains("Fortress")))
+            {
+                // Đối với chòi cung thủ của làng: không Destroy hoàn toàn khỏi Scene
+                // để khi kết thúc wave hoặc chơi lại ván mới có thể SetActive(true) và hồi phục 100% máu
+                gameObject.SetActive(false);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
     }
 }

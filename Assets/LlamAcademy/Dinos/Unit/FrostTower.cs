@@ -20,6 +20,30 @@ namespace LlamAcademy.Dinos.Unit
         private float LastPulseTime;
         private Collider[] OverlapBuffer = new Collider[30];
 
+        protected override void Awake()
+        {
+            base.Awake();
+            if (EnemyLayers.value == 0)
+            {
+                EnemyLayers = LayerMask.GetMask("Dinos", "Default");
+            }
+        }
+
+        protected override void Start()
+        {
+            base.Start();
+
+            Renderer rend = GetComponent<Renderer>();
+            if (rend != null)
+            {
+                Material tarMat = Rendering.PrehistoricShaderUtility.CreateTarPitMaterial();
+                if (tarMat != null)
+                {
+                    rend.sharedMaterial = tarMat;
+                }
+            }
+        }
+
         protected override void Update()
         {
             base.Update();

@@ -72,13 +72,13 @@ namespace LlamAcademy.Dinos.Rendering
             CacheShaders();
             Material mat = null;
 
-            if (_CachedLitShader != null)
-            {
-                mat = new Material(_CachedLitShader);
-            }
-            else if (_FallbackLitMat != null)
+            if (_FallbackLitMat != null)
             {
                 mat = new Material(_FallbackLitMat);
+            }
+            else if (_CachedLitShader != null)
+            {
+                mat = new Material(_CachedLitShader);
             }
             else if (_CachedUnlitShader != null)
             {
@@ -86,11 +86,22 @@ namespace LlamAcademy.Dinos.Rendering
             }
             else
             {
-                Shader s = Shader.Find("Universal Render Pipeline/Simple Lit") ?? Shader.Find("Sprites/Default");
+                Shader s = Shader.Find("Universal Render Pipeline/Simple Lit") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Sprites/Default");
                 mat = s != null ? new Material(s) : new Material(Shader.Find("UI/Default"));
             }
 
             ApplyColor(mat, color, smoothness);
+            return mat;
+        }
+
+        public static Material CreateTarPitMaterial()
+        {
+            Color tarColor = new Color(0.12f, 0.09f, 0.07f, 0.96f); // Deep glistening prehistoric mud/tar
+            Material mat = CreateSafeMaterial(tarColor, 0.92f);
+            if (mat != null)
+            {
+                if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0.12f);
+            }
             return mat;
         }
 
@@ -124,10 +135,10 @@ namespace LlamAcademy.Dinos.Rendering
         private static void ApplyColor(Material mat, Color color, float smoothness)
         {
             if (mat == null) return;
-            mat.color = color;
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
             if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
             if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
+            if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", smoothness);
         }
     }
 }

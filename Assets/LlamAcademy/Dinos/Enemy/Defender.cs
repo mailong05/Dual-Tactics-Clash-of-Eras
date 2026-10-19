@@ -50,11 +50,28 @@ namespace LlamAcademy.Dinos.Enemy
         private Quaternion _OriginalWeaponLocalRot;
         private Vector3 _ThreatenedWallPos = Vector3.zero;
         private float _LastThreatTime = -99f;
+        private Unit.Unit _ThreateningDino = null;
 
-        public void AlertWallThreat(Vector3 threatenedWallPos)
+        public static void BroadcastWallThreat(Vector3 threatenedWallPos, Unit.Unit attackingDino = null)
+        {
+            for (int i = 0; i < AllDefenders.Count; i++)
+            {
+                var d = AllDefenders[i];
+                if (d != null && d.Health > 0 && d.gameObject.activeInHierarchy)
+                {
+                    d.AlertWallThreat(threatenedWallPos, attackingDino);
+                }
+            }
+        }
+
+        public void AlertWallThreat(Vector3 threatenedWallPos, Unit.Unit attackingDino = null)
         {
             _ThreatenedWallPos = threatenedWallPos;
             _LastThreatTime = Time.time;
+            if (attackingDino != null && attackingDino.Health > 0)
+            {
+                _ThreateningDino = attackingDino;
+            }
         }
 
         protected override void Awake()
@@ -105,6 +122,12 @@ namespace LlamAcademy.Dinos.Enemy
         protected override void Start()
         {
             base.Start();
+
+            if (MaxHealth < 180)
+            {
+                MaxHealth = 180;
+                Health = 180;
+            }
 
             if (NavMeshManager.Instance != null)
             {
@@ -503,13 +526,14 @@ namespace LlamAcademy.Dinos.Enemy
                 }
             }
 
-            // 2. TÁC CHIẾN BÌNH THƯỜNG (KHI KHÔNG CÓ BÁO ĐỘNG HOẶC LÀ NPC TUYẾN NGOÀI)
-            Collider targetCol = FindNearestHostileMonster(AttackRange + 3.0f);
+            // 2. TÁC CHIẾN BÌNH THƯỜNG / PHÒNG THỦ PHÁO ĐÀI VÀ CĂN CỨ
+            float searchRange = Mathf.Max(AttackRange + 8.0f, 26.0f);
+            Collider targetCol = FindNearestHostileMonster(searchRange);
 
-            // Nếu không có quái ngay sát cạnh, nhưng tường/cổng làng đang bị tấn công gần đây (< 8 giây)
+            // Nếu không có quái trong bán kính quét cá nhân, nhưng tường/pháo đài làng đang bị tấn công
             if (targetCol == null && Time.time - _LastThreatTime < 8.0f && _ThreatenedWallPos != Vector3.zero)
             {
-                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 14.0f);
+                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 18.0f);
             }
 
             if (targetCol != null)
@@ -517,19 +541,24 @@ namespace LlamAcademy.Dinos.Enemy
                 Vector3 targetPos = targetCol.bounds.center;
                 float distToTarget = Vector3.Distance(transform.position, targetPos);
 
-                // Xoay mượt mà đối diện hướng khủng long tấn công
+                // Xoay dứt khoát và chính xác đối diện hướng khủng long đang đánh pháo đài/căn cứ
                 Vector3 faceDir = (targetPos - transform.position);
                 faceDir.y = 0;
                 if (faceDir.sqrMagnitude > 0.001f)
                 {
-                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(faceDir), Time.deltaTime * 10f);
+                    transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(faceDir), 720f * Time.deltaTime);
                 }
 
                 // Nếu mục tiêu trong tầm đánh
                 if (distToTarget <= AttackRange)
                 {
-                    // Cung thủ kiting chiến thuật: nếu quái cận chiến áp sát (< 3.2m), lùi lại giữ cự ly an toàn
-                    if (Role == DefenderRole.Archer && distToTarget < 3.2f)
+                    if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                    {
+                        Agent.isStopped = true;
+                    }
+
+                    // Cung thủ kiting chiến thuật: nếu quái cận chiến áp sát (< 3.0m), lùi lại giữ cự ly an toàn
+                    if (Role == DefenderRole.Archer && distToTarget < 3.0f)
                     {
                         Vector3 retreatDir = (transform.position - targetPos).normalized;
                         retreatDir.y = 0;
@@ -538,6 +567,7 @@ namespace LlamAcademy.Dinos.Enemy
                         {
                             if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                             {
+                                Agent.isStopped = false;
                                 Agent.SetDestination(kHit.position);
                             }
                         }
@@ -551,9 +581,10 @@ namespace LlamAcademy.Dinos.Enemy
                 }
                 else
                 {
-                    // Di chuyển tiếp cận khủng long để ngăn chặn
+                    // Di chuyển tiếp cận khủng long để tiêu diệt
                     if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                     {
+                        Agent.isStopped = false;
                         Agent.SetDestination(targetPos);
                     }
                 }
@@ -625,9 +656,13 @@ namespace LlamAcademy.Dinos.Enemy
             _HeldWeapon.transform.localPosition = startPos;
             _IsThrusting = false;
 
-            if (targetCol != null && IsHostileMonster(targetCol) && targetCol.TryGetComponent(out IDamageable dmg))
+            if (targetCol != null && IsHostileMonster(targetCol))
             {
-                dmg.TakeDamage(AttackDamage + 5);
+                IDamageable dmg = targetCol.GetComponent<IDamageable>() ?? targetCol.GetComponentInParent<IDamageable>();
+                if (dmg != null && dmg.Health > 0)
+                {
+                    dmg.TakeDamage(AttackDamage + 5);
+                }
             }
         }
 
@@ -666,11 +701,15 @@ namespace LlamAcademy.Dinos.Enemy
                 Vector3 moveDir = (currentTargetPos - proj.transform.position).normalized;
                 if (moveDir != Vector3.zero) proj.transform.rotation = Quaternion.LookRotation(moveDir);
 
-                if (t >= 1.0f || (target != null && Vector3.Distance(proj.transform.position, currentTargetPos) < 0.8f))
+                if (t >= 1.0f || (target != null && Vector3.Distance(proj.transform.position, currentTargetPos) < 1.0f))
                 {
-                    if (target != null && IsHostileMonster(target) && target.TryGetComponent(out IDamageable damageable))
+                    if (target != null && IsHostileMonster(target))
                     {
-                        damageable.TakeDamage(dmgAmount);
+                        IDamageable damageable = target.GetComponent<IDamageable>() ?? target.GetComponentInParent<IDamageable>();
+                        if (damageable != null && damageable.Health > 0)
+                        {
+                            damageable.TakeDamage(dmgAmount);
+                        }
                     }
                     Destroy(proj);
                     yield break;
@@ -686,14 +725,26 @@ namespace LlamAcademy.Dinos.Enemy
             arrow.transform.position = pos;
             arrow.transform.rotation = Quaternion.LookRotation(dir);
 
+            // Cán tên gỗ nâu
             GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             DestroyImmediate(shaft.GetComponent<Collider>());
             shaft.transform.SetParent(arrow.transform, false);
             shaft.transform.localScale = new Vector3(0.04f, 0.45f, 0.04f);
             shaft.transform.localRotation = Quaternion.Euler(90f, 0, 0);
 
-            Material mat = CreateSafeWeaponMaterial(new Color(0.48f, 0.30f, 0.15f), 0.15f);
-            shaft.GetComponent<Renderer>().sharedMaterial = mat;
+            Material woodMat = CreateSafeWeaponMaterial(new Color(0.48f, 0.30f, 0.15f), 0.15f);
+            shaft.GetComponent<Renderer>().sharedMaterial = woodMat;
+
+            // Mũi tên đá lửa xám đen sắc nhọn
+            GameObject tip = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            DestroyImmediate(tip.GetComponent<Collider>());
+            tip.transform.SetParent(arrow.transform, false);
+            tip.transform.localScale = new Vector3(0.08f, 0.08f, 0.18f);
+            tip.transform.localPosition = new Vector3(0f, 0f, 0.45f);
+            tip.transform.localRotation = Quaternion.Euler(90f, 0, 0);
+
+            Material flintMat = CreateSafeWeaponMaterial(new Color(0.22f, 0.24f, 0.26f), 0.35f);
+            tip.GetComponent<Renderer>().sharedMaterial = flintMat;
 
             return arrow;
         }
@@ -731,6 +782,8 @@ namespace LlamAcademy.Dinos.Enemy
             Collider best = null;
             float bestPriorityScore = float.MinValue;
 
+            Vector3 basePos = GetBasePosition();
+
             for (int i = 0; i < count; i++)
             {
                 Collider col = _ScanBuffer[i];
@@ -742,29 +795,55 @@ namespace LlamAcademy.Dinos.Enemy
                 // Điểm số phân cấp độ nguy hiểm chiến thuật (Tactical Threat Scoring)
                 float score = 100f - dist;
 
-                Vector3 basePos = GetBasePosition();
-                bool isInvadingBase = Vector3.Distance(targetPos, basePos) <= 15.0f;
-                if (col.TryGetComponent(out PrehistoricDinoBase pdb) && pdb.HasReachedBase) isInvadingBase = true;
+                // 1. Khủng long đang trực tiếp cắn phá căn cứ hoặc tường/pháo đài làng
+                PrehistoricDinoBase dino = col.GetComponent<PrehistoricDinoBase>() ?? col.GetComponentInParent<PrehistoricDinoBase>();
+                if (dino != null)
+                {
+                    if (dino.HasReachedBase || dino.TargetDamageable is PrehistoricVillageBase)
+                    {
+                        score += 650f; // Đang đánh căn cứ chính!
+                    }
+                    else if (dino.TargetDamageable is Wall)
+                    {
+                        score += 380f; // Đang trực tiếp cắn phá tường thành / pháo đài!
+                    }
+                }
+
+                // 2. Khủng long đang xâm nhập căn cứ
+                bool isInvadingBase = Vector3.Distance(targetPos, basePos) <= 16.0f;
+                if (dino != null && dino.HasReachedBase) isInvadingBase = true;
                 if (col.TryGetComponent(out FlyingUnit fu) && fu.HasReachedBase) isInvadingBase = true;
 
-                // 0. KHỦNG LONG ĐANG XÂM NHẬP / CẮN PHÁ CĂN CỨ: ƯU TIÊN SỐ 1 TUYỆT ĐỐI!
                 if (isInvadingBase)
                 {
                     score += 500f;
                 }
 
+                // 3. Khủng long đang tiến sát tuyến pháo đài mặt trước làng (-10 <= Z <= 6)
+                if (targetPos.z >= -10.0f && targetPos.z <= 6.0f)
+                {
+                    score += 260f; // Tiếp cận pháo đài tiền tiêu!
+                }
+
+                // 4. Khủng long vừa được báo động phá tường
+                if (_ThreateningDino != null && _ThreateningDino.Health > 0 &&
+                    (col.gameObject == _ThreateningDino.gameObject || col.transform.IsChildOf(_ThreateningDino.transform)))
+                {
+                    score += 320f;
+                }
+
                 string n = col.gameObject.name.ToLower();
-                // 1. Quái chạy nhanh (Raptor) tiếp cận căn cứ: độ nguy hiểm cực cao
-                if (n.Contains("raptor") || n.Contains("runner")) score += 35f;
+                // 5. Quái chạy nhanh (Raptor) tiếp cận: nguy hiểm
+                if (n.Contains("raptor") || n.Contains("runner")) score += 40f;
 
-                // 2. Boss T-Rex: dồn hỏa lực tiêu diệt mục tiêu thủ lĩnh
-                if (n.Contains("trex") || n.Contains("t-rex") || n.Contains("boss")) score += 40f;
+                // 6. Boss T-Rex
+                if (n.Contains("trex") || n.Contains("t-rex") || n.Contains("boss")) score += 50f;
 
-                // 3. Quái đang vượt qua khe hở thâm nhập làng
+                // 7. Quái đang vượt qua khe hở thâm nhập làng
                 if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null &&
                     LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.IsWallNearActiveBreach(targetPos, 5.0f))
                 {
-                    score += 50f;
+                    score += 60f;
                 }
 
                 if (score > bestPriorityScore)
@@ -797,21 +876,23 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void OnNavMeshUpdated()
         {
-            if (Agent == null || !Agent.enabled) return;
+            if (Agent == null || !Agent.enabled || Health <= 0) return;
 
-            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, Agent.radius,
-                    new NavMeshQueryFilter() { agentTypeID = Agent.agentTypeID, areaMask = Agent.areaMask }))
+            // Khi NavMesh cập nhật (thêm/xóa tường chắn hoặc rào cản), đảm bảo NPC đứng an toàn trên NavMesh gần nhất thay vì chết oan
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
             {
-                if (GraphAgent != null) GraphAgent.enabled = false;
-                Agent.enabled = false;
-                if (Rigidbody != null)
+                if (Agent.isOnNavMesh)
                 {
-                    Rigidbody.isKinematic = false;
-                    Rigidbody.useGravity = true;
+                    Agent.Warp(hit.position);
                 }
-
-                RaiseDeathEvent();
-                Die();
+            }
+            else
+            {
+                if (transform.position.y < -10f)
+                {
+                    RaiseDeathEvent();
+                    Die();
+                }
             }
         }
 

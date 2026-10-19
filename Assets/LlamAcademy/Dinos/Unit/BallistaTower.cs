@@ -131,7 +131,7 @@ namespace LlamAcademy.Dinos.Unit
                 spear.transform.localScale = new Vector3(0.08f, 0.8f, 0.08f);
                 spear.transform.position = origin;
                 spear.transform.rotation = Quaternion.LookRotation(direction) * Quaternion.Euler(90, 0, 0);
-                spear.GetComponent<Renderer>().material.color = new Color(0.4f, 0.25f, 0.15f);
+                spear.GetComponent<Renderer>().sharedMaterial = Rendering.PrehistoricShaderUtility.CreateSafeMaterial(new Color(0.38f, 0.22f, 0.10f), 0.2f);
                 Destroy(spear.GetComponent<Collider>());
             }
 

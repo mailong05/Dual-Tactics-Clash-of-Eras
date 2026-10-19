@@ -2,8 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.Unit;
+using LlamAcademy.Dinos.Utility;
 using UnityEngine;
 using UnityEngine.AI;
 using Random = UnityEngine.Random;
@@ -20,6 +22,87 @@ namespace LlamAcademy.Dinos.Enemy
         [SerializeField] private List<Vector3> Waypoints;
 
         public static EnemyAIController Instance { get; private set; }
+
+        public static readonly Vector3[] VillageDefenseSpots = new Vector3[]
+        {
+            // --- SÂN TRÁI & PHẢI CỔNG LÀNG (Sân cát thoáng đãng nhìn thẳng từ Camera) ---
+            new Vector3(-6.5f, 0.0f, -14.0f),  // Chốt 1: Sân trái phía trước (bọc sườn chòi trái)
+            new Vector3(4.5f, 0.0f, -14.0f),   // Chốt 2: Sân phải phía trước (bọc sườn chòi phải)
+            new Vector3(-4.5f, 0.0f, -16.5f),  // Chốt 3: Sân trái trung tâm (cạnh cầu gỗ)
+            new Vector3(2.8f, 0.0f, -16.5f),   // Chốt 4: Sân phải trung tâm (trước lều rơm)
+
+            // --- TUYẾN PHÒNG THỦ CHIẾN THUẬT & TRỤC GIỮA (Wave 2 & 3) ---
+            new Vector3(-2.2f, 0.0f, -15.5f),  // Chốt 5: Trục chính sân làng (sau nhịp cầu)
+            new Vector3(-8.5f, 0.0f, -16.5f),  // Chốt 6: Cánh tây sân trái (sát hàng rào)
+            new Vector3(6.8f, 0.0f, -16.5f),   // Chốt 7: Cánh đông sân phải (sát hàng rào)
+            new Vector3(-6.5f, 0.0f, -19.0f),  // Chốt 8: Hậu tuyến sân trái
+            new Vector3(4.5f, 0.0f, -19.0f),   // Chốt 9: Hậu tuyến sân phải
+            new Vector3(-2.2f, 0.0f, -18.5f),  // Chốt 10: Tiền trạm trung tâm căn cứ
+
+            // --- TUYẾN DỰ BỊ VÀ TIỀN ĐỒN BẢO VỆ CĂN CỨ (Wave 4+) ---
+            new Vector3(-8.5f, 0.0f, -13.5f),  // Chốt 11: Góc tây bắc sân trái
+            new Vector3(6.5f, 0.0f, -13.5f),   // Chốt 12: Góc đông bắc sân phải
+            new Vector3(-5.0f, 0.0f, -21.0f),  // Chốt 13: Lối ngõ sườn trái về căn cứ
+            new Vector3(3.5f, 0.0f, -21.0f),   // Chốt 14: Lối ngõ sườn phải về căn cứ
+            new Vector3(-0.5f, 0.0f, -15.0f),  // Chốt 15: Cánh hữu trung tâm
+            new Vector3(-3.8f, 0.0f, -15.0f),  // Chốt 16: Cánh tả trung tâm
+            new Vector3(-2.2f, 0.0f, -24.0f),  // Chốt 17: Vệ binh tiền đồn căn cứ
+            new Vector3(-4.5f, 0.0f, -25.5f),  // Chốt 18: Vệ binh cánh trái căn cứ
+            new Vector3(0.5f, 0.0f, -25.5f),   // Chốt 19: Vệ binh cánh phải căn cứ
+            new Vector3(-2.2f, 0.0f, -27.5f)   // Chốt 20: Cận vệ bảo vệ Trứng / Căn Cứ Làng
+        };
+
+        /// <summary>
+        /// Tìm tọa độ điểm xuất hiện đảm bảo 100% nằm trên NavMesh của chiến binh làng (Humanoid).
+        /// </summary>
+        public static Vector3 GetValidDefenderSpawnPosition(int index)
+        {
+            Vector3 targetSpot = VillageDefenseSpots[Mathf.Abs(index) % VillageDefenseSpots.Length];
+
+            NavMeshQueryFilter filter = new NavMeshQueryFilter
+            {
+                agentTypeID = 0, // Humanoid
+                areaMask = NavMesh.AllAreas
+            };
+
+            // 1. Thử sample vị trí với filter Humanoid quanh 4m
+            if (NavMesh.SamplePosition(targetSpot, out NavMeshHit hit, 4.0f, filter))
+            {
+                return hit.position;
+            }
+
+            // 2. Thử sample vị trí rộng hơn 8m
+            if (NavMesh.SamplePosition(targetSpot, out NavMeshHit hitWide, 8.0f, filter))
+            {
+                return hitWide.position;
+            }
+
+            // 3. Dự phòng bằng các đỉnh đã bake trên EnemySurface trong phạm vi sân làng (Z: -28 đến -12)
+            if (NavMeshManager.Instance != null && NavMeshManager.Instance.EnemyTriangulation.vertices != null && NavMeshManager.Instance.EnemyTriangulation.vertices.Length > 0)
+            {
+                var verts = NavMeshManager.Instance.EnemyTriangulation.vertices;
+                float bestDist = float.MaxValue;
+                Vector3 bestVert = targetSpot;
+                for (int v = 0; v < verts.Length; v++)
+                {
+                    if (verts[v].z >= -28f && verts[v].z <= -12f && Mathf.Abs(verts[v].x) <= 12f)
+                    {
+                        float d = Vector3.Distance(targetSpot, verts[v]);
+                        if (d < bestDist)
+                        {
+                            bestDist = d;
+                            bestVert = verts[v];
+                        }
+                    }
+                }
+                if (bestDist < 40f)
+                {
+                    return bestVert;
+                }
+            }
+
+            return targetSpot;
+        }
 
         public delegate void DefenderEvent(Defender defender);
         public delegate void WallEvent(Wall wall);
@@ -200,22 +283,7 @@ namespace LlamAcademy.Dinos.Enemy
 
             if (Waypoints.Count == 0)
             {
-                Vector3[] defaultPatrolSpots = new Vector3[]
-                {
-                    new Vector3(-4.0f, 0f, -6.0f),
-                    new Vector3(0.0f, 0f, -6.0f),
-                    new Vector3(-2.2f, 0f, -9.0f),
-                    new Vector3(-8.0f, 0f, -8.0f),
-                    new Vector3(6.0f, 0f, -8.0f),
-                    new Vector3(-5.0f, 0f, -14.0f),
-                    new Vector3(4.0f, 0f, -14.0f),
-                    new Vector3(-2.2f, 0f, -20.0f),
-                    new Vector3(-6.0f, 0f, -26.0f),
-                    new Vector3(4.0f, 0f, -26.0f),
-                    new Vector3(-2.2f, 0f, -32.0f)
-                };
-
-                foreach (Vector3 spot in defaultPatrolSpots)
+                foreach (Vector3 spot in VillageDefenseSpots)
                 {
                     if (NavMesh.SamplePosition(spot, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
                     {
@@ -497,20 +565,144 @@ namespace LlamAcademy.Dinos.Enemy
                 int count = 0;
                 foreach (var pair in Defenders)
                 {
-                    count += pair.Value.Count(d => d != null);
+                    count += pair.Value.Count(d => d != null && d.gameObject != null && d.gameObject.activeInHierarchy && d.Health > 0);
                 }
                 return count;
             }
         }
 
+        /// <summary>
+        /// Reset toàn bộ NPC chiến binh làng và sinh chính xác số lượng NPC theo quy định của màn.
+        /// Xóa sạch NPC cũ và chia đều 50% Cung thủ (Archer), 50% Lính giáo (Spearman).
+        /// </summary>
+        public void ResetDefendersToExactCount(int targetCount)
+        {
+            // 1. Quét dọn triệt để 100% toàn bộ NPC chiến binh cũ trên Scene
+            ClearAllDefenders(includePlayerPlaced: true);
+
+            if (targetCount <= 0) return;
+
+            // 2. Tìm prefab Defender đáng tin cậy nhất (ưu tiên Prefab_TribalWarrior trong Resources)
+            Unit.Unit defenderPrefab = null;
+
+            GameObject resObj = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TribalWarrior") ?? Resources.Load<GameObject>("Prefabs/Prehistoric/Archer");
+#if UNITY_EDITOR
+            if (resObj == null)
+            {
+                resObj = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/LlamAcademy/Dinos/Enemy AI/Archer/Archer.prefab");
+            }
+#endif
+            if (resObj != null)
+            {
+                defenderPrefab = resObj.GetComponent<Unit.Unit>();
+            }
+
+            if (defenderPrefab == null && ActiveConfig != null && ActiveConfig.Units != null && ActiveConfig.Units.Count > 0)
+            {
+                var valid = ActiveConfig.Units.FirstOrDefault(u => u.UnitSO != null && u.UnitSO.Prefab != null);
+                if (valid.UnitSO != null) defenderPrefab = valid.UnitSO.Prefab;
+            }
+
+            if (defenderPrefab == null)
+            {
+                var warriorSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_TribalWarrior");
+#if UNITY_EDITOR
+                if (warriorSO == null)
+                {
+                    warriorSO = UnityEditor.AssetDatabase.LoadAssetAtPath<Config.TowerSO>("Assets/Config/Prehistoric/Tower_TribalWarrior.asset");
+                }
+#endif
+                if (warriorSO != null && warriorSO.Prefab != null)
+                {
+                    defenderPrefab = warriorSO.Prefab;
+                }
+            }
+
+            if (defenderPrefab == null)
+            {
+                Debug.LogError("<color=red>[EnemyAIController]</color> Không tìm thấy Prefab cho Defender!");
+                return;
+            }
+
+            // 3. Sinh đúng chính xác targetCount NPC tại các chốt phòng thủ trọng yếu trong sân làng
+            for (int i = 0; i < targetCount; i++)
+            {
+                Vector3 postPos = GetValidDefenderSpawnPosition(i);
+
+                // Luôn quay mặt về phía Bắc (Vector3.forward, Y = 0) hướng ra cổng làng
+                Defender newDef = Instantiate(defenderPrefab, postPos, Quaternion.Euler(0, 0, 0)) as Defender;
+                if (newDef != null)
+                {
+                    newDef.gameObject.SetActive(true);
+
+                    // Đồng bộ an toàn NavMeshAgent lên NavMesh của làng
+                    var agent = newDef.GetComponent<NavMeshAgent>();
+                    if (agent != null)
+                    {
+                        agent.enabled = false;
+                        newDef.transform.position = postPos;
+                        Physics.SyncTransforms();
+                        agent.enabled = true;
+                        if (NavMesh.SamplePosition(postPos, out NavMeshHit snapHit, 3.0f, NavMesh.AllAreas))
+                        {
+                            agent.Warp(snapHit.position);
+                        }
+                        else
+                        {
+                            agent.Warp(postPos);
+                        }
+                    }
+
+                    // Cân đối 50% Archer (bắn cung), 50% Spearman (phóng giáo & cận chiến)
+                    newDef.Role = (i % 2 == 0) ? DefenderRole.Archer : DefenderRole.Spearman;
+                    newDef.MaxHealth = Mathf.Max(newDef.MaxHealth, 180);
+                    newDef.Health = newDef.MaxHealth;
+                    newDef.EnsureHealthBarAttached();
+                    if (HealthBarCanvas.HasInstance)
+                    {
+                        HealthBarCanvas.Instance.CreateHealthBarForUnit(newDef);
+                    }
+
+                    UnitType uType = newDef.UnitType != null ? newDef.UnitType.Type : UnitType.Archer;
+                    if (!Defenders.ContainsKey(uType))
+                    {
+                        Defenders[uType] = new HashSet<Defender>();
+                    }
+                    Defenders[uType].Add(newDef);
+                    newDef.OnDeath += Defender_OnDeath;
+                    OnSpawnDefender?.Invoke(newDef);
+
+                    List<Vector3> myPatrol = new List<Vector3>
+                    {
+                        postPos,
+                        postPos + new Vector3(0.8f, 0f, 0.3f),
+                        postPos + new Vector3(-0.8f, 0f, -0.3f)
+                    };
+                    newDef.Patrol(myPatrol);
+                    newDef.SetDestination(postPos);
+                }
+            }
+
+            Debug.Log($"<color=green>[EnemyAIController]</color> Đã reset chính xác <b>{targetCount} NPC Chiến Binh</b> tại các vị trí phòng thủ trong làng!");
+        }
+
         public void EnsureDefendersAlive(int minDefenders = 4)
         {
-            if (ActiveConfig == null || ActiveConfig.Units == null || ActiveConfig.Units.Count == 0) return;
+            if (ActiveConfig == null)
+            {
+                ActiveConfig = Resources.Load<AIStyleConfig>("Configs/Balanced") ?? Resources.Load<AIStyleConfig>("Balanced");
+#if UNITY_EDITOR
+                if (ActiveConfig == null)
+                {
+                    ActiveConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<AIStyleConfig>("Assets/LlamAcademy/Dinos/Enemy AI/Configs/Balanced.asset");
+                }
+#endif
+            }
 
-            // Dọn dẹp các mục null
+            // Dọn dẹp các mục null hoặc không còn active
             foreach (var pair in Defenders)
             {
-                pair.Value.RemoveWhere(d => d == null);
+                pair.Value.RemoveWhere(d => d == null || !d.gameObject.activeInHierarchy || d.Health <= 0);
             }
 
             EnsureValidWaypoints();
@@ -519,68 +711,88 @@ namespace LlamAcademy.Dinos.Enemy
             if (currentCount < minDefenders)
             {
                 int needed = minDefenders - currentCount;
-                Vector3[] vertices = (NavMeshManager.Instance != null && NavMeshManager.Instance.EnemyTriangulation.vertices != null && NavMeshManager.Instance.EnemyTriangulation.vertices.Length >= 2)
-                    ? NavMeshManager.Instance.EnemyTriangulation.vertices
-                    : null;
-
-                Vector3 villageCenter = Defender.GetBasePosition();
-                if (villageCenter.z < -25f || villageCenter.sqrMagnitude < 0.001f)
+                Unit.Unit fallbackPrefab = null;
+                GameObject resObj = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TribalWarrior") ?? Resources.Load<GameObject>("Prefabs/Prehistoric/Archer");
+#if UNITY_EDITOR
+                if (resObj == null)
                 {
-                    villageCenter = new Vector3(-2.0f, 0.2f, 0.0f);
+                    resObj = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/LlamAcademy/Dinos/Enemy AI/Archer/Archer.prefab");
                 }
+#endif
+                if (resObj != null) fallbackPrefab = resObj.GetComponent<Unit.Unit>();
 
                 for (int i = 0; i < needed; i++)
                 {
-                    var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
-                    if (unitConfig.UnitSO == null || unitConfig.UnitSO.Prefab == null) continue;
+                    Unit.Unit prefabToUse = fallbackPrefab;
+                    UnitType uType = UnitType.Archer;
 
-                    Vector3 candidatePos;
-                    if (Waypoints != null && Waypoints.Count > 0)
+                    if (ActiveConfig != null && ActiveConfig.Units != null && ActiveConfig.Units.Count > 0)
                     {
-                        candidatePos = Waypoints[Random.Range(0, Waypoints.Count)] + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f));
-                    }
-                    else if (vertices != null && vertices.Length >= 2)
-                    {
-                        int index = Random.Range(1, vertices.Length);
-                        candidatePos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
-                    }
-                    else
-                    {
-                        candidatePos = villageCenter + new Vector3(Random.Range(-6f, 6f), 0f, Random.Range(-4f, 6f));
+                        var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
+                        if (unitConfig.UnitSO != null && unitConfig.UnitSO.Prefab != null)
+                        {
+                            prefabToUse = unitConfig.UnitSO.Prefab;
+                            uType = unitConfig.UnitSO.Type;
+                        }
                     }
 
-                    Vector3 finalSpawnPos = candidatePos;
-                    if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 25f, NavMesh.AllAreas))
-                    {
-                        finalSpawnPos = hit.position;
-                    }
-                    else if (NavMesh.SamplePosition(villageCenter, out NavMeshHit centerHit, 30f, NavMesh.AllAreas))
-                    {
-                        finalSpawnPos = centerHit.position;
-                    }
+                    if (prefabToUse == null) continue;
+
+                    Vector3 postPos = GetValidDefenderSpawnPosition(currentCount + i);
 
                     Defender defender = Instantiate(
-                        unitConfig.UnitSO.Prefab,
-                        finalSpawnPos,
-                        Quaternion.Euler(0, Random.Range(0, 360f), 0)
+                        prefabToUse,
+                        postPos,
+                        Quaternion.Euler(0, 0, 0)
                     ) as Defender;
 
                     if (defender != null)
                     {
+                        defender.gameObject.SetActive(true);
+
+                        // Đồng bộ an toàn NavMeshAgent lên NavMesh của làng
                         var agent = defender.GetComponent<UnityEngine.AI.NavMeshAgent>();
                         if (agent != null)
                         {
-                            agent.Warp(finalSpawnPos);
+                            agent.enabled = false;
+                            defender.transform.position = postPos;
+                            Physics.SyncTransforms();
+                            agent.enabled = true;
+                            if (NavMesh.SamplePosition(postPos, out NavMeshHit snapHit, 3.0f, NavMesh.AllAreas))
+                            {
+                                agent.Warp(snapHit.position);
+                            }
+                            else
+                            {
+                                agent.Warp(postPos);
+                            }
                         }
 
-                        if (!Defenders.ContainsKey(unitConfig.UnitSO.Type))
+                        defender.Role = ((currentCount + i) % 2 == 0) ? DefenderRole.Archer : DefenderRole.Spearman;
+                        defender.MaxHealth = Mathf.Max(defender.MaxHealth, 180);
+                        defender.Health = defender.MaxHealth;
+                        defender.EnsureHealthBarAttached();
+                        if (HealthBarCanvas.HasInstance)
                         {
-                            Defenders[unitConfig.UnitSO.Type] = new HashSet<Defender>();
+                            HealthBarCanvas.Instance.CreateHealthBarForUnit(defender);
                         }
-                        Defenders[unitConfig.UnitSO.Type].Add(defender);
+
+                        if (!Defenders.ContainsKey(uType))
+                        {
+                            Defenders[uType] = new HashSet<Defender>();
+                        }
+                        Defenders[uType].Add(defender);
                         defender.OnDeath += Defender_OnDeath;
                         OnSpawnDefender?.Invoke(defender);
-                        defender.Patrol(Waypoints);
+
+                        List<Vector3> myPatrol = new List<Vector3>
+                        {
+                            postPos,
+                            postPos + new Vector3(0.8f, 0f, 0.3f),
+                            postPos + new Vector3(-0.8f, 0f, -0.3f)
+                        };
+                        defender.Patrol(myPatrol);
+                        defender.SetDestination(postPos);
                     }
                 }
             }
@@ -601,19 +813,49 @@ namespace LlamAcademy.Dinos.Enemy
             OnSpawnDefender?.Invoke(defender);
         }
 
-        public void ClearAllDefenders()
+        public void ClearAllDefenders(bool includePlayerPlaced = true)
         {
             var allSceneDefenders = FindObjectsByType<Defender>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var d in allSceneDefenders)
             {
                 if (d != null && d.gameObject != null)
                 {
+                    bool isPlayerPlaced = d.GetComponent<PlayerPlacedTowerMarker>() != null;
+                    if (!includePlayerPlaced && isPlayerPlaced)
+                    {
+                        // Giữ lại NPC do người chơi bỏ vàng ra đặt: hồi 100% máu
+                        d.gameObject.SetActive(true);
+                        d.Health = d.MaxHealth;
+                        d.EnsureHealthBarAttached();
+                        continue;
+                    }
+
+                    if (HealthBarCanvas.HasInstance)
+                    {
+                        HealthBarCanvas.Instance.Unregister(d);
+                    }
+                    d.gameObject.SetActive(false);
                     Destroy(d.gameObject);
                 }
             }
+
             foreach (var pair in Defenders)
             {
                 pair.Value.Clear();
+            }
+
+            if (includePlayerPlaced)
+            {
+                Defender.AllDefenders.Clear();
+            }
+            else
+            {
+                Defender.AllDefenders.RemoveAll(d => d == null || !d.gameObject.activeInHierarchy);
+            }
+
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.ClearAliveDefenders();
             }
         }
 
