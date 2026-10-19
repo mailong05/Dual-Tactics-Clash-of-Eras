@@ -1129,7 +1129,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             GUI.backgroundColor = new Color(0.9f, 0.45f, 0.2f);
-            if (GUILayout.Button("<b><size=14>🔄 CHƠI LẠI MÀN NÀY\n(REPLAY LEVEL)</size></b>", GUILayout.Height(55)))
+            if (GUILayout.Button($"<b><size=14>🔄 CHƠI LẠI MÀN {AssaultLevel}</size></b>", GUILayout.Height(55)))
             {
                 RetryCurrentAssaultLevel();
             }
@@ -1177,8 +1177,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(18);
             GUILayout.BeginHorizontal();
 
-            string retryLabel = Mobile.MobileUIHelper.IsMobile ? $"<b><size=14>🔄 THỬ LẠI\nMÀN {AssaultLevel}</size></b>" : $"<b><size=14>🔄 THỬ LẠI\nMÀN {AssaultLevel}\n[SPACE]</size></b>";
-            string resetLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>⏮️ CHƠI TỪ ĐẦU\n(MÀN 1)</size></b>" : "<b><size=14>⏮️ CHƠI TỪ ĐẦU\n[PHÍM R]</size></b>";
+            string retryLabel = Mobile.MobileUIHelper.IsMobile ? $"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}</size></b>" : $"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}\n[SPACE]</size></b>";
+            string resetLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU</size></b>" : "<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU\n[PHÍM R]</size></b>";
             string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT\nGAME</size></b>" : "<b><size=14>🚪 THOÁT\n[ESC / Q]</size></b>";
 
             float btnW = (width - 40) / 3f;

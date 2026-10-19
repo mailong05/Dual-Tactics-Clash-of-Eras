@@ -1523,11 +1523,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 5. Xử lý các công trình phòng thủ của người chơi:
             if (!keepPlayerTowers)
             {
-                // Khi chơi lại từ đầu ván mới: dọn sạch tháp người chơi đã xây và đặt lại 500 vàng
+                // Xóa bỏ tất cả các vật thể người chơi đã đặt (tháp, bẫy, NPC warrior) và reset vàng theo màn hiện tại
                 if (TowerPlacer.Instance != null)
                 {
                     TowerPlacer.Instance.ClearAllPlacedTowers();
-                    TowerPlacer.Instance.ResetGoldToDefault(StartingGold);
+                    int waveGold = StartingGold + (_CurrentWave - 1) * 200;
+                    TowerPlacer.Instance.ResetGoldToDefault(waveGold);
                     TowerPlacer.Instance.DeselectTower();
                 }
             }
@@ -1548,12 +1549,12 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 6. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders)
+            // 6. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders) theo màn hiện tại
             if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
             {
                 var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 enemyAI.enabled = true;
-                // Nếu giữ tháp (Retry đợt X), bảo tồn và hồi đầy máu cho NPC chiến binh do người chơi đặt
+                // Xóa sạch toàn bộ NPC cũ (bao gồm cả NPC người chơi đặt nếu xóa tháp)
                 enemyAI.ClearAllDefenders(includePlayerPlaced: !keepPlayerTowers);
                 int defenderCount = GetTargetDefendersForWave(_CurrentWave);
                 enemyAI.EnsureDefendersAlive(defenderCount);
@@ -1565,7 +1566,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
 
-            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% toàn bộ ngôi làng: Tường thành, 2 Chòi Canh Làng, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
+            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% ngôi làng cho Màn {_CurrentWave}: Tường thành, 2 Chòi Canh Làng, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
         }
 
         public void FullResetGame()
@@ -1584,10 +1585,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // 3. Đặt lại Đợt chơi về Wave 1
+            // 3. Đặt lại Đợt chơi về Màn 1
             _CurrentWave = 1;
 
-            // 4. Reset 100% toàn bộ ngôi làng: phục hồi tường, căn cứ, NPC chiến binh, xóa tháp cũ và reset 500 vàng
+            // 4. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, 4 NPC)
             ResetEntireVillage(keepPlayerTowers: false);
 
             // 5. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
@@ -1602,7 +1603,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
             ResetPlayerAndCameraPosition();
 
-            ShowAnnouncement("⚔ BẮT ĐẦU VÁN MỚI! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN TỪ ĐỢT 1! ⚔", 4.0f);
+            ShowAnnouncement("⚔ CHƠI LẠI TỪ ĐẦU (MÀN 1)! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN! ⚔", 4.0f);
         }
 
         public void RetryCurrentWave()
@@ -1619,8 +1620,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // Phục hồi 100% toàn bộ ngôi làng: Tường, căn cứ, NPC, bộ nhớ AI; giữ nguyên các tháp phòng thủ của người chơi và hồi đầy máu cho tháp!
-            ResetEntireVillage(keepPlayerTowers: true);
+            // Chơi lại màn X: Reset theo màn (tất cả mọi thứ NPC, vật thể, xóa bỏ tất cả các vật thể người chơi đã đặt)
+            ResetEntireVillage(keepPlayerTowers: false);
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             if (RoundManager.Instance != null)
@@ -1629,7 +1630,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             ResetPlayerAndCameraPosition();
-            ShowAnnouncement($"🔄 THỬ LẠI ĐỢT {_CurrentWave}! PHÒNG TUYẾN LÀNG ĐÃ ĐƯỢC PHỤC HỒI 100%! BẤM SPACE ĐỂ XUẤT TRẬN! ⚔", 4.0f);
+            ShowAnnouncement($"🔄 CHƠI LẠI MÀN {_CurrentWave}! PHÒNG TUYẾN ĐÃ ĐƯỢC RESET! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
         }
 
         public void RestartGame()
@@ -2005,16 +2006,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginHorizontal();
 
             string retryBtnText = Mobile.MobileUIHelper.IsMobile 
-                ? $"<b><size=15>🔄 THỬ LẠI ĐỢT {_CurrentWave}</size></b>\n<size=12>(Reset làng 100%)</size>"
-                : $"<b><size=15>🔄 THỬ LẠI ĐỢT {_CurrentWave}</size></b>\n<size=12>[Phím SPACE / ENTER]\n(Reset làng 100%, giữ tháp)</size>";
+                ? $"<b><size=15>🔄 CHƠI LẠI MÀN {_CurrentWave}</size></b>"
+                : $"<b><size=15>🔄 CHƠI LẠI MÀN {_CurrentWave}</size></b>\n<size=12>[Phím SPACE / ENTER]</size>";
 
             string resetBtnText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=15>⏮️ CHƠI TỪ WAVE 1</size></b>\n<size=12>(Reset 500 vàng)</size>"
-                : "<b><size=15>⏮️ CHƠI TỪ WAVE 1</size></b>\n<size=12>[Phím R]\n(Reset làng từ đầu, 500 vàng)</size>";
+                ? "<b><size=15>⏮️ CHƠI LẠI TỪ ĐẦU</size></b>"
+                : "<b><size=15>⏮️ CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím R]</size>";
 
             string quitBtnText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>(Rời trò chơi)</size>"
-                : "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>";
+                ? "<b><size=15>🚪 THOÁT GAME</size></b>"
+                : "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]</size>";
 
             GUI.backgroundColor = new Color(0.2f, 0.85f, 0.35f, 1f);
             if (GUILayout.Button(retryBtnText, GUILayout.Height(68), GUILayout.Width((modalW - 55) / 3)))
@@ -2076,8 +2077,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginHorizontal();
 
             string replayText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=16>🎉 CHƠI LẠI TRẬN MỚI</size></b>\n<size=12>(Bắt đầu từ Wave 1)</size>"
-                : "<b><size=16>🎉 CHƠI LẠI TRẬN MỚI</size></b>\n<size=12>[Phím SPACE / ENTER / R]\n(Bắt đầu trận mới từ Wave 1)</size>";
+                ? "<b><size=16>🎉 CHƠI LẠI TỪ ĐẦU</size></b>"
+                : "<b><size=16>🎉 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím SPACE / ENTER / R]</size>";
 
             string quitText = Mobile.MobileUIHelper.IsMobile
                 ? "<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>(Rời trò chơi)</size>"
