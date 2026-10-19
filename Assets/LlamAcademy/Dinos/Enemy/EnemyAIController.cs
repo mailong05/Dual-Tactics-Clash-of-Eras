@@ -603,15 +603,16 @@ namespace LlamAcademy.Dinos.Enemy
 
         public void ClearAllDefenders()
         {
+            var allSceneDefenders = FindObjectsByType<Defender>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var d in allSceneDefenders)
+            {
+                if (d != null && d.gameObject != null)
+                {
+                    Destroy(d.gameObject);
+                }
+            }
             foreach (var pair in Defenders)
             {
-                foreach (Defender d in pair.Value)
-                {
-                    if (d != null)
-                    {
-                        Destroy(d.gameObject);
-                    }
-                }
                 pair.Value.Clear();
             }
         }

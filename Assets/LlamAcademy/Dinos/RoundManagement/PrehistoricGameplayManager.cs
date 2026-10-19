@@ -103,16 +103,9 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void CleanupInvisibleAndStrayObjects()
         {
-            // Danh sách các vật thể tàng hình, chìm dưới lòng đất hoặc tàn tích cũ chắn đường trước làng
+            // Danh sách các vật thể lạc ngoài map hoặc rác thực sự
             string[] invisibleOrStrayNames = new string[]
             {
-                "Big Tower with Platform",
-                "Big Tower with Platform (1)",
-                "Big Tower with Platform (2)",
-                "Arch Entry Wall",
-                "Arch Entry Wall (1)",
-                "Arch Entry Wall (2)",
-                "Arch Entry Wall (3)",
                 "Village_Left_Gap_Wall_128_neg152"
             };
 
@@ -122,7 +115,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                // 1. Xóa các chòi gỗ tàng hình và tàn tích cũ chắn đường
+                // 1. Xóa các vật thể rác hoặc lỗi tọa độ ngoài bản đồ
                 foreach (string strayName in invisibleOrStrayNames)
                 {
                     if (n.Equals(strayName, StringComparison.OrdinalIgnoreCase))
@@ -141,9 +134,34 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                 }
 
-                // 3. Đảm bảo Cầu Gỗ (Bridge) tuyệt đối là đường đi thông suốt, KHÔNG bị gán Wall/Obstacle
-                if (t != null && n.IndexOf("bridge", StringComparison.OrdinalIgnoreCase) >= 0)
+                // 3. ĐẢM BẢO CÁC CHÒI GỖ (Big Tower) VÀ CỔNG VÒM (Arch Entry Wall) LUÔN HIỂN THỊ ĐẦY ĐỦ VÀ KHÔNG KẸT ĐƯỜNG
+                if (t != null && (n.Contains("Big Tower") || n.Contains("Arch Entry")))
                 {
+                    // Bật lại toàn bộ MeshRenderer / SkinnedMeshRenderer nếu bị tắt
+                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends)
+                    {
+                        if (r != null) r.enabled = true;
+                    }
+
+                    // Tắt carving trên NavMeshObstacle của chòi/vòm để không tạo lỗ thủng trên NavMesh gây kẹt khủng long
+                    UnityEngine.AI.NavMeshObstacle[] obstacles = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
+                    foreach (var obs in obstacles)
+                    {
+                        if (obs != null) obs.carving = false;
+                    }
+                }
+
+                // 4. Đảm bảo Cầu Gỗ (Bridge) và Sàn Gỗ (Plank) tuyệt đối là đường đi thông suốt, KHÔNG bị gán Wall/Obstacle
+                if (t != null && (n.IndexOf("bridge", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("plank", StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    // Bật hiển thị cầu
+                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends)
+                    {
+                        if (r != null) r.enabled = true;
+                    }
+
                     if (t.TryGetComponent(out Unit.Wall bw)) Destroy(bw);
                     if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle bo)) Destroy(bo);
                     for (int c = t.childCount - 1; c >= 0; c--)
@@ -157,7 +175,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 4. Dọn sạch các thanh HealthBar rác không có cha bị lưu nhầm vào scene
+            // 5. Dọn sạch các thanh HealthBar rác không có cha bị lưu nhầm vào scene
             var allRootGOs = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
             foreach (var go in allRootGOs)
             {

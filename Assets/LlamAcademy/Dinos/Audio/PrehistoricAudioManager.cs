@@ -360,15 +360,18 @@ namespace LlamAcademy.Dinos.Audio
             {
                 PlayClipOnSource(modeClip, false);
 
+                // Chờ ít nhất 0.25s để AudioSource bắt đầu phát và cập nhật trạng thái isPlaying
+                yield return new WaitForSecondsRealtime(0.25f);
+
                 // Chờ cho đến khi bài nhạc riêng của chế độ phát hết
-                while (_bgmSource != null && _bgmSource.isPlaying && _bgmSource.time < (modeClip.length - 0.35f))
+                while (_bgmSource != null && _bgmSource.isPlaying && _bgmSource.time < (modeClip.length - 0.5f))
                 {
                     yield return null;
                 }
             }
 
             // Sau khi hết bài của chế độ, phát tiếp tục và loop nhạc nền chung
-            if (commonClip != null)
+            if (commonClip != null && _IsBgmEnabled)
             {
                 PlayClipOnSource(commonClip, true);
             }
@@ -377,12 +380,18 @@ namespace LlamAcademy.Dinos.Audio
         private void PlayClipOnSource(AudioClip clip, bool loop)
         {
             if (_bgmSource == null || clip == null) return;
+            if (clip.loadState != AudioDataLoadState.Loaded)
+            {
+                clip.LoadAudioData();
+            }
             _bgmSource.clip = clip;
             _bgmSource.loop = loop;
             _bgmSource.time = 0f;
+            _bgmSource.volume = _IsBgmEnabled ? _BgmVolume : 0f;
             if (_IsBgmEnabled)
             {
                 _bgmSource.Play();
+                Debug.Log($"<color=green>[AudioManager]</color> Playing BGM: {clip.name} (Loop: {loop}, Vol: {_bgmSource.volume:F2})");
             }
         }
 
@@ -426,15 +435,15 @@ namespace LlamAcademy.Dinos.Audio
             {
                 clipToPlay = _pterodactylClip;
             }
-            else if (lower.Contains("trex") || lower.Contains("t-rex"))
+            else if (lower.Contains("trex") || lower.Contains("t-rex") || lower.Contains("boss"))
             {
                 clipToPlay = _trexClip;
             }
-            else if (lower.Contains("anky"))
+            else if (lower.Contains("anky") || lower.Contains("siege"))
             {
                 clipToPlay = _ankylosaurusClip != null ? _ankylosaurusClip : _trexClip;
             }
-            else if (lower.Contains("velo") || lower.Contains("raptor"))
+            else if (lower.Contains("velo") || lower.Contains("raptor") || lower.Contains("runner") || lower.Contains("speed"))
             {
                 clipToPlay = _raptorClip;
             }
@@ -445,7 +454,12 @@ namespace LlamAcademy.Dinos.Audio
 
             if (clipToPlay != null)
             {
+                if (clipToPlay.loadState != AudioDataLoadState.Loaded)
+                {
+                    clipToPlay.LoadAudioData();
+                }
                 _sfxSource.PlayOneShot(clipToPlay, _SfxVolume * 1.0f);
+                Debug.Log($"<color=orange>[AudioManager]</color> Played Dino Sound for '{dinoName}': {clipToPlay.name}");
             }
         }
 
