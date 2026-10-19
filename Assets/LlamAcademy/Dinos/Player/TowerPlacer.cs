@@ -566,6 +566,12 @@ namespace LlamAcademy.Dinos.Player
                 {
                     towerObj.transform.position += Vector3.up * Mathf.Clamp(diffY, -1.5f, 1.5f);
                 }
+
+                // Đối với bẫy mặt đất (Vũng lầy / Bẫy chông), nâng nhẹ 0.025m để mặt phẳng tiếp đất hoàn hảo không bị nhấp nháy Z-fighting
+                if (towerObj.name.Contains("TarPit") || towerObj.name.Contains("SpikeTrap"))
+                {
+                    towerObj.transform.position += Vector3.up * 0.025f;
+                }
             }
         }
 

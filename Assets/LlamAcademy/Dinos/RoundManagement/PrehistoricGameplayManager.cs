@@ -882,6 +882,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             return ActiveMonsters.Contains(unit);
         }
 
+        public int GetTargetDefendersForWave(int wave)
+        {
+            return Mathf.Clamp(4 + (wave - 1) * 2, 4, 14);
+        }
+
         public void EnsureVillageDefendersActive()
         {
             if (LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null)
@@ -889,7 +894,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 ai.enabled = true;
                 ai.ResourcesToSpend += 300 + (_CurrentWave * 80);
-                ai.EnsureDefendersAlive(Mathf.Clamp(3 + _CurrentWave / 2, 4, 8));
+                ai.EnsureDefendersAlive(GetTargetDefendersForWave(_CurrentWave));
             }
         }
 
@@ -1548,8 +1553,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance;
                 enemyAI.enabled = true;
-                enemyAI.ClearAllDefenders();
-                int defenderCount = Mathf.Clamp(4 + (_CurrentWave - 1) * 2, 4, 14);
+                // Nếu giữ tháp (Retry đợt X), bảo tồn và hồi đầy máu cho NPC chiến binh do người chơi đặt
+                enemyAI.ClearAllDefenders(includePlayerPlaced: !keepPlayerTowers);
+                int defenderCount = GetTargetDefendersForWave(_CurrentWave);
                 enemyAI.EnsureDefendersAlive(defenderCount);
             }
 

@@ -123,6 +123,12 @@ namespace LlamAcademy.Dinos.Enemy
         {
             base.Start();
 
+            if (MaxHealth < 180)
+            {
+                MaxHealth = 180;
+                Health = 180;
+            }
+
             if (NavMeshManager.Instance != null)
             {
                 NavMeshManager.Instance.OnNavMeshUpdated += OnNavMeshUpdated;
@@ -719,14 +725,26 @@ namespace LlamAcademy.Dinos.Enemy
             arrow.transform.position = pos;
             arrow.transform.rotation = Quaternion.LookRotation(dir);
 
+            // Cán tên gỗ nâu
             GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             DestroyImmediate(shaft.GetComponent<Collider>());
             shaft.transform.SetParent(arrow.transform, false);
             shaft.transform.localScale = new Vector3(0.04f, 0.45f, 0.04f);
             shaft.transform.localRotation = Quaternion.Euler(90f, 0, 0);
 
-            Material mat = CreateSafeWeaponMaterial(new Color(0.48f, 0.30f, 0.15f), 0.15f);
-            shaft.GetComponent<Renderer>().sharedMaterial = mat;
+            Material woodMat = CreateSafeWeaponMaterial(new Color(0.48f, 0.30f, 0.15f), 0.15f);
+            shaft.GetComponent<Renderer>().sharedMaterial = woodMat;
+
+            // Mũi tên đá lửa xám đen sắc nhọn
+            GameObject tip = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            DestroyImmediate(tip.GetComponent<Collider>());
+            tip.transform.SetParent(arrow.transform, false);
+            tip.transform.localScale = new Vector3(0.08f, 0.08f, 0.18f);
+            tip.transform.localPosition = new Vector3(0f, 0f, 0.45f);
+            tip.transform.localRotation = Quaternion.Euler(90f, 0, 0);
+
+            Material flintMat = CreateSafeWeaponMaterial(new Color(0.22f, 0.24f, 0.26f), 0.35f);
+            tip.GetComponent<Renderer>().sharedMaterial = flintMat;
 
             return arrow;
         }

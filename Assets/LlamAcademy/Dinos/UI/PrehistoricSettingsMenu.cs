@@ -128,34 +128,44 @@ namespace LlamAcademy.Dinos.UI
             GUI.DrawTexture(new Rect(0, 0, MobileUIHelper.ScreenWidth, MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = Mathf.Min(650f, MobileUIHelper.ScreenWidth - 24f);
-            float modalH = Mathf.Min(600f, MobileUIHelper.ScreenHeight - 20f);
+            float modalW = Mathf.Min(640f, MobileUIHelper.ScreenWidth - 20f);
+            float modalH = Mathf.Min(560f, MobileUIHelper.ScreenHeight - 16f);
             float x = (MobileUIHelper.ScreenWidth - modalW) / 2f;
             float y = (MobileUIHelper.ScreenHeight - modalH) / 2f;
 
             Rect modalRect = new Rect(x, y, modalW, modalH);
             MobileUIHelper.RegisterUIRect(modalRect);
 
-            GUI.backgroundColor = new Color(0.12f, 0.16f, 0.22f, 0.98f);
+            GUI.backgroundColor = new Color(0.10f, 0.14f, 0.20f, 0.98f);
             GUI.Box(modalRect, GUIContent.none);
 
-            GUILayout.BeginArea(new Rect(x + 18, y + 14, modalW - 36, modalH - 28));
+            float padX = 14f;
+            float padY = 10f;
+            float contentW = modalW - padX * 2f;
+            float contentH = modalH - padY * 2f;
+
+            GUILayout.BeginArea(new Rect(x + padX, y + padY, contentW, contentH));
             GUILayout.BeginVertical();
 
-            // Header
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("<b><size=19><color=#FFD700>⚙️ CÀI ĐẶT & TÙY CHỌN TRÒ CHƠI</color></size></b>");
+            // Header (fixed height)
+            float headerH = 34f;
+            GUILayout.BeginHorizontal(GUILayout.Height(headerH));
+            GUILayout.Label("<b><size=18><color=#FFD700>⚙️ CÀI ĐẶT & TÙY CHỌN TRÒ CHƠI</color></size></b>");
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("✕", GUILayout.Width(36), GUILayout.Height(28)))
+            if (GUILayout.Button("✕", GUILayout.Width(34), GUILayout.Height(26)))
             {
                 IsOpen = false;
                 PrehistoricAudioManager.Instance?.PlayButtonClick();
             }
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(6);
+            GUILayout.Space(4);
 
-            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(modalH - 100));
+            // Scrollable area dynamically sized to leave clean space for bottom buttons
+            float bottomBtnsH = 42f;
+            float scrollH = Mathf.Max(100f, contentH - headerH - bottomBtnsH - 16f);
+
+            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(scrollH));
 
             // ==========================================
             // Section 1: Audio Controls (Master, BGM, SFX)

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.Unit;
 using LlamAcademy.Dinos.Utility;
@@ -506,6 +507,17 @@ namespace LlamAcademy.Dinos.Enemy
 
         public void EnsureDefendersAlive(int minDefenders = 4)
         {
+            if (ActiveConfig == null)
+            {
+                ActiveConfig = Resources.Load<AIStyleConfig>("Configs/Balanced") ?? Resources.Load<AIStyleConfig>("Balanced");
+#if UNITY_EDITOR
+                if (ActiveConfig == null)
+                {
+                    ActiveConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<AIStyleConfig>("Assets/LlamAcademy/Dinos/Enemy AI/Configs/Balanced.asset");
+                }
+#endif
+            }
+
             if (ActiveConfig == null || ActiveConfig.Units == null || ActiveConfig.Units.Count == 0) return;
 
             // Dọn dẹp các mục null
@@ -568,6 +580,14 @@ namespace LlamAcademy.Dinos.Enemy
 
                     if (defender != null)
                     {
+                        defender.MaxHealth = Mathf.Max(defender.MaxHealth, 180);
+                        defender.Health = defender.MaxHealth;
+                        defender.EnsureHealthBarAttached();
+                        if (HealthBarCanvas.HasInstance)
+                        {
+                            HealthBarCanvas.Instance.CreateHealthBarForUnit(defender);
+                        }
+
                         var agent = defender.GetComponent<UnityEngine.AI.NavMeshAgent>();
                         if (agent != null)
                         {
@@ -602,25 +622,43 @@ namespace LlamAcademy.Dinos.Enemy
             OnSpawnDefender?.Invoke(defender);
         }
 
-        public void ClearAllDefenders()
+        public void ClearAllDefenders(bool includePlayerPlaced = true)
         {
             var allSceneDefenders = FindObjectsByType<Defender>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var d in allSceneDefenders)
             {
                 if (d != null && d.gameObject != null)
                 {
+                    bool isPlayerPlaced = d.GetComponent<PlayerPlacedTowerMarker>() != null;
+                    if (!includePlayerPlaced && isPlayerPlaced)
+                    {
+                        // Giữ lại NPC do người chơi bỏ vàng ra đặt: hồi 100% máu
+                        d.gameObject.SetActive(true);
+                        d.Health = d.MaxHealth;
+                        d.EnsureHealthBarAttached();
+                        continue;
+                    }
+
                     if (HealthBarCanvas.HasInstance)
                     {
                         HealthBarCanvas.Instance.Unregister(d);
                     }
+                    d.gameObject.SetActive(false);
                     Destroy(d.gameObject);
                 }
             }
+
             foreach (var pair in Defenders)
             {
                 pair.Value.Clear();
             }
-            Defender.AllDefenders.Clear();
+
+            Defender.AllDefenders.RemoveAll(d => d == null || !d.gameObject.activeInHierarchy);
+
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.ClearAliveDefenders();
+            }
         }
 
         [System.Serializable]

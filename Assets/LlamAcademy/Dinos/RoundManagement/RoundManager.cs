@@ -96,6 +96,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             State = GameState.Setup;
             IsEndingRound = false;
             ActiveDinos.Clear();
+            AliveDefenders.Clear();
+        }
+
+        public void ClearAliveDefenders()
+        {
+            AliveDefenders.Clear();
         }
 
         private IEnumerator Start()
