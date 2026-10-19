@@ -90,6 +90,14 @@ namespace LlamAcademy.Dinos.RoundManagement
             AliveDefenders.Clear();
         }
 
+        public void SetCurrentRound(int roundNumber)
+        {
+            Round = Mathf.Max(1, roundNumber);
+            State = GameState.Setup;
+            IsEndingRound = false;
+            ActiveDinos.Clear();
+        }
+
         private IEnumerator Start()
         {
             if (DinoSpawner.Instance != null)

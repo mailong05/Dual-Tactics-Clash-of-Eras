@@ -1453,10 +1453,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             if (RoundManager.Instance != null)
             {
-                RoundManager.Instance.Round = _CurrentWave;
-                RoundManager.Instance.State = GameState.Setup;
-                RoundManager.Instance.IsEndingRound = false;
-                RoundManager.Instance.ActiveDinos.Clear();
+                RoundManager.Instance.SetCurrentRound(_CurrentWave);
             }
 
             ResetPlayerAndCameraPosition();
