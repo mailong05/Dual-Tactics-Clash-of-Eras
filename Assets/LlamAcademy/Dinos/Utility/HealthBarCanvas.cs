@@ -105,6 +105,19 @@ namespace LlamAcademy.Dinos.Utility
             }
         }
 
+        private void Start()
+        {
+            // Đảm bảo tất cả các tường rào chắn (kể cả Plank_Defenses sườn phải) đều được gắn và đăng ký thanh máu
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall != null && wall.gameObject.activeInHierarchy)
+                {
+                    wall.EnsureHealthBarAttached();
+                }
+            }
+        }
+
         private void LateUpdate()
         {
             Camera cam = Camera.main;
@@ -330,7 +343,7 @@ namespace LlamAcademy.Dinos.Utility
             if (unit is CatapultTower) return "☄️ Máy Bắn Đá";
             if (unit is TeslaTower) return "⚡ Trụ Sấm Sét";
             if (unit is FrostTower) return "❄️ Tháp Băng Tiền Sử";
-            if (unit is Wall) return "🪵 Rào Cọc Gỗ";
+            if (unit.gameObject.name.ToLower().Contains("plank_defenses") || unit is Wall) return "🪵 Rào Cọc Gỗ Cản Đường";
 
             string lower = unit.gameObject.name.ToLower();
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";

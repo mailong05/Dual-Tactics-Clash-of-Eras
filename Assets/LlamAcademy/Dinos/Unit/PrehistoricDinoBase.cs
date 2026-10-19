@@ -1301,7 +1301,7 @@ namespace LlamAcademy.Dinos.Unit
             string n = targetT.gameObject.name.ToLower();
 
             // Tuyệt đối KHÔNG biến cầu, sàn gỗ, đường đi, mặt đất thành tường
-            if (n.Contains("bridge") || n.Contains("plank") || n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
+            if (n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) || n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
             {
                 return null;
             }
@@ -1311,6 +1311,7 @@ namespace LlamAcademy.Dinos.Unit
 
             if (n.Contains("wall") || n.Contains("barricade") ||
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
+                n.Contains("plank_defenses") ||
                 hasWallTag)
             {
                 GameObject go = targetT.gameObject;
