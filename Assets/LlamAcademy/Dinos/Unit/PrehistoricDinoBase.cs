@@ -32,6 +32,7 @@ namespace LlamAcademy.Dinos.Unit
         public Transform TargetBase { get; protected set; }
         protected float LastAttackTime;
         protected IDamageable CurrentTarget;
+        public IDamageable TargetDamageable => CurrentTarget;
         protected Collider[] ScanBuffer = new Collider[32];
 
         // GLB Animation Cache & Clips
@@ -1505,6 +1506,16 @@ namespace LlamAcademy.Dinos.Unit
         {
             int damage = target is Wall ? Mathf.CeilToInt(AttackDamage * BuildingDamageMultiplier) : AttackDamage;
             target.TakeDamage(damage);
+
+            // Báo động nguy cơ phá thành lũy/căn cứ cho toàn bộ Defender
+            if (target is Wall wallTarget)
+            {
+                Enemy.Defender.BroadcastWallThreat(wallTarget.transform.position, this);
+            }
+            else if (target is PrehistoricVillageBase baseTarget)
+            {
+                Enemy.Defender.BroadcastWallThreat(baseTarget.transform.position, this);
+            }
 
             bool hasAttackClip = ModelLegacyAnimation != null 
                 && !string.IsNullOrEmpty(_AttackClipName) 

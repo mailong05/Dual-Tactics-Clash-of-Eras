@@ -186,7 +186,16 @@ namespace LlamAcademy.Dinos.Unit
         public override void Die()
         {
             RaiseDeathEvent();
-            Destroy(gameObject);
+            if (name.Contains("Village_Watchtower") || (transform.parent != null && transform.parent.name.Contains("Fortress")))
+            {
+                // Đối với chòi cung thủ của làng: không Destroy hoàn toàn khỏi Scene
+                // để khi kết thúc wave hoặc chơi lại ván mới có thể SetActive(true) và hồi phục 100% máu
+                gameObject.SetActive(false);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
     }
 }

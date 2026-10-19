@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.Unit;
+using LlamAcademy.Dinos.Utility;
 using UnityEngine;
 using UnityEngine.AI;
 using Random = UnityEngine.Random;
@@ -608,6 +609,10 @@ namespace LlamAcademy.Dinos.Enemy
             {
                 if (d != null && d.gameObject != null)
                 {
+                    if (HealthBarCanvas.HasInstance)
+                    {
+                        HealthBarCanvas.Instance.Unregister(d);
+                    }
                     Destroy(d.gameObject);
                 }
             }
@@ -615,6 +620,7 @@ namespace LlamAcademy.Dinos.Enemy
             {
                 pair.Value.Clear();
             }
+            Defender.AllDefenders.Clear();
         }
 
         [System.Serializable]

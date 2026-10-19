@@ -70,6 +70,7 @@ namespace LlamAcademy.Dinos.Player
 
         public void ClearAllPlacedTowers()
         {
+            // 1. Xóa toàn bộ các tháp/bẫy/NPC lưu trong danh sách đã đặt của người chơi
             for (int i = _PlacedTowerObjects.Count - 1; i >= 0; i--)
             {
                 if (_PlacedTowerObjects[i] != null)
@@ -79,16 +80,42 @@ namespace LlamAcademy.Dinos.Player
             }
             _PlacedTowerObjects.Clear();
 
-            // Quét dọn các Unit Defender do người chơi đặt runtime không thuộc Starter_Defenses
-            GameObject starterDefenses = GameObject.Find("Starter_Defenses");
-            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
-            foreach (var u in allUnits)
+            // 2. Quét dọn triệt để mọi đối tượng do người chơi đặt runtime có gắn PlayerPlacedTowerMarker
+            var placedMarkers = FindObjectsByType<PlayerPlacedTowerMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var marker in placedMarkers)
             {
-                if (u != null && u.UnitType is TowerSO && (starterDefenses == null || !u.transform.IsChildOf(starterDefenses.transform)))
+                if (marker != null && marker.gameObject != null)
                 {
-                    Destroy(u.gameObject);
+                    // Tuyệt đối không xóa bất kỳ công trình hoặc chòi canh nào của làng
+                    if (marker.transform.parent != null && marker.transform.parent.name.Contains("Fortress")) continue;
+                    if (marker.name.Contains("Village_")) continue;
+                    Destroy(marker.gameObject);
                 }
             }
+
+            // 3. Dọn sạch các đối tượng trong container [Player_Placed_Towers] nếu còn sót
+            GameObject container = GameObject.Find("[Player_Placed_Towers]");
+            if (container != null)
+            {
+                for (int i = container.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = container.transform.GetChild(i);
+                    if (child != null)
+                    {
+                        Destroy(child.gameObject);
+                    }
+                }
+            }
+        }
+
+        private Transform GetPlacedTowersContainer()
+        {
+            GameObject container = GameObject.Find("[Player_Placed_Towers]");
+            if (container == null)
+            {
+                container = new GameObject("[Player_Placed_Towers]");
+            }
+            return container.transform;
         }
 
         public void ResetGoldToDefault(int startingAmount = 500)
@@ -435,6 +462,14 @@ namespace LlamAcademy.Dinos.Player
                 NavMeshManager.Instance.RecalculateTriangulation(true);
             }
 
+            // Phân nhóm và đánh dấu công trình do người chơi đặt
+            Transform container = GetPlacedTowersContainer();
+            if (container != null && !(towerUnit is Enemy.Defender))
+            {
+                towerUnit.transform.SetParent(container, true);
+            }
+            towerUnit.gameObject.AddComponent<PlayerPlacedTowerMarker>();
+
             OnTowerPlaced?.Invoke(towerUnit);
             _PlacedTowerObjects.Add(towerUnit.gameObject);
             Audio.PrehistoricAudioManager.Instance?.PlayTowerPlaced();
@@ -631,5 +666,13 @@ namespace LlamAcademy.Dinos.Player
             GUILayout.EndArea();
             GUI.backgroundColor = Color.white;
         }
+    }
+
+    /// <summary>
+    /// Component đánh dấu các công trình/NPC do người chơi đặt runtime,
+    /// giúp dọn dẹp sạch sẽ khi chơi lại mà không bao giờ xóa nhầm các công trình của làng.
+    /// </summary>
+    public class PlayerPlacedTowerMarker : MonoBehaviour
+    {
     }
 }
