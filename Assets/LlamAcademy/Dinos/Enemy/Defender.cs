@@ -876,21 +876,23 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void OnNavMeshUpdated()
         {
-            if (Agent == null || !Agent.enabled) return;
+            if (Agent == null || !Agent.enabled || Health <= 0) return;
 
-            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, Agent.radius,
-                    new NavMeshQueryFilter() { agentTypeID = Agent.agentTypeID, areaMask = Agent.areaMask }))
+            // Khi NavMesh cập nhật (thêm/xóa tường chắn hoặc rào cản), đảm bảo NPC đứng an toàn trên NavMesh gần nhất thay vì chết oan
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
             {
-                if (GraphAgent != null) GraphAgent.enabled = false;
-                Agent.enabled = false;
-                if (Rigidbody != null)
+                if (Agent.isOnNavMesh)
                 {
-                    Rigidbody.isKinematic = false;
-                    Rigidbody.useGravity = true;
+                    Agent.Warp(hit.position);
                 }
-
-                RaiseDeathEvent();
-                Die();
+            }
+            else
+            {
+                if (transform.position.y < -10f)
+                {
+                    RaiseDeathEvent();
+                    Die();
+                }
             }
         }
 

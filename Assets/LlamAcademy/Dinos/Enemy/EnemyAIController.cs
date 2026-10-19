@@ -23,6 +23,30 @@ namespace LlamAcademy.Dinos.Enemy
 
         public static EnemyAIController Instance { get; private set; }
 
+        public static readonly Vector3[] VillageDefenseSpots = new Vector3[]
+        {
+            new Vector3(-2.2f, 0.1f, -8.0f),   // Chốt 1: Trực diện trước cổng làng
+            new Vector3(-4.5f, 0.1f, -8.5f),   // Chốt 2: Cánh trái cổng làng (bọc lót chòi trái)
+            new Vector3(0.5f, 0.1f, -8.5f),    // Chốt 3: Cánh phải cổng làng (bọc lót chòi phải)
+            new Vector3(-2.2f, 0.1f, -12.5f),  // Chốt 4: Sân trung tâm làng
+            new Vector3(-5.5f, 0.1f, -12.5f),  // Chốt 5: Trước lều dân làng trái
+            new Vector3(1.8f, 0.1f, -12.5f),   // Chốt 6: Trước lều dân làng phải
+            new Vector3(-2.2f, 0.1f, -16.0f),  // Chốt 7: Lối vào căn cứ trung tâm
+            new Vector3(-4.5f, 0.1f, -16.5f),  // Chốt 8: Tuyến phòng ngự sau bên trái
+            new Vector3(1.0f, 0.1f, -16.5f),   // Chốt 9: Tuyến phòng ngự sau bên phải
+            new Vector3(-2.2f, 0.1f, -19.5f),  // Chốt 10: Tiền đồn bảo vệ căn cứ làng
+            new Vector3(-4.0f, 0.1f, -19.5f),  // Chốt 11: Cánh trái căn cứ
+            new Vector3(0.5f, 0.1f, -19.5f),   // Chốt 12: Cánh phải căn cứ
+            new Vector3(-3.5f, 0.1f, -10.5f),  // Chốt 13: Dự bị cơ động cổng trái
+            new Vector3(-0.8f, 0.1f, -10.5f),  // Chốt 14: Dự bị cơ động cổng phải
+            new Vector3(-2.2f, 0.1f, -14.5f),  // Chốt 15: Dự bị cơ động trung tâm
+            new Vector3(-5.0f, 0.1f, -14.5f),  // Chốt 16: Hậu cần lều trái
+            new Vector3(1.5f, 0.1f, -14.5f),   // Chốt 17: Hậu cần lều phải
+            new Vector3(-2.2f, 0.1f, -22.0f),  // Chốt 18: Vệ binh căn cứ chính
+            new Vector3(-3.5f, 0.1f, -22.0f),  // Chốt 19: Vệ binh cánh trái
+            new Vector3(0.0f, 0.1f, -22.0f)    // Chốt 20: Vệ binh cánh phải
+        };
+
         public delegate void DefenderEvent(Defender defender);
         public delegate void WallEvent(Wall wall);
 
@@ -202,22 +226,7 @@ namespace LlamAcademy.Dinos.Enemy
 
             if (Waypoints.Count == 0)
             {
-                Vector3[] defaultPatrolSpots = new Vector3[]
-                {
-                    new Vector3(-4.0f, 0f, -6.0f),
-                    new Vector3(0.0f, 0f, -6.0f),
-                    new Vector3(-2.2f, 0f, -9.0f),
-                    new Vector3(-8.0f, 0f, -8.0f),
-                    new Vector3(6.0f, 0f, -8.0f),
-                    new Vector3(-5.0f, 0f, -14.0f),
-                    new Vector3(4.0f, 0f, -14.0f),
-                    new Vector3(-2.2f, 0f, -20.0f),
-                    new Vector3(-6.0f, 0f, -26.0f),
-                    new Vector3(4.0f, 0f, -26.0f),
-                    new Vector3(-2.2f, 0f, -32.0f)
-                };
-
-                foreach (Vector3 spot in defaultPatrolSpots)
+                foreach (Vector3 spot in VillageDefenseSpots)
                 {
                     if (NavMesh.SamplePosition(spot, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
                     {
@@ -558,38 +567,17 @@ namespace LlamAcademy.Dinos.Enemy
                 return;
             }
 
-            EnsureValidWaypoints();
-
-            Vector3 villageCenter = Defender.GetBasePosition();
-            if (villageCenter.z < -25f || villageCenter.sqrMagnitude < 0.001f)
-            {
-                villageCenter = new Vector3(-2.0f, 0.2f, 0.0f);
-            }
-
-            // 3. Sinh đúng chính xác targetCount NPC
+            // 3. Sinh đúng chính xác targetCount NPC tại các chốt phòng thủ trọng yếu trong sân làng
             for (int i = 0; i < targetCount; i++)
             {
-                Vector3 candidatePos;
-                if (Waypoints != null && Waypoints.Count > 0)
+                Vector3 postPos = VillageDefenseSpots[i % VillageDefenseSpots.Length];
+                if (NavMesh.SamplePosition(postPos, out NavMeshHit hit, 8f, NavMesh.AllAreas))
                 {
-                    candidatePos = Waypoints[i % Waypoints.Count] + new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-1.5f, 1.5f));
-                }
-                else
-                {
-                    candidatePos = villageCenter + new Vector3(Random.Range(-5f, 5f), 0f, Random.Range(-4f, 5f));
+                    postPos = hit.position;
                 }
 
-                Vector3 finalSpawnPos = candidatePos;
-                if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 20f, NavMesh.AllAreas))
-                {
-                    finalSpawnPos = hit.position;
-                }
-                else if (NavMesh.SamplePosition(villageCenter, out NavMeshHit centerHit, 30f, NavMesh.AllAreas))
-                {
-                    finalSpawnPos = centerHit.position;
-                }
-
-                Defender newDef = Instantiate(defenderPrefab, finalSpawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0)) as Defender;
+                // Luôn quay mặt về phía Bắc (Vector3.forward, Y = 0) hướng ra cổng làng
+                Defender newDef = Instantiate(defenderPrefab, postPos, Quaternion.Euler(0, 0, 0)) as Defender;
                 if (newDef != null)
                 {
                     // Cân đối 50% Archer (bắn cung), 50% Spearman (phóng giáo & cận chiến)
@@ -605,7 +593,7 @@ namespace LlamAcademy.Dinos.Enemy
                     var agent = newDef.GetComponent<NavMeshAgent>();
                     if (agent != null)
                     {
-                        agent.Warp(finalSpawnPos);
+                        agent.Warp(postPos);
                     }
 
                     UnitType uType = newDef.UnitType != null ? newDef.UnitType.Type : UnitType.Archer;
@@ -616,11 +604,19 @@ namespace LlamAcademy.Dinos.Enemy
                     Defenders[uType].Add(newDef);
                     newDef.OnDeath += Defender_OnDeath;
                     OnSpawnDefender?.Invoke(newDef);
-                    newDef.Patrol(Waypoints);
+
+                    List<Vector3> myPatrol = new List<Vector3>
+                    {
+                        postPos,
+                        postPos + new Vector3(1.2f, 0f, 0.4f),
+                        postPos + new Vector3(-1.2f, 0f, -0.4f)
+                    };
+                    newDef.Patrol(myPatrol);
+                    newDef.SetDestination(postPos);
                 }
             }
 
-            Debug.Log($"<color=green>[EnemyAIController]</color> Đã reset chính xác <b>{targetCount} NPC Chiến Binh</b> bảo vệ ngôi làng!");
+            Debug.Log($"<color=green>[EnemyAIController]</color> Đã reset chính xác <b>{targetCount} NPC Chiến Binh</b> tại các vị trí phòng thủ trong làng!");
         }
 
         public void EnsureDefendersAlive(int minDefenders = 4)
@@ -648,18 +644,8 @@ namespace LlamAcademy.Dinos.Enemy
             if (currentCount < minDefenders)
             {
                 int needed = minDefenders - currentCount;
-                Vector3[] vertices = (NavMeshManager.Instance != null && NavMeshManager.Instance.EnemyTriangulation.vertices != null && NavMeshManager.Instance.EnemyTriangulation.vertices.Length >= 2)
-                    ? NavMeshManager.Instance.EnemyTriangulation.vertices
-                    : null;
-
-                Vector3 villageCenter = Defender.GetBasePosition();
-                if (villageCenter.z < -25f || villageCenter.sqrMagnitude < 0.001f)
-                {
-                    villageCenter = new Vector3(-2.0f, 0.2f, 0.0f);
-                }
-
                 Unit.Unit fallbackPrefab = null;
-                GameObject resObj = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TribalWarrior");
+                GameObject resObj = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TribalWarrior") ?? Resources.Load<GameObject>("Prefabs/Prehistoric/Archer");
 #if UNITY_EDITOR
                 if (resObj == null)
                 {
@@ -685,39 +671,22 @@ namespace LlamAcademy.Dinos.Enemy
 
                     if (prefabToUse == null) continue;
 
-                    Vector3 candidatePos;
-                    if (Waypoints != null && Waypoints.Count > 0)
+                    int spotIndex = (currentCount + i) % VillageDefenseSpots.Length;
+                    Vector3 postPos = VillageDefenseSpots[spotIndex];
+                    if (NavMesh.SamplePosition(postPos, out NavMeshHit hit, 8f, NavMesh.AllAreas))
                     {
-                        candidatePos = Waypoints[Random.Range(0, Waypoints.Count)] + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f));
-                    }
-                    else if (vertices != null && vertices.Length >= 2)
-                    {
-                        int index = Random.Range(1, vertices.Length);
-                        candidatePos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
-                    }
-                    else
-                    {
-                        candidatePos = villageCenter + new Vector3(Random.Range(-6f, 6f), 0f, Random.Range(-4f, 6f));
-                    }
-
-                    Vector3 finalSpawnPos = candidatePos;
-                    if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 25f, NavMesh.AllAreas))
-                    {
-                        finalSpawnPos = hit.position;
-                    }
-                    else if (NavMesh.SamplePosition(villageCenter, out NavMeshHit centerHit, 30f, NavMesh.AllAreas))
-                    {
-                        finalSpawnPos = centerHit.position;
+                        postPos = hit.position;
                     }
 
                     Defender defender = Instantiate(
                         prefabToUse,
-                        finalSpawnPos,
-                        Quaternion.Euler(0, Random.Range(0, 360f), 0)
+                        postPos,
+                        Quaternion.Euler(0, 0, 0)
                     ) as Defender;
 
                     if (defender != null)
                     {
+                        defender.Role = ((currentCount + i) % 2 == 0) ? DefenderRole.Archer : DefenderRole.Spearman;
                         defender.MaxHealth = Mathf.Max(defender.MaxHealth, 180);
                         defender.Health = defender.MaxHealth;
                         defender.EnsureHealthBarAttached();
@@ -729,7 +698,7 @@ namespace LlamAcademy.Dinos.Enemy
                         var agent = defender.GetComponent<UnityEngine.AI.NavMeshAgent>();
                         if (agent != null)
                         {
-                            agent.Warp(finalSpawnPos);
+                            agent.Warp(postPos);
                         }
 
                         if (!Defenders.ContainsKey(uType))
@@ -739,7 +708,15 @@ namespace LlamAcademy.Dinos.Enemy
                         Defenders[uType].Add(defender);
                         defender.OnDeath += Defender_OnDeath;
                         OnSpawnDefender?.Invoke(defender);
-                        defender.Patrol(Waypoints);
+
+                        List<Vector3> myPatrol = new List<Vector3>
+                        {
+                            postPos,
+                            postPos + new Vector3(1.2f, 0f, 0.4f),
+                            postPos + new Vector3(-1.2f, 0f, -0.4f)
+                        };
+                        defender.Patrol(myPatrol);
+                        defender.SetDestination(postPos);
                     }
                 }
             }

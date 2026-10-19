@@ -1601,17 +1601,17 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 3. Đặt lại Đợt chơi về Màn 1
             _CurrentWave = 1;
 
-            // 4. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, 4 NPC)
-            ResetEntireVillage(keepPlayerTowers: false);
-
-            // 5. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
-            SetPhase(PrehistoricWavePhase.BuildingPhase);
-
-            // 6. Đồng bộ với RoundManager
+            // 4. Đồng bộ với RoundManager TRƯỚC KHI reset làng để dọn dẹp state và hủy các Invoke cũ
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ResetRoundToStart();
             }
+
+            // 5. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, 4 NPC)
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            // 6. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
 
             // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
             ResetPlayerAndCameraPosition();
@@ -1633,14 +1633,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // Chơi lại màn X: Reset theo màn (tất cả mọi thứ NPC, vật thể, xóa bỏ tất cả các vật thể người chơi đã đặt)
-            ResetEntireVillage(keepPlayerTowers: false);
-
-            SetPhase(PrehistoricWavePhase.BuildingPhase);
+            // Đồng bộ với RoundManager TRƯỚC KHI reset làng
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.SetCurrentRound(_CurrentWave);
             }
+
+            // Chơi lại màn X: Reset theo màn (tất cả mọi thứ NPC, vật thể, xóa bỏ tất cả các vật thể người chơi đã đặt)
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
 
             ResetPlayerAndCameraPosition();
             ShowAnnouncement($"🔄 CHƠI LẠI MÀN {_CurrentWave}! PHÒNG TUYẾN ĐÃ ĐƯỢC RESET! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);

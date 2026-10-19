@@ -83,6 +83,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void ResetRoundToStart()
         {
+            CancelInvoke();
             Round = 1;
             State = GameState.Setup;
             IsEndingRound = false;
@@ -92,6 +93,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void SetCurrentRound(int roundNumber)
         {
+            CancelInvoke();
             Round = Mathf.Max(1, roundNumber);
             State = GameState.Setup;
             IsEndingRound = false;
@@ -203,6 +205,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void EndRound()
         {
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            {
+                return;
+            }
+
             Round++;
             for (int i = ActiveDinos.Count - 1; i >= 0; i--)
             {
@@ -253,6 +260,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (deadDino == null) return;
             ActiveDinos.Remove(deadDino);
             if (DinoSupplyResource != null) DinoSupplyResource.Amount = ActiveDinos.Count;
+
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            {
+                return;
+            }
 
             // Trong chế độ Công Thành (Dino Assault), người chơi được quyền liên tục triệu hồi quân tiếp viện từ lượng thịt
             // Tuyệt đối không tự động kết thúc round khi hết khủng long tạm thời trên sân!
