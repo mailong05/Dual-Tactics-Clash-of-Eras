@@ -169,11 +169,11 @@ namespace LlamAcademy.Dinos.Player
                 bool canAfford = DinoSpawner.Instance != null && DinoSpawner.Instance.ResourcesToSpend >= Dino.Cost;
                 
                 // Đảm bảo khủng long được triệu hồi trên hoặc gần đường di chuyển NavMesh
-                bool onNavMesh = NavMesh.SamplePosition(Visualizations[i].transform.position, out _, 3.0f, NavMesh.AllAreas);
+                bool onNavMesh = NavMesh.SamplePosition(Visualizations[i].transform.position, out _, 25.0f, NavMesh.AllAreas);
 
-                // Khủng long bay có thể triệu hồi thoải mái hơn, khủng long bộ cần trên NavMesh
+                // Khủng long bay có thể triệu hồi thoải mái hơn, khủng long bộ cần trên đường chiến trường
                 bool isAerial = Dino != null && Dino.name.ToLower().Contains("ptero");
-                bool validPath = onNavMesh || isAerial;
+                bool validPath = onNavMesh || isAerial || Visualizations[i].transform.position.z >= -10.0f;
 
                 bool isValid = canAfford && validPath;
                 IsValidPlacementLocation = isValid;

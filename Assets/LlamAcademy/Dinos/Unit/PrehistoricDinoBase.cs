@@ -1288,6 +1288,7 @@ namespace LlamAcademy.Dinos.Unit
             if (n.Contains("wall") || n.Contains("barricade") || n.Contains("plank") ||
                 n.Contains("arch entry") || n.Contains("big tower") || n.Contains("bastion") ||
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
+                n.Contains("bridge") ||
                 hasWallTag)
             {
                 GameObject go = targetT.gameObject;

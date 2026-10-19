@@ -7,6 +7,7 @@ TagManager:
   - CinemachineTarget
   - Wall
   - Obstacle
+  - Terrain
   layers:
   - Default
   - TransparentFX

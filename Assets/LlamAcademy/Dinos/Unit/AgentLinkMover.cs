@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
 using LlamAcademy.Dinos.Utility;
@@ -6,7 +6,7 @@ using Unity.AI.Navigation;
 
 namespace LlamAcademy.Dinos.Unit
 {
-    [RequireComponent(typeof(NavMeshAgent), typeof(Animator))]
+    [RequireComponent(typeof(NavMeshAgent))]
     public class AgentLinkMover : MonoBehaviour
     {
         private NavMeshAgent Agent;
@@ -15,7 +15,7 @@ namespace LlamAcademy.Dinos.Unit
         private void Awake()
         {
             Agent = GetComponent<NavMeshAgent>();
-            Animator = GetComponent<Animator>();
+            Animator = GetComponentInChildren<Animator>();
         }
 
         private IEnumerator Start()
@@ -30,33 +30,45 @@ namespace LlamAcademy.Dinos.Unit
                 }
 
                 OffMeshLinkData offMeshLinkData = Agent.currentOffMeshLinkData;
-                NavMeshLink link = (NavMeshLink)Agent.navMeshOwner;
+                Vector3 target = (Vector3.Distance(transform.position, offMeshLinkData.startPos) < Vector3.Distance(transform.position, offMeshLinkData.endPos))
+                    ? offMeshLinkData.endPos
+                    : offMeshLinkData.startPos;
 
-                if (Vector3.Distance(offMeshLinkData.endPos, Agent.destination) <
-                    Vector3.Distance(offMeshLinkData.startPos, Agent.destination))
-                {
-                    yield return StartCoroutine(MoveAtNormalSpeed());
-                }
+                yield return StartCoroutine(MoveToTargetAtNormalSpeed(target + Vector3.up * Agent.baseOffset));
 
                 Agent.CompleteOffMeshLink();
                 yield return null;
             }
         }
 
-        private IEnumerator MoveAtNormalSpeed()
+        private IEnumerator MoveToTargetAtNormalSpeed(Vector3 target, float threshold = 0.35f)
         {
-            OffMeshLinkData data = Agent.currentOffMeshLinkData;
-            Vector3 endPosition = data.endPos + Vector3.up * Agent.baseOffset;
-            yield return StartCoroutine(MoveToTargetAtNormalSpeed(endPosition));
-        }
+            float initialDist = Vector3.Distance(Agent.transform.position, target);
+            float maxDuration = (initialDist / Mathf.Max(Agent.speed, 1.5f)) + 1.2f;
+            float elapsed = 0f;
 
-        private IEnumerator MoveToTargetAtNormalSpeed(Vector3 target, float threshold = 0.01f)
-        {
-            while (Vector3.Distance(Agent.transform.position, target) > threshold)
+            while (Vector3.Distance(Agent.transform.position, target) > threshold && elapsed < maxDuration)
             {
+                elapsed += Time.deltaTime;
                 Agent.transform.position = Vector3.MoveTowards(Agent.transform.position, target, Agent.speed * Time.deltaTime);
-                Animator.SetFloat(AnimationConstants.SPEED_PARAMETER, Agent.speed);
+
+                Vector3 dir = (target - Agent.transform.position);
+                dir.y = 0;
+                if (dir.sqrMagnitude > 0.01f)
+                {
+                    Agent.transform.rotation = Quaternion.Slerp(Agent.transform.rotation, Quaternion.LookRotation(dir), Time.deltaTime * 10f);
+                }
+
+                if (Animator != null)
+                {
+                    Animator.SetFloat(AnimationConstants.SPEED_PARAMETER, Agent.speed);
+                }
                 yield return null;
+            }
+
+            if (Vector3.Distance(Agent.transform.position, target) <= 1.2f)
+            {
+                Agent.transform.position = target;
             }
         }
     }

@@ -242,7 +242,9 @@ namespace LlamAcademy.Dinos.Player
                 string colName = col.gameObject.name.ToLower();
                 if (colName.Contains("terrain") || colName.Contains("ground") || colName.Contains("floor") || 
                     colName.Contains("canyon") || colName.Contains("sand") || colName.Contains("dirt")) continue;
-                if (col.CompareTag("Terrain")) continue;
+                bool isTerrainTag = false;
+                try { isTerrainTag = col.CompareTag("Terrain"); } catch {}
+                if (isTerrainTag) continue;
 
                 // Bỏ qua các mục tiêu đã chết
                 if (col.TryGetComponent(out IDamageable dmg) && dmg.Health <= 0) continue;

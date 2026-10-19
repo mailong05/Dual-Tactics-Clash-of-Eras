@@ -1077,7 +1077,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                 // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường
                 if (n == "gate_complex" || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" || n == "right_flank_wall" ||
-                    n.Contains("bridge") || n.Contains("floor") || n.Contains("ground") ||
+                    n.Contains("floor") || n.Contains("ground") ||
                     n.Contains("camera") || n.Contains("light") || n.Contains("spawn") ||
                     n.Contains("system") || n.Contains("event") || n.Contains("healthbar") ||
                     n.Contains("canvas") || n.Contains("ui") || n.Contains("dino") ||
@@ -1110,6 +1110,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                                        n.Contains("arch entry") || n.Contains("bastion") || n.Contains("big tower") ||
                                        n.Contains("gate") || n.Contains("barrier") || n.Contains("rampart") ||
                                        n.Contains("wooden__barricade") || n.Contains("wooden_barricade") ||
+                                       n.Contains("bridge") ||
                                        hasWallTag ||
                                        t.GetComponent<Unit.Wall>() != null;
 
