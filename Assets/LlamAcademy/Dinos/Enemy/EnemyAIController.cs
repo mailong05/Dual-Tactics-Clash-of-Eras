@@ -586,6 +586,21 @@ namespace LlamAcademy.Dinos.Enemy
             }
         }
 
+        public void RegisterDefender(Defender defender)
+        {
+            if (defender == null) return;
+            if (defender.UnitType != null)
+            {
+                if (!Defenders.ContainsKey(defender.UnitType.Type))
+                {
+                    Defenders[defender.UnitType.Type] = new HashSet<Defender>();
+                }
+                Defenders[defender.UnitType.Type].Add(defender);
+            }
+            defender.OnDeath += Defender_OnDeath;
+            OnSpawnDefender?.Invoke(defender);
+        }
+
         public void ClearAllDefenders()
         {
             foreach (var pair in Defenders)

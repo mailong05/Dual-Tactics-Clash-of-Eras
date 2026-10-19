@@ -420,7 +420,7 @@ namespace LlamAcademy.Dinos.Player
 
                 if (Enemy.EnemyAIController.Instance != null)
                 {
-                    Enemy.EnemyAIController.Instance.OnSpawnDefender?.Invoke(defender);
+                    Enemy.EnemyAIController.Instance.RegisterDefender(defender);
                 }
             }
             else
