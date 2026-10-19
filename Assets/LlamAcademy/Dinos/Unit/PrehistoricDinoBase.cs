@@ -151,26 +151,42 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
-        public bool EnsureOnNavMesh(float maxDistance = 15f)
+        public bool EnsureOnNavMesh(float maxDistance = 25f)
         {
             if (Agent == null) Agent = GetComponent<NavMeshAgent>();
             if (Agent == null) return false;
 
-            if (!Agent.enabled) Agent.enabled = true;
-
-            if (Agent.isOnNavMesh) return true;
+            if (Agent.enabled && Agent.isOnNavMesh) return true;
 
             if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, maxDistance, NavMesh.AllAreas))
             {
-                Agent.Warp(hit.position);
-                transform.position = hit.position;
+                if (Agent.isOnNavMesh)
+                {
+                    Agent.Warp(hit.position);
+                }
+                else
+                {
+                    Agent.enabled = false;
+                    transform.position = hit.position;
+                    Physics.SyncTransforms();
+                    Agent.enabled = true;
+                }
                 return Agent.isOnNavMesh;
             }
 
             if (NavMesh.SamplePosition(transform.position + Vector3.up * 1.5f, out hit, maxDistance * 1.5f, NavMesh.AllAreas))
             {
-                Agent.Warp(hit.position);
-                transform.position = hit.position;
+                if (Agent.isOnNavMesh)
+                {
+                    Agent.Warp(hit.position);
+                }
+                else
+                {
+                    Agent.enabled = false;
+                    transform.position = hit.position;
+                    Physics.SyncTransforms();
+                    Agent.enabled = true;
+                }
                 return Agent.isOnNavMesh;
             }
 

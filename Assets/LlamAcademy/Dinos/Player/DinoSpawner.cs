@@ -210,8 +210,17 @@ namespace LlamAcademy.Dinos.Player
                         }
                         else if (navAgent != null)
                         {
-                            navAgent.enabled = true;
-                            navAgent.Warp(spawnPos);
+                            if (!navAgent.isOnNavMesh)
+                            {
+                                navAgent.enabled = false;
+                                spawnedDino.transform.position = spawnPos;
+                                Physics.SyncTransforms();
+                                navAgent.enabled = true;
+                            }
+                            if (navAgent.isOnNavMesh)
+                            {
+                                navAgent.Warp(spawnPos);
+                            }
                         }
 
                         bool isCombatActive = isAssault && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.IsAssaultActive;
