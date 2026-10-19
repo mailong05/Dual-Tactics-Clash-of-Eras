@@ -306,20 +306,37 @@ namespace LlamAcademy.Dinos.UI
 
             GUILayout.BeginHorizontal();
 
-            // Retry Current Wave
+            // Retry Current Wave / Level
             GUI.backgroundColor = new Color(0.2f, 0.75f, 0.4f);
-            if (GUILayout.Button("<b><size=12>🔄 THỬ LẠI ĐỢT</size></b>\n<size=10>(Reset làng, giữ tháp)</size>", GUILayout.Height(42)))
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+            string retryTitle = isAssault ? "<b><size=12>🔄 THỬ LẠI MÀN</size></b>\n<size=10>(Màn hiện tại)</size>" : "<b><size=12>🔄 THỬ LẠI ĐỢT</size></b>\n<size=10>(Reset làng, giữ tháp)</size>";
+            if (GUILayout.Button(retryTitle, GUILayout.Height(42)))
             {
                 IsOpen = false;
-                PrehistoricGameplayManager.Instance?.RetryCurrentWave();
+                if (isAssault)
+                {
+                    PrehistoricGameModeManager.Instance?.RetryCurrentAssaultLevel();
+                }
+                else
+                {
+                    PrehistoricGameplayManager.Instance?.RetryCurrentWave();
+                }
             }
 
             // Full Reset Game
             GUI.backgroundColor = new Color(0.9f, 0.55f, 0.2f);
-            if (GUILayout.Button("<b><size=12>⏮️ CHƠI TỪ ĐẦU</size></b>\n<size=10>(Về Wave 1, 500g)</size>", GUILayout.Height(42)))
+            string resetTitle = isAssault ? "<b><size=12>⏮️ CHƠI TỪ ĐẦU</size></b>\n<size=10>(Về Màn 1)</size>" : "<b><size=12>⏮️ CHƠI TỪ ĐẦU</size></b>\n<size=10>(Về Wave 1, 500g)</size>";
+            if (GUILayout.Button(resetTitle, GUILayout.Height(42)))
             {
                 IsOpen = false;
-                PrehistoricGameplayManager.Instance?.FullResetGame();
+                if (isAssault)
+                {
+                    PrehistoricGameModeManager.Instance?.RestartAssaultFromLevel1();
+                }
+                else
+                {
+                    PrehistoricGameplayManager.Instance?.FullResetGame();
+                }
             }
 
             GUI.backgroundColor = Color.white;

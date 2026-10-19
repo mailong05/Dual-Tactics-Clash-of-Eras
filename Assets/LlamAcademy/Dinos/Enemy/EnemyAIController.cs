@@ -506,8 +506,6 @@ namespace LlamAcademy.Dinos.Enemy
         public void EnsureDefendersAlive(int minDefenders = 4)
         {
             if (ActiveConfig == null || ActiveConfig.Units == null || ActiveConfig.Units.Count == 0) return;
-            if (NavMeshManager.Instance == null || NavMeshManager.Instance.EnemyTriangulation.vertices == null) return;
-            if (NavMeshManager.Instance.EnemyTriangulation.vertices.Length < 2) return;
 
             // Dọn dẹp các mục null
             foreach (var pair in Defenders)
@@ -515,19 +513,40 @@ namespace LlamAcademy.Dinos.Enemy
                 pair.Value.RemoveWhere(d => d == null);
             }
 
+            EnsureValidWaypoints();
+
             int currentCount = TotalAliveDefenders;
             if (currentCount < minDefenders)
             {
                 int needed = minDefenders - currentCount;
-                Vector3[] vertices = NavMeshManager.Instance.EnemyTriangulation.vertices;
+                Vector3[] vertices = (NavMeshManager.Instance != null && NavMeshManager.Instance.EnemyTriangulation.vertices != null && NavMeshManager.Instance.EnemyTriangulation.vertices.Length >= 2)
+                    ? NavMeshManager.Instance.EnemyTriangulation.vertices
+                    : null;
 
                 for (int i = 0; i < needed; i++)
                 {
                     var unitConfig = ActiveConfig.Units[Random.Range(0, ActiveConfig.Units.Count)];
                     if (unitConfig.UnitSO == null || unitConfig.UnitSO.Prefab == null) continue;
 
-                    int index = Random.Range(1, vertices.Length);
-                    Vector3 spawnPos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
+                    Vector3 spawnPos;
+                    if (vertices != null && vertices.Length >= 2)
+                    {
+                        int index = Random.Range(1, vertices.Length);
+                        spawnPos = Vector3.Lerp(vertices[index - 1], vertices[index], Random.value);
+                    }
+                    else if (Waypoints != null && Waypoints.Count > 0)
+                    {
+                        spawnPos = Waypoints[Random.Range(0, Waypoints.Count)] + new Vector3(Random.Range(-1.5f, 1.5f), 0, Random.Range(-1.5f, 1.5f));
+                    }
+                    else
+                    {
+                        spawnPos = new Vector3(Random.Range(-5f, 5f), 0f, Random.Range(-25f, -10f));
+                    }
+
+                    if (NavMesh.SamplePosition(spawnPos, out NavMeshHit hit, 15f, NavMesh.AllAreas))
+                    {
+                        spawnPos = hit.position;
+                    }
 
                     Defender defender = Instantiate(
                         unitConfig.UnitSO.Prefab,

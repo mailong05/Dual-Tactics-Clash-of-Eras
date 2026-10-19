@@ -214,6 +214,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             ApplyModeConfiguration(_CurrentMode);
             ShowModeSelectModal = false;
             OnGameModeChanged?.Invoke(_CurrentMode);
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(_CurrentMode);
             Debug.Log($"<color=cyan>[GameModeManager]</color> Switched to Mode: <b>{_CurrentMode}</b>");
         }
 
@@ -338,6 +339,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.ChangeActiveDino(dino);
+            }
+            if (dino != null)
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(dino);
             }
         }
 
@@ -1038,6 +1043,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        public void RestartAssaultFromLevel1()
+        {
+            AssaultLevel = 1;
+            ClearAllDinos();
+            SetupVillageDefensesForLevel(1);
+
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.ResourcesToSpend = 60;
+            }
+
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+            Debug.Log("<color=cyan>[Assault Reset]</color> Chơi lại chế độ Công Thành từ Màn 1!");
+        }
+
         private void ClearAllDinos()
         {
             var allDinos = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
@@ -1131,8 +1156,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = Mathf.Min(580f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float height = 310f;
+            float width = Mathf.Min(640f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 320f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
@@ -1152,17 +1177,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(18);
             GUILayout.BeginHorizontal();
 
-            string retryLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=15>🔄 THỬ LẠI MÀN NÀY</size></b>" : "<b><size=15>🔄 THỬ LẠI MÀN NÀY\n[SPACE / R]</size></b>";
-            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=15>🚪 THOÁT GAME</size></b>" : "<b><size=15>🚪 THOÁT GAME\n[ESC / Q]</size></b>";
+            string retryLabel = Mobile.MobileUIHelper.IsMobile ? $"<b><size=14>🔄 THỬ LẠI\nMÀN {AssaultLevel}</size></b>" : $"<b><size=14>🔄 THỬ LẠI\nMÀN {AssaultLevel}\n[SPACE]</size></b>";
+            string resetLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>⏮️ CHƠI TỪ ĐẦU\n(MÀN 1)</size></b>" : "<b><size=14>⏮️ CHƠI TỪ ĐẦU\n[PHÍM R]</size></b>";
+            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT\nGAME</size></b>" : "<b><size=14>🚪 THOÁT\n[ESC / Q]</size></b>";
 
-            GUI.backgroundColor = new Color(1f, 0.4f, 0.2f);
-            if (GUILayout.Button(retryLabel, GUILayout.Height(50)))
+            float btnW = (width - 40) / 3f;
+
+            GUI.backgroundColor = new Color(1f, 0.45f, 0.2f);
+            if (GUILayout.Button(retryLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
             {
                 RetryCurrentAssaultLevel();
             }
 
+            GUI.backgroundColor = new Color(0.95f, 0.65f, 0.15f);
+            if (GUILayout.Button(resetLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            {
+                RestartAssaultFromLevel1();
+            }
+
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitLabel, GUILayout.Height(50)))
+            if (GUILayout.Button(quitLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
             {
                 QuitGame();
             }

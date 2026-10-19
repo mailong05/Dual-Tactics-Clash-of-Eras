@@ -254,6 +254,7 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         OnSpawnDino?.Invoke(spawnedDino);
+                        Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(SpawnDino);
                         Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
 
                         // Nếu không giữ Shift, hủy chọn sau khi đặt
@@ -280,6 +281,10 @@ namespace LlamAcademy.Dinos.Player
             if (Visualization != null)
             {
                 Visualization.ChangeDino(Dino);
+            }
+            if (Dino != null)
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(Dino);
             }
         }
 

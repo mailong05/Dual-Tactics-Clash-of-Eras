@@ -1,4 +1,8 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using LlamAcademy.Dinos.Config;
+using LlamAcademy.Dinos.RoundManagement;
 using UnityEngine;
 
 namespace LlamAcademy.Dinos.Audio
@@ -6,8 +10,8 @@ namespace LlamAcademy.Dinos.Audio
     /// <summary>
     /// Prehistoric Sound and Music Audio Manager.
     /// Manages Master Volume, BGM, and SFX across PC and Mobile platforms.
-    /// Features procedural atmospheric music and sound synthesis with zero external asset dependencies.
-    /// Saves and restores preferences via PlayerPrefs.
+    /// Supports real audio tracks for Opening, Tower Defense, Dino Assault, Common BGM,
+    /// and distinctive dinosaur roars for each dino species.
     /// </summary>
     [DefaultExecutionOrder(-20)]
     public class PrehistoricAudioManager : MonoBehaviour
@@ -84,13 +88,26 @@ namespace LlamAcademy.Dinos.Audio
 
         private AudioSource _bgmSource;
         private AudioSource _sfxSource;
+        private Coroutine _bgmCoroutine;
+        private Coroutine _dinoRoarsCoroutine;
 
-        private AudioClip _bgmClip;
-        private AudioClip _clickClip;
-        private AudioClip _placementClip;
-        private AudioClip _hornClip;
-        private AudioClip _victoryClip;
-        private AudioClip _defeatClip;
+        [Header("Real Audio Clips")]
+        [SerializeField] private AudioClip _openingBgmClip;
+        [SerializeField] private AudioClip _defenseBgmClip;
+        [SerializeField] private AudioClip _assaultBgmClip;
+        [SerializeField] private AudioClip _commonBgmClip;
+        [SerializeField] private AudioClip _alternativeBgmClip;
+
+        [Header("SFX Clips")]
+        [SerializeField] private AudioClip _pterodactylClip;
+        [SerializeField] private AudioClip _trexClip;
+        [SerializeField] private AudioClip _raptorClip;
+        [SerializeField] private AudioClip _ankylosaurusClip;
+        [SerializeField] private AudioClip _victoryClip;
+        [SerializeField] private AudioClip _defeatClip;
+        [SerializeField] private AudioClip _hornClip;
+        [SerializeField] private AudioClip _clickClip;
+        [SerializeField] private AudioClip _placementClip;
 
         private void Awake()
         {
@@ -104,13 +121,14 @@ namespace LlamAcademy.Dinos.Audio
 
             LoadPreferences();
             SetupAudioSources();
-            GenerateProceduralAudioClips();
+            LoadAllAudioClips();
             ApplyVolumes();
         }
 
         private void Start()
         {
-            StartBGM();
+            // Mở đầu phát nhạc mở đầu (Opening BGM)
+            PlayOpeningBgm();
         }
 
         private void LoadPreferences()
@@ -124,15 +142,77 @@ namespace LlamAcademy.Dinos.Audio
 
         private void SetupAudioSources()
         {
-            _bgmSource = gameObject.AddComponent<AudioSource>();
-            _bgmSource.loop = true;
-            _bgmSource.playOnAwake = false;
-            _bgmSource.spatialBlend = 0f; // 2D Stereo
+            if (_bgmSource == null)
+            {
+                _bgmSource = gameObject.AddComponent<AudioSource>();
+                _bgmSource.loop = true;
+                _bgmSource.playOnAwake = false;
+                _bgmSource.spatialBlend = 0f; // 2D Stereo
+            }
 
-            _sfxSource = gameObject.AddComponent<AudioSource>();
-            _sfxSource.loop = false;
-            _sfxSource.playOnAwake = false;
-            _sfxSource.spatialBlend = 0f;
+            if (_sfxSource == null)
+            {
+                _sfxSource = gameObject.AddComponent<AudioSource>();
+                _sfxSource.loop = false;
+                _sfxSource.playOnAwake = false;
+                _sfxSource.spatialBlend = 0f;
+            }
+        }
+
+        private void LoadAllAudioClips()
+        {
+            // 1. Nhạc nền (BGM)
+            _openingBgmClip = LoadClip("Audio/nhac_mo_dau", "Assets/Audio/nhac_mo_dau.mp3");
+            _defenseBgmClip = LoadClip("Audio/nhac_nen_cho_thu_thanh", "Assets/Audio/nhac_nen_cho_thu_thanh.mp3");
+            _assaultBgmClip = LoadClip("Audio/nhac_nen_cho_cong_thanh", "Assets/Audio/nhac_nen_cho_cong_thanh.mp3");
+            _commonBgmClip = LoadClip("Audio/nhac_nen_chung_cho_2_che_do", "Assets/Audio/nhac_nen_chung_cho_2_che_do.mp3");
+            _alternativeBgmClip = LoadClip("Audio/nhac_nen_2", "Assets/Audio/nhac_nen_2.mp3");
+
+            // 2. Âm thanh tiếng kêu / gầm khủng long (Dino SFX)
+            _pterodactylClip = LoadClip("Audio/dragon-studio-pterodactyl-call-382716", "Assets/Audio/dragon-studio-pterodactyl-call-382716.mp3");
+            _trexClip = LoadClip("Audio/dffdv-dinosaur-roar-with-screams-and-growls-193210", "Assets/Audio/dffdv-dinosaur-roar-with-screams-and-growls-193210.mp3");
+            _raptorClip = LoadClip("Audio/freesound_community-dinosaur-99810", "Assets/Audio/freesound_community-dinosaur-99810.mp3");
+            _ankylosaurusClip = _trexClip != null ? _trexClip : _raptorClip;
+
+            // 3. Âm thanh thắng / thua / giao diện
+            _victoryClip = LoadClip("Audio/floraphonic-you-win-sequence-2-183949", "Assets/Audio/floraphonic-you-win-sequence-2-183949.mp3");
+            _defeatClip = LoadClip("Audio/u_l5xum8z250-losing-horn-313723", "Assets/Audio/u_l5xum8z250-losing-horn-313723.mp3");
+
+            // Tạo các clip bổ trợ nếu thiếu
+            GenerateFallbackClipsIfNull();
+        }
+
+        private AudioClip LoadClip(string resourcePath, string editorPath)
+        {
+            AudioClip clip = Resources.Load<AudioClip>(resourcePath);
+#if UNITY_EDITOR
+            if (clip == null && !string.IsNullOrEmpty(editorPath))
+            {
+                clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(editorPath);
+            }
+#endif
+            return clip;
+        }
+
+        private void GenerateFallbackClipsIfNull()
+        {
+            const int sampleRate = 44100;
+            if (_clickClip == null)
+            {
+                _clickClip = GenerateTone(sampleRate, 0.05f, t => Mathf.Sin(2f * Mathf.PI * 880f * t) * Mathf.Exp(-t * 80f) * 0.5f);
+            }
+            if (_placementClip == null)
+            {
+                _placementClip = GenerateTone(sampleRate, 0.22f, t => Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(160f, 45f, t / 0.22f) * t) * Mathf.Exp(-t * 22f) * 0.8f);
+            }
+            if (_hornClip == null)
+            {
+                _hornClip = GenerateTone(sampleRate, 1.2f, t =>
+                {
+                    float env = Mathf.Sin(Mathf.Clamp01(t / 1.2f) * Mathf.PI);
+                    return (Mathf.Sin(2f * Mathf.PI * (220f + Mathf.Sin(t * 12f) * 8f) * t) * 0.6f + Mathf.Sin(2f * Mathf.PI * 330f * t) * 0.4f) * env * 0.85f;
+                });
+            }
         }
 
         private void ApplyVolumes()
@@ -150,17 +230,75 @@ namespace LlamAcademy.Dinos.Audio
             }
         }
 
-        public void StartBGM()
+        // ==========================================
+        // BGM PLAYBACK API
+        // ==========================================
+
+        public void PlayOpeningBgm()
         {
-            if (_bgmSource != null && _bgmClip != null && !_bgmSource.isPlaying)
+            if (_bgmCoroutine != null) StopCoroutine(_bgmCoroutine);
+            if (_openingBgmClip != null)
             {
-                _bgmSource.clip = _bgmClip;
+                PlayClipOnSource(_openingBgmClip, true);
+            }
+        }
+
+        /// <summary>
+        /// Phát nhạc nền theo chế độ chơi:
+        /// - Thủ thành: Phát nhạc thủ thành, khi hết bài thì tự động chuyển sang phát lặp lại nhạc nền chung.
+        /// - Công thành: Phát nhạc công thành, khi hết bài thì tự động chuyển sang phát lặp lại nhạc nền chung.
+        /// </summary>
+        public void PlayBgmForMode(PrehistoricGameMode mode)
+        {
+            if (_bgmCoroutine != null) StopCoroutine(_bgmCoroutine);
+
+            AudioClip modeClip = (mode == PrehistoricGameMode.TowerDefense) ? _defenseBgmClip : _assaultBgmClip;
+            AudioClip commonClip = _commonBgmClip != null ? _commonBgmClip : _alternativeBgmClip;
+
+            _bgmCoroutine = StartCoroutine(PlayModeThenCommonRoutine(modeClip, commonClip));
+        }
+
+        private IEnumerator PlayModeThenCommonRoutine(AudioClip modeClip, AudioClip commonClip)
+        {
+            if (!_IsBgmEnabled) yield break;
+
+            if (modeClip != null)
+            {
+                PlayClipOnSource(modeClip, false);
+
+                // Chờ cho đến khi bài nhạc riêng của chế độ phát hết
+                while (_bgmSource != null && _bgmSource.isPlaying && _bgmSource.time < (modeClip.length - 0.35f))
+                {
+                    yield return null;
+                }
+            }
+
+            // Sau khi hết bài của chế độ, phát tiếp tục và loop nhạc nền chung
+            if (commonClip != null)
+            {
+                PlayClipOnSource(commonClip, true);
+            }
+        }
+
+        private void PlayClipOnSource(AudioClip clip, bool loop)
+        {
+            if (_bgmSource == null || clip == null) return;
+            _bgmSource.clip = clip;
+            _bgmSource.loop = loop;
+            _bgmSource.time = 0f;
+            if (_IsBgmEnabled)
+            {
                 _bgmSource.Play();
             }
         }
 
         public void StopBGM()
         {
+            if (_bgmCoroutine != null)
+            {
+                StopCoroutine(_bgmCoroutine);
+                _bgmCoroutine = null;
+            }
             if (_bgmSource != null && _bgmSource.isPlaying)
             {
                 _bgmSource.Stop();
@@ -168,7 +306,96 @@ namespace LlamAcademy.Dinos.Audio
         }
 
         // ==========================================
-        // SFX Playback API
+        // DINO SFX API
+        // ==========================================
+
+        /// <summary>
+        /// Phát tiếng gầm của loài khủng long tương ứng khi người chơi chọn trong chế độ công thành
+        /// </summary>
+        public void PlayDinoSound(DinoSO dino)
+        {
+            if (dino == null) return;
+            PlayDinoSound(dino.name);
+        }
+
+        /// <summary>
+        /// Phát tiếng gầm của loài khủng long theo tên loài
+        /// </summary>
+        public void PlayDinoSound(string dinoName)
+        {
+            if (!_IsSfxEnabled || _sfxSource == null || string.IsNullOrEmpty(dinoName)) return;
+
+            string lower = dinoName.ToLower();
+            AudioClip clipToPlay = null;
+
+            if (lower.Contains("ptero"))
+            {
+                clipToPlay = _pterodactylClip;
+            }
+            else if (lower.Contains("trex") || lower.Contains("t-rex"))
+            {
+                clipToPlay = _trexClip;
+            }
+            else if (lower.Contains("anky"))
+            {
+                clipToPlay = _ankylosaurusClip != null ? _ankylosaurusClip : _trexClip;
+            }
+            else if (lower.Contains("velo") || lower.Contains("raptor"))
+            {
+                clipToPlay = _raptorClip;
+            }
+            else
+            {
+                clipToPlay = _raptorClip != null ? _raptorClip : _trexClip;
+            }
+
+            if (clipToPlay != null)
+            {
+                _sfxSource.PlayOneShot(clipToPlay, _SfxVolume * 1.0f);
+            }
+        }
+
+        /// <summary>
+        /// Khi bắt đầu một Wave trong chế độ Thủ thành, phát âm thanh lần lượt của từng loài khủng long xuất hiện
+        /// </summary>
+        public void PlayWaveDinoRoars(IEnumerable<string> dinoTypesInWave)
+        {
+            if (!_IsSfxEnabled) return;
+            if (_dinoRoarsCoroutine != null) StopCoroutine(_dinoRoarsCoroutine);
+            _dinoRoarsCoroutine = StartCoroutine(WaveDinoRoarsRoutine(dinoTypesInWave));
+        }
+
+        private IEnumerator WaveDinoRoarsRoutine(IEnumerable<string> dinoTypesInWave)
+        {
+            if (dinoTypesInWave == null) yield break;
+
+            HashSet<string> playedCategories = new HashSet<string>();
+
+            // Nghỉ nhẹ 0.4s sau tiếng tù và
+            yield return new WaitForSeconds(0.4f);
+
+            foreach (string dinoName in dinoTypesInWave)
+            {
+                if (string.IsNullOrEmpty(dinoName)) continue;
+                string lower = dinoName.ToLower();
+
+                string category = "other";
+                if (lower.Contains("ptero")) category = "ptero";
+                else if (lower.Contains("trex") || lower.Contains("t-rex")) category = "trex";
+                else if (lower.Contains("anky")) category = "anky";
+                else if (lower.Contains("velo") || lower.Contains("raptor")) category = "raptor";
+
+                if (!playedCategories.Contains(category))
+                {
+                    playedCategories.Add(category);
+                    PlayDinoSound(dinoName);
+                    yield return new WaitForSeconds(0.65f);
+                }
+            }
+        }
+
+        // ==========================================
+        // OTHER SFX PLAYBACK
         // ==========================================
 
         public void PlayButtonClick()
@@ -185,72 +412,32 @@ namespace LlamAcademy.Dinos.Audio
 
         public void PlayWaveHorn()
         {
-            if (!_IsSfxEnabled || _sfxSource == null || _hornClip == null) return;
-            _sfxSource.PlayOneShot(_hornClip, _SfxVolume * 1.0f);
+            if (!_IsSfxEnabled || _sfxSource == null) return;
+            AudioClip clip = _hornClip != null ? _hornClip : _defeatClip;
+            if (clip != null)
+            {
+                _sfxSource.PlayOneShot(clip, _SfxVolume * 1.0f);
+            }
         }
 
         public void PlayVictory()
         {
-            if (!_IsSfxEnabled || _sfxSource == null || _victoryClip == null) return;
-            _sfxSource.PlayOneShot(_victoryClip, _SfxVolume * 1.0f);
+            if (!_IsSfxEnabled || _sfxSource == null) return;
+            AudioClip clip = _victoryClip != null ? _victoryClip : _clickClip;
+            if (clip != null)
+            {
+                _sfxSource.PlayOneShot(clip, _SfxVolume * 1.0f);
+            }
         }
 
         public void PlayGameOver()
         {
-            if (!_IsSfxEnabled || _sfxSource == null || _defeatClip == null) return;
-            _sfxSource.PlayOneShot(_defeatClip, _SfxVolume * 1.0f);
-        }
-
-        // ==========================================
-        // Procedural Audio Synthesis
-        // ==========================================
-
-        private void GenerateProceduralAudioClips()
-        {
-            const int sampleRate = 44100;
-
-            // 1. Procedural BGM: 8-second seamless prehistoric rhythmic ambient drone
-            _bgmClip = GeneratePrehistoricAmbientBGM(sampleRate, 8.0f);
-
-            // 2. Procedural UI Click (light wooden tap)
-            _clickClip = GenerateTone(sampleRate, 0.05f, t =>
+            if (!_IsSfxEnabled || _sfxSource == null) return;
+            AudioClip clip = _defeatClip != null ? _defeatClip : _clickClip;
+            if (clip != null)
             {
-                float decay = Mathf.Exp(-t * 80f);
-                return Mathf.Sin(2f * Mathf.PI * 880f * t) * decay * 0.5f;
-            });
-
-            // 3. Procedural Tower Placement (heavy stone thud)
-            _placementClip = GenerateTone(sampleRate, 0.22f, t =>
-            {
-                float decay = Mathf.Exp(-t * 22f);
-                float f = Mathf.Lerp(160f, 45f, t / 0.22f);
-                return Mathf.Sin(2f * Mathf.PI * f * t) * decay * 0.8f;
-            });
-
-            // 4. Procedural Tribal War Horn (Wave start alert)
-            _hornClip = GenerateTone(sampleRate, 1.2f, t =>
-            {
-                float env = Mathf.Sin(Mathf.Clamp01(t / 1.2f) * Mathf.PI);
-                float f1 = 220f + Mathf.Sin(t * 12f) * 8f;
-                float f2 = 330f;
-                return (Mathf.Sin(2f * Mathf.PI * f1 * t) * 0.6f + Mathf.Sin(2f * Mathf.PI * f2 * t) * 0.4f) * env * 0.85f;
-            });
-
-            // 5. Procedural Victory Fanfare
-            _victoryClip = GenerateTone(sampleRate, 1.5f, t =>
-            {
-                float env = Mathf.Exp(-t * 2.5f);
-                float freq = t < 0.35f ? 440f : (t < 0.7f ? 554f : 659f);
-                return Mathf.Sin(2f * Mathf.PI * freq * t) * env * 0.7f;
-            });
-
-            // 6. Procedural Defeat Gong
-            _defeatClip = GenerateTone(sampleRate, 1.8f, t =>
-            {
-                float env = Mathf.Exp(-t * 2.2f);
-                float f = Mathf.Lerp(110f, 65f, t / 1.8f);
-                return (Mathf.Sin(2f * Mathf.PI * f * t) + Mathf.Sin(2f * Mathf.PI * (f * 1.48f) * t) * 0.5f) * env * 0.85f;
-            });
+                _sfxSource.PlayOneShot(clip, _SfxVolume * 1.0f);
+            }
         }
 
         private static AudioClip GenerateTone(int sampleRate, float duration, Func<float, float> waveFunc)
@@ -265,39 +452,6 @@ namespace LlamAcademy.Dinos.Audio
             }
 
             AudioClip clip = AudioClip.Create("Synthesized_SFX", totalSamples, 1, sampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
-
-        private static AudioClip GeneratePrehistoricAmbientBGM(int sampleRate, float duration)
-        {
-            int totalSamples = (int)(sampleRate * duration);
-            float[] samples = new float[totalSamples];
-
-            for (int i = 0; i < totalSamples; i++)
-            {
-                float t = (float)i / sampleRate;
-
-                // Deep ambient drone (D2 = 73.4Hz, A2 = 110Hz)
-                float drone = (Mathf.Sin(2f * Mathf.PI * 73.4f * t) * 0.45f) +
-                              (Mathf.Sin(2f * Mathf.PI * 110f * t) * 0.25f);
-
-                // Subtle tribal drum pulse every 1 second
-                float pulseTime = t % 1.0f;
-                float drumPulse = Mathf.Sin(2f * Mathf.PI * 55f * pulseTime) * Mathf.Exp(-pulseTime * 14f) * 0.45f;
-
-                // Atmospheric warm harmonics
-                float overtone = Mathf.Sin(2f * Mathf.PI * 220f * t) * 0.08f * (0.8f + 0.2f * Mathf.Sin(t * 1.5f));
-
-                // Soft fade in/out near loop boundary for zero-click seamless looping
-                float loopFade = 1f;
-                if (t < 0.05f) loopFade = t / 0.05f;
-                else if (t > duration - 0.05f) loopFade = (duration - t) / 0.05f;
-
-                samples[i] = Mathf.Clamp((drone + drumPulse + overtone) * loopFade * 0.55f, -1f, 1f);
-            }
-
-            AudioClip clip = AudioClip.Create("Prehistoric_BGM_Loop", totalSamples, 1, sampleRate, false);
             clip.SetData(samples, 0);
             return clip;
         }

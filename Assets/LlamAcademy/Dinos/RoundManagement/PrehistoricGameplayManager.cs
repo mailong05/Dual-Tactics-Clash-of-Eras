@@ -370,6 +370,17 @@ namespace LlamAcademy.Dinos.RoundManagement
             _MonstersRemainingToSpawn = spawnQueue.Count;
             MonstersAliveCount = _MonstersRemainingToSpawn;
 
+            // Phát tiếng gầm của từng loài khủng long xuất hiện trong đợt này
+            List<string> dinoTypesInWave = new List<string>();
+            foreach (var prefab in spawnQueue)
+            {
+                if (prefab != null && !dinoTypesInWave.Contains(prefab.name))
+                {
+                    dinoTypesInWave.Add(prefab.name);
+                }
+            }
+            Audio.PrehistoricAudioManager.Instance?.PlayWaveDinoRoars(dinoTypesInWave);
+
             ShowAnnouncement($"⚔ ĐỢT {waveIndex} BẮT ĐẦU! {TotalMonstersInWave} KHỦNG LONG ĐANG TẤN CÔNG! ⚔", 3.0f);
             Debug.Log($"<color=orange>[Prehistoric TD]</color> Starting Wave {waveIndex} with {TotalMonstersInWave} dinos!");
 
@@ -1442,11 +1453,14 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             if (RoundManager.Instance != null)
             {
-                RoundManager.Instance.ResetRoundToStart();
+                RoundManager.Instance.Round = _CurrentWave;
+                RoundManager.Instance.State = GameState.Setup;
+                RoundManager.Instance.IsEndingRound = false;
+                RoundManager.Instance.ActiveDinos.Clear();
             }
 
             ResetPlayerAndCameraPosition();
-            ShowAnnouncement($"⚔ THỬ LẠI ĐỢT {_CurrentWave}! LÀNG ĐÃ ĐƯỢC PHỤC HỒI 100%! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
+            ShowAnnouncement($"🔄 THỬ LẠI ĐỢT {_CurrentWave}! PHÒNG TUYẾN LÀNG ĐÃ ĐƯỢC PHỤC HỒI 100%! BẤM SPACE ĐỂ XUẤT TRẬN! ⚔", 4.0f);
         }
 
         public void RestartGame()
