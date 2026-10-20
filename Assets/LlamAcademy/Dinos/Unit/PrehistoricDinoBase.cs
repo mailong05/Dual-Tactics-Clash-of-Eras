@@ -1397,8 +1397,8 @@ namespace LlamAcademy.Dinos.Unit
                 if (!go.TryGetComponent(out Wall wall))
                 {
                     wall = go.AddComponent<Wall>();
-                    wall.MaxHealth = 450;
-                    wall.Health = 450;
+                    wall.MaxHealth = 900;
+                    wall.Health = 900;
                     wall.EnsureHealthBarAttached();
                 }
                 return wall;

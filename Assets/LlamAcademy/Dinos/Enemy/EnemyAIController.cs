@@ -49,7 +49,25 @@ namespace LlamAcademy.Dinos.Enemy
             new Vector3(-2.2f, 0.0f, -24.0f),  // Chốt 17: Vệ binh tiền đồn căn cứ
             new Vector3(-4.5f, 0.0f, -25.5f),  // Chốt 18: Vệ binh cánh trái căn cứ
             new Vector3(0.5f, 0.0f, -25.5f),   // Chốt 19: Vệ binh cánh phải căn cứ
-            new Vector3(-2.2f, 0.0f, -27.5f)   // Chốt 20: Cận vệ bảo vệ Trứng / Căn Cứ Làng
+            new Vector3(-2.2f, 0.0f, -27.5f),  // Chốt 20: Cận vệ bảo vệ Trứng / Căn Cứ Làng
+
+            // --- CÁC VỊ TRÍ TIỀN TIÊU & BỌC SƯỜN MỞ RỘNG (Wave 5 - 10) ---
+            new Vector3(-3.2f, 0.0f, -12.5f),  // Chốt 21: Tiền tuyến trước vòm cổng (tả)
+            new Vector3(-1.2f, 0.0f, -12.5f),  // Chốt 22: Tiền tuyến trước vòm cổng (hữu)
+            new Vector3(-7.5f, 0.0f, -15.0f),  // Chốt 23: Vệ binh cánh trái trước
+            new Vector3(5.5f, 0.0f, -15.0f),   // Chốt 24: Vệ binh cánh phải trước
+            new Vector3(-9.5f, 0.0f, -18.0f),  // Chốt 25: Vành đai Tây ngoài
+            new Vector3(7.8f, 0.0f, -18.0f),   // Chốt 26: Vành đai Đông ngoài
+            new Vector3(-0.8f, 0.0f, -17.5f),  // Chốt 27: Trục trung tâm làng (hữu)
+            new Vector3(-3.6f, 0.0f, -17.5f),  // Chốt 28: Trục trung tâm làng (tả)
+            new Vector3(-6.2f, 0.0f, -22.5f),  // Chốt 29: Vành đai tiếp cận sườn trái
+            new Vector3(4.2f, 0.0f, -22.5f),   // Chốt 30: Vành đai tiếp cận sườn phải
+            new Vector3(-1.2f, 0.0f, -21.5f),  // Chốt 31: Trung tuyến sau làng (hữu)
+            new Vector3(-3.2f, 0.0f, -21.5f),  // Chốt 32: Trung tuyến sau làng (tả)
+            new Vector3(-2.2f, 0.0f, -30.0f),  // Chốt 33: Vệ binh trung tâm trước đài tế
+            new Vector3(-4.0f, 0.0f, -32.0f),  // Chốt 34: Cận vệ bảo vệ trứng (tả)
+            new Vector3(-0.4f, 0.0f, -32.0f),  // Chốt 35: Cận vệ bảo vệ trứng (hữu)
+            new Vector3(-2.2f, 0.0f, -34.0f)   // Chốt 36: Hộ vệ tối hậu căn cứ trứng
         };
 
         /// <summary>

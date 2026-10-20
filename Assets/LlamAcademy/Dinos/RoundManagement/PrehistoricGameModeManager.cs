@@ -116,7 +116,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Debug.Log("<color=orange><b>[AI Chỉ Huy Làng]</b></color> Phát hiện Khủng Long Giáp (Ankylosaurus)! Quân cố thủ dàn đội hình chống phá thành!");
                 if (EnemyAIController.Instance != null)
                 {
-                    EnemyAIController.Instance.EnsureDefendersAlive(Mathf.Clamp(4 + AssaultLevel * 2, 4, 10));
+                    EnemyAIController.Instance.EnsureDefendersAlive(PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel));
                 }
             }
             else if (dino is Unit.RunnerDino)
@@ -273,7 +273,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 enemyAI.enabled = true;
                 if (Application.isPlaying)
                 {
-                    enemyAI.EnsureDefendersAlive(4 + (AssaultLevel - 1) * 2);
+                    enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel));
                 }
             }
 
@@ -923,11 +923,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 2. Hồi phục và nâng cấp máu căn cứ làng
+            // 2. Hồi phục máu căn cứ làng (giữ nguyên 1000 HP theo yêu cầu)
             EnsureVillageBase();
             if (VillageBase != null)
             {
-                int baseHp = 1000 + (level - 1) * 350;
+                int baseHp = 1000;
                 VillageBase.RestoreBase(baseHp);
             }
 

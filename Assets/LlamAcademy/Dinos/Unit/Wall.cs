@@ -90,7 +90,7 @@ namespace LlamAcademy.Dinos.Unit
             }
             gameObject.SetActive(true);
 
-            if (MaxHealth <= 0) MaxHealth = 450;
+            if (MaxHealth <= 0 || MaxHealth == 450 || MaxHealth == 250) MaxHealth = 900;
             Health = MaxHealth;
 
             Collider[] cols = GetComponentsInChildren<Collider>(true);

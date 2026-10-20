@@ -616,64 +616,64 @@ namespace LlamAcademy.Dinos.RoundManagement
             switch (waveIndex)
             {
                 case 1:
-                    // Wave 1: 8 Velociraptors (Học cách đặt tháp cơ bản)
-                    AddMultiple(queue, RaptorPrefab, 8);
+                    // Wave 1: 5 Velociraptors (Làm quen, nhịp độ vừa phải cân bằng)
+                    AddMultiple(queue, RaptorPrefab, 5);
                     break;
                 case 2:
-                    // Wave 2: 10 Raptors + 4 Pterodactyls (Bắt đầu xuất hiện quái bay)
-                    AddMultiple(queue, RaptorPrefab, 10);
-                    AddMultiple(queue, PterodactylPrefab, 4);
+                    // Wave 2: 5 Raptors + 2 Pterodactyls (Tổng: 7 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 5);
+                    AddMultiple(queue, PterodactylPrefab, 2);
                     break;
                 case 3:
-                    // Wave 3: 8 Raptors + 4 Pterodactyls + 3 Ankylosaurus (Xuất hiện quái trâu bọc thép)
+                    // Wave 3: 6 Raptors + 2 Pterodactyls + 1 Ankylosaurus (Tổng: 9 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 6);
+                    AddMultiple(queue, PterodactylPrefab, 2);
+                    AddMultiple(queue, AnkylosaurusPrefab, 1);
+                    break;
+                case 4:
+                    // Wave 4: 7 Raptors + 3 Pterodactyls + 2 Ankylosaurus (Tổng: 12 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 7);
+                    AddMultiple(queue, PterodactylPrefab, 3);
+                    AddMultiple(queue, AnkylosaurusPrefab, 2);
+                    break;
+                case 5:
+                    // Wave 5: 8 Raptors + 4 Pterodactyls + 3 Ankylosaurus (Tổng: 15 khủng long)
                     AddMultiple(queue, RaptorPrefab, 8);
                     AddMultiple(queue, PterodactylPrefab, 4);
                     AddMultiple(queue, AnkylosaurusPrefab, 3);
                     break;
-                case 4:
-                    // Wave 4: 14 Raptors + 6 Pterodactyls + 4 Ankylosaurus
-                    AddMultiple(queue, RaptorPrefab, 14);
-                    AddMultiple(queue, PterodactylPrefab, 6);
-                    AddMultiple(queue, AnkylosaurusPrefab, 4);
-                    break;
-                case 5:
-                    // Wave 5: 16 Raptors + 8 Pterodactyls + 6 Ankylosaurus
-                    AddMultiple(queue, RaptorPrefab, 16);
-                    AddMultiple(queue, PterodactylPrefab, 8);
-                    AddMultiple(queue, AnkylosaurusPrefab, 6);
-                    break;
                 case 6:
-                    // Wave 6: Bão quái bay + bầy săn mồi
-                    AddMultiple(queue, PterodactylPrefab, 14);
-                    AddMultiple(queue, RaptorPrefab, 18);
-                    AddMultiple(queue, AnkylosaurusPrefab, 4);
+                    // Wave 6: 10 Raptors + 5 Pterodactyls + 3 Ankylosaurus (Tổng: 18 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 10);
+                    AddMultiple(queue, PterodactylPrefab, 5);
+                    AddMultiple(queue, AnkylosaurusPrefab, 3);
                     break;
                 case 7:
-                    // Wave 7: Binh đoàn bọc thép công thành
-                    AddMultiple(queue, AnkylosaurusPrefab, 10);
-                    AddMultiple(queue, RaptorPrefab, 18);
-                    AddMultiple(queue, PterodactylPrefab, 8);
+                    // Wave 7: 10 Raptors + 5 Pterodactyls + 5 Ankylosaurus (Tổng: 20 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 10);
+                    AddMultiple(queue, PterodactylPrefab, 5);
+                    AddMultiple(queue, AnkylosaurusPrefab, 5);
                     break;
                 case 8:
-                    // Wave 8: Áp đảo toàn diện
-                    AddMultiple(queue, RaptorPrefab, 24);
-                    AddMultiple(queue, PterodactylPrefab, 12);
-                    AddMultiple(queue, AnkylosaurusPrefab, 8);
+                    // Wave 8: 12 Raptors + 6 Pterodactyls + 5 Ankylosaurus (Tổng: 23 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 12);
+                    AddMultiple(queue, PterodactylPrefab, 6);
+                    AddMultiple(queue, AnkylosaurusPrefab, 5);
                     break;
                 case 9:
-                    // Wave 9: Tiền trạm trước trận chung kết
-                    AddMultiple(queue, AnkylosaurusPrefab, 12);
-                    AddMultiple(queue, PterodactylPrefab, 15);
-                    AddMultiple(queue, RaptorPrefab, 28);
+                    // Wave 9: 14 Raptors + 7 Pterodactyls + 6 Ankylosaurus (Tổng: 27 khủng long)
+                    AddMultiple(queue, RaptorPrefab, 14);
+                    AddMultiple(queue, PterodactylPrefab, 7);
+                    AddMultiple(queue, AnkylosaurusPrefab, 6);
                     break;
                 case 10:
                 default:
-                    // Wave 10: TRẬN CHIẾN CUỐI CÙNG - BOSS T-REX APEX KHỔNG LỒ!
-                    AddMultiple(queue, RaptorPrefab, 12);
-                    AddMultiple(queue, PterodactylPrefab, 6);
-                    AddMultiple(queue, AnkylosaurusPrefab, 4);
+                    // Wave 10: TRẬN CHIẾN CUỐI CÙNG - BOSS T-REX APEX CÙNG ĐỘI HỘ VỆ! (Tổng: 18)
+                    AddMultiple(queue, RaptorPrefab, 6);
+                    AddMultiple(queue, PterodactylPrefab, 4);
+                    AddMultiple(queue, AnkylosaurusPrefab, 3);
                     queue.Add(TRexBossPrefab); // The mighty T-Rex Apex Boss!
-                    AddMultiple(queue, RaptorPrefab, 8);
+                    AddMultiple(queue, RaptorPrefab, 4);
                     break;
             }
 
@@ -930,10 +930,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public static int GetTargetDefendersForWave(int wave)
         {
-            // Quy định nghiêm ngặt 100% số lượng NPC theo mỗi màn:
-            // Màn 1: 6 NPC | Màn 2: 8 NPC | Màn 3: 10 NPC (khớp đúng ví dụ) | Màn 4: 12 NPC | Màn 5: 14 NPC
-            // Màn 6: 16 NPC | Màn 7: 18 NPC | Màn 8: 20 NPC | Màn 9: 22 NPC | Màn 10+: 24 NPC
-            return Mathf.Clamp(4 + wave * 2, 6, 24);
+            // Quy định nghiêm ngặt 100% số lượng NPC theo mỗi màn (tăng số NPC theo yêu cầu người chơi):
+            // Màn 1: 10 NPC (cũ: 6) | Màn 2: 13 NPC (cũ: 8) | Màn 3: 16 NPC (cũ: 10)
+            // Màn 4: 19 NPC (cũ: 12) | Màn 5: 22 NPC (cũ: 14) | Màn 6: 25 NPC (cũ: 16)
+            // Màn 7: 28 NPC (cũ: 18) | Màn 8: 31 NPC (cũ: 20) | Màn 9: 34 NPC (cũ: 22) | Màn 10+: 36 NPC (cũ: 24)
+            return Mathf.Clamp(7 + wave * 3, 10, 36);
         }
 
         public void EnsureVillageDefendersActive()
@@ -1126,7 +1127,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 tr.transform.localScale = Vector3.one * 1.3f;
             }
 
-            // Cánh Cổng Gỗ Kiên Cố Chắn Khủng Long (1000 HP)
+            // Cánh Cổng Gỗ Kiên Cố Chắn Khủng Long (1500 HP - gấp 1.5 lần 1000 HP)
             if (barricadePrefab != null)
             {
                 GameObject gateBar = Instantiate(barricadePrefab, new Vector3(-2.2f, 0f, wallZ), Quaternion.identity, gateEntryway.transform);
@@ -1135,8 +1136,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (gateBar.TryGetComponent(out Unit.Wall ugb))
                 {
                     if (barricadeSO != null) ugb.UnitType = barricadeSO;
-                    ugb.Health = 1000;
-                    ugb.MaxHealth = 1000;
+                    ugb.Health = 1500;
+                    ugb.MaxHealth = 1500;
                     ugb.EnsureHealthBarAttached();
                     // Khi cánh cổng hết máu, làm biến mất TOÀN BỘ CỔNG (Gate_Entryway gồm Khung cổng vòm, Đuốc, và Cánh cổng)
                     ugb.Root = gateEntryway;
@@ -1168,8 +1169,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (seg.TryGetComponent(out Unit.Unit uw))
                     {
                         if (barricadeSO != null) uw.UnitType = barricadeSO;
-                        uw.Health = 450;
-                        uw.MaxHealth = 450;
+                        uw.Health = 900;
+                        uw.MaxHealth = 900;
                         uw.EnsureHealthBarAttached();
                     }
                     EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1205,8 +1206,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (seg.TryGetComponent(out Unit.Unit uw))
                     {
                         if (barricadeSO != null) uw.UnitType = barricadeSO;
-                        uw.Health = 450;
-                        uw.MaxHealth = 450;
+                        uw.Health = 900;
+                        uw.MaxHealth = 900;
                         uw.EnsureHealthBarAttached();
                     }
                     EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1251,15 +1252,15 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (rf.TryGetComponent(out Unit.Unit uwf))
                     {
                         if (barricadeSO != null) uwf.UnitType = barricadeSO;
-                        uwf.Health = 450;
-                        uwf.MaxHealth = 450;
+                        uwf.Health = 900;
+                        uwf.MaxHealth = 900;
                         uwf.EnsureHealthBarAttached();
                     }
                     EnsureNavMeshObstacle(rf, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
                 }
             }
 
-            // 4. THÊM 2 CHÒI CUNG THỦ TIỀN TIÊU Ở 2 BÊN PHÍA TRƯỚC LÀNG (Front Flanking Archer Watchtowers)
+            // 4. THÊM 2 CHÒI CUNG THỦ TIỀN TIÊU Ở 2 BÊN PHÍA TRƯỚC LÀNG (Front Flanking Archer Watchtowers - 1200 HP)
             if (watchtowerPrefab != null)
             {
                 // Chòi Cung Thủ Bên Trái
@@ -1268,8 +1269,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (wtLeft.TryGetComponent(out Unit.Unit uwl))
                 {
                     if (watchtowerSO != null) uwl.UnitType = watchtowerSO;
-                    uwl.MaxHealth = 800;
-                    uwl.Health = 800;
+                    uwl.MaxHealth = 1200;
+                    uwl.Health = 1200;
                     uwl.EnsureHealthBarAttached();
                 }
                 EnsureNavMeshObstacle(wtLeft, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
@@ -1280,8 +1281,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (wtRight.TryGetComponent(out Unit.Unit uwr))
                 {
                     if (watchtowerSO != null) uwr.UnitType = watchtowerSO;
-                    uwr.MaxHealth = 800;
-                    uwr.Health = 800;
+                    uwr.MaxHealth = 1200;
+                    uwr.Health = 1200;
                     uwr.EnsureHealthBarAttached();
                 }
                 EnsureNavMeshObstacle(wtRight, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
@@ -1296,8 +1297,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (customGapWall.TryGetComponent(out Unit.Unit ucg))
                 {
                     if (barricadeSO != null) ucg.UnitType = barricadeSO;
-                    ucg.Health = 450;
-                    ucg.MaxHealth = 450;
+                    ucg.Health = 900;
+                    ucg.MaxHealth = 900;
                     ucg.EnsureHealthBarAttached();
                 }
                 EnsureBoxCollider(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1512,13 +1513,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 obs.carveOnlyStationary = false;
                 obs.enabled = true;
 
-                // 8. Đảm bảo có Component Wall (Unit) với lượng máu tường cân đối (450 HP)
+                // 8. Đảm bảo có Component Wall (Unit) với lượng máu cọc gỗ gấp đôi (900 HP)
                 if (!go.TryGetComponent(out Unit.Wall wall))
                 {
                     wall = go.AddComponent<Unit.Wall>();
                 }
-                if (wall.MaxHealth <= 0) wall.MaxHealth = 450;
-                if (wall.Health <= 0) wall.Health = wall.MaxHealth;
+                if (wall.MaxHealth <= 0 || wall.MaxHealth == 450 || wall.MaxHealth == 250)
+                {
+                    wall.MaxHealth = 900;
+                    wall.Health = 900;
+                }
                 if (barricadeSO != null && wall.UnitType == null)
                 {
                     wall.UnitType = barricadeSO;
@@ -1616,24 +1620,24 @@ namespace LlamAcademy.Dinos.RoundManagement
                         if (floorDeck.TryGetComponent(out BoxCollider bcF)) bcF.enabled = true;
                     }
 
-                    // Gán Wall component (400 HP) cho cổng vòm
+                    // Gán Wall component (600 HP - gấp 1.5 lần 400 HP) cho cổng vòm
                     if (!t.TryGetComponent(out Unit.Wall wArch))
                     {
                         wArch = t.gameObject.AddComponent<Unit.Wall>();
-                        wArch.MaxHealth = 400;
-                        wArch.Health = 400;
+                        wArch.MaxHealth = 600;
+                        wArch.Health = 600;
                         wArch.Root = t.gameObject;
                         wArch.EnsureHealthBarAttached();
                     }
                     else
                     {
-                        if (wArch.MaxHealth <= 0) wArch.MaxHealth = 400;
-                        if (wArch.Health <= 0) wArch.Health = wArch.MaxHealth;
+                        if (wArch.MaxHealth <= 0 || wArch.MaxHealth == 400) wArch.MaxHealth = 600;
+                        if (wArch.Health <= 0 || wArch.Health == 400) wArch.Health = wArch.MaxHealth;
                         wArch.Root = t.gameObject;
                         wArch.EnsureHealthBarAttached();
                     }
                 }
-                // 2. CHÒI BỘ LẠC TRUNG TÂM (Big Tower with Platform)
+                // 2. CHÒI BỘ LẠC TRUNG TÂM (Big Tower with Platform - 900 HP)
                 else if (n.StartsWith("Big Tower with Platform", StringComparison.OrdinalIgnoreCase))
                 {
                     Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
@@ -1656,19 +1660,19 @@ namespace LlamAcademy.Dinos.RoundManagement
                     // Đảm bảo có BoxCollider bao quanh thân chòi/sàn tròn
                     EnsureBoxCollider(t.gameObject, new Vector3(7.5f, 4.5f, 7.5f), new Vector3(0f, 2.25f, 0f));
 
-                    // Gán Wall component (600 HP) cho chòi
+                    // Gán Wall component (900 HP - gấp 1.5 lần 600 HP) cho chòi
                     if (!t.TryGetComponent(out Unit.Wall wTower))
                     {
                         wTower = t.gameObject.AddComponent<Unit.Wall>();
-                        wTower.MaxHealth = 600;
-                        wTower.Health = 600;
+                        wTower.MaxHealth = 900;
+                        wTower.Health = 900;
                         wTower.Root = t.gameObject;
                         wTower.EnsureHealthBarAttached();
                     }
                     else
                     {
-                        if (wTower.MaxHealth <= 0) wTower.MaxHealth = 600;
-                        if (wTower.Health <= 0) wTower.Health = wTower.MaxHealth;
+                        if (wTower.MaxHealth <= 0 || wTower.MaxHealth == 600) wTower.MaxHealth = 900;
+                        if (wTower.Health <= 0 || wTower.Health == 600) wTower.Health = wTower.MaxHealth;
                         wTower.Root = t.gameObject;
                         wTower.EnsureHealthBarAttached();
                     }
