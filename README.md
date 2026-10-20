@@ -142,4 +142,4 @@ Chạy script PowerShell hỗ trợ đóng gói tự động cho thiết bị An
 ---
 
 ## 📜 Giấy Phép (License)
-Dự án được phát triển phục vụ mục đích nghiên cứu, học thuật và phát triển công nghệ game chiến thuật thích ứng. Bản quyền thuộc về tác giả và nhóm phát triển.
+Dự án được phát triển phục vụ mục đích nghiên cứu, học thuật và phát triển công nghệ game chiến thuật thích ứng. Ý tưởng được lấy từ nhiều nguồn. Dự án chỉ để tham khảo và thử sức. Thân!
