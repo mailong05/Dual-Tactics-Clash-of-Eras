@@ -108,6 +108,10 @@ namespace LlamAcademy.Dinos.UI
         {
             if (!IsOpen) return;
 
+            GUI.depth = -1500;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
             MobileUIHelper.BeginScaling();
             try
             {
@@ -127,7 +131,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawDialogBackdrop()
         {
-            GUI.depth = -1200;
+            GUI.depth = -1500;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -142,10 +146,10 @@ namespace LlamAcademy.Dinos.UI
             float screenW = MobileUIHelper.ScreenWidth;
             float screenH = MobileUIHelper.ScreenHeight;
 
-            float winW = Mathf.Clamp(screenW * 0.72f, 540f, 840f);
-            winW = Mathf.Min(winW, screenW - 20f);
-            float winH = Mathf.Clamp(screenH * 0.82f, 480f, 720f);
-            winH = Mathf.Min(winH, screenH - 24f);
+            float winW = Mathf.Clamp(screenW * 0.78f, 520f, 860f);
+            winW = Mathf.Min(winW, screenW - 16f);
+            float winH = Mathf.Clamp(screenH * 0.86f, 440f, 720f);
+            winH = Mathf.Min(winH, screenH - 20f);
 
             float x = (screenW - winW) / 2f;
             float y = (screenH - winH) / 2f;
@@ -228,14 +232,14 @@ namespace LlamAcademy.Dinos.UI
             // 3. Scroll View of Slots
             _scrollPos = GUILayout.BeginScrollView(_scrollPos, false, true);
 
-            var saveMgr = PrehistoricSaveManager.Instance;
+            var saveMgr = PrehistoricSaveManager.Instance != null ? PrehistoricSaveManager.Instance : PrehistoricSaveManager.EnsureInstance();
             if (saveMgr != null)
             {
                 if (CurrentDialogMode == SaveLoadDialogMode.Load)
                 {
                     // In Load Mode: Show Auto-Save slot first (Slot 0)
                     SaveSlotData autoSave = saveMgr.GetSlotData(ActiveTabMode, 0, isAutoSave: true);
-                    if (autoSave != null && autoSave.HasActiveRun)
+                    if (autoSave != null && autoSave.WaveOrLevel > 0)
                     {
                         DrawSlotCard(0, autoSave, isAutoSave: true);
                         GUILayout.Space(6);
@@ -277,7 +281,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawSlotCard(int slotIndex, SaveSlotData slotData, bool isAutoSave)
         {
-            bool isOccupied = slotData != null && slotData.HasActiveRun;
+            bool isOccupied = slotData != null && slotData.WaveOrLevel > 0;
 
             Color boxBg = isAutoSave
                 ? new Color(0.12f, 0.22f, 0.32f, 0.95f)
@@ -289,8 +293,8 @@ namespace LlamAcademy.Dinos.UI
 
             GUILayout.BeginHorizontal();
 
-            // Left side: Slot Info
-            GUILayout.BeginVertical(GUILayout.Width(380));
+            // Left side: Slot Info (Flexible width)
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
 
             string slotTag = isAutoSave ? "⚡ <color=#FBBF24><b>TỰ ĐỘNG LƯU (AUTOSAVE)</b></color>" : $"📁 <b>KHE LƯU SỐ {slotIndex}</b>";
             GUILayout.Label($"<size=13>{slotTag}</size>");
@@ -345,7 +349,7 @@ namespace LlamAcademy.Dinos.UI
                 else
                 {
                     GUI.backgroundColor = new Color(0.95f, 0.55f, 0.15f, 0.98f);
-                    if (GUILayout.Button("<b>덮 GHI ĐÈ KHE NÀY</b>", GUILayout.Width(140), GUILayout.Height(42)))
+                    if (GUILayout.Button("<b>🔄 GHI ĐÈ KHE NÀY</b>", GUILayout.Width(140), GUILayout.Height(42)))
                     {
                         PromptOverwriteSlot(slotIndex, slotData);
                     }
@@ -450,7 +454,7 @@ namespace LlamAcademy.Dinos.UI
             PrehistoricAudioManager.Instance?.PlayButtonClick();
             CloseDialog();
 
-            var saveMgr = PrehistoricSaveManager.Instance;
+            var saveMgr = PrehistoricSaveManager.Instance != null ? PrehistoricSaveManager.Instance : PrehistoricSaveManager.EnsureInstance();
             if (saveMgr != null)
             {
                 saveMgr.LoadGameFromSlot(slotData);
@@ -459,7 +463,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawConfirmationModal()
         {
-            GUI.depth = -1300;
+            GUI.depth = -1600;
 
             float modalW = Mathf.Min(500f, MobileUIHelper.ScreenWidth - 20f);
             float modalH = 220f;

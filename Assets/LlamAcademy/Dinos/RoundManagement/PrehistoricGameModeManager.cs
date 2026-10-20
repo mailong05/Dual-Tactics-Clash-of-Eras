@@ -78,6 +78,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject saveGO = new GameObject("PrehistoricSaveManager");
                 saveGO.AddComponent<Save.PrehistoricSaveManager>();
             }
+            if (UI.PrehistoricSaveLoadDialog.Instance == null)
+            {
+                UI.PrehistoricSaveLoadDialog.EnsureInstance();
+            }
         }
 
         private void Start()
@@ -798,6 +802,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             TriggerAssaultVictory();
         }
 
+        public void ReturnToMainMenu()
+        {
+            Time.timeScale = 1.0f;
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+            ClearAllDinos();
+
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.ReturnToMainMenu();
+            }
+            else
+            {
+                if (UI.PrehistoricMainMenu.Instance != null)
+                {
+                    UI.PrehistoricMainMenu.Instance.IsOpen = true;
+                }
+                Audio.PrehistoricAudioManager.Instance?.PlayOpeningBgm();
+            }
+        }
+
         public void QuitGame()
         {
 #if UNITY_EDITOR
@@ -1196,8 +1220,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float height = 390f;
+            float width = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 400f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
@@ -1234,11 +1258,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RetryCurrentAssaultLevel();
             }
 
-            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT GAME</size></b>" : "<b><size=14>🚪 THOÁT GAME\n[Phím ESC / Q]</size></b>";
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitLabel, GUILayout.Height(55)))
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(55)))
             {
-                QuitGame();
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.DinoAssault);
+            }
+
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f);
+            if (GUILayout.Button("<b><size=14>🏠 MENU CHÍNH\n(LƯU TIẾN TRÌNH)</size></b>", GUILayout.Height(55)))
+            {
+                ReturnToMainMenu();
             }
 
             GUI.backgroundColor = Color.white;
@@ -1256,8 +1285,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = Mathf.Min(640f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float height = 320f;
+            float width = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 340f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
@@ -1277,28 +1306,30 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(18);
             GUILayout.BeginHorizontal();
 
-            string retryLabel = Mobile.MobileUIHelper.IsMobile ? $"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}</size></b>" : $"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}\n[SPACE]</size></b>";
-            string resetLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU</size></b>" : "<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU\n[PHÍM R]</size></b>";
-            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT\nGAME</size></b>" : "<b><size=14>🚪 THOÁT\n[ESC / Q]</size></b>";
-
-            float btnW = (width - 40) / 3f;
+            float btnW = (width - 55) / 4f;
 
             GUI.backgroundColor = new Color(1f, 0.45f, 0.2f);
-            if (GUILayout.Button(retryLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            if (GUILayout.Button($"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
             {
                 RetryCurrentAssaultLevel();
             }
 
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
+            {
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.DinoAssault);
+            }
+
             GUI.backgroundColor = new Color(0.95f, 0.65f, 0.15f);
-            if (GUILayout.Button(resetLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            if (GUILayout.Button("<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
             {
                 RestartAssaultFromLevel1();
             }
 
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f, 1f);
+            if (GUILayout.Button("<b><size=14>🏠 MENU\nCHÍNH</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
             {
-                QuitGame();
+                ReturnToMainMenu();
             }
 
             GUI.backgroundColor = Color.white;

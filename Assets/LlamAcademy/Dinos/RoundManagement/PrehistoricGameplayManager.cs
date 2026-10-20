@@ -242,6 +242,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject saveGO = new GameObject("PrehistoricSaveManager");
                 saveGO.AddComponent<Save.PrehistoricSaveManager>();
             }
+            if (UI.PrehistoricSaveLoadDialog.Instance == null)
+            {
+                UI.PrehistoricSaveLoadDialog.EnsureInstance();
+            }
         }
 
         private void Start()
@@ -2483,8 +2487,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = Mathf.Min(620f, Mobile.MobileUIHelper.ScreenWidth - 30f);
-            float modalH = 340f;
+            float modalW = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float modalH = 360f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - modalW) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - modalH) / 2f;
 
@@ -2501,39 +2505,39 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(8);
             GUILayout.Label($"<size=16>Bầy khủng long hung hãn đã tràn qua tuyến phòng thủ ở <b>Đợt {_CurrentWave} / {_MaxWaves}</b>!</size>");
             GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ làng (Tường, Căn cứ, NPC) sẵn sàng phục hồi lại toàn bộ 100%.</color></size>");
-            GUILayout.Space(20);
+            GUILayout.Space(18);
 
-            // 3 nút lựa chọn rõ ràng: Thử lại đợt này / Chơi từ Wave 1 / Thoát game
+            // 4 nút lựa chọn rõ ràng: Thử lại đợt này / Lưu game chọn khe / Chơi từ Wave 1 / Về Menu
             GUILayout.BeginHorizontal();
 
-            string retryBtnText = Mobile.MobileUIHelper.IsMobile 
-                ? $"<b><size=15>🔄 CHƠI LẠI MÀN {_CurrentWave}</size></b>"
-                : $"<b><size=15>🔄 CHƠI LẠI MÀN {_CurrentWave}</size></b>\n<size=12>[Phím SPACE / ENTER]</size>";
-
-            string resetBtnText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=15>⏮️ CHƠI LẠI TỪ ĐẦU</size></b>"
-                : "<b><size=15>⏮️ CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím R]</size>";
-
-            string quitBtnText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=15>🚪 THOÁT GAME</size></b>"
-                : "<b><size=15>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]</size>";
+            float btnW = (modalW - 65) / 4f;
 
             GUI.backgroundColor = new Color(0.2f, 0.85f, 0.35f, 1f);
-            if (GUILayout.Button(retryBtnText, GUILayout.Height(68), GUILayout.Width((modalW - 55) / 3)))
+            if (GUILayout.Button($"<b><size=14>🔄 CHƠI LẠI\nĐỢT {_CurrentWave}</size></b>", GUILayout.Height(64), GUILayout.Width(btnW)))
             {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 RetryCurrentWave();
             }
 
-            GUI.backgroundColor = new Color(0.95f, 0.55f, 0.15f, 1f);
-            if (GUILayout.Button(resetBtnText, GUILayout.Height(68), GUILayout.Width((modalW - 55) / 3)))
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f, 1f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(64), GUILayout.Width(btnW)))
             {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.TowerDefense);
+            }
+
+            GUI.backgroundColor = new Color(0.95f, 0.55f, 0.15f, 1f);
+            if (GUILayout.Button("<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU</size></b>", GUILayout.Height(64), GUILayout.Width(btnW)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 FullResetGame();
             }
 
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitBtnText, GUILayout.Height(68), GUILayout.Width((modalW - 55) / 3)))
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f, 1f);
+            if (GUILayout.Button("<b><size=14>🏠 MENU\nCHÍNH</size></b>", GUILayout.Height(64), GUILayout.Width(btnW)))
             {
-                QuitGame();
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                ReturnToMainMenu();
             }
 
             GUI.backgroundColor = Color.white;
@@ -2554,8 +2558,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float height = 390f;
+            float width = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 400f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
@@ -2598,6 +2602,13 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RetryCurrentWave();
             }
 
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(55)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.TowerDefense);
+            }
+
             GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f);
             if (GUILayout.Button("<b><size=14>🏠 MENU CHÍNH\n(LƯU TIẾN TRÌNH)</size></b>", GUILayout.Height(55)))
             {
@@ -2622,7 +2633,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = Mathf.Min(720f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float modalW = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
             float modalH = 410f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - modalW) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - modalH) / 2f;
@@ -2652,22 +2663,31 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUILayout.BeginHorizontal();
 
+            float btnW = (modalW - 65) / 4f;
+
             GUI.backgroundColor = new Color(0.2f, 0.8f, 0.3f, 1f);
-            if (GUILayout.Button("<b><size=15>🎉 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=11>(Khởi động lại Đợt 1)</size>", GUILayout.Height(62)))
+            if (GUILayout.Button("<b><size=14>🎉 CHƠI LẠI\nTỪ ĐẦU</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 FullResetGame();
             }
 
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f, 1f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.TowerDefense);
+            }
+
             GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f, 1f);
-            if (GUILayout.Button("<b><size=15>🏠 MENU CHÍNH</size></b>\n<size=11>(Về màn hình chính)</size>", GUILayout.Height(62)))
+            if (GUILayout.Button("<b><size=14>🏠 MENU\nCHÍNH</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 ReturnToMainMenu();
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME</size></b>\n<size=11>(Rời trò chơi)</size>", GUILayout.Height(62)))
+            if (GUILayout.Button("<b><size=14>🚪 THOÁT\nGAME</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 QuitGame();

@@ -45,6 +45,7 @@ namespace LlamAcademy.Dinos.UI
 
             LoadTextures();
             CreateVignetteTexture();
+            PrehistoricSaveLoadDialog.EnsureInstance();
         }
 
         private void Start()
@@ -131,10 +132,14 @@ namespace LlamAcademy.Dinos.UI
                 Camera.main.transform.RotateAround(Vector3.zero, Vector3.up, 2.5f * Time.unscaledDeltaTime);
             }
 
-            // Nhấn ESC để đóng menu Cài đặt nếu đang mở
+            // Nhấn ESC để đóng menu Cài đặt hoặc Hộp thoại Lưu/Tải nếu đang mở
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasReleasedThisFrame)
             {
-                if (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
+                if (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen)
+                {
+                    PrehistoricSaveLoadDialog.Instance.CloseDialog();
+                }
+                else if (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
                 {
                     PrehistoricSettingsMenu.Instance.IsOpen = false;
                 }
@@ -145,11 +150,9 @@ namespace LlamAcademy.Dinos.UI
         {
             if (!IsOpen) return;
 
-            // Nếu menu Cài đặt đang mở đè lên, ta tạm nhường quyền vẽ cho Settings Modal
-            if (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
-            {
-                return;
-            }
+            // Kiểm tra xem có Modal phụ nào (Cài đặt hoặc Lưu/Tải game) đang mở đè lên không
+            bool isSubModalOpen = (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
+                || (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen);
 
             MobileUIHelper.BeginScaling();
             try
@@ -184,6 +187,13 @@ namespace LlamAcademy.Dinos.UI
                     GUI.color = new Color(0.02f, 0.04f, 0.08f, 0.50f);
                     GUI.DrawTexture(fullScreenRect, _vignetteTexture != null ? _vignetteTexture : Texture2D.whiteTexture);
                     GUI.color = Color.white;
+                }
+
+                // Nếu Modal phụ (Cài đặt hoặc Danh sách Lưu/Tải game) đang mở:
+                // Ta chỉ hiển thị hình nền và nhượng toàn bộ quyền tương tác phía trên cho Modal
+                if (isSubModalOpen)
+                {
+                    return;
                 }
 
                 // ==========================================

@@ -124,7 +124,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawSettingsModal()
         {
-            GUI.depth = -1100;
+            GUI.depth = -1400;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -282,6 +282,7 @@ namespace LlamAcademy.Dinos.UI
                 if (GUILayout.Button("<b>💾 LƯU GAME (CHỌN KHE)</b>", GUILayout.Height(30)))
                 {
                     audio?.PlayButtonClick();
+                    IsOpen = false;
                     PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(currentMode);
                 }
 
@@ -290,6 +291,7 @@ namespace LlamAcademy.Dinos.UI
                 if (GUILayout.Button("<b>📂 TẢI GAME (LOAD)</b>", GUILayout.Height(30)))
                 {
                     audio?.PlayButtonClick();
+                    IsOpen = false;
                     PrehistoricSaveLoadDialog.EnsureInstance().OpenLoadDialog(currentMode);
                 }
 

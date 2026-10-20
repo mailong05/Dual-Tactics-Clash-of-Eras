@@ -1078,17 +1078,25 @@ namespace LlamAcademy.Dinos.Unit
                 float distToTarget = flatDiff.magnitude;
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-                // Tường/rào cọc gỗ có NavMeshObstacle tạo khoảng đệm (carve buffer), mở rộng tầm đánh 2.5m để quái luôn đánh được
-                float effectiveAttackRange = (CurrentTarget is Wall) 
-                    ? Mathf.Max(AttackRange + agentRadius + 2.5f, 4.8f) 
-                    : (AttackRange + agentRadius + 0.5f);
 
-                // KIỂM TRA BỊ CẢN TRỞ: Nếu quái nhắm tường và đã dừng lại / không thể tiến sát hơn do vướng lỗ carve của NavMeshObstacle
-                bool isBlockedNearWall = (CurrentTarget is Wall) && (Agent != null && Agent.isOnNavMesh) &&
-                    (Agent.velocity.sqrMagnitude < 0.25f || Agent.remainingDistance <= Agent.stoppingDistance + 0.6f) &&
-                    distToTarget <= 5.8f;
+                // Kiểm tra mục tiêu là công trình (Tường, Cổng thành, Rào cọc gỗ, Căn cứ Làng, hoặc Tháp canh):
+                bool isStructure = (CurrentTarget is Wall) || 
+                                   (CurrentTarget is PrehistoricVillageBase) || 
+                                   (CurrentTarget is Unit uTarget && !(uTarget is PrehistoricDinoBase));
 
-                if (distToTarget <= effectiveAttackRange || isBlockedNearWall)
+                // 1. Cự ly tấn công trực diện cho con đi đầu
+                float directAttackRange = isStructure 
+                    ? Mathf.Max(AttackRange + agentRadius + 3.0f, 5.0f) 
+                    : (AttackRange + agentRadius + 0.8f);
+
+                // 2. CỰ LY BẦY ĐÀN (SWARM PACK ATTACK):
+                // Khi 1 bầy khủng long (4-8 con) cùng bu lại cắn công trình, các con đứng hàng 2, hàng 3 bị cản lại bởi đồng đội.
+                // Cho phép toàn bộ bầy trong cự ly 8.5m đều được tính vào trạng thái cắn phá và xả sát thương đồng thời!
+                bool isBlockedOrSwarming = isStructure && (distToTarget <= 8.5f) &&
+                    (Agent != null && Agent.isOnNavMesh) &&
+                    (Agent.velocity.sqrMagnitude < 0.85f || Agent.remainingDistance <= Agent.stoppingDistance + 1.8f || distToTarget <= 5.8f);
+
+                if (distToTarget <= directAttackRange || isBlockedOrSwarming)
                 {
                     if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
 
@@ -1114,15 +1122,20 @@ namespace LlamAcademy.Dinos.Unit
                     {
                         Agent.isStopped = false;
                         Vector3 walkTarget = closestPoint;
-                        if (CurrentTarget is Wall)
+                        if (isStructure)
                         {
                             Vector3 dirOut = (transform.position - closestPoint);
                             dirOut.y = 0;
                             if (dirOut.sqrMagnitude > 0.001f) dirOut.Normalize();
                             else dirOut = (transform.position - targetCenter).normalized;
 
-                            Vector3 standAttempt = closestPoint + dirOut * 1.5f;
-                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 3.0f, NavMesh.AllAreas))
+                            // Tản nhẹ đội hình bầy đàn sang 2 bên theo phương tiếp tuyến để quái vây quanh công trình thay vì đè lên đúng 1 điểm
+                            Vector3 tangent = Vector3.Cross(Vector3.up, dirOut).normalized;
+                            int dinoHash = Mathf.Abs(GetHashCode());
+                            float sideOffset = ((dinoHash % 5) - 2) * 1.5f;
+
+                            Vector3 standAttempt = closestPoint + dirOut * 1.4f + tangent * sideOffset;
+                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 3.5f, NavMesh.AllAreas))
                             {
                                 walkTarget = sHit.position;
                             }
@@ -1148,9 +1161,19 @@ namespace LlamAcademy.Dinos.Unit
                     }
                 }
 
-                // Check if reached base
-                float distToBase = Vector3.Distance(transform.position, TargetBase.position);
-                if (distToBase <= AttackRange + 2.0f)
+                // Check if reached base (Hỗ trợ bầy đàn cắn phá căn cứ đồng thời)
+                Collider baseCol = TargetBase.GetComponentInChildren<Collider>();
+                Vector3 baseClosest = baseCol != null ? baseCol.ClosestPoint(transform.position) : TargetBase.position;
+                Vector3 flatBaseDiff = transform.position - baseClosest;
+                flatBaseDiff.y = 0;
+                float distToBase = flatBaseDiff.magnitude;
+
+                float baseAgentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+                float baseDirectThreshold = Mathf.Max(AttackRange + baseAgentRadius + 3.0f, 5.0f);
+                bool isSwarmingBase = (distToBase <= 8.5f) && (Agent != null && Agent.isOnNavMesh) &&
+                    (Agent.velocity.sqrMagnitude < 0.85f || distToBase <= baseDirectThreshold);
+
+                if (distToBase <= baseDirectThreshold || isSwarmingBase)
                 {
                     _hasReachedBase = true;
 
@@ -1438,9 +1461,9 @@ namespace LlamAcademy.Dinos.Unit
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
 
                 // A. NẾU ĐÃ ÁP SÁT CỰ LY CẬN CHIẾN HOẶC VẬT CẢN TRƯỚC MẶT: TẤN CÔNG NGAY LẬP TỨC!
-                float attackThreshold = (directFrontBlocker is Wall)
-                    ? Mathf.Max(AttackRange + agentRadius + 2.5f, 4.8f)
-                    : (AttackRange + agentRadius + 0.8f);
+                float attackThreshold = (directFrontBlocker is Wall || directFrontBlocker is PrehistoricVillageBase)
+                    ? Mathf.Max(AttackRange + agentRadius + 4.5f, 8.5f)
+                    : (AttackRange + agentRadius + 1.2f);
 
                 if (distToBlocker <= attackThreshold)
                 {
