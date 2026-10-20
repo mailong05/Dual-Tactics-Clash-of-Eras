@@ -249,6 +249,9 @@ namespace LlamAcademy.Dinos.Unit
 
         public override void Die()
         {
+            Collider[] allCols = GetComponentsInChildren<Collider>();
+            foreach (var c in allCols) if (c != null) c.enabled = false;
+
             if (PrehistoricGameplayManager.Instance != null)
             {
                 PrehistoricGameplayManager.Instance.HandleMonsterDeath(this);

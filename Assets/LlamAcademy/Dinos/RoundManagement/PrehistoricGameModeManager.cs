@@ -1150,63 +1150,35 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void ClearAllDinos()
         {
-            var allDinos = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
-            foreach (var d in allDinos)
+            // Quét dọn triệt để TOÀN BỘ khủng long/quái vật kể cả inactive hoặc đang trong animation ngã chết
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var d in allUnits)
             {
-                if (d != null)
+                if (d != null && (d is Unit.Dino || d is Unit.PrehistoricDinoBase || d is Unit.RunnerDino || d is Unit.FlyingUnit || d is Unit.SiegeDino || d is Unit.BossDino))
                 {
+                    // Bỏ qua các ghost unit đang preview đặt quân
+                    if (d.transform.parent != null && d.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        continue;
+                    }
+
                     if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    Destroy(d.gameObject);
+                    if (d.gameObject != null)
+                    {
+                        Destroy(d.gameObject);
+                    }
                 }
             }
-            var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
-            foreach (var d in stdDinos)
-            {
-                if (d != null)
-                {
-                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    Destroy(d.gameObject);
-                }
-            }
-            var flyDinos = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
-            foreach (var d in flyDinos)
-            {
-                if (d != null)
-                {
-                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    Destroy(d.gameObject);
-                }
-            }
-            var runnerDinos = FindObjectsByType<Unit.RunnerDino>(FindObjectsSortMode.None);
-            foreach (var d in runnerDinos)
-            {
-                if (d != null)
-                {
-                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    Destroy(d.gameObject);
-                }
-            }
-            var siegeDinos = FindObjectsByType<Unit.SiegeDino>(FindObjectsSortMode.None);
-            foreach (var d in siegeDinos)
-            {
-                if (d != null)
-                {
-                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    Destroy(d.gameObject);
-                }
-            }
-            var bossDinos = FindObjectsByType<Unit.BossDino>(FindObjectsSortMode.None);
-            foreach (var d in bossDinos)
-            {
-                if (d != null)
-                {
-                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    Destroy(d.gameObject);
-                }
-            }
+
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ClearActiveDinos();
+            }
+
+            // Dọn dẹp triệt để các đạn bay, rác scene, thanh máu mồ côi
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.CleanAllGameplayGarbage();
             }
         }
 

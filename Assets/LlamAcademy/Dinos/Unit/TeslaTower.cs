@@ -123,6 +123,7 @@ namespace LlamAcademy.Dinos.Unit
             else
             {
                 GameObject lineObj = new GameObject("Tesla_Bolt");
+                Destroy(lineObj, 0.5f);
                 line = lineObj.AddComponent<LineRenderer>();
                 line.startWidth = 0.15f;
                 line.endWidth = 0.05f;

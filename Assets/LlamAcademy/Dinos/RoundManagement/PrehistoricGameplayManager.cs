@@ -496,8 +496,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault) return;
             if (_CurrentPhase != PrehistoricWavePhase.BuildingPhase) return;
 
-            // Xóa sạch toàn bộ quái vật còn sót lại từ đợt cũ trước khi bắt đầu đợt mới
-            ClearAllActiveMonsters();
+            // Xóa sạch toàn bộ rác và quái vật còn sót lại từ đợt cũ trước khi bắt đầu đợt mới
+            CleanAllGameplayGarbage();
 
             // Đảm bảo các NPC chiến binh bộ lạc luôn có mặt để chiến đấu
             EnsureVillageDefendersActive();
@@ -819,8 +819,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 WaveSpawnRoutine = null;
             }
 
-            // Dọn sạch quái vật đợt vừa qua
-            ClearAllActiveMonsters();
+            // Dọn sạch toàn bộ rác và quái vật đợt vừa qua
+            CleanAllGameplayGarbage();
 
             int rewardGold = WaveCompletionBaseGold + (_CurrentWave * 25);
             if (TowerPlacer.Instance != null)
@@ -948,6 +948,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (ActiveMonsters[i] != null)
                 {
                     ActiveMonsters[i].OnDeath -= HandleMonsterDeath;
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(ActiveMonsters[i]);
                     if (ActiveMonsters[i].gameObject != null)
                     {
                         Destroy(ActiveMonsters[i].gameObject);
@@ -956,11 +957,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             ActiveMonsters.Clear();
 
-            // Quét dọn triệt để CHỈ các Unit khủng long/quái vật còn sót lại trên scene (TUYỆT ĐỐI KHÔNG XÓA DEFENDER, TƯỜNG, THÁP HAY GHOST PREVIEW)
-            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
+            // Quét dọn triệt để TOÀN BỘ Unit khủng long/quái vật kể cả inactive hoặc đang ngã chết (TUYỆT ĐỐI KHÔNG XÓA DEFENDER, TƯỜNG, THÁP HAY GHOST PREVIEW)
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var unit in allUnits)
             {
-                if (unit != null && unit.enabled && (unit is Dino || unit is PrehistoricDinoBase || unit is RunnerDino || unit is FlyingUnit || unit is SiegeDino || unit is BossDino))
+                if (unit != null && (unit is Dino || unit is PrehistoricDinoBase || unit is RunnerDino || unit is FlyingUnit || unit is SiegeDino || unit is BossDino))
                 {
                     // Bỏ qua các ghost unit đang preview đặt quân
                     if (unit.transform.parent != null && unit.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
@@ -969,6 +970,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
 
                     unit.OnDeath -= HandleMonsterDeath;
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(unit);
                     if (unit.gameObject != null)
                     {
                         Destroy(unit.gameObject);
@@ -979,6 +981,64 @@ namespace LlamAcademy.Dinos.RoundManagement
             _MonstersRemainingToSpawn = 0;
             MonstersAliveCount = 0;
             TotalMonstersInWave = 0;
+        }
+
+        /// <summary>
+        /// Dọn dẹp triệt để mọi vật thể rác còn sót lại sau mỗi ván chơi hoặc khi chuyển màn:
+        /// 1. Tất cả đường đạn, vũ khí bay còn sót (Flying_Arrow, Flying_Spear, Giant_Spear, Flaming_Lava_Boulder, Tesla_Bolt...)
+        /// 2. Toàn bộ khủng long/quái vật (kể cả inactive, disabled, đang ngã tumble)
+        /// 3. Dọn dẹp các thanh máu mồ côi trên HealthBarCanvas
+        /// 4. Xóa sạch bộ nhớ đột phá TacticalBreachMemory
+        /// 5. Làm mới NavMesh để đảm bảo không còn lỗ thủng ảo do Obstacle cũ để lại
+        /// </summary>
+        public void CleanAllGameplayGarbage()
+        {
+            // 1. Quét dọn toàn bộ đường đạn và vũ khí bay còn lơ lửng trên scene
+            string[] projectileNames = new string[]
+            {
+                "Flying_Arrow", "Flying_Spear", "Giant_Spear", "Flaming_Lava_Boulder", "Tesla_Bolt"
+            };
+
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < allTransforms.Length; i++)
+            {
+                Transform t = allTransforms[i];
+                if (t == null) continue;
+                string n = t.name;
+
+                for (int j = 0; j < projectileNames.Length; j++)
+                {
+                    if (n.StartsWith(projectileNames[j], System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!n.Contains("Tower") && !n.Contains("Prefab") && t.GetComponent<Unit.Unit>() == null)
+                        {
+                            Destroy(t.gameObject);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Xóa sạch toàn bộ khủng long/quái vật
+            ClearAllActiveMonsters();
+
+            // 3. Dọn dẹp thanh máu mồ côi
+            if (Utility.HealthBarCanvas.Instance != null)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+
+            // 4. Xóa sạch bộ nhớ đột phá AI
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
+
+            // 5. Cập nhật NavMesh
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+            }
         }
 
         public bool IsActiveMonster(Unit.Unit unit)
@@ -1930,7 +1990,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             StopAllCoroutines();
 
             // 2. Dọn sạch 100% khủng long trên toàn bộ bản đồ
-            ClearAllActiveMonsters();
+            CleanAllGameplayGarbage();
             PrehistoricDinoBase.ClearClipsCache();
 
             // 3. Đặt lại Đợt chơi về Màn 1
@@ -1965,7 +2025,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             StopAllCoroutines();
 
-            ClearAllActiveMonsters();
+            CleanAllGameplayGarbage();
             PrehistoricDinoBase.ClearClipsCache();
 
             // Đồng bộ với RoundManager TRƯỚC KHI reset làng
@@ -2029,7 +2089,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             StopAllCoroutines();
 
-            ClearAllActiveMonsters();
+            CleanAllGameplayGarbage();
             PrehistoricDinoBase.ClearClipsCache();
 
             _CurrentWave = Mathf.Clamp(targetWave, 1, _MaxWaves);
@@ -2103,7 +2163,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // LƯU TIẾN TRÌNH CHÍNH XÁC CỦA CHẾ ĐỘ ĐANG CHƠI TRƯỚC KHI DỌN DẸP
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
-            ClearAllActiveMonsters();
+            CleanAllGameplayGarbage();
             PrehistoricDinoBase.ClearClipsCache();
 
             if (PrehistoricGameModeManager.Instance != null)

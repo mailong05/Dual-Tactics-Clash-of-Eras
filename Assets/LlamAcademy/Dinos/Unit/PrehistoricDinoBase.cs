@@ -1737,6 +1737,16 @@ namespace LlamAcademy.Dinos.Unit
                 _IsNavigatingBreach = false;
             }
 
+            // VÔ HIỆU HÓA NGAY LẬP TỨC COLLIDER VÀ NAVMESH AGENT:
+            // Tránh xác quái vật trong lúc ngã chết (0.5s) tạo thành vật cản vô hình kẹt đường đồng đội
+            Collider[] allCols = GetComponentsInChildren<Collider>();
+            foreach (var c in allCols) if (c != null) c.enabled = false;
+            if (Agent != null)
+            {
+                if (Agent.isOnNavMesh) Agent.isStopped = true;
+                Agent.enabled = false;
+            }
+
             if (ModelAnimator != null)
             {
                 SetAnimatorTriggerIfExists(ModelAnimator, "Die");

@@ -937,6 +937,7 @@ namespace LlamAcademy.Dinos.Enemy
             Material flintMat = CreateSafeWeaponMaterial(new Color(0.22f, 0.24f, 0.26f), 0.35f);
             tip.GetComponent<Renderer>().sharedMaterial = flintMat;
 
+            Destroy(arrow, 5.0f);
             return arrow;
         }
 
@@ -964,6 +965,7 @@ namespace LlamAcademy.Dinos.Enemy
             tip.transform.localRotation = Quaternion.Euler(90f, 0, 0);
             tip.GetComponent<Renderer>().sharedMaterial = flintMat;
 
+            Destroy(spear, 5.0f);
             return spear;
         }
 
