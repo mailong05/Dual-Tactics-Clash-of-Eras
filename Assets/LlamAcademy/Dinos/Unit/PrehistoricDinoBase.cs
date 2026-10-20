@@ -1090,11 +1090,10 @@ namespace LlamAcademy.Dinos.Unit
                     : (AttackRange + agentRadius + 0.8f);
 
                 // 2. CỰ LY BẦY ĐÀN (SWARM PACK ATTACK):
-                // Khi 1 bầy khủng long (4-8 con) cùng bu lại cắn công trình, các con đứng hàng 2, hàng 3 bị cản lại bởi đồng đội.
-                // Cho phép toàn bộ bầy trong cự ly 8.5m đều được tính vào trạng thái cắn phá và xả sát thương đồng thời!
-                bool isBlockedOrSwarming = isStructure && (distToTarget <= 8.5f) &&
-                    (Agent != null && Agent.isOnNavMesh) &&
-                    (Agent.velocity.sqrMagnitude < 0.85f || Agent.remainingDistance <= Agent.stoppingDistance + 1.8f || distToTarget <= 5.8f);
+                // Khi 1 bầy khủng long (4-8 con) cùng bu lại cắn công trình, các con đứng hàng 2, hàng 3 theo đội hình cánh cung
+                // Cho phép toàn bộ bầy trong cự ly 8.0m đều được tính vào trạng thái cắn phá và xả sát thương đồng thời!
+                bool isBlockedOrSwarming = isStructure && (distToTarget <= 8.0f) &&
+                    (Agent != null && Agent.isOnNavMesh);
 
                 if (distToTarget <= directAttackRange || isBlockedOrSwarming)
                 {
@@ -1170,8 +1169,7 @@ namespace LlamAcademy.Dinos.Unit
 
                 float baseAgentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
                 float baseDirectThreshold = Mathf.Max(AttackRange + baseAgentRadius + 3.0f, 5.0f);
-                bool isSwarmingBase = (distToBase <= 8.5f) && (Agent != null && Agent.isOnNavMesh) &&
-                    (Agent.velocity.sqrMagnitude < 0.85f || distToBase <= baseDirectThreshold);
+                bool isSwarmingBase = (distToBase <= 8.5f) && (Agent != null && Agent.isOnNavMesh);
 
                 if (distToBase <= baseDirectThreshold || isSwarmingBase)
                 {
@@ -1398,11 +1396,18 @@ namespace LlamAcademy.Dinos.Unit
 
             string n = targetT.gameObject.name.ToLower();
 
-            // Tuyệt đối KHÔNG biến container nhóm tổng, cầu sàn đi bộ, mặt đất, terrain thành tường
+            // Tuyệt đối KHÔNG biến container nhóm tổng, cầu sàn đi bộ, mặt đất, terrain, collider phụ vô hình thành tường
             if (n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
                 n == "right_flank_wall" || n == "gate_complex" || n == "gate_entryway" ||
                 n == "world" || n == "props" ||
+                n.Contains("pillar") || n.Contains("deck") || n.Contains("walkway") || n.Contains("helper") ||
                 n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain"))
+            {
+                return null;
+            }
+
+            // Đối tượng bắt buộc phải có Renderer hiển thị (tránh chọn trúng collider tàng hình)
+            if (targetT.GetComponentInChildren<Renderer>() == null && targetT.GetComponentInParent<Renderer>() == null)
             {
                 return null;
             }
@@ -1615,7 +1620,8 @@ namespace LlamAcademy.Dinos.Unit
 
                 // Điểm số ưu tiên: Càng gần và càng thẳng hướng căn cứ / hướng nhìn thì điểm càng cao
                 float closeBonus = isVeryClose ? 250f : 0f;
-                float score = closeBonus + (dotToBase * 15f) + (dotForward * 10f) - distToCol;
+                float gateBonus = (candidate.Transform != null && candidate.Transform.name.Contains("Gate_Portcullis_Barricade")) ? 60f : 0f;
+                float score = closeBonus + gateBonus + (dotToBase * 15f) + (dotForward * 10f) - distToCol;
 
                 if (score > bestScore)
                 {
@@ -1640,7 +1646,8 @@ namespace LlamAcademy.Dinos.Unit
 
         protected virtual void PerformAttack(IDamageable target)
         {
-            int damage = target is Wall ? Mathf.CeilToInt(AttackDamage * BuildingDamageMultiplier) : AttackDamage;
+            bool isStructure = (target is Wall) || (target is PrehistoricVillageBase);
+            int damage = isStructure ? Mathf.CeilToInt(AttackDamage * BuildingDamageMultiplier) : AttackDamage;
             target.TakeDamage(damage);
 
             // Báo động nguy cơ phá thành lũy/căn cứ cho toàn bộ Defender

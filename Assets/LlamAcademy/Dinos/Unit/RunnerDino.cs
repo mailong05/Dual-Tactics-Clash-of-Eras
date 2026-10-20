@@ -13,6 +13,7 @@ namespace LlamAcademy.Dinos.Unit
             Health = MaxHealth;
             AttackDamage = 16;
             AttackInterval = 0.9f;
+            BuildingDamageMultiplier = 2.5f;
             GoldReward = 12;
         }
     }

@@ -85,6 +85,16 @@ namespace LlamAcademy.Dinos.Utility
                 _canvas.sortingOrder = 500; // Đảm bảo luôn vẽ nổi trên địa hình và khủng long
             }
 
+            // Dọn dẹp triệt để mọi thanh máu mồ côi (orphaned) bị lưu tĩnh trong file Scene
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child != null && child.name.StartsWith("HealthBar_"))
+                {
+                    Destroy(child.gameObject);
+                }
+            }
+
             if (HealthBarPrefab == null)
             {
                 GameObject prefabObj = Resources.Load<GameObject>("Health Bar");

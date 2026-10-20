@@ -1129,7 +1129,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Destroy(existing);
             }
 
-            // Xóa mọi chòi cung thủ cũ/ẩn hoặc lạc đàn
+            // Xóa mọi chòi cung thủ cũ/ẩn hoặc lạc đàn và cổng cũ bị trùng
             GameObject oldWaypoints = GameObject.Find("Archer Waypoints");
             if (oldWaypoints != null) Destroy(oldWaypoints);
             GameObject oldStarter = GameObject.Find("Starter_Defenses");
@@ -1138,6 +1138,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (strayWtL != null) Destroy(strayWtL);
             GameObject strayWtR = GameObject.Find("Village_Watchtower_Right");
             if (strayWtR != null) Destroy(strayWtR);
+            GameObject strayGate = GameObject.Find("Gate_Complex");
+            if (strayGate != null && strayGate.transform.parent == null) Destroy(strayGate);
+            GameObject strayGateBar = GameObject.Find("Gate_Portcullis_Barricade");
+            if (strayGateBar != null && strayGateBar.transform.parent == null) Destroy(strayGateBar);
 
             GameObject fortressRoot = new GameObject("Village_Fortress_Wall");
 
@@ -1188,6 +1192,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 arch = Instantiate(archPrefab, new Vector3(-2.2f, 0.2f, wallZ), Quaternion.identity, gateEntryway.transform);
                 arch.name = "Gate_Overhead_Arch";
                 arch.transform.localScale = new Vector3(0.74f, 0.75f, 0.7f);
+                MeshCollider[] archMeshCols = arch.GetComponentsInChildren<MeshCollider>(true);
+                foreach (var mc in archMeshCols) if (mc != null) mc.enabled = false;
             }
 
             // Đuốc Lửa Cổng Thành
@@ -1632,8 +1638,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                // 1. CỔNG VÒM VÀ CẦU GỖ TUYẾN 2 (Arch Entry Wall)
-                if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase))
+                // 1. CỔNG VÒM VÀ CẦU GỖ TUYẾN 2 (Arch Entry Wall) hoặc Khung vòm cổng chính (Gate_Overhead_Arch)
+                if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch") || n.Contains("Bridge_Tribal"))
                 {
                     // Bật lại Renderer
                     Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
@@ -1658,6 +1664,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (leftPillar == null)
                     {
                         GameObject lp = new GameObject("Collider_Pillar_Left");
+                        lp.layer = 2; // Ignore Raycast để không bị quái chọn làm mục tiêu cắn
                         lp.transform.SetParent(t, false);
                         lp.transform.localPosition = new Vector3(-3.8f, 2.2f, 0f);
                         BoxCollider bcL = lp.AddComponent<BoxCollider>();
@@ -1665,6 +1672,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     else
                     {
+                        leftPillar.gameObject.layer = 2;
                         if (leftPillar.TryGetComponent(out BoxCollider bcL)) bcL.enabled = true;
                     }
 
@@ -1672,6 +1680,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (rightPillar == null)
                     {
                         GameObject rp = new GameObject("Collider_Pillar_Right");
+                        rp.layer = 2; // Ignore Raycast để không bị quái chọn làm mục tiêu cắn
                         rp.transform.SetParent(t, false);
                         rp.transform.localPosition = new Vector3(3.8f, 2.2f, 0f);
                         BoxCollider bcR = rp.AddComponent<BoxCollider>();
@@ -1679,6 +1688,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     else
                     {
+                        rightPillar.gameObject.layer = 2;
                         if (rightPillar.TryGetComponent(out BoxCollider bcR)) bcR.enabled = true;
                     }
 
@@ -1687,6 +1697,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (floorDeck == null)
                     {
                         GameObject fd = new GameObject("Collider_Walkway_Deck");
+                        fd.layer = 2; // Ignore Raycast để không bị quái chọn làm mục tiêu cắn
                         fd.transform.SetParent(t, false);
                         fd.transform.localPosition = new Vector3(0f, 4.2f, 0f);
                         BoxCollider bcF = fd.AddComponent<BoxCollider>();
@@ -1694,6 +1705,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     else
                     {
+                        floorDeck.gameObject.layer = 2;
                         if (floorDeck.TryGetComponent(out BoxCollider bcF)) bcF.enabled = true;
                     }
 
