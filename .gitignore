@@ -112,3 +112,46 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# ==============================================================================
+# Python & AI Agent Artifacts Ignore Rules
+# ==============================================================================
+
+# Python files, virtual environments, and caches
+*.py
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# AI Agent runtime, scratch files, and assistant configurations
+.gemini/
+.cursor/
+.claude/
+.copilot/
+scratch/
+*_log.txt
+*fix_log.txt
+*test_log.txt
+*build_log.txt
+
+# Temporary test configs and performance reports
+Assets/Resources/PerformanceTestRunInfo.json*
+Assets/Resources/PerformanceTestRunSettings.json*
+
+# Simulated cloud backend / Docker files
+backend/
+docker-compose*.yml
+run_backend.ps1
+
+# Ignore temporary agent-generated markdown reports, keep official README.md
+*.md
+!README.md
+
