@@ -792,18 +792,47 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             SetPhase(PrehistoricWavePhase.WaveCleared);
 
+            if (WaveSpawnRoutine != null)
+            {
+                StopCoroutine(WaveSpawnRoutine);
+                WaveSpawnRoutine = null;
+            }
+
+            // Dọn sạch quái vật đợt vừa qua
+            ClearAllActiveMonsters();
+
             int rewardGold = WaveCompletionBaseGold + (_CurrentWave * 25);
             if (TowerPlacer.Instance != null)
             {
                 TowerPlacer.Instance.AddGold(rewardGold);
             }
 
-            ShowAnnouncement($"★ CHIẾN THẮNG ĐỢT {_CurrentWave}! THƯỞNG +{rewardGold} VÀNG! ★", 3.5f);
+            ShowAnnouncement($"★ CHIẾN THẮNG ĐỢT {_CurrentWave}! THƯỞNG +{rewardGold} VÀNG! ★", 4.0f);
             OnWaveCompleted?.Invoke(_CurrentWave, rewardGold);
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
-            StartCoroutine(TransitionToNextWaveRoutine());
+            // Mở khóa chuột để người chơi tương tác chọn menu
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
+        public void ProceedToNextWave()
+        {
+            Time.timeScale = 1.0f;
+            ClearAllActiveMonsters();
+
+            _CurrentWave++;
+
+            // Phục hồi làng cho đợt mới và giữ lại các tháp người chơi đã đặt
+            ResetEntireVillage(keepPlayerTowers: true);
+
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
+            ResetPlayerAndCameraPosition();
+
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
+            ShowAnnouncement($"⚔️ ĐỢT {_CurrentWave}: HÃY ĐẶT THÊM THÁP VÀ BẤM 'BẮT ĐẦU ĐỢT' (SPACE)! 🛡️", 4.0f);
         }
 
         private IEnumerator TransitionToNextWaveRoutine()
@@ -935,6 +964,24 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (unit == null) return false;
             return ActiveMonsters.Contains(unit);
+        }
+
+        public static int GetMonsterCountForWave(int wave)
+        {
+            switch (wave)
+            {
+                case 1: return 10;
+                case 2: return 14;
+                case 3: return 16;
+                case 4: return 18;
+                case 5: return 22;
+                case 6: return 24;
+                case 7: return 26;
+                case 8: return 28;
+                case 9: return 30;
+                case 10: return 32;
+                default: return Mathf.Clamp(8 + wave * 3, 10, 48);
+            }
         }
 
         public static int GetTargetDefendersForWave(int wave)
@@ -2073,7 +2120,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 DrawWaveActionControl();
                 DrawScreenAnnouncement();
 
-                if (_CurrentPhase != PrehistoricWavePhase.GameOver && _CurrentPhase != PrehistoricWavePhase.Victory)
+                if (_CurrentPhase != PrehistoricWavePhase.GameOver && _CurrentPhase != PrehistoricWavePhase.Victory && _CurrentPhase != PrehistoricWavePhase.WaveCleared)
                 {
                     DrawTowerPlacementToolbar();
                 }
@@ -2090,6 +2137,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 else if (_CurrentPhase == PrehistoricWavePhase.Victory)
                 {
                     DrawVictoryModal();
+                }
+                else if (_CurrentPhase == PrehistoricWavePhase.WaveCleared)
+                {
+                    DrawWaveVictoryModal();
                 }
             }
             finally
@@ -2458,6 +2509,73 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.backgroundColor = Color.white;
         }
 
+        private void DrawWaveVictoryModal()
+        {
+            GUI.depth = -1000;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
+            GUI.color = new Color(0f, 0f, 0f, 0.85f);
+            GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
+            float width = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 390f;
+            float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
+            float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
+
+            Rect modalRect = new Rect(x, y, width, height);
+            Mobile.MobileUIHelper.RegisterUIRect(modalRect);
+
+            GUILayout.BeginArea(modalRect, GUI.skin.window);
+            GUILayout.Space(8);
+            GUILayout.Label($"<size=22><b><color=#FFD700>🏆 CHIẾN THẮNG ĐỢT {_CurrentWave}! 🏆</color></b></size>", GUI.skin.label);
+            int rewardGold = WaveCompletionBaseGold + (_CurrentWave * 25);
+            GUILayout.Label($"<size=15>Bảo vệ làng thành công! Thưởng đợt: <b><color=#55FF55>+{rewardGold} Vàng</color></b> | Căn cứ còn: <b>{_CurrentBaseHealth} / {_MaxBaseHealth} HP</b></size>");
+            GUILayout.Space(10);
+
+            int nextWave = _CurrentWave + 1;
+            int nextMonsters = GetMonsterCountForWave(nextWave);
+            int nextDefenders = GetTargetDefendersForWave(nextWave);
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label($"<size=14><b><color=#55FF55>📊 THÔNG SỐ ĐỘ KHÓ ĐỢT TIẾP THEO (ĐỢT {nextWave} / {_MaxWaves}):</color></b></size>");
+            GUILayout.Label($"• <b>Bầy khủng long tấn công</b>: {nextMonsters} con (Độ hung hãn và tốc độ gia tăng)\n" +
+                            $"• <b>Chiến binh phòng thủ Làng (NPC)</b>: {nextDefenders} quân phòng thủ tiếp viện\n" +
+                            $"• <b>Phòng tuyến Làng</b>: Tự động phục hồi toàn bộ tường gỗ, cổng thành và căn cứ 100% HP\n" +
+                            $"• <b>Chiến lược</b>: Sử dụng vàng vừa nhận để đặt thêm tháp, sẵn sàng cho đợt công kích mới!");
+            GUILayout.EndVertical();
+
+            GUILayout.Space(14);
+            GUILayout.BeginHorizontal();
+
+            GUI.backgroundColor = new Color(0.2f, 0.85f, 0.3f);
+            if (GUILayout.Button("<b><size=14>⚔️ MÀN TIẾP THEO\n(ĐỢT " + nextWave + ")</size></b>", GUILayout.Height(55)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                ProceedToNextWave();
+            }
+
+            GUI.backgroundColor = new Color(0.9f, 0.5f, 0.15f);
+            if (GUILayout.Button($"<b><size=14>🔄 CHƠI LẠI ĐỢT {_CurrentWave}</size></b>", GUILayout.Height(55)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                RetryCurrentWave();
+            }
+
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f);
+            if (GUILayout.Button("<b><size=14>🏠 MENU CHÍNH\n(LƯU TIẾN TRÌNH)</size></b>", GUILayout.Height(55)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+                ReturnToMainMenu();
+            }
+
+            GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+        }
+
         private void DrawVictoryModal()
         {
             GUI.depth = -1000;
@@ -2469,8 +2587,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = Mathf.Min(620f, Mobile.MobileUIHelper.ScreenWidth - 30f);
-            float modalH = 340f;
+            float modalW = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float modalH = 360f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - modalW) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - modalH) / 2f;
 
@@ -2491,23 +2609,24 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUILayout.BeginHorizontal();
 
-            string replayText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=16>🎉 CHƠI LẠI TỪ ĐẦU</size></b>"
-                : "<b><size=16>🎉 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=12>[Phím SPACE / ENTER / R]</size>";
-
-            string quitText = Mobile.MobileUIHelper.IsMobile
-                ? "<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>(Rời trò chơi)</size>"
-                : "<b><size=16>🚪 THOÁT GAME</size></b>\n<size=12>[Phím ESC / Q]\n(Rời khỏi trò chơi)</size>";
-
             GUI.backgroundColor = new Color(0.2f, 0.8f, 0.3f, 1f);
-            if (GUILayout.Button(replayText, GUILayout.Height(68), GUILayout.Width((modalW - 50) / 2)))
+            if (GUILayout.Button("<b><size=15>🎉 CHƠI LẠI TỪ ĐẦU</size></b>", GUILayout.Height(60)))
             {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 FullResetGame();
             }
 
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitText, GUILayout.Height(68), GUILayout.Width((modalW - 50) / 2)))
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f, 1f);
+            if (GUILayout.Button("<b><size=15>🏠 MENU CHÍNH</size></b>", GUILayout.Height(60)))
             {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                ReturnToMainMenu();
+            }
+
+            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME</size></b>", GUILayout.Height(60)))
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 QuitGame();
             }
 

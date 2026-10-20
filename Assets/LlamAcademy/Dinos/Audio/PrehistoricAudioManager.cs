@@ -469,9 +469,13 @@ namespace LlamAcademy.Dinos.Audio
                 if (_dinoSelectSoundRoutine != null)
                 {
                     StopCoroutine(_dinoSelectSoundRoutine);
+                    _dinoSelectSoundRoutine = null;
                 }
-                _dinoSelectSoundRoutine = StartCoroutine(PlayDinoSoundShortRoutine(clipToPlay, 0.45f));
-                Debug.Log($"<color=orange>[AudioManager]</color> Played Dino Sound for '{dinoName}' (0.45s limit): {clipToPlay.name}");
+                _dinoSelectSource.Stop();
+                _dinoSelectSource.clip = clipToPlay;
+                _dinoSelectSource.volume = _SfxVolume * 0.90f;
+                _dinoSelectSource.Play();
+                Debug.Log($"<color=orange>[AudioManager]</color> Played Dino Sound for '{dinoName}' (full duration): {clipToPlay.name}");
             }
         }
 

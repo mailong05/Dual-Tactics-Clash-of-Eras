@@ -499,6 +499,9 @@ namespace LlamAcademy.Dinos.Enemy
             // Tự động điều phối NPC bảo vệ căn cứ theo số lượng khủng long đang xâm nhập
             CoordinateBaseDefenders();
 
+            // Kiểm tra bảo đảm an toàn mặt sàn nâng đỡ bên dưới cho NPC trên cao (Y > 1.2f)
+            CheckElevatedGroundIntegrity();
+
             // Chu trình chiến đấu liên tục bảo vệ ngôi làng
             HandleCombatBehavior();
         }
@@ -1161,7 +1164,24 @@ namespace LlamAcademy.Dinos.Enemy
             }
         }
 
-        public override void Die()
+                private float _LastGroundCheckTime = 0f;
+        private void CheckElevatedGroundIntegrity()
+        {
+            if (transform.position.y <= 1.2f) return;
+            if (Time.time - _LastGroundCheckTime < 0.35f) return;
+            _LastGroundCheckTime = Time.time;
+
+            // Bắn raycast xuống dưới từ chân để kiểm tra có bề mặt collider bên dưới hay không
+            if (!Physics.Raycast(transform.position + Vector3.up * 0.4f, Vector3.down, out RaycastHit hit, 2.2f))
+            {
+                // Không còn vật thể nào đỡ dưới chân, công trình đã sụp đổ -> NPC hy sinh
+                Debug.Log($"<color=orange>[Defender]</color> NPC {name} mất chỗ đứng do công trình bên dưới bị phá hủy!");
+                TakeDamage(Health);
+                Die();
+            }
+        }
+
+public override void Die()
         {
             AllDefenders.Remove(this);
             if (GraphAgent != null)

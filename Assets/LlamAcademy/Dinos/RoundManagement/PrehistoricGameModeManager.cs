@@ -813,6 +813,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             AssaultPhase = PrehistoricAssaultPhase.Victory;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            Audio.PrehistoricAudioManager.Instance?.PlayVictory();
             Debug.Log($"<color=green>[Assault Victory]</color> Chiếm thành thành công màn {AssaultLevel}!");
 
             if (PrehistoricGameplayManager.Instance != null)
@@ -827,6 +828,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             AssaultPhase = PrehistoricAssaultPhase.Defeat;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            Audio.PrehistoricAudioManager.Instance?.PlayGameOver();
             Debug.Log($"<color=red>[Assault Defeat]</color> Toàn bộ khủng long đã tử trận màn {AssaultLevel}!");
         }
 

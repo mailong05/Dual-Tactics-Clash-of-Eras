@@ -173,6 +173,9 @@ namespace LlamAcademy.Dinos.Unit
 
         public override void Die()
         {
+            // 0. Xử lý các chiến binh NPC đang đứng trên công trình này sụp đổ và hy sinh
+            EliminateDefendersOnCollapsingStructure();
+
             // 1. Lập tức vô hiệu hóa Collider và NavMeshObstacle ngay trong frame này
             // để Unity NavMesh lập tức un-carve giải phóng lối đi và vật lý không chặn quái
             Collider[] cols = GetComponentsInChildren<Collider>();
@@ -222,7 +225,71 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
-        private IEnumerator HandleDeath()
+                private void EliminateDefendersOnCollapsingStructure()
+        {
+            Bounds b = new Bounds(transform.position, Vector3.one * 2f);
+            Collider mainCol = GetComponent<Collider>();
+            if (mainCol != null) b = mainCol.bounds;
+
+            float minHeight = transform.position.y + 0.6f;
+            float horizontalRadius = Mathf.Max(b.extents.x, b.extents.z, 2.0f) + 0.8f;
+
+            var defenders = Enemy.Defender.AllDefenders;
+            if (defenders == null || defenders.Count == 0) return;
+
+            System.Collections.Generic.List<Enemy.Defender> toEliminate = null;
+
+            for (int i = 0; i < defenders.Count; i++)
+            {
+                var d = defenders[i];
+                if (d == null || d.Health <= 0 || !d.gameObject.activeInHierarchy) continue;
+
+                Vector3 defPos = d.transform.position;
+                bool standingOnThis = false;
+
+                // 1. Bắn raycast xuống dưới từ vị trí NPC kiểm tra có trúng collider công trình này không
+                if (Physics.Raycast(defPos + Vector3.up * 0.5f, Vector3.down, out RaycastHit hit, 2.5f))
+                {
+                    if (hit.collider != null && (hit.collider.transform.IsChildOf(transform) || hit.collider.transform == transform || (Root != null && hit.collider.transform.IsChildOf(Root.transform))))
+                    {
+                        standingOnThis = true;
+                    }
+                }
+
+                // 2. Dự phòng: Kiểm tra vị trí đứng trên cao trong phạm vi ngang của công trình
+                if (!standingOnThis && defPos.y >= minHeight)
+                {
+                    Vector3 diff = defPos - transform.position;
+                    diff.y = 0;
+                    if (diff.magnitude <= horizontalRadius)
+                    {
+                        standingOnThis = true;
+                    }
+                }
+
+                if (standingOnThis)
+                {
+                    if (toEliminate == null) toEliminate = new System.Collections.Generic.List<Enemy.Defender>();
+                    toEliminate.Add(d);
+                }
+            }
+
+            if (toEliminate != null)
+            {
+                for (int i = 0; i < toEliminate.Count; i++)
+                {
+                    var def = toEliminate[i];
+                    if (def != null && def.Health > 0)
+                    {
+                        Debug.Log($"<color=orange>[Structure Collapse]</color> NPC {def.name} hy sinh khi công trình {gameObject.name} bị phá hủy!");
+                        def.TakeDamage(def.Health);
+                        def.Die();
+                    }
+                }
+            }
+        }
+
+private IEnumerator HandleDeath()
         {
             yield return UpdateNavMeshData.Rebake();
             // destruction here would be cool
