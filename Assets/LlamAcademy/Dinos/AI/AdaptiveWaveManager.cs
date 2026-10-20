@@ -86,6 +86,12 @@ namespace LlamAcademy.Dinos.AI
 
         private void HandleGameStateChange(GameState oldState, GameState newState)
         {
+            // Tách biệt hoàn toàn: Tuyệt đối không sinh quái địch trong chế độ Khủng Long Công Thành (Dino Assault)
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             // Khi PrehistoricGameplayManager đang quản lý wave của game (10 Wave chuẩn),
             // AdaptiveWaveManager tuyệt đối không tự ý spawn trùng lặp wave quái riêng biệt
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
@@ -101,6 +107,12 @@ namespace LlamAcademy.Dinos.AI
 
         public void StartNextAdaptiveWave()
         {
+            // Tách biệt hoàn toàn: Tuyệt đối không sinh quái địch trong chế độ Khủng Long Công Thành (Dino Assault)
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
             {
                 return;
@@ -112,6 +124,11 @@ namespace LlamAcademy.Dinos.AI
 
         private IEnumerator SpawnAdaptiveWaveRoutine()
         {
+            // Tách biệt hoàn toàn: Tuyệt đối không sinh quái địch trong chế độ Khủng Long Công Thành (Dino Assault)
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                yield break;
+            }
             CurrentWave = RoundManager.Instance != null ? RoundManager.Instance.Round : CurrentWave;
             OnWaveStarted?.Invoke(CurrentWave);
 
@@ -222,9 +239,19 @@ namespace LlamAcademy.Dinos.AI
 
             foreach (var unit in allUnits)
             {
+                if (unit == null) continue;
+                string uName = unit.gameObject.name;
+
                 if (unit is Wall)
                 {
-                    audit.WallCount++;
+                    // Chỉ tính các tường / rào cọc phụ do người chơi đặt thêm (không tính các đoạn rào gốc của làng)
+                    if (!uName.Contains("Left_Wall_Segment") && !uName.Contains("Right_Wall_Segment") && 
+                        !uName.Contains("Right_Flank") && !uName.Contains("Village_Fortress") && 
+                        !uName.Contains("Gate_Portcullis") && !uName.Contains("Arch Entry") && 
+                        !uName.Contains("Big Tower") && !uName.Contains("Village_Left_Gap_Wall"))
+                    {
+                        audit.WallCount++;
+                    }
                 }
                 else if (unit is ArcherTower || unit is BallistaTower)
                 {
@@ -305,42 +332,96 @@ namespace LlamAcademy.Dinos.AI
             List<GameObject> queue = new();
             DefenseAudit audit = AuditPlayerDefenses();
 
-            int raptorCount = 6 + (waveIndex * 2);
-            int pteroCount = waveIndex >= 2 ? 3 + (waveIndex * 1) : 0;
-            int ankylCount = waveIndex >= 3 ? 2 + (waveIndex * 1) : 0;
-            bool spawnBoss = (waveIndex == 10 || (waveIndex >= 5 && waveIndex % 5 == 0));
+            // Cơ số quái vật cơ bản theo màn được giảm xuống để cân bằng hoàn hảo
+            int raptorCount;
+            int pteroCount = 0;
+            int ankylCount = 0;
+
+            switch (waveIndex)
+            {
+                case 1:
+                    raptorCount = 13; // +3 con
+                    break;
+                case 2:
+                    raptorCount = 12;
+                    pteroCount = 5; // Tổng: 17 con (+3)
+                    break;
+                case 3:
+                    raptorCount = 13;
+                    pteroCount = 6;
+                    ankylCount = 4; // Tổng: 23 con (+3)
+                    break;
+                case 4:
+                    raptorCount = 15;
+                    pteroCount = 7;
+                    ankylCount = 5; // Tổng: 27 con (+3)
+                    break;
+                case 5:
+                    raptorCount = 17;
+                    pteroCount = 8;
+                    ankylCount = 6; // Tổng: 31 con (+3)
+                    break;
+                case 6:
+                    raptorCount = 19;
+                    pteroCount = 9;
+                    ankylCount = 7; // Tổng: 35 con (+3)
+                    break;
+                case 7:
+                    raptorCount = 21;
+                    pteroCount = 10;
+                    ankylCount = 8; // Tổng: 39 con (+3)
+                    break;
+                case 8:
+                    raptorCount = 22;
+                    pteroCount = 11;
+                    ankylCount = 9; // Tổng: 42 + 1 T-Rex = 43 con
+                    break;
+                case 9:
+                    raptorCount = 24;
+                    pteroCount = 12;
+                    ankylCount = 10; // Tổng: 46 + 1 T-Rex = 47 con
+                    break;
+                case 10:
+                default:
+                    raptorCount = 20;
+                    pteroCount = 10;
+                    ankylCount = 5; // Tổng: 35 + 2 T-Rex = 37 con
+                    break;
+            }
+
+            int bossSpawnCount = (waveIndex == 8 || waveIndex == 9) ? 1 : (waveIndex >= 10 ? 2 : 0);
 
             string rationale = "";
 
-            // 1. Nếu người chơi xây nhiều tường chắn (WallCount > 6)
-            if (audit.WallCount > 6)
+            // 1. Nếu người chơi xây thêm nhiều rào chắn mới ngoài rào có sẵn của làng (WallCount > 2)
+            if (audit.WallCount > 2 && waveIndex >= 3)
             {
-                int bonusSiege = Mathf.Clamp(audit.WallCount / 3, 2, 8);
-                int bonusFlyers = Mathf.Clamp(audit.WallCount / 4, 1, 6);
+                int bonusSiege = Mathf.Clamp(audit.WallCount / 3, 1, 2);
+                int bonusFlyers = Mathf.Clamp(audit.WallCount / 4, 1, 2);
                 ankylCount += bonusSiege;
                 pteroCount += bonusFlyers;
-                rationale += $"[Phát hiện người chơi xây {audit.WallCount} tường chắn -> AI Director điều động thêm +{bonusSiege} Khủng Long Phá Tường & +{bonusFlyers} Quái Bay vượt rào] ";
+                rationale += $"[Phát hiện xây thêm {audit.WallCount} rào chắn -> AI Director điều động thêm +{bonusSiege} Khủng Long Phá Tường & +{bonusFlyers} Quái Bay] ";
             }
 
             // 2. Nếu người chơi xây nhiều tháp tỉa đơn (Archer, Ballista)
             if (audit.SingleTargetTowers > audit.SplashTowers + 2)
             {
-                int bonusSwarm = (audit.SingleTargetTowers - audit.SplashTowers) * 2;
+                int bonusSwarm = Mathf.Clamp(audit.SingleTargetTowers - audit.SplashTowers, 1, 3);
                 raptorCount += bonusSwarm;
                 rationale += $"[Phát hiện {audit.SingleTargetTowers} tháp tỉa đơn -> AI Director tăng viện +{bonusSwarm} Velociraptor bầy đàn] ";
             }
 
             // 3. Nếu người chơi xây nhiều tháp diện rộng/bẫy (Catapult/Traps)
-            if (audit.SplashTowers > 2)
+            if (audit.SplashTowers >= 2 && waveIndex >= 3)
             {
-                int bonusTanks = audit.SplashTowers;
+                int bonusTanks = Mathf.Clamp(audit.SplashTowers / 2, 1, 2);
                 ankylCount += bonusTanks;
                 rationale += $"[Phát hiện {audit.SplashTowers} pháo cối diện rộng -> AI Director tăng viện +{bonusTanks} Khủng Long Bọc Thép] ";
             }
 
             if (string.IsNullOrEmpty(rationale))
             {
-                rationale = $"Bố trí căn cứ chuẩn ({audit.SingleTargetTowers} tháp tỉa, {audit.SplashTowers} pháo cối, {audit.WallCount} tường). Đội hình cân bằng.";
+                rationale = $"Bố trí căn cứ chuẩn ({audit.SingleTargetTowers} tháp tỉa, {audit.SplashTowers} pháo cối, {audit.WallCount} rào thêm). Đội hình cân bằng.";
             }
 
             tacticalRationale = rationale;
@@ -348,7 +429,13 @@ namespace LlamAcademy.Dinos.AI
             if (raptorPrefab != null) for (int i = 0; i < raptorCount; i++) queue.Add(raptorPrefab);
             if (pteroPrefab != null) for (int i = 0; i < pteroCount; i++) queue.Add(pteroPrefab);
             if (ankylPrefab != null) for (int i = 0; i < ankylCount; i++) queue.Add(ankylPrefab);
-            if (spawnBoss && bossPrefab != null) queue.Add(bossPrefab);
+            if (bossPrefab != null)
+            {
+                for (int b = 0; b < bossSpawnCount; b++)
+                {
+                    queue.Add(bossPrefab);
+                }
+            }
 
             // Xáo trộn thứ tự xuất hiện tự nhiên
             for (int i = 0; i < queue.Count - 2; i++)

@@ -7,57 +7,40 @@ using UnityEngine.UI;
 namespace LlamAcademy.Dinos.AR
 {
     /// <summary>
-    /// Augmented Reality Implementation (Rubric Item 2: 20 pts).
-    /// Tabletop Augmented Reality & Real Camera Pass-Through Prehistoric Diorama.
+    /// Augmented Reality Implementation (Tabletop AR & Real Camera Pass-Through Prehistoric Diorama).
     /// Supports:
     /// 1. Real Camera Pass-Through on Android (Rear Camera) and PC (Webcam) via WebCamTexture.
-    /// 2. Scales down the 3D Jurassic battlefield into a miniaturized tabletop AR diorama placed on real surfaces.
-    /// 3. Multi-touch orbit (1-finger swipe / mouse drag) and scale inspection (pinch / mouse wheel).
-    /// 4. Graceful fallback to Cyber-Hologram Tabletop if camera is unavailable or permission denied.
+    /// 2. Overlays the full 3D Jurassic battlefield (village, walls, towers, dinosaurs) on top of the real world surface (desk/floor).
+    /// 3. Zero-depth background quad with RenderQueue 1000 ensures 100% of 3D models render seamlessly over the camera feed.
+    /// 4. Full multi-touch orbit, pinch-zoom, and pan via CameraControl and MobileTouchController.
+    /// 5. Graceful fallback to Cyber-Hologram Tabletop if camera is unavailable or permission denied.
     /// </summary>
     [DefaultExecutionOrder(-6)]
     public class ARTabletopController : MonoBehaviour
     {
         public static ARTabletopController Instance { get; private set; }
 
-        [Header("AR World Settings")]
-        [SerializeField] private float TabletopScale = 0.08f; // Scales 30m canyon down to compact tabletop diorama
-        [SerializeField] private Vector3 ARTabletopOffset = new Vector3(0f, -0.25f, 0f);
-        [SerializeField] private Transform GameWorldRoot;
-
         [Header("AR State")]
         public bool IsARModeActive { get; private set; } = false;
         public bool IsCameraStreaming { get; private set; } = false;
         public string CameraStatusMessage { get; private set; } = "";
 
-        private Vector3 OriginalWorldPosition = Vector3.zero;
-        private Vector3 OriginalWorldScale = Vector3.one;
-        private Quaternion OriginalWorldRotation = Quaternion.identity;
-
-        // Camera & Cinemachine caches
-        private Unity.Cinemachine.CinemachineCamera _CinemachineCamera;
+        // Camera caches
+        private Material _OriginalSkybox;
         private CameraClearFlags _OriginalCameraClearFlags = CameraClearFlags.Skybox;
-        private Vector3 _OriginalCameraPosition;
-        private Quaternion _OriginalCameraRotation;
+        private Color _OriginalCameraBackgroundColor = Color.black;
 
         // Video Pass-Through Background Objects
         private WebCamTexture _WebCamTexture;
-        private GameObject _BackgroundCameraGO;
-        private Camera _BackgroundCamera;
-        private GameObject _BackgroundCanvasGO;
-        private RawImage _BackgroundRawImage;
+        private GameObject _BackgroundQuad;
+        private MeshRenderer _BackgroundQuadRenderer;
+        private Material _BackgroundQuadMaterial;
 
         // UI & Hologram base
         private GameObject ARControlPill;
         private Text ARButtonText;
         private GameObject ARPlaneGrid;
-        private Coroutine TransitionRoutine;
         private Coroutine CameraInitRoutine;
-
-        // Touch & Gesture Interaction in AR Mode
-        private Vector2 _LastTouchPos;
-        private bool _IsInteracting = false;
-        private float _CurrentTabletopScale = 0.08f;
 
         private void Awake()
         {
@@ -67,30 +50,6 @@ namespace LlamAcademy.Dinos.AR
                 return;
             }
             Instance = this;
-
-            _CurrentTabletopScale = TabletopScale;
-            LocateGameWorldRoot();
-        }
-
-        private void LocateGameWorldRoot()
-        {
-            if (GameWorldRoot == null)
-            {
-                // Find main terrain or root diorama environment
-                GameObject terrain = GameObject.Find("Terrain") ?? GameObject.Find("Canyon_Terrain") ?? GameObject.Find("Ground");
-                if (terrain != null)
-                {
-                    // If terrain has a parent environment, scale the environment, else scale terrain
-                    GameWorldRoot = terrain.transform.parent != null ? terrain.transform.parent : terrain.transform;
-                }
-            }
-
-            if (GameWorldRoot != null)
-            {
-                OriginalWorldPosition = GameWorldRoot.position;
-                OriginalWorldScale = GameWorldRoot.localScale;
-                OriginalWorldRotation = GameWorldRoot.rotation;
-            }
         }
 
         private void Start()
@@ -123,7 +82,7 @@ namespace LlamAcademy.Dinos.AR
             rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
             rt.anchoredPosition = new Vector2(-20f, -68f);
-            rt.sizeDelta = new Vector2(200f, 40f);
+            rt.sizeDelta = new Vector2(210f, 42f);
 
             Image img = ARControlPill.AddComponent<Image>();
             img.color = new Color(0.10f, 0.42f, 0.90f, 0.92f); // AR Cyan-Blue
@@ -140,7 +99,7 @@ namespace LlamAcademy.Dinos.AR
             ARButtonText = textGO.AddComponent<Text>();
             ARButtonText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             ARButtonText.text = "📱 <b>CHẾ ĐỘ AR (CAMERA)</b>";
-            ARButtonText.fontSize = 11;
+            ARButtonText.fontSize = 12;
             ARButtonText.alignment = TextAnchor.MiddleCenter;
             ARButtonText.color = Color.white;
 
@@ -152,7 +111,7 @@ namespace LlamAcademy.Dinos.AR
 
         private Canvas FindSuitableOverlayCanvas()
         {
-            Canvas[] allCanvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+            Canvas[] allCanvases = FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             foreach (Canvas c in allCanvases)
             {
                 if (c.renderMode == RenderMode.ScreenSpaceOverlay && c.gameObject.name != "HealthBarCanvas")
@@ -165,18 +124,17 @@ namespace LlamAcademy.Dinos.AR
 
         private void CreateARPlaneGrid()
         {
-            // Procedural AR tracking plane diorama base
+            // Procedural AR holographic tracking grid plate under the village & battlefield
             ARPlaneGrid = new GameObject("AR_Tracking_Grid_Plane");
-            ARPlaneGrid.transform.position = new Vector3(0f, -0.3f, 0f);
+            ARPlaneGrid.transform.position = new Vector3(0f, -0.05f, -10f);
 
-            // Plane mesh
             GameObject plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
             plane.name = "AR_Grid_Mesh";
             plane.transform.SetParent(ARPlaneGrid.transform, false);
-            plane.transform.localScale = new Vector3(3f, 1f, 3f);
+            plane.transform.localScale = new Vector3(6f, 1f, 8f);
 
             // Translucent holographic cyan material
-            Material mat = Rendering.PrehistoricShaderUtility.CreateUnlitMaterial(new Color(0.1f, 0.6f, 0.95f, 0.35f));
+            Material mat = Rendering.PrehistoricShaderUtility.CreateUnlitMaterial(new Color(0.1f, 0.65f, 0.95f, 0.22f));
             Renderer r = plane.GetComponent<Renderer>();
             if (r != null) r.material = mat;
 
@@ -188,7 +146,7 @@ namespace LlamAcademy.Dinos.AR
 
         private void Update()
         {
-            // Hotkey 'R' toggles AR Tabletop Mode (only on PC when not typing)
+            // Hotkey 'R' toggles AR Tabletop Mode (on PC when not placing tower)
             if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
             {
                 bool isPlacing = TowerPlacer.Instance != null && TowerPlacer.Instance.ActiveTower != null;
@@ -198,35 +156,30 @@ namespace LlamAcademy.Dinos.AR
                 }
             }
 
-            // In AR Mode, handle touch and mouse interactions to orbit & scale the tabletop diorama
+            // In AR Mode, update background quad alignment and handle gestures
             if (IsARModeActive)
             {
                 HandleARGestures();
-                UpdateWebCamOrientation();
+                UpdateBackgroundQuadTransform();
             }
         }
 
         private void HandleARGestures()
         {
-            if (GameWorldRoot == null) return;
-
-            // 1. Mouse Drag (PC)
+            // PC Drag & Orbit
             if (Mouse.current != null)
             {
                 if (Mouse.current.leftButton.isPressed && !Mobile.MobileUIHelper.IsPointerOverUI(Mouse.current.position.ReadValue()))
                 {
-                    Vector2 delta = Mouse.current.delta.ReadValue();
-                    if (Mathf.Abs(delta.x) > 0.05f)
+                    bool isPlacing = TowerPlacer.Instance != null && TowerPlacer.Instance.ActiveTower != null;
+                    if (!isPlacing)
                     {
-                        GameWorldRoot.Rotate(Vector3.up, -delta.x * 0.35f, Space.World);
+                        Vector2 delta = Mouse.current.delta.ReadValue();
+                        if (Mathf.Abs(delta.x) > 0.05f)
+                        {
+                            CameraControl.Instance?.OrbitCamera(delta.x * 0.40f);
+                        }
                     }
-                }
-
-                // Mouse Scroll Zoom
-                float scroll = Mouse.current.scroll.ReadValue().y;
-                if (Mathf.Abs(scroll) > 0.1f)
-                {
-                    AdjustTabletopScale(Mathf.Sign(scroll) * 0.01f);
                 }
 
                 // Keyboard Rotate [ / ]
@@ -234,52 +187,14 @@ namespace LlamAcademy.Dinos.AR
                 {
                     if (Keyboard.current.leftBracketKey.isPressed)
                     {
-                        GameWorldRoot.Rotate(Vector3.up, -45f * Time.deltaTime, Space.World);
+                        CameraControl.Instance?.OrbitCamera(-55f * Time.deltaTime);
                     }
                     if (Keyboard.current.rightBracketKey.isPressed)
                     {
-                        GameWorldRoot.Rotate(Vector3.up, 45f * Time.deltaTime, Space.World);
+                        CameraControl.Instance?.OrbitCamera(55f * Time.deltaTime);
                     }
                 }
             }
-
-            // 2. Mobile Touch Gestures (1 finger orbit, 2 finger pinch)
-            if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count == 1)
-            {
-                var t = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0];
-                if (!Mobile.MobileUIHelper.IsPointerOverUI(t.screenPosition))
-                {
-                    if (t.phase == UnityEngine.InputSystem.TouchPhase.Moved)
-                    {
-                        float deltaX = t.delta.x;
-                        GameWorldRoot.Rotate(Vector3.up, -deltaX * 0.25f, Space.World);
-                    }
-                }
-            }
-            else if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count == 2)
-            {
-                var t1 = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0];
-                var t2 = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[1];
-
-                Vector2 prevPos1 = t1.screenPosition - t1.delta;
-                Vector2 prevPos2 = t2.screenPosition - t2.delta;
-
-                float prevDist = Vector2.Distance(prevPos1, prevPos2);
-                float curDist = Vector2.Distance(t1.screenPosition, t2.screenPosition);
-
-                float pinchDelta = curDist - prevDist;
-                if (Mathf.Abs(pinchDelta) > 0.5f)
-                {
-                    AdjustTabletopScale(pinchDelta * 0.00015f);
-                }
-            }
-        }
-
-        private void AdjustTabletopScale(float delta)
-        {
-            if (GameWorldRoot == null) return;
-            _CurrentTabletopScale = Mathf.Clamp(_CurrentTabletopScale + delta, 0.035f, 0.18f);
-            GameWorldRoot.localScale = Vector3.one * _CurrentTabletopScale;
         }
 
         /// <summary>
@@ -287,8 +202,6 @@ namespace LlamAcademy.Dinos.AR
         /// </summary>
         public void ToggleARMode()
         {
-            if (GameWorldRoot == null) LocateGameWorldRoot();
-
             IsARModeActive = !IsARModeActive;
 
             if (IsARModeActive)
@@ -308,19 +221,13 @@ namespace LlamAcademy.Dinos.AR
 
         private void ActivateARTabletop()
         {
-            if (GameWorldRoot == null) return;
-
             Debug.Log("<color=cyan>[AR System]</color> Tabletop AR Mode Activated. Initializing Video Pass-Through & Diorama...");
 
-            // 1. Setup Camera for Tabletop Perspective
+            // 1. Setup Camera for AR Pass-Through
             SetupCameraForAR();
 
-            // 2. Shrink and position diorama on tabletop
-            _CurrentTabletopScale = TabletopScale;
+            // 2. Enable AR holographic baseplate grid
             if (ARPlaneGrid != null) ARPlaneGrid.SetActive(true);
-
-            if (TransitionRoutine != null) StopCoroutine(TransitionRoutine);
-            TransitionRoutine = StartCoroutine(LerpWorldTransform(ARTabletopOffset, Vector3.one * _CurrentTabletopScale, 0.7f));
 
             // 3. Start Live Camera Video Feed
             if (CameraInitRoutine != null) StopCoroutine(CameraInitRoutine);
@@ -334,21 +241,16 @@ namespace LlamAcademy.Dinos.AR
 
         private void DeactivateARTabletop()
         {
-            if (GameWorldRoot == null) return;
-
             Debug.Log("<color=cyan>[AR System]</color> Restoring Standard 3D Tactical Battlefield...");
 
             // 1. Stop Camera Feed & teardown background
             StopWebCamFeed();
 
-            // 2. Restore Camera & Cinemachine
+            // 2. Restore Camera settings
             RestoreCameraFromAR();
 
-            // 3. Restore diorama scale and position
+            // 3. Disable AR holographic baseplate
             if (ARPlaneGrid != null) ARPlaneGrid.SetActive(false);
-
-            if (TransitionRoutine != null) StopCoroutine(TransitionRoutine);
-            TransitionRoutine = StartCoroutine(LerpWorldTransform(OriginalWorldPosition, OriginalWorldScale, 0.7f));
 
             if (RoundManagement.PrehistoricGameplayManager.Instance != null)
             {
@@ -360,40 +262,34 @@ namespace LlamAcademy.Dinos.AR
         {
             if (Camera.main == null) return;
 
+            // Cache original skybox & clear settings
+            _OriginalSkybox = RenderSettings.skybox;
+            RenderSettings.skybox = null; // Temporarily disable Skybox so URP doesn't draw sky over the camera quad!
+
             _OriginalCameraClearFlags = Camera.main.clearFlags;
-            _OriginalCameraPosition = Camera.main.transform.position;
-            _OriginalCameraRotation = Camera.main.transform.rotation;
+            _OriginalCameraBackgroundColor = Camera.main.backgroundColor;
 
-            // Temporarily disable Cinemachine so we can freely position the camera in front of the tabletop
-            _CinemachineCamera = Camera.main.GetComponent<Unity.Cinemachine.CinemachineCamera>();
-            if (_CinemachineCamera != null)
-            {
-                _CinemachineCamera.enabled = false;
-            }
+            // Use SolidColor clear with zero alpha so camera pass-through quad displays cleanly behind all 3D geometry
+            Camera.main.clearFlags = CameraClearFlags.SolidColor;
+            Camera.main.backgroundColor = new Color(0f, 0f, 0f, 0f);
 
-            // Position camera looking down at the tabletop diorama at an engaging 35° angle
-            Camera.main.transform.position = new Vector3(0f, 1.40f, -1.90f);
-            Camera.main.transform.rotation = Quaternion.Euler(34f, 0f, 0f);
-
-            // Change clearFlags to Depth so 3D objects draw directly on top of the AR video background
-            Camera.main.clearFlags = CameraClearFlags.Depth;
+            // Focus camera directly onto the prehistoric village center for an instant tabletop diorama view
+            CameraControl.Instance?.ResetToCenter();
         }
 
         private void RestoreCameraFromAR()
         {
+            // Restore Skybox
+            if (_OriginalSkybox != null)
+            {
+                RenderSettings.skybox = _OriginalSkybox;
+            }
+
+            // Restore Camera clear settings
             if (Camera.main != null)
             {
                 Camera.main.clearFlags = _OriginalCameraClearFlags;
-
-                if (_CinemachineCamera != null)
-                {
-                    _CinemachineCamera.enabled = true;
-                }
-                else
-                {
-                    Camera.main.transform.position = _OriginalCameraPosition;
-                    Camera.main.transform.rotation = _OriginalCameraRotation;
-                }
+                Camera.main.backgroundColor = _OriginalCameraBackgroundColor;
             }
         }
 
@@ -406,26 +302,37 @@ namespace LlamAcademy.Dinos.AR
             CameraStatusMessage = "Đang xin quyền và dò tìm Camera...";
 
 #if UNITY_ANDROID
-            // Check & request runtime camera authorization on Android
+            // 1. Kiểm tra và xin quyền Camera trên Android
             if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera))
             {
                 Debug.Log("<color=cyan>[AR Camera]</color> Requesting Android CAMERA permission...");
                 UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.Camera);
-                yield return new WaitForSeconds(1.0f);
+
+                // Chờ người dùng nhấn "Cho phép" trên hộp thoại cấp quyền hệ thống (tối đa 15 giây)
+                float permTimeout = 15.0f;
+                while (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera) && permTimeout > 0f)
+                {
+                    permTimeout -= Time.unscaledDeltaTime;
+                    yield return new WaitForSecondsRealtime(0.25f);
+                }
             }
+
+            // Chờ một nhịp nhỏ để Android Camera Service sẵn sàng sau khi cấp quyền
+            yield return new WaitForSecondsRealtime(0.4f);
 #endif
 
-            // Scan available video input devices
+            // 2. Quét danh sách thiết bị Camera
             WebCamDevice[] devices = WebCamTexture.devices;
             if (devices == null || devices.Length == 0)
             {
-                CameraStatusMessage = "Không tìm thấy Camera phần cứng. Đang dùng nền Sa Bàn 3D.";
+                Debug.LogWarning("[AR Camera] No camera devices found. Using Cyber Tabletop Hologram mode.");
+                CameraStatusMessage = "Không tìm thấy Camera phần cứng. Đang dùng Sa Bàn 3D Hologram.";
                 IsCameraStreaming = false;
                 EnsureARBackgroundSetup(null);
                 yield break;
             }
 
-            // Find the rear/back camera on phones, or first webcam on PC
+            // 3. Ưu tiên tìm camera sau (rear camera) trên điện thoại, hoặc webcam đầu tiên trên PC
             string targetDeviceName = devices[0].name;
             for (int i = 0; i < devices.Length; i++)
             {
@@ -436,10 +343,16 @@ namespace LlamAcademy.Dinos.AR
                 }
             }
 
-            Debug.Log($"<color=cyan>[AR Camera]</color> Starting Camera Device: {targetDeviceName}");
+            Debug.Log($"<color=cyan>[AR Camera]</color> Starting Camera Device: {targetDeviceName} (Total devices: {devices.Length})");
 
             try
             {
+                if (_WebCamTexture != null)
+                {
+                    if (_WebCamTexture.isPlaying) _WebCamTexture.Stop();
+                    Destroy(_WebCamTexture);
+                }
+
                 _WebCamTexture = new WebCamTexture(targetDeviceName, 1280, 720, 30);
                 _WebCamTexture.Play();
             }
@@ -452,15 +365,15 @@ namespace LlamAcademy.Dinos.AR
                 yield break;
             }
 
-            // Wait until the camera is actively streaming frames
-            float timeout = 4.0f;
-            while (!_WebCamTexture.isPlaying && timeout > 0f)
+            // 4. Chờ luồng camera phát và nhận được kích thước khung hình hợp lệ
+            float timeout = 6.0f;
+            while (_WebCamTexture != null && (!_WebCamTexture.isPlaying || _WebCamTexture.width <= 16) && timeout > 0f)
             {
-                timeout -= Time.deltaTime;
+                timeout -= Time.unscaledDeltaTime;
                 yield return null;
             }
 
-            if (_WebCamTexture.isPlaying)
+            if (_WebCamTexture != null && _WebCamTexture.isPlaying)
             {
                 IsCameraStreaming = true;
                 CameraStatusMessage = $"📸 Camera AR Đang Hoạt Động ({targetDeviceName})";
@@ -470,82 +383,113 @@ namespace LlamAcademy.Dinos.AR
             else
             {
                 IsCameraStreaming = false;
-                CameraStatusMessage = "Chưa nhận được khung hình camera. Đang dùng Sa Bàn 3D.";
+                CameraStatusMessage = "Chưa nhận được khung hình camera. Đang dùng Sa Bàn 3D Hologram.";
                 EnsureARBackgroundSetup(null);
             }
         }
 
         private void EnsureARBackgroundSetup(Texture videoTexture)
         {
-            // 1. Dedicated AR Background Camera (Renders behind Main Camera)
-            if (_BackgroundCameraGO == null)
+            if (Camera.main == null) return;
+
+            // Tạo Background Quad gắn trực tiếp vào Camera.main
+            if (_BackgroundQuad == null)
             {
-                _BackgroundCameraGO = new GameObject("AR_Background_Camera");
-                _BackgroundCamera = _BackgroundCameraGO.AddComponent<Camera>();
-                _BackgroundCamera.clearFlags = CameraClearFlags.SolidColor;
-                _BackgroundCamera.backgroundColor = new Color(0.04f, 0.08f, 0.14f, 1f); // Dark cyber cyan backdrop
-                _BackgroundCamera.cullingMask = 1 << 30; // Dedicated AR Background Layer (Layer 30)
-                _BackgroundCamera.depth = (Camera.main != null ? Camera.main.depth : 0) - 2;
-                _BackgroundCamera.useOcclusionCulling = false;
+                _BackgroundQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                _BackgroundQuad.name = "AR_Video_Background_Quad";
+
+                Collider col = _BackgroundQuad.GetComponent<Collider>();
+                if (col != null) Destroy(col);
+
+                _BackgroundQuadRenderer = _BackgroundQuad.GetComponent<MeshRenderer>();
+                _BackgroundQuadRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _BackgroundQuadRenderer.receiveShadows = false;
+                _BackgroundQuadRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                _BackgroundQuadRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+
+                Shader unlitShader = Rendering.PrehistoricShaderUtility.GetUnlitShader();
+                _BackgroundQuadMaterial = new Material(unlitShader);
+
+                // QUAN TRỌNG NHẤT: RenderQueue = 1000 (Background), ZWrite = 0 (tắt ghi depth), ZTest = Always
+                // Giúp tấm nền video vẽ ĐẦU TIÊN và KHÔNG BAO GIỜ đè/che khuất bất kỳ mô hình 3D nào!
+                _BackgroundQuadMaterial.renderQueue = 1000;
+                _BackgroundQuadMaterial.SetInt("_ZWrite", 0);
+                _BackgroundQuadMaterial.DisableKeyword("_ZWRITE_ON");
+                _BackgroundQuadMaterial.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
+
+                if (_BackgroundQuadMaterial.HasProperty("_Surface"))
+                {
+                    _BackgroundQuadMaterial.SetFloat("_Surface", 1); // Transparent/Background pass
+                }
+
+                _BackgroundQuadRenderer.material = _BackgroundQuadMaterial;
             }
 
-            _BackgroundCameraGO.SetActive(true);
+            _BackgroundQuad.transform.SetParent(Camera.main.transform, false);
+            UpdateBackgroundQuadTransform();
 
-            // 2. Background Canvas with ScreenSpaceCamera
-            if (_BackgroundCanvasGO == null)
-            {
-                _BackgroundCanvasGO = new GameObject("AR_Background_Canvas");
-                _BackgroundCanvasGO.layer = 30;
-
-                Canvas c = _BackgroundCanvasGO.AddComponent<Canvas>();
-                c.renderMode = RenderMode.ScreenSpaceCamera;
-                c.worldCamera = _BackgroundCamera;
-                c.planeDistance = 15f;
-
-                CanvasScaler scaler = _BackgroundCanvasGO.AddComponent<CanvasScaler>();
-                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                scaler.referenceResolution = new Vector2(1920, 1080);
-
-                GameObject rawGO = new GameObject("AR_Camera_Video_RawImage");
-                rawGO.layer = 30;
-                rawGO.transform.SetParent(_BackgroundCanvasGO.transform, false);
-
-                _BackgroundRawImage = rawGO.AddComponent<RawImage>();
-                RectTransform rt = _BackgroundRawImage.rectTransform;
-                rt.anchorMin = Vector2.zero;
-                rt.anchorMax = Vector2.one;
-                rt.sizeDelta = Vector2.zero;
-                rt.pivot = new Vector2(0.5f, 0.5f);
-            }
-
-            _BackgroundCanvasGO.SetActive(true);
-
-            if (_BackgroundRawImage != null)
+            if (_BackgroundQuadMaterial != null)
             {
                 if (videoTexture != null)
                 {
-                    _BackgroundRawImage.texture = videoTexture;
-                    _BackgroundRawImage.color = Color.white;
+                    if (_BackgroundQuadMaterial.HasProperty("_BaseMap"))
+                        _BackgroundQuadMaterial.SetTexture("_BaseMap", videoTexture);
+                    if (_BackgroundQuadMaterial.HasProperty("_MainTex"))
+                        _BackgroundQuadMaterial.SetTexture("_MainTex", videoTexture);
+                    _BackgroundQuadMaterial.mainTexture = videoTexture;
+                    _BackgroundQuadMaterial.color = Color.white;
                 }
                 else
                 {
-                    // If no camera, show a dark cyber holographic backdrop texture
-                    _BackgroundRawImage.texture = Texture2D.whiteTexture;
-                    _BackgroundRawImage.color = new Color(0.04f, 0.09f, 0.16f, 1f);
+                    // Sa bàn Hologram phong cách công nghệ cao khi không có camera
+                    _BackgroundQuadMaterial.mainTexture = Texture2D.whiteTexture;
+                    _BackgroundQuadMaterial.color = new Color(0.04f, 0.08f, 0.16f, 1f);
                 }
             }
+
+            _BackgroundQuad.SetActive(true);
         }
 
-        private void UpdateWebCamOrientation()
+        private void UpdateBackgroundQuadTransform()
         {
-            if (_WebCamTexture == null || !_WebCamTexture.isPlaying || _BackgroundRawImage == null) return;
+            if (_BackgroundQuad == null || Camera.main == null) return;
 
-            // Handle device camera rotation & mirroring on Android
-            int rotationAngle = _WebCamTexture.videoRotationAngle;
-            float scaleY = _WebCamTexture.videoVerticallyMirrored ? -1f : 1f;
+            // Đặt Quad ở khoảng cách 120m phía sau chiến trường (chiến trường nằm trong khoảng 25m - 85m)
+            // Nhờ ZWrite = 0 và ZTest = Always, Quad đóng vai trò bầu trời nền thực tế không bao giờ che khuất mô hình 3D
+            float distance = 120f;
+            if (Camera.main.farClipPlane > 60f)
+            {
+                distance = Mathf.Clamp(Camera.main.farClipPlane * 0.90f, 60f, 250f);
+            }
 
-            _BackgroundRawImage.rectTransform.localEulerAngles = new Vector3(0f, 0f, -rotationAngle);
-            _BackgroundRawImage.rectTransform.localScale = new Vector3(1f, scaleY, 1f);
+            float fovRad = Camera.main.fieldOfView * 0.5f * Mathf.Deg2Rad;
+            float frustumHeight = 2.0f * distance * Mathf.Tan(fovRad);
+            float frustumWidth = frustumHeight * Camera.main.aspect;
+
+            _BackgroundQuad.transform.localPosition = new Vector3(0f, 0f, distance);
+
+            if (_WebCamTexture != null && _WebCamTexture.isPlaying)
+            {
+                int rotationAngle = _WebCamTexture.videoRotationAngle;
+                float scaleY = _WebCamTexture.videoVerticallyMirrored ? -1f : 1f;
+
+                // Trên điện thoại, cảm biến camera thường là Portrait (góc 90 hoặc 270)
+                if (rotationAngle == 90 || rotationAngle == 270)
+                {
+                    _BackgroundQuad.transform.localEulerAngles = new Vector3(0f, 0f, -rotationAngle);
+                    _BackgroundQuad.transform.localScale = new Vector3(frustumHeight * 1.3f, frustumWidth * scaleY * 1.3f, 1f);
+                }
+                else
+                {
+                    _BackgroundQuad.transform.localEulerAngles = new Vector3(0f, 0f, -rotationAngle);
+                    _BackgroundQuad.transform.localScale = new Vector3(frustumWidth * 1.3f, frustumHeight * scaleY * 1.3f, 1f);
+                }
+            }
+            else
+            {
+                _BackgroundQuad.transform.localEulerAngles = Vector3.zero;
+                _BackgroundQuad.transform.localScale = new Vector3(frustumWidth * 1.3f, frustumHeight * 1.3f, 1f);
+            }
         }
 
         private void StopWebCamFeed()
@@ -569,8 +513,10 @@ namespace LlamAcademy.Dinos.AR
             IsCameraStreaming = false;
             CameraStatusMessage = "";
 
-            if (_BackgroundCameraGO != null) _BackgroundCameraGO.SetActive(false);
-            if (_BackgroundCanvasGO != null) _BackgroundCanvasGO.SetActive(false);
+            if (_BackgroundQuad != null)
+            {
+                _BackgroundQuad.SetActive(false);
+            }
         }
 
         private void OnDisable()
@@ -584,27 +530,8 @@ namespace LlamAcademy.Dinos.AR
         private void OnDestroy()
         {
             StopWebCamFeed();
-            if (_BackgroundCameraGO != null) Destroy(_BackgroundCameraGO);
-            if (_BackgroundCanvasGO != null) Destroy(_BackgroundCanvasGO);
-        }
-
-        private IEnumerator LerpWorldTransform(Vector3 targetPos, Vector3 targetScale, float duration)
-        {
-            Vector3 startPos = GameWorldRoot.position;
-            Vector3 startScale = GameWorldRoot.localScale;
-            float elapsed = 0f;
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
-                GameWorldRoot.position = Vector3.Lerp(startPos, targetPos, t);
-                GameWorldRoot.localScale = Vector3.Lerp(startScale, targetScale, t);
-                yield return null;
-            }
-
-            GameWorldRoot.position = targetPos;
-            GameWorldRoot.localScale = targetScale;
+            if (_BackgroundQuad != null) Destroy(_BackgroundQuad);
+            if (_BackgroundQuadMaterial != null) Destroy(_BackgroundQuadMaterial);
         }
 
         // =========================================================
@@ -628,29 +555,52 @@ namespace LlamAcademy.Dinos.AR
 
         private void DrawARStatusBanner()
         {
-            float bannerW = Mathf.Min(680f, Mobile.MobileUIHelper.ScreenWidth - 30f);
-            float bannerH = 64f;
+            float bannerW = Mathf.Min(780f, Mobile.MobileUIHelper.ScreenWidth - 30f);
+            float bannerH = 74f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - bannerW) / 2f;
-            float y = 14f;
+            float y = 12f;
 
             Rect bannerRect = new Rect(x, y, bannerW, bannerH);
             Mobile.MobileUIHelper.RegisterUIRect(bannerRect);
 
-            Color bgColor = IsCameraStreaming ? new Color(0.08f, 0.35f, 0.18f, 0.92f) : new Color(0.12f, 0.22f, 0.35f, 0.92f);
+            Color bgColor = IsCameraStreaming ? new Color(0.08f, 0.35f, 0.18f, 0.94f) : new Color(0.12f, 0.22f, 0.38f, 0.94f);
             GUI.backgroundColor = bgColor;
             GUI.Box(bannerRect, GUIContent.none);
 
-            GUILayout.BeginArea(new Rect(x + 10, y + 6, bannerW - 20, bannerH - 12));
+            GUILayout.BeginArea(new Rect(x + 12, y + 6, bannerW - 24, bannerH - 12));
             GUILayout.BeginVertical();
 
-            // Status Line
+            // Status Line & Quick Controls
             GUILayout.BeginHorizontal();
-            string statusIcon = IsCameraStreaming ? "📸 <color=#55FF55><b>AR LIVE CAMERA (ĐANG TRUYỀN VIDEO THỰC TẾ)</b></color>" : "📱 <color=#00FFFF><b>AR SA BÀN 3D TABLETOP (HOLOGRAPHIC)</b></color>";
+            string statusIcon = IsCameraStreaming 
+                ? "📸 <color=#55FF55><b>AR LIVE CAMERA (VIDEO PHÒNG THỰC TẾ)</b></color>" 
+                : "📱 <color=#00FFFF><b>AR SA BÀN 3D TABLETOP (HOLOGRAPHIC)</b></color>";
             GUILayout.Label($"<size=13>{statusIcon}</size>");
             GUILayout.FlexibleSpace();
 
+            // Rotate Left Button
+            GUI.backgroundColor = new Color(0.2f, 0.5f, 0.8f, 0.95f);
+            if (GUILayout.Button("<b>↺ Xoay Trái</b>", GUILayout.Width(90), GUILayout.Height(26)))
+            {
+                CameraControl.Instance?.OrbitCamera(-30f);
+            }
+
+            // Rotate Right Button
+            if (GUILayout.Button("<b>↻ Xoay Phải</b>", GUILayout.Width(90), GUILayout.Height(26)))
+            {
+                CameraControl.Instance?.OrbitCamera(30f);
+            }
+
+            // Focus Center Button
+            GUI.backgroundColor = new Color(0.2f, 0.7f, 0.5f, 0.95f);
+            if (GUILayout.Button("<b>🎯 Focus Làng</b>", GUILayout.Width(100), GUILayout.Height(26)))
+            {
+                CameraControl.Instance?.ResetToCenter();
+            }
+
+            // Exit AR Button
             GUI.backgroundColor = new Color(0.9f, 0.3f, 0.2f, 0.95f);
-            if (GUILayout.Button("<b>✕ THOÁT AR</b>", GUILayout.Width(110), GUILayout.Height(24)))
+            if (GUILayout.Button("<b>✕ THOÁT AR</b>", GUILayout.Width(105), GUILayout.Height(26)))
             {
                 ToggleARMode();
             }
@@ -659,9 +609,9 @@ namespace LlamAcademy.Dinos.AR
 
             // Gesture Helper line
             string helperText = Mobile.MobileUIHelper.IsMobile
-                ? "👆 <b>Kéo 1 ngón:</b> Xoay sa bàn 360° | ✌️ <b>Kẹp 2 ngón:</b> Thu phóng sa bàn | 🎯 Đặt tháp bình thường"
-                : "🖱️ <b>Kéo Chuột Trái:</b> Xoay sa bàn | <b>Cuộn chuột / Phím [ ]:</b> Thu phóng | <b>Phím R:</b> Thoát AR";
-            GUILayout.Label($"<size=11><color=#E0E0E0>{helperText}</color></size>");
+                ? "👆 <b>Vuốt 1 ngón:</b> Di chuyển xem toàn cảnh sa bàn | ✌️ <b>2 ngón chụm/xoay:</b> Thu phóng / Xoay góc nhìn | 🎯 Đặt tháp & điều quân bình thường"
+                : "🖱️ <b>Kéo Chuột Trái:</b> Xoay quanh sa bàn | <b>Cuộn chuột / Phím [ ]:</b> Thu phóng & Xoay | <b>Phím F:</b> Về giữa làng | <b>Phím R:</b> Thoát AR";
+            GUILayout.Label($"<size=11><color=#EAEAEA>{helperText}</color></size>");
 
             GUILayout.EndVertical();
             GUILayout.EndArea();

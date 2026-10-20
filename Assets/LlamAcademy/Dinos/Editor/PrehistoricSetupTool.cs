@@ -1267,13 +1267,13 @@ namespace LlamAcademy.Dinos.Editor
         {
             List<TowerSO> list = new();
 
-            list.Add(GetOrCreateTowerSO("Tower_Watchtower", "Chòi Cung Thủ Gỗ", 40, UnityEngine.InputSystem.Key.Digit1, prefabs["Watchtower"], false, 1.5f, 600));
-            list.Add(GetOrCreateTowerSO("Tower_Ballista", "Tháp Nỏ Bắn Lao", 80, UnityEngine.InputSystem.Key.Digit2, prefabs["Ballista"], false, 1.4f, 550));
-            list.Add(GetOrCreateTowerSO("Tower_Catapult", "Máy Bắn Đá Lửa", 100, UnityEngine.InputSystem.Key.Digit3, prefabs["Catapult"], false, 1.8f, 700));
-            list.Add(GetOrCreateTowerSO("Tower_ShamanTotem", "Cột Vật Tổ Sét", 120, UnityEngine.InputSystem.Key.Digit4, prefabs["ShamanTotem"], false, 1.4f, 650));
-            list.Add(GetOrCreateTowerSO("Tower_TarPit", "Vũng Hắc Ín (Chậm 50%)", 50, UnityEngine.InputSystem.Key.Digit5, prefabs["TarPit"], false, 1.8f, 400));
-            list.Add(GetOrCreateTowerSO("Tower_SpikeTrap", "Hố Chông Gai Gỗ", 30, UnityEngine.InputSystem.Key.Digit6, prefabs["SpikeTrap"], false, 1.2f, 350));
-            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 250));
+            list.Add(GetOrCreateTowerSO("Tower_Watchtower", "Chòi Cung Thủ Gỗ", 40, UnityEngine.InputSystem.Key.Digit1, prefabs["Watchtower"], false, 1.5f, 900));
+            list.Add(GetOrCreateTowerSO("Tower_Ballista", "Tháp Nỏ Bắn Lao", 80, UnityEngine.InputSystem.Key.Digit2, prefabs["Ballista"], false, 1.4f, 825));
+            list.Add(GetOrCreateTowerSO("Tower_Catapult", "Máy Bắn Đá Lửa", 100, UnityEngine.InputSystem.Key.Digit3, prefabs["Catapult"], false, 1.8f, 1050));
+            list.Add(GetOrCreateTowerSO("Tower_ShamanTotem", "Cột Vật Tổ Sét", 120, UnityEngine.InputSystem.Key.Digit4, prefabs["ShamanTotem"], false, 1.4f, 975));
+            list.Add(GetOrCreateTowerSO("Tower_TarPit", "Vũng Hắc Ín (Chậm 50%)", 50, UnityEngine.InputSystem.Key.Digit5, prefabs["TarPit"], false, 1.8f, 600));
+            list.Add(GetOrCreateTowerSO("Tower_SpikeTrap", "Hố Chông Gai Gỗ", 30, UnityEngine.InputSystem.Key.Digit6, prefabs["SpikeTrap"], false, 1.2f, 525));
+            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 500));
 
             return list;
         }
@@ -1699,8 +1699,8 @@ namespace LlamAcademy.Dinos.Editor
                 if (barricadeSO != null && gateBar.TryGetComponent(out Unit.Unit ugb))
                 {
                     ugb.UnitType = barricadeSO;
-                    ugb.Health = 1000;
-                    ugb.MaxHealth = 1000;
+                    ugb.Health = 1500;
+                    ugb.MaxHealth = 1500;
                     ugb.EnsureHealthBarAttached();
                 }
                 EnsureNavMeshObstacle(gateBar, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1727,8 +1727,8 @@ namespace LlamAcademy.Dinos.Editor
                     if (barricadeSO != null && seg.TryGetComponent(out Unit.Unit uw))
                     {
                         uw.UnitType = barricadeSO;
-                        uw.Health = 450;
-                        uw.MaxHealth = 450;
+                        uw.Health = 900;
+                        uw.MaxHealth = 900;
                         uw.EnsureHealthBarAttached();
                     }
                     EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1768,8 +1768,8 @@ namespace LlamAcademy.Dinos.Editor
                     if (barricadeSO != null && seg.TryGetComponent(out Unit.Unit uw))
                     {
                         uw.UnitType = barricadeSO;
-                        uw.Health = 450;
-                        uw.MaxHealth = 450;
+                        uw.Health = 900;
+                        uw.MaxHealth = 900;
                         uw.EnsureHealthBarAttached();
                     }
                     EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1818,8 +1818,8 @@ namespace LlamAcademy.Dinos.Editor
                     if (barricadeSO != null && rf.TryGetComponent(out Unit.Unit uwf))
                     {
                         uwf.UnitType = barricadeSO;
-                        uwf.Health = 450;
-                        uwf.MaxHealth = 450;
+                        uwf.Health = 900;
+                        uwf.MaxHealth = 900;
                         uwf.EnsureHealthBarAttached();
                     }
                     EnsureNavMeshObstacle(rf, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -1837,8 +1837,8 @@ namespace LlamAcademy.Dinos.Editor
                 if (watchtowerSO != null && wtLeft.TryGetComponent(out Unit.Unit uwl))
                 {
                     uwl.UnitType = watchtowerSO;
-                    uwl.MaxHealth = 800;
-                    uwl.Health = 800;
+                    uwl.MaxHealth = 1200;
+                    uwl.Health = 1200;
                     uwl.EnsureHealthBarAttached();
                 }
                 EnsureNavMeshObstacle(wtLeft, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
@@ -1851,8 +1851,8 @@ namespace LlamAcademy.Dinos.Editor
                 if (watchtowerSO != null && wtRight.TryGetComponent(out Unit.Unit uwr))
                 {
                     uwr.UnitType = watchtowerSO;
-                    uwr.MaxHealth = 800;
-                    uwr.Health = 800;
+                    uwr.MaxHealth = 1200;
+                    uwr.Health = 1200;
                     uwr.EnsureHealthBarAttached();
                 }
                 EnsureNavMeshObstacle(wtRight, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
@@ -1869,8 +1869,8 @@ namespace LlamAcademy.Dinos.Editor
                 if (barricadeSO != null && customGapWall.TryGetComponent(out Unit.Unit ucg))
                 {
                     ucg.UnitType = barricadeSO;
-                    ucg.Health = 450;
-                    ucg.MaxHealth = 450;
+                    ucg.Health = 900;
+                    ucg.MaxHealth = 900;
                     ucg.EnsureHealthBarAttached();
                 }
                 EnsureBoxCollider(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
@@ -2152,7 +2152,7 @@ namespace LlamAcademy.Dinos.Editor
                 {
                     wall = Undo.AddComponent<Unit.Wall>(go);
                 }
-                if (wall.MaxHealth <= 0) wall.MaxHealth = 450;
+                if (wall.MaxHealth <= 0) wall.MaxHealth = 900;
                 if (wall.Health <= 0) wall.Health = wall.MaxHealth;
                 if (barricadeSO != null && wall.UnitType == null)
                 {

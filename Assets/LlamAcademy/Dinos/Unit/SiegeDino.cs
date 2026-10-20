@@ -16,7 +16,7 @@ namespace LlamAcademy.Dinos.Unit
             ConfigureNavMeshAgent();
             BuildingDamageMultiplier = 3.5f;
             AttackDamage = 25;
-            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1275;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1912;
             Health = MaxHealth;
             GoldReward = 40;
         }

@@ -78,6 +78,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject saveGO = new GameObject("PrehistoricSaveManager");
                 saveGO.AddComponent<Save.PrehistoricSaveManager>();
             }
+            if (UI.PrehistoricSaveLoadDialog.Instance == null)
+            {
+                UI.PrehistoricSaveLoadDialog.EnsureInstance();
+            }
         }
 
         private void Start()
@@ -116,7 +120,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Debug.Log("<color=orange><b>[AI Chỉ Huy Làng]</b></color> Phát hiện Khủng Long Giáp (Ankylosaurus)! Quân cố thủ dàn đội hình chống phá thành!");
                 if (EnemyAIController.Instance != null)
                 {
-                    EnemyAIController.Instance.EnsureDefendersAlive(Mathf.Clamp(4 + AssaultLevel * 2, 4, 10));
+                    EnemyAIController.Instance.EnsureDefendersAlive(PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel));
                 }
             }
             else if (dino is Unit.RunnerDino)
@@ -144,19 +148,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void Update()
         {
-            // Hotkey 'M' or 'F1' to toggle Mode Select Menu
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
+            // Phím tắt M / F1 đổi chế độ trong trận đã được chuyển ra Menu Chính
             if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame || Keyboard.current.f1Key.wasPressedThisFrame))
             {
-                if (IsGameInProgress())
+                if (PrehistoricGameplayManager.Instance != null)
                 {
-                    if (PrehistoricGameplayManager.Instance != null)
-                    {
-                        PrehistoricGameplayManager.Instance.ShowAnnouncement("⚠ ĐANG TRONG TRẬN CHIẾN! KHÔNG THỂ ĐỔI CHẾ ĐỘ!", 2.5f);
-                    }
-                }
-                else
-                {
-                    ShowModeSelectModal = !ShowModeSelectModal;
+                    PrehistoricGameplayManager.Instance.ShowAnnouncement("ℹ Muốn đổi chế độ chơi: Hãy mở Cài đặt (Esc) và bấm [Menu Chính]!", 2.5f);
                 }
             }
 
@@ -179,6 +180,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     foreach (var d in dinos) { if (d != null && d.Health > 0) livingDinos++; }
                     var stds = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
                     foreach (var d in stds) { if (d != null && d.Health > 0) livingDinos++; }
+                    var flyings = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
+                    foreach (var f in flyings) { if (f != null && f.Health > 0) livingDinos++; }
 
                     DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
                     int food = spawner != null ? spawner.ResourcesToSpend : 0;
@@ -237,7 +240,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             AdaptiveWaveManager waveMgr = AdaptiveWaveManager.Instance != null ? AdaptiveWaveManager.Instance : FindFirstObjectByType<AdaptiveWaveManager>();
             if (waveMgr != null)
             {
-                // PrehistoricGameplayManager làm chủ toàn bộ wave trong Tower Defense; tắt AdaptiveWaveManager để triệt tiêu sinh quái trùng lặp
+                // Tắt triệt để mọi Coroutine của AdaptiveWaveManager để không bao giờ sinh quái ngẫu nhiên
+                waveMgr.StopAllCoroutines();
                 waveMgr.enabled = false;
             }
 
@@ -252,10 +256,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    // Khởi tạo lượng thịt ban đầu cân bằng (60 thịt)
-                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < 60)
+                    // Khởi tạo lượng thịt ban đầu dồi dào (250 thịt cơ bản + 75 thịt mỗi cấp màn)
+                    int targetMeat = 250 + (AssaultLevel - 1) * 75;
+                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < targetMeat)
                     {
-                        dinoSpawner.ResourcesToSpend = 60;
+                        dinoSpawner.ResourcesToSpend = targetMeat;
                     }
                 }
             }
@@ -267,7 +272,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 enemyAI.enabled = true;
                 if (Application.isPlaying)
                 {
-                    enemyAI.EnsureDefendersAlive(4 + (AssaultLevel - 1) * 2);
+                    enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel));
                 }
             }
 
@@ -290,6 +295,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 PrehistoricGameplayManager.Instance.EnsureVillageFortressWallActive();
                 PrehistoricGameplayManager.Instance.ConfigureAllCustomBarricades();
+                PrehistoricGameplayManager.Instance.EnsureVillageInteriorDefenses();
             }
 
             if (mode == PrehistoricGameMode.DinoAssault)
@@ -348,6 +354,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnGUI()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             Mobile.MobileUIHelper.BeginScaling();
             try
             {
@@ -393,8 +403,8 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawTopModeBanner()
         {
-            float width = 390f;
-            float height = 52f;
+            float width = 250f;
+            float height = 48f;
             float x = Mobile.MobileUIHelper.ScreenWidth - width - 20f;
             float y = 15f;
 
@@ -407,7 +417,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             string modeText;
             if (_CurrentMode == PrehistoricGameMode.TowerDefense)
             {
-                modeText = "<b><color=#55FF55>🛡️ CHẾ ĐỘ: THỦ THÁP (TD)</color></b>";
+                modeText = "<b><color=#55FF55>🛡️ CHẾ ĐỘ: THỦ THÀNH</color></b>";
             }
             else
             {
@@ -417,26 +427,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 modeText = $"<b><color=#FF5555>🦖 CÔNG THÀNH - MÀN {AssaultLevel}</color></b>\n<size=11><color=#FFD700>🏛️ Căn Cứ Làng:{baseHpStr}</color></size>";
             }
 
-            GUILayout.Label(modeText, GUILayout.Height(40));
-
-            bool inCombat = IsGameInProgress();
-            if (inCombat)
-            {
-                GUI.enabled = false;
-                GUI.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-                GUILayout.Button("<b>[🔒 ĐANG ĐẤU]</b>", GUILayout.Width(115), GUILayout.Height(38));
-                GUI.enabled = true;
-            }
-            else
-            {
-                GUI.backgroundColor = new Color(1f, 0.85f, 0.3f);
-                if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(125), GUILayout.Height(38)))
-                {
-                    ShowModeSelectModal = !ShowModeSelectModal;
-                    Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
-                }
-            }
-            GUI.backgroundColor = Color.white;
+            GUILayout.Label(modeText, GUILayout.Height(36));
 
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -573,9 +564,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
-            if (GUILayout.Button("+30 Thịt", GUILayout.Width(75), GUILayout.Height(26)))
+            if (GUILayout.Button("+100 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
             {
-                if (spawner != null) spawner.ResourcesToSpend += 30;
+                if (spawner != null) spawner.ResourcesToSpend += 100;
             }
             GUILayout.EndHorizontal();
 
@@ -733,6 +724,20 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             AssaultPhase = PrehistoricAssaultPhase.Combat;
             _DefeatCheckTimer = 0f;
+
+            // TÁCH BIỆT TRIỆT ĐỂ: Dừng hoàn toàn AdaptiveWaveManager và PrehistoricGameplayManager,
+            // đảm bảo KHÔNG MỘT CON KHỦNG LONG LẠ NÀO tự ý xuất hiện khi bấm Xuất quân
+            AdaptiveWaveManager waveMgr = AdaptiveWaveManager.Instance != null ? AdaptiveWaveManager.Instance : FindFirstObjectByType<AdaptiveWaveManager>();
+            if (waveMgr != null)
+            {
+                waveMgr.StopAllCoroutines();
+                waveMgr.enabled = false;
+            }
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.StopAllCoroutines();
+            }
+
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.State = GameState.Running;
@@ -797,6 +802,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             TriggerAssaultVictory();
         }
 
+        public void ReturnToMainMenu()
+        {
+            Time.timeScale = 1.0f;
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+            ClearAllDinos();
+
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.ReturnToMainMenu();
+            }
+            else
+            {
+                if (UI.PrehistoricMainMenu.Instance != null)
+                {
+                    UI.PrehistoricMainMenu.Instance.IsOpen = true;
+                }
+                Audio.PrehistoricAudioManager.Instance?.PlayOpeningBgm();
+            }
+        }
+
         public void QuitGame()
         {
 #if UNITY_EDITOR
@@ -812,6 +837,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             AssaultPhase = PrehistoricAssaultPhase.Victory;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            Audio.PrehistoricAudioManager.Instance?.PlayVictory();
             Debug.Log($"<color=green>[Assault Victory]</color> Chiếm thành thành công màn {AssaultLevel}!");
 
             if (PrehistoricGameplayManager.Instance != null)
@@ -826,6 +852,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             AssaultPhase = PrehistoricAssaultPhase.Defeat;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            Audio.PrehistoricAudioManager.Instance?.PlayGameOver();
             Debug.Log($"<color=red>[Assault Defeat]</color> Toàn bộ khủng long đã tử trận màn {AssaultLevel}!");
         }
 
@@ -898,11 +925,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 2. Hồi phục và nâng cấp máu căn cứ làng
+            // 2. Hồi phục máu căn cứ làng (giữ nguyên 1000 HP theo yêu cầu)
             EnsureVillageBase();
             if (VillageBase != null)
             {
-                int baseHp = 1000 + (level - 1) * 350;
+                int baseHp = 1000;
                 VillageBase.RestoreBase(baseHp);
             }
 
@@ -955,11 +982,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 NavMeshManager.Instance.RecalculateTriangulation(true);
             }
 
-            // 5. Làm mới và hồi phục toàn bộ NPC Thợ săn / Cung thủ phòng thủ làng
+            // 5. Làm mới và hồi phục toàn bộ NPC Thợ săn / Cung thủ phòng thủ làng theo quy định nghiêm ngặt của màn
             EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
             if (enemyAI != null)
             {
-                enemyAI.ResetDefendersToExactCount(4 + (level - 1) * 3);
+                enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(level));
             }
         }
 
@@ -967,49 +994,18 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             AssaultLevel++;
 
-            // GIỮ NGUYÊN ĐỘI QUÂN KHỦNG LONG: Hồi máu +40% cho các khủng long sống sót và dừng lại chờ xuất quân
-            var dinoBases = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
-            foreach (var d in dinoBases)
-            {
-                if (d != null && d.Health > 0)
-                {
-                    d.Health = Mathf.Min(d.MaxHealth, d.Health + Mathf.RoundToInt(d.MaxHealth * 0.4f));
-                    d.EnsureHealthBarAttached();
-                    var agent = d.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
-                }
-            }
-
-            var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
-            foreach (var d in stdDinos)
-            {
-                if (d != null && d.Health > 0)
-                {
-                    d.Health = Mathf.Min(d.MaxHealth, d.Health + Mathf.RoundToInt(d.MaxHealth * 0.4f));
-                    d.EnsureHealthBarAttached();
-                    var agent = d.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
-                }
-            }
-
-            var flyingUnits = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
-            foreach (var f in flyingUnits)
-            {
-                if (f != null && f.Health > 0)
-                {
-                    f.Health = Mathf.Min(f.MaxHealth, f.Health + Mathf.RoundToInt(f.MaxHealth * 0.4f));
-                    f.EnsureHealthBarAttached();
-                }
-            }
+            // Dọn dẹp sạch toàn bộ khủng long đợt trước khi qua màn mới
+            ClearAllDinos();
 
             // Khôi phục và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Thưởng thịt cân bằng cho màn kế tiếp (+60 thịt)
+            // Cung cấp thịt dồi dào theo màn mới để người chơi dàn trận
+            int targetMeat = 250 + (AssaultLevel - 1) * 75;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend += 60;
+                spawner.ResourcesToSpend = Mathf.Max(spawner.ResourcesToSpend + 120, targetMeat);
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1018,7 +1014,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RoundManager.Instance.State = GameState.Setup;
             }
 
-            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Giữ nguyên đội quân sống sót (+40% HP), Làng tăng cường phòng tuyến, nhận +60 Thịt!");
+            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Đã dọn sạch khủng long cũ, cấp thịt dồi dào cho màn mới!");
         }
 
         public void RetryCurrentAssaultLevel()
@@ -1028,11 +1024,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Tái thiết lập phòng tuyến làng cho màn hiện tại
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Hồi phục lượng thịt ban đầu cân bằng (60 thịt)
+            // Hồi phục lượng thịt dồi dào theo màn
+            int targetMeat = 250 + (AssaultLevel - 1) * 75;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
-            if (spawner != null && spawner.ResourcesToSpend < 60)
+            if (spawner != null && spawner.ResourcesToSpend < targetMeat)
             {
-                spawner.ResourcesToSpend = 60;
+                spawner.ResourcesToSpend = targetMeat;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1040,6 +1037,95 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 RoundManager.Instance.State = GameState.Setup;
             }
+        }
+
+        
+        public void StartNewAssaultFromMenu()
+        {
+            SetGameMode(PrehistoricGameMode.DinoAssault);
+            AssaultLevel = 1;
+            ClearAllDinos();
+            SetupVillageDefensesForLevel(1);
+
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.ResourcesToSpend = 250;
+            }
+
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
+            if (Save.PrehistoricSaveManager.Instance != null)
+            {
+                var prof = Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile;
+                if (prof != null)
+                {
+                    prof.AssaultLevel = 1;
+                    prof.Meat = 250;
+                    prof.HasActiveRun = true;
+                }
+                Save.PrehistoricSaveManager.Instance.AutoSaveAssaultRun(true);
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
+            Debug.Log("<color=cyan>[Assault]</color> Khởi động chiến dịch Công Thành từ Màn 1!");
+        }
+
+        public void LoadAssaultLevel(int targetLevel, int savedMeat, int savedHp)
+        {
+            SetGameMode(PrehistoricGameMode.DinoAssault);
+
+            AssaultLevel = Mathf.Max(1, targetLevel);
+            ClearAllDinos();
+            SetupVillageDefensesForLevel(AssaultLevel);
+
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.ResourcesToSpend = savedMeat > 0 ? savedMeat : (250 + (AssaultLevel - 1) * 75);
+            }
+
+            if (Unit.PrehistoricVillageBase.Instance != null && savedHp > 0)
+            {
+                Unit.PrehistoricVillageBase.Instance.Health = savedHp;
+            }
+
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
+            if (UI.PrehistoricMainMenu.Instance != null)
+            {
+                UI.PrehistoricMainMenu.Instance.IsOpen = false;
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
+            Debug.Log($"<color=cyan>[Assault]</color> Đã tải chiến dịch Công Thành: Màn {AssaultLevel} ({savedMeat} Thịt)!");
+        }
+
+        public void ContinueAssaultFromMenu()
+        {
+            int targetLevel = 1;
+            int savedMeat = 250;
+
+            if (Save.PrehistoricSaveManager.Instance != null)
+            {
+                Save.PrehistoricSaveManager.Instance.LoadSaveData();
+                var prof = Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile;
+                if (prof != null)
+                {
+                    targetLevel = Mathf.Max(1, prof.AssaultLevel);
+                    if (prof.Meat > 0) savedMeat = prof.Meat;
+                }
+            }
+
+            LoadAssaultLevel(targetLevel, savedMeat, 1000);
         }
 
         public void RestartAssaultFromLevel1()
@@ -1051,7 +1137,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = 60;
+                spawner.ResourcesToSpend = 250;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1062,26 +1148,37 @@ namespace LlamAcademy.Dinos.RoundManagement
             Debug.Log("<color=cyan>[Assault Reset]</color> Chơi lại chế độ Công Thành từ Màn 1!");
         }
 
-        private void ClearAllDinos()
+        public void ClearAllDinos()
         {
-            var allDinos = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
-            foreach (var d in allDinos)
+            // Quét dọn triệt để TOÀN BỘ khủng long/quái vật kể cả inactive hoặc đang trong animation ngã chết
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var d in allUnits)
             {
-                if (d != null) Destroy(d.gameObject);
+                if (d != null && (d is Unit.Dino || d is Unit.PrehistoricDinoBase || d is Unit.RunnerDino || d is Unit.FlyingUnit || d is Unit.SiegeDino || d is Unit.BossDino))
+                {
+                    // Bỏ qua các ghost unit đang preview đặt quân
+                    if (d.transform.parent != null && d.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        continue;
+                    }
+
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    if (d.gameObject != null)
+                    {
+                        Destroy(d.gameObject);
+                    }
+                }
             }
-            var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
-            foreach (var d in stdDinos)
-            {
-                if (d != null) Destroy(d.gameObject);
-            }
-            var flyDinos = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
-            foreach (var d in flyDinos)
-            {
-                if (d != null) Destroy(d.gameObject);
-            }
+
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ClearActiveDinos();
+            }
+
+            // Dọn dẹp triệt để các đạn bay, rác scene, thanh máu mồ côi
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.CleanAllGameplayGarbage();
             }
         }
 
@@ -1095,8 +1192,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float height = 390f;
+            float width = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 400f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
@@ -1111,11 +1208,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label("<size=14><b><color=#55FF55>📊 THÔNG SỐ ĐỘ KHÓ MÀN TIẾP THEO (MÀN " + (AssaultLevel + 1) + "):</color></b></size>");
-            GUILayout.Label($"• <b>Bảo toàn quân lực</b>: Giữ nguyên bầy khủng long còn sống sót (+ hồi phục 40% HP)!\n" +
+            GUILayout.Label($"• <b>Dàn trận màn mới</b>: Làm sạch chiến trường, cấp {250 + AssaultLevel * 75} Thịt để tự do bố trí đội quân mới!\n" +
                             $"• <b>Phòng tuyến Làng củng cố</b>: Tái lập & bổ sung Máy bắn đá, Tháp nỏ, Cột sét, Bẫy gai!\n" +
-                            $"• <b>Quân phòng thủ Làng (NPC)</b>: {4 + AssaultLevel * 3} quân (+3 quân chi viện)\n" +
+                            $"• <b>Quân phòng thủ Làng (NPC)</b>: {PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel + 1)} quân phòng thủ\n" +
                             $"• <b>Máu Căn Cứ Làng</b>: {1000 + AssaultLevel * 350} HP (+350 HP)\n" +
-                            $"• <b>Chi viện lương thực</b>: +60 Thịt chiêu mộ thêm khủng long!");
+                            $"• <b>Chiến thuật</b>: Lựa chọn chủng loại khủng long phù hợp để đột phá và chiếm thành!");
             GUILayout.EndVertical();
 
             GUILayout.Space(16);
@@ -1133,11 +1230,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RetryCurrentAssaultLevel();
             }
 
-            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT GAME</size></b>" : "<b><size=14>🚪 THOÁT GAME\n[Phím ESC / Q]</size></b>";
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitLabel, GUILayout.Height(55)))
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(55)))
             {
-                QuitGame();
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.DinoAssault);
+            }
+
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f);
+            if (GUILayout.Button("<b><size=14>🏠 MENU CHÍNH\n(LƯU TIẾN TRÌNH)</size></b>", GUILayout.Height(55)))
+            {
+                ReturnToMainMenu();
             }
 
             GUI.backgroundColor = Color.white;
@@ -1155,8 +1257,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float width = Mathf.Min(640f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float height = 320f;
+            float width = Mathf.Min(740f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float height = 340f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - height) / 2f;
 
@@ -1176,28 +1278,30 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Space(18);
             GUILayout.BeginHorizontal();
 
-            string retryLabel = Mobile.MobileUIHelper.IsMobile ? $"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}</size></b>" : $"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}\n[SPACE]</size></b>";
-            string resetLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU</size></b>" : "<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU\n[PHÍM R]</size></b>";
-            string quitLabel = Mobile.MobileUIHelper.IsMobile ? "<b><size=14>🚪 THOÁT\nGAME</size></b>" : "<b><size=14>🚪 THOÁT\n[ESC / Q]</size></b>";
-
-            float btnW = (width - 40) / 3f;
+            float btnW = (width - 55) / 4f;
 
             GUI.backgroundColor = new Color(1f, 0.45f, 0.2f);
-            if (GUILayout.Button(retryLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            if (GUILayout.Button($"<b><size=14>🔄 CHƠI LẠI\nMÀN {AssaultLevel}</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
             {
                 RetryCurrentAssaultLevel();
             }
 
+            GUI.backgroundColor = new Color(0.2f, 0.8f, 0.7f);
+            if (GUILayout.Button("<b><size=14>💾 LƯU GAME\n(CHỌN KHE)</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
+            {
+                UI.PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(PrehistoricGameMode.DinoAssault);
+            }
+
             GUI.backgroundColor = new Color(0.95f, 0.65f, 0.15f);
-            if (GUILayout.Button(resetLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            if (GUILayout.Button("<b><size=14>⏮️ CHƠI LẠI\nTỪ ĐẦU</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
             {
                 RestartAssaultFromLevel1();
             }
 
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button(quitLabel, GUILayout.Height(52), GUILayout.Width(btnW)))
+            GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f, 1f);
+            if (GUILayout.Button("<b><size=14>🏠 MENU\nCHÍNH</size></b>", GUILayout.Height(55), GUILayout.Width(btnW)))
             {
-                QuitGame();
+                ReturnToMainMenu();
             }
 
             GUI.backgroundColor = Color.white;

@@ -112,6 +112,10 @@ namespace LlamAcademy.Dinos.Player
 
         private void Update()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             if (Keyboard.current != null)
             {
                 // Phím C: Đổi góc nhìn Camera giữa Trước Làng và Sau Làng
@@ -502,6 +506,10 @@ namespace LlamAcademy.Dinos.Player
 
         private void OnGUI()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             if (Mobile.MobileUIHelper.IsMobile)
             {
                 // Trên Android: Hiển thị bộ nút camera nổi (Về làng, Đổi góc nhìn, Zoom +, Zoom -)

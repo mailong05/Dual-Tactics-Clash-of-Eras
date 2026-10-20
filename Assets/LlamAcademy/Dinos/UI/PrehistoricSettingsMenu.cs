@@ -99,6 +99,11 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawSettingsToggleButton()
         {
+            if (PrehistoricMainMenu.Instance != null && PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
+
             float btnW = 145f;
             float btnH = 34f;
             float x = 20f;
@@ -119,7 +124,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawSettingsModal()
         {
-            GUI.depth = -1100;
+            GUI.depth = -1400;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -265,22 +270,49 @@ namespace LlamAcademy.Dinos.UI
                     GUILayout.Label($"<size=11><color=#00FFAA><b>{_saveFeedbackMsg}</b></color></size>");
                 }
 
+                PrehistoricGameMode currentMode = (PrehistoricGameModeManager.Instance != null)
+                    ? PrehistoricGameModeManager.Instance.CurrentMode
+                    : PrehistoricGameMode.TowerDefense;
+
                 GUILayout.Space(3);
                 GUILayout.BeginHorizontal();
 
-                // Quick Save Local
-                GUI.backgroundColor = new Color(0.2f, 0.7f, 0.9f);
-                if (GUILayout.Button("<b>💾 LƯU MÁY (LOCAL)</b>", GUILayout.Height(28)))
+                // 1. Lưu game theo Slot (Save Slots)
+                GUI.backgroundColor = new Color(0.2f, 0.75f, 0.45f);
+                if (GUILayout.Button("<b>💾 LƯU GAME (CHỌN KHE)</b>", GUILayout.Height(30)))
+                {
+                    audio?.PlayButtonClick();
+                    IsOpen = false;
+                    PrehistoricSaveLoadDialog.EnsureInstance().OpenSaveDialog(currentMode);
+                }
+
+                // 2. Tải game theo Slot (Load Slots)
+                GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f);
+                if (GUILayout.Button("<b>📂 TẢI GAME (LOAD)</b>", GUILayout.Height(30)))
+                {
+                    audio?.PlayButtonClick();
+                    IsOpen = false;
+                    PrehistoricSaveLoadDialog.EnsureInstance().OpenLoadDialog(currentMode);
+                }
+
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(2);
+                GUILayout.BeginHorizontal();
+
+                // 3. Quick Save Local
+                GUI.backgroundColor = new Color(0.95f, 0.65f, 0.2f);
+                if (GUILayout.Button("<b>⚡ LƯU NHANH</b>", GUILayout.Height(26)))
                 {
                     saveMgr.AutoSaveCurrentRun(hasActiveRun: true);
-                    _saveFeedbackMsg = "✓ Đã lưu thành công vào bộ nhớ máy (Local JSON)!";
+                    _saveFeedbackMsg = "✓ Đã lưu nhanh tiến trình hiện tại!";
                     _saveFeedbackTimer = 3.0f;
                     audio?.PlayButtonClick();
                 }
 
-                // Cloud Sync
+                // 4. Cloud Sync
                 GUI.backgroundColor = new Color(0.25f, 0.8f, 0.45f);
-                if (GUILayout.Button("<b>☁ ĐỒNG BỘ CLOUD</b>", GUILayout.Height(28)))
+                if (GUILayout.Button("<b>☁ ĐỒNG BỘ CLOUD</b>", GUILayout.Height(26)))
                 {
                     saveMgr.SyncToCloud((success, msg) =>
                     {
@@ -290,12 +322,12 @@ namespace LlamAcademy.Dinos.UI
                     audio?.PlayButtonClick();
                 }
 
-                // Reset Save
+                // 5. Reset Save
                 GUI.backgroundColor = new Color(0.7f, 0.25f, 0.25f);
-                if (GUILayout.Button("<b>🗑 XÓA SAVE</b>", GUILayout.Width(105), GUILayout.Height(28)))
+                if (GUILayout.Button("<b>🗑 XÓA TẤT CẢ</b>", GUILayout.Width(100), GUILayout.Height(26)))
                 {
                     saveMgr.ResetSaveData();
-                    _saveFeedbackMsg = "Đã đặt lại dữ liệu lưu tiến trình.";
+                    _saveFeedbackMsg = "Đã đặt lại toàn bộ dữ liệu lưu.";
                     _saveFeedbackTimer = 3.0f;
                     audio?.PlayButtonClick();
                 }
@@ -388,15 +420,38 @@ namespace LlamAcademy.Dinos.UI
             // ==========================================
             GUILayout.BeginHorizontal();
 
-            GUI.backgroundColor = new Color(0.2f, 0.85f, 0.4f);
-            if (GUILayout.Button("<b><size=14>▶ TIẾP TỤC CHƠI</size></b>", GUILayout.Height(42)))
+            bool isFromMainMenu = PrehistoricMainMenu.Instance != null && PrehistoricMainMenu.Instance.IsOpen;
+
+            if (isFromMainMenu)
             {
-                IsOpen = false;
-                PrehistoricAudioManager.Instance?.PlayButtonClick();
+                GUI.backgroundColor = new Color(0.2f, 0.75f, 0.95f);
+                if (GUILayout.Button("<b><size=14>◀ QUAY LẠI MENU CHÍNH</size></b>", GUILayout.Height(42)))
+                {
+                    IsOpen = false;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+            }
+            else
+            {
+                GUI.backgroundColor = new Color(0.2f, 0.85f, 0.4f);
+                if (GUILayout.Button("<b><size=14>▶ TIẾP TỤC CHƠI</size></b>", GUILayout.Height(42)))
+                {
+                    IsOpen = false;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+
+                GUI.backgroundColor = new Color(0.95f, 0.55f, 0.15f);
+                if (GUILayout.Button("<b><size=14>🏠 MENU CHÍNH</size></b>", GUILayout.Height(42)))
+                {
+                    IsOpen = false;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+                    PrehistoricGameplayManager.Instance?.ReturnToMainMenu();
+                }
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f);
-            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME</size></b>", GUILayout.Height(42), GUILayout.Width(170)))
+            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME</size></b>", GUILayout.Height(42), GUILayout.Width(130)))
             {
                 QuitGame();
             }

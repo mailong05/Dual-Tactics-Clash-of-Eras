@@ -85,6 +85,16 @@ namespace LlamAcademy.Dinos.Utility
                 _canvas.sortingOrder = 500; // Đảm bảo luôn vẽ nổi trên địa hình và khủng long
             }
 
+            // Dọn dẹp triệt để mọi thanh máu mồ côi (orphaned) bị lưu tĩnh trong file Scene
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child != null && child.name.StartsWith("HealthBar_"))
+                {
+                    Destroy(child.gameObject);
+                }
+            }
+
             if (HealthBarPrefab == null)
             {
                 GameObject prefabObj = Resources.Load<GameObject>("Health Bar");
@@ -134,6 +144,24 @@ namespace LlamAcademy.Dinos.Utility
                 {
                     // Nếu Unit bị ẩn (inactive) hoặc đã chết: Ẩn thanh máu đi, không để bay lơ lửng trên màn hình
                     if (!keyValuePair.Key.gameObject.activeInHierarchy || keyValuePair.Key.Health <= 0)
+                    {
+                        if (keyValuePair.Value.gameObject.activeSelf)
+                        {
+                            keyValuePair.Value.gameObject.SetActive(false);
+                        }
+                        continue;
+                    }
+
+                    // TỐI ƯU HÓA GIAO DIỆN & SẠCH SẼ MÀN HÌNH:
+                    // Đối với các công trình tĩnh (tường thành, rào cọc gỗ, barricade), CHỈ HIỂN THỊ thanh máu khi đã bị tổn thương (Health < MaxHealth).
+                    // Khi còn nguyên vẹn 100% máu, ẩn thanh máu đi để không làm ngập tràn che kín màn hình với hàng chục thanh máu xanh.
+                    // Căn cứ làng (PrehistoricVillageBase) và các tháp của người chơi vẫn luôn hiển thị bình thường.
+                    bool isWallStructure = (keyValuePair.Key is Unit.Wall) || 
+                        keyValuePair.Key.gameObject.name.ToLower().Contains("wall") ||
+                        keyValuePair.Key.gameObject.name.ToLower().Contains("barricade") ||
+                        keyValuePair.Key.gameObject.name.ToLower().Contains("plank_defenses");
+
+                    if (isWallStructure && !(keyValuePair.Key is Unit.PrehistoricVillageBase) && keyValuePair.Key.Health >= keyValuePair.Key.MaxHealth)
                     {
                         if (keyValuePair.Value.gameObject.activeSelf)
                         {

@@ -25,31 +25,43 @@ namespace LlamAcademy.Dinos.Enemy
 
         public static readonly Vector3[] VillageDefenseSpots = new Vector3[]
         {
-            // --- SÂN TRÁI & PHẢI CỔNG LÀNG (Sân cát thoáng đãng nhìn thẳng từ Camera) ---
-            new Vector3(-6.5f, 0.0f, -14.0f),  // Chốt 1: Sân trái phía trước (bọc sườn chòi trái)
-            new Vector3(4.5f, 0.0f, -14.0f),   // Chốt 2: Sân phải phía trước (bọc sườn chòi phải)
-            new Vector3(-4.5f, 0.0f, -16.5f),  // Chốt 3: Sân trái trung tâm (cạnh cầu gỗ)
-            new Vector3(2.8f, 0.0f, -16.5f),   // Chốt 4: Sân phải trung tâm (trước lều rơm)
-
-            // --- TUYẾN PHÒNG THỦ CHIẾN THUẬT & TRỤC GIỮA (Wave 2 & 3) ---
-            new Vector3(-2.2f, 0.0f, -15.5f),  // Chốt 5: Trục chính sân làng (sau nhịp cầu)
-            new Vector3(-8.5f, 0.0f, -16.5f),  // Chốt 6: Cánh tây sân trái (sát hàng rào)
-            new Vector3(6.8f, 0.0f, -16.5f),   // Chốt 7: Cánh đông sân phải (sát hàng rào)
-            new Vector3(-6.5f, 0.0f, -19.0f),  // Chốt 8: Hậu tuyến sân trái
-            new Vector3(4.5f, 0.0f, -19.0f),   // Chốt 9: Hậu tuyến sân phải
-            new Vector3(-2.2f, 0.0f, -18.5f),  // Chốt 10: Tiền trạm trung tâm căn cứ
-
-            // --- TUYẾN DỰ BỊ VÀ TIỀN ĐỒN BẢO VỆ CĂN CỨ (Wave 4+) ---
-            new Vector3(-8.5f, 0.0f, -13.5f),  // Chốt 11: Góc tây bắc sân trái
-            new Vector3(6.5f, 0.0f, -13.5f),   // Chốt 12: Góc đông bắc sân phải
-            new Vector3(-5.0f, 0.0f, -21.0f),  // Chốt 13: Lối ngõ sườn trái về căn cứ
-            new Vector3(3.5f, 0.0f, -21.0f),   // Chốt 14: Lối ngõ sườn phải về căn cứ
-            new Vector3(-0.5f, 0.0f, -15.0f),  // Chốt 15: Cánh hữu trung tâm
-            new Vector3(-3.8f, 0.0f, -15.0f),  // Chốt 16: Cánh tả trung tâm
-            new Vector3(-2.2f, 0.0f, -24.0f),  // Chốt 17: Vệ binh tiền đồn căn cứ
-            new Vector3(-4.5f, 0.0f, -25.5f),  // Chốt 18: Vệ binh cánh trái căn cứ
-            new Vector3(0.5f, 0.0f, -25.5f),   // Chốt 19: Vệ binh cánh phải căn cứ
-            new Vector3(-2.2f, 0.0f, -27.5f)   // Chốt 20: Cận vệ bảo vệ Trứng / Căn Cứ Làng
+            // --- XEN KẼ TIỀN TUYẾN - TRUNG TUYẾN - HẬU TUYẾN (Đảm bảo mọi Wave từ Wave 1 đều có Cận Vệ Căn Cứ) ---
+            new Vector3(-6.5f, 0.0f, -14.0f),  // Chốt 0: Tiền tuyến sân trái cổng làng (bọc sườn chòi trái)
+            new Vector3(4.5f, 0.0f, -14.0f),   // Chốt 1: Tiền tuyến sân phải cổng làng (bọc sườn chòi phải)
+            new Vector3(-2.2f, 0.0f, -30.0f),  // Chốt 2: [HẬU TUYẾN] Vệ binh trung tâm trước Căn Cứ / Đài Tế
+            new Vector3(-2.2f, 0.0f, -18.5f),  // Chốt 3: [TRUNG TUYẾN] Tiền trạm trung tâm sân làng
+            new Vector3(-4.0f, 0.0f, -32.0f),  // Chốt 4: [HẬU TUYẾN] Cận vệ bảo vệ Căn Cứ / Trứng (tả)
+            new Vector3(-2.2f, 0.0f, -15.5f),  // Chốt 5: Tiền tuyến trục chính sân làng (sau nhịp cầu)
+            new Vector3(-0.4f, 0.0f, -32.0f),  // Chốt 6: [HẬU TUYẾN] Cận vệ bảo vệ Căn Cứ / Trứng (hữu)
+            new Vector3(-4.5f, 0.0f, -16.5f),  // Chốt 7: Sân trái trung tâm (cạnh cầu gỗ)
+            new Vector3(2.8f, 0.0f, -16.5f),   // Chốt 8: Sân phải trung tâm (trước lều rơm)
+            new Vector3(-2.2f, 0.0f, -34.0f),  // Chốt 9: [HẬU TUYẾN] Hộ vệ tối hậu sát Căn Cứ Làng
+            new Vector3(-5.0f, 0.0f, -21.0f),  // Chốt 10: [TRUNG TUYẾN] Lối ngõ sườn trái về căn cứ
+            new Vector3(3.5f, 0.0f, -21.0f),   // Chốt 11: [TRUNG TUYẾN] Lối ngõ sườn phải về căn cứ
+            new Vector3(-2.2f, 0.0f, -27.5f),  // Chốt 12: [HẬU TUYẾN] Vành đai bảo vệ Căn Cứ Làng
+            new Vector3(-8.5f, 0.0f, -16.5f),  // Chốt 13: Cánh tây sân trái (sát hàng rào)
+            new Vector3(6.8f, 0.0f, -16.5f),   // Chốt 14: Cánh đông sân phải (sát hàng rào)
+            new Vector3(-6.5f, 0.0f, -19.0f),  // Chốt 15: Hậu tuyến sân trái
+            new Vector3(4.5f, 0.0f, -19.0f),   // Chốt 16: Hậu tuyến sân phải
+            new Vector3(-8.5f, 0.0f, -13.5f),  // Chốt 17: Góc tây bắc sân trái
+            new Vector3(6.5f, 0.0f, -13.5f),   // Chốt 18: Góc đông bắc sân phải
+            new Vector3(-0.5f, 0.0f, -15.0f),  // Chốt 19: Cánh hữu trung tâm
+            new Vector3(-3.8f, 0.0f, -15.0f),  // Chốt 20: Cánh tả trung tâm
+            new Vector3(-2.2f, 0.0f, -24.0f),  // Chốt 21: Vệ binh tiền đồn căn cứ
+            new Vector3(-4.5f, 0.0f, -25.5f),  // Chốt 22: Vệ binh cánh trái căn cứ
+            new Vector3(0.5f, 0.0f, -25.5f),   // Chốt 23: Vệ binh cánh phải căn cứ
+            new Vector3(-3.2f, 0.0f, -12.5f),  // Chốt 24: Tiền tuyến trước vòm cổng (tả)
+            new Vector3(-1.2f, 0.0f, -12.5f),  // Chốt 25: Tiền tuyến trước vòm cổng (hữu)
+            new Vector3(-7.5f, 0.0f, -15.0f),  // Chốt 26: Vệ binh cánh trái trước
+            new Vector3(5.5f, 0.0f, -15.0f),   // Chốt 27: Vệ binh cánh phải trước
+            new Vector3(-9.5f, 0.0f, -18.0f),  // Chốt 28: Vành đai Tây ngoài
+            new Vector3(7.8f, 0.0f, -18.0f),   // Chốt 29: Vành đai Đông ngoài
+            new Vector3(-0.8f, 0.0f, -17.5f),  // Chốt 30: Trục trung tâm làng (hữu)
+            new Vector3(-3.6f, 0.0f, -17.5f),  // Chốt 31: Trục trung tâm làng (tả)
+            new Vector3(-6.2f, 0.0f, -22.5f),  // Chốt 32: Vành đai tiếp cận sườn trái
+            new Vector3(4.2f, 0.0f, -22.5f),   // Chốt 33: Vành đai tiếp cận sườn phải
+            new Vector3(-1.2f, 0.0f, -21.5f),  // Chốt 34: Trung tuyến sau làng (hữu)
+            new Vector3(-3.2f, 0.0f, -21.5f)   // Chốt 35: Trung tuyến sau làng (tả)
         };
 
         /// <summary>
@@ -485,6 +497,14 @@ namespace LlamAcademy.Dinos.Enemy
         /// <returns>The amount spent</returns>
         private int SpawnNewTroops(float resourceSpend, int maxSpend)
         {
+            // QUY ĐỊNH NGHIÊM NGẶT SỐ LƯỢNG NPC: Khi PrehistoricGameplayManager đang quản lý,
+            // số lượng NPC luôn được thiết lập cố định chuẩn xác theo từng màn (6, 8, 10, ...),
+            // không cho phép legacy AI tự động tiêu tài nguyên để sinh thêm quân tràn lan.
+            if (LlamAcademy.Dinos.RoundManagement.PrehistoricGameplayManager.Instance != null)
+            {
+                return 0;
+            }
+
             int remainingSpend = Mathf.CeilToInt(maxSpend * resourceSpend);
             int initialSpend = remainingSpend;
 

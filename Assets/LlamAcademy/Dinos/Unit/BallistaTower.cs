@@ -135,6 +135,8 @@ namespace LlamAcademy.Dinos.Unit
                 Destroy(spear.GetComponent<Collider>());
             }
 
+            if (spear != null) Destroy(spear, 5.0f);
+
             float maxTravelDist = AttackRange + 5f;
             float traveled = 0f;
             int remainingPierces = PierceCount;

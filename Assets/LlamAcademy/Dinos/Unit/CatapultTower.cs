@@ -176,6 +176,8 @@ namespace LlamAcademy.Dinos.Unit
                 Destroy(boulder.GetComponent<Collider>());
             }
 
+            if (boulder != null) Destroy(boulder, 5.0f);
+
             float flightTime = 1.0f;
             float elapsed = 0f;
             float arcHeight = Mathf.Max(3f, Vector3.Distance(start, target) * 0.35f);

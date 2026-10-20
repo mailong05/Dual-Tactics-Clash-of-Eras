@@ -27,8 +27,14 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = 140;
-            Health = 140;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 540;
+            Health = MaxHealth;
+            if (GetComponent<Collider>() == null && GetComponentInChildren<Collider>() == null)
+            {
+                SphereCollider sc = gameObject.AddComponent<SphereCollider>();
+                sc.radius = 1.2f;
+                sc.center = Vector3.zero;
+            }
 
             Transform modelChild = transform.Find("Model");
             VisualModel = modelChild != null ? modelChild : (transform.childCount > 0 ? transform.GetChild(0) : transform);
@@ -243,6 +249,9 @@ namespace LlamAcademy.Dinos.Unit
 
         public override void Die()
         {
+            Collider[] allCols = GetComponentsInChildren<Collider>();
+            foreach (var c in allCols) if (c != null) c.enabled = false;
+
             if (PrehistoricGameplayManager.Instance != null)
             {
                 PrehistoricGameplayManager.Instance.HandleMonsterDeath(this);

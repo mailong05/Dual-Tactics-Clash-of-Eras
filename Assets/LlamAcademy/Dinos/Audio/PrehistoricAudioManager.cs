@@ -105,6 +105,8 @@ namespace LlamAcademy.Dinos.Audio
 
         private AudioSource _bgmSource;
         private AudioSource _sfxSource;
+        private AudioSource _dinoSelectSource;
+        private Coroutine _dinoSelectSoundRoutine;
         private Coroutine _bgmCoroutine;
         private Coroutine _dinoRoarsCoroutine;
 
@@ -458,14 +460,50 @@ namespace LlamAcademy.Dinos.Audio
                 {
                     clipToPlay.LoadAudioData();
                 }
-                _sfxSource.PlayOneShot(clipToPlay, _SfxVolume * 1.0f);
-                Debug.Log($"<color=orange>[AudioManager]</color> Played Dino Sound for '{dinoName}': {clipToPlay.name}");
+                if (_dinoSelectSource == null)
+                {
+                    _dinoSelectSource = gameObject.AddComponent<AudioSource>();
+                    _dinoSelectSource.playOnAwake = false;
+                    _dinoSelectSource.loop = false;
+                }
+                if (_dinoSelectSoundRoutine != null)
+                {
+                    StopCoroutine(_dinoSelectSoundRoutine);
+                    _dinoSelectSoundRoutine = null;
+                }
+                _dinoSelectSource.Stop();
+                _dinoSelectSource.clip = clipToPlay;
+                _dinoSelectSource.volume = _SfxVolume * 0.90f;
+                _dinoSelectSource.Play();
+                Debug.Log($"<color=orange>[AudioManager]</color> Played Dino Sound for '{dinoName}' (full duration): {clipToPlay.name}");
             }
         }
 
         /// <summary>
         /// Khi bắt đầu một Wave trong chế độ Thủ thành, phát âm thanh lần lượt của từng loài khủng long xuất hiện
         /// </summary>
+        private IEnumerator PlayDinoSoundShortRoutine(AudioClip clip, float duration)
+        {
+            if (_dinoSelectSource == null || clip == null) yield break;
+
+            _dinoSelectSource.Stop();
+            _dinoSelectSource.clip = clip;
+            _dinoSelectSource.volume = _SfxVolume * 0.85f;
+            _dinoSelectSource.time = 0f;
+            _dinoSelectSource.Play();
+
+            float elapsed = 0f;
+            while (elapsed < duration && _dinoSelectSource.isPlaying)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            // Dập tắt dứt khoát sau đúng 0.2s để tránh ô nhiễm âm thanh
+            _dinoSelectSource.Stop();
+            _dinoSelectSoundRoutine = null;
+        }
+
         public void PlayWaveDinoRoars(IEnumerable<string> dinoTypesInWave)
         {
             if (!_IsSfxEnabled) return;

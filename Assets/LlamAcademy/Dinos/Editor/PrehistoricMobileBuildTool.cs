@@ -145,7 +145,14 @@ namespace LlamAcademy.Dinos.Editor
             // Target ARM64 and ARMv7 architectures
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
 
-            Debug.Log($"<color=cyan>[Mobile Build]</color> Configured PlayerSettings for Android: Package={packageName}, Version={version}");
+            // Set Scripting Backend to IL2CPP for 64-bit ARM64 compatibility (fixes crash on modern 64-bit devices)
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.Android, Il2CppCompilerConfiguration.Release);
+
+            // Set application entry to classic Activity for maximum stability across all Android devices
+            PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.Activity;
+
+            Debug.Log($"<color=cyan>[Mobile Build]</color> Configured PlayerSettings for Android: Package={packageName}, Version={version}, IL2CPP=ARM64+ARMv7");
         }
 
         public static bool BuildAndroidPlayer(string outputPath, bool isDevBuild, bool openFolderAfterBuild)
@@ -237,6 +244,31 @@ namespace LlamAcademy.Dinos.Editor
             ConfigureMobilePlayerSettings("com.llamacademy.prehistorictd", "1.0.0", 1);
             bool success = BuildAndroidPlayer(outPath, false, false);
             EditorApplication.Exit(success ? 0 : 1);
+        }
+    }
+
+    /// <summary>
+    /// Enforces mobile build configurations automatically on any Android build
+    /// </summary>
+    public class PrehistoricMobileBuildPreprocessor : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => 0;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            if (report.summary.platform == BuildTarget.Android)
+            {
+                string pkg = PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Android);
+                if (string.IsNullOrEmpty(pkg) || pkg.StartsWith("com.DefaultCompany"))
+                {
+                    pkg = "com.llamacademy.prehistorictd";
+                }
+                PrehistoricMobileBuildTool.ConfigureMobilePlayerSettings(
+                    pkg,
+                    PlayerSettings.bundleVersion,
+                    PlayerSettings.Android.bundleVersionCode
+                );
+            }
         }
     }
 }

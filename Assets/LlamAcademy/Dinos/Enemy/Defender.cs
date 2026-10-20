@@ -52,6 +52,14 @@ namespace LlamAcademy.Dinos.Enemy
         private float _LastThreatTime = -99f;
         private Unit.Unit _ThreateningDino = null;
 
+        [Header("Patrol & Idle Walking Settings")]
+        private Vector3 _PatrolPointA;
+        private Vector3 _PatrolPointB;
+        private bool _HasInitializedPatrolPoints = false;
+        private int _PatrolWaypointIndex = 0;
+        private float _PatrolPauseTimer = 0f;
+        private bool _IsStandingOnBridge = false;
+
         public static void BroadcastWallThreat(Vector3 threatenedWallPos, Unit.Unit attackingDino = null)
         {
             for (int i = 0; i < AllDefenders.Count; i++)
@@ -105,14 +113,14 @@ namespace LlamAcademy.Dinos.Enemy
         {
             if (Role == DefenderRole.Archer)
             {
-                AttackRange = 15.0f;
+                AttackRange = 18.0f;
                 AttackInterval = 1.2f;
                 AttackDamage = 28;
                 ProjectileSpeed = 24.0f;
             }
             else // Spearman
             {
-                AttackRange = 10.0f; // Tầm phóng giáo xa 10m, cận chiến < 2.5m
+                AttackRange = 16.0f; // Tầm phóng giáo xa 16m, cận chiến < 2.5m
                 AttackInterval = 1.6f;
                 AttackDamage = 38;
                 ProjectileSpeed = 26.0f;
@@ -349,21 +357,52 @@ namespace LlamAcademy.Dinos.Enemy
         private static readonly List<Unit.Unit> s_InvadingDinos = new();
         private static float s_LastCoordinationTime = -99f;
 
-        public static List<Unit.Unit> GetDinosaursInBase(Vector3 basePos, float baseRadius = 15.0f)
+        public static List<Unit.Unit> GetDinosaursInBase(Vector3 basePos, float baseRadius = 25.0f)
         {
             s_InvadingDinos.Clear();
 
-            // 1. Quét từ ActiveDinos của PrehistoricDinoBase
-            foreach (var dino in PrehistoricDinoBase.ActiveDinos)
+            // 1. Quét toàn bộ quái bay FlyingUnit (rất quan trọng vì chúng bay thẳng qua phòng tuyến cổng làng)
+            var flyingUnits = FindObjectsByType<FlyingUnit>(FindObjectsSortMode.None);
+            for (int i = 0; i < flyingUnits.Length; i++)
             {
-                if (dino == null || dino.Health <= 0 || !dino.gameObject.activeInHierarchy) continue;
-                if (dino.HasReachedBase || Vector3.Distance(dino.transform.position, basePos) <= baseRadius)
+                var fu = flyingUnits[i];
+                if (fu == null || fu.Health <= 0 || !fu.gameObject.activeInHierarchy) continue;
+                float distToBase = Vector3.Distance(fu.transform.position, basePos);
+                if (fu.HasReachedBase || distToBase <= baseRadius || fu.transform.position.z <= -20.0f)
                 {
-                    s_InvadingDinos.Add(dino);
+                    s_InvadingDinos.Add(fu);
                 }
             }
 
-            // 2. Quét từ ActiveMonsters của PrehistoricGameplayManager (bao gồm cả FlyingUnit và RunnerDino)
+            // 2. Quét toàn bộ khủng long bộ binh PrehistoricDinoBase
+            var dinoBases = FindObjectsByType<PrehistoricDinoBase>(FindObjectsSortMode.None);
+            for (int i = 0; i < dinoBases.Length; i++)
+            {
+                var pdb = dinoBases[i];
+                if (pdb == null || pdb.Health <= 0 || !pdb.gameObject.activeInHierarchy) continue;
+                if (s_InvadingDinos.Contains(pdb)) continue;
+                float distToBase = Vector3.Distance(pdb.transform.position, basePos);
+                if (pdb.HasReachedBase || distToBase <= baseRadius || pdb.transform.position.z <= -20.0f)
+                {
+                    s_InvadingDinos.Add(pdb);
+                }
+            }
+
+            // 3. Quét toàn bộ khủng long tiêu chuẩn Dino
+            var stdDinos = FindObjectsByType<Dino>(FindObjectsSortMode.None);
+            for (int i = 0; i < stdDinos.Length; i++)
+            {
+                var d = stdDinos[i];
+                if (d == null || d.Health <= 0 || !d.gameObject.activeInHierarchy) continue;
+                if (s_InvadingDinos.Contains(d)) continue;
+                float distToBase = Vector3.Distance(d.transform.position, basePos);
+                if (distToBase <= baseRadius || d.transform.position.z <= -20.0f)
+                {
+                    s_InvadingDinos.Add(d);
+                }
+            }
+
+            // 4. Bổ sung từ ActiveMonsters của PrehistoricGameplayManager nếu có
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.ActiveMonsters != null)
             {
                 foreach (var monster in PrehistoricGameplayManager.Instance.ActiveMonsters)
@@ -371,20 +410,18 @@ namespace LlamAcademy.Dinos.Enemy
                     if (monster == null || monster.Health <= 0 || !monster.gameObject.activeInHierarchy) continue;
                     if (s_InvadingDinos.Contains(monster)) continue;
 
-                    if (monster is PrehistoricDinoBase pdb && (pdb.HasReachedBase || Vector3.Distance(pdb.transform.position, basePos) <= baseRadius))
-                    {
-                        s_InvadingDinos.Add(monster);
-                    }
-                    else if (monster is FlyingUnit fu && (fu.HasReachedBase || Vector3.Distance(fu.transform.position, basePos) <= baseRadius))
-                    {
-                        s_InvadingDinos.Add(monster);
-                    }
-                    else if (Vector3.Distance(monster.transform.position, basePos) <= baseRadius)
+                    float distToBase = Vector3.Distance(monster.transform.position, basePos);
+                    if (distToBase <= baseRadius || monster.transform.position.z <= -20.0f)
                     {
                         s_InvadingDinos.Add(monster);
                     }
                 }
             }
+
+            // 5. QUAN TRỌNG: Sắp xếp theo khoảng cách gần căn cứ nhất lên ĐẦU danh sách (s_InvadingDinos[0] là con gần căn cứ nhất!)
+            s_InvadingDinos.Sort((a, b) =>
+                Vector3.Distance(a.transform.position, basePos).CompareTo(Vector3.Distance(b.transform.position, basePos))
+            );
 
             return s_InvadingDinos;
         }
@@ -395,7 +432,7 @@ namespace LlamAcademy.Dinos.Enemy
             s_LastCoordinationTime = Time.time;
 
             Vector3 basePos = GetBasePosition();
-            var invadingDinos = GetDinosaursInBase(basePos, 15.0f);
+            var invadingDinos = GetDinosaursInBase(basePos, 25.0f);
             int dinoCount = invadingDinos.Count;
 
             // Dọn dẹp AllDefenders null hoặc đã chết
@@ -420,14 +457,14 @@ namespace LlamAcademy.Dinos.Enemy
                 return;
             }
 
-            // CÓ KHỦNG LONG XÂM NHẬP / CẮN PHÁ CĂN CỨ:
-            // Phân công số lượng NPC dựa trên số lượng khủng long trong căn cứ (mỗi con 2 NPC)
-            int quota = Mathf.Clamp(dinoCount * 2, 2, AllDefenders.Count);
-
+            // CÓ KHỦNG LONG XÂM NHẬP / TIẾP CẬN CĂN CỨ:
             // Sắp xếp các NPC theo khoảng cách gần căn cứ nhất để điều động chi viện
             AllDefenders.Sort((a, b) =>
                 Vector3.Distance(a.transform.position, basePos).CompareTo(Vector3.Distance(b.transform.position, basePos))
             );
+
+            // Phân công số lượng NPC: Tối thiểu 4 NPC hoặc toàn bộ NPC nếu có ít hơn; mỗi khủng long cần 3 NPC đánh chặn
+            int quota = Mathf.Clamp(dinoCount * 3, Mathf.Min(4, AllDefenders.Count), AllDefenders.Count);
 
             for (int i = 0; i < AllDefenders.Count; i++)
             {
@@ -435,6 +472,7 @@ namespace LlamAcademy.Dinos.Enemy
                 if (i < quota)
                 {
                     def.IsEmergencyBaseDefender = true;
+                    // Phân công: NPC gần căn cứ nhất luôn nhắm vào con khủng long gần căn cứ nhất (invadingDinos[0])!
                     def.AssignedInvaderTarget = invadingDinos[i % dinoCount];
                 }
                 else
@@ -461,6 +499,9 @@ namespace LlamAcademy.Dinos.Enemy
             // Tự động điều phối NPC bảo vệ căn cứ theo số lượng khủng long đang xâm nhập
             CoordinateBaseDefenders();
 
+            // Kiểm tra bảo đảm an toàn mặt sàn nâng đỡ bên dưới cho NPC trên cao (Y > 1.2f)
+            CheckElevatedGroundIntegrity();
+
             // Chu trình chiến đấu liên tục bảo vệ ngôi làng
             HandleCombatBehavior();
         }
@@ -477,7 +518,7 @@ namespace LlamAcademy.Dinos.Enemy
                 if (targetDino == null)
                 {
                     Vector3 basePos = GetBasePosition();
-                    var invaders = GetDinosaursInBase(basePos, 16.0f);
+                    var invaders = GetDinosaursInBase(basePos, 25.0f);
                     if (invaders.Count > 0)
                     {
                         targetDino = invaders[0];
@@ -488,18 +529,23 @@ namespace LlamAcademy.Dinos.Enemy
                 if (targetDino != null)
                 {
                     Vector3 targetPos = targetDino.transform.position;
-                    float distToTarget = Vector3.Distance(transform.position, targetPos);
+                    // Tính khoảng cách 2D (mặt bằng) để không bị sai lệch bởi độ cao bay của FlyingUnit (Y = 5m)
+                    Vector3 flatSelf = new Vector3(transform.position.x, 0f, transform.position.z);
+                    Vector3 flatTarget = new Vector3(targetPos.x, 0f, targetPos.z);
+                    float distToTarget = Vector3.Distance(flatSelf, flatTarget);
 
-                    // Xoay mặt về hướng khủng long đang cắn phá căn cứ
-                    Vector3 faceDir = (targetPos - transform.position);
-                    faceDir.y = 0;
+                    // Xoay mặt về hướng khủng long đang cắn phá hoặc tiếp cận căn cứ
+                    Vector3 faceDir = (flatTarget - flatSelf);
                     if (faceDir.sqrMagnitude > 0.001f)
                     {
-                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(faceDir), Time.deltaTime * 10f);
+                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(faceDir), Time.deltaTime * 12f);
                     }
 
+                    // Tầm bắn hiệu dụng cao cho lính phòng vệ căn cứ: Cung thủ 18m, Lính giáo 16m
+                    float effectiveRange = (Role == DefenderRole.Archer) ? 18.0f : 16.0f;
+
                     // Nếu đã vào tầm đánh
-                    if (distToTarget <= AttackRange)
+                    if (distToTarget <= effectiveRange)
                     {
                         if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                         {
@@ -515,11 +561,19 @@ namespace LlamAcademy.Dinos.Enemy
                     }
                     else
                     {
-                        // Tiến nhanh về căn cứ tiếp cận khủng long để tiêu diệt
+                        // Tiến nhanh về căn cứ tiếp cận khủng long để tiêu diệt (chiếu vị trí xuống NavMesh mặt đất)
                         if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                         {
                             Agent.isStopped = false;
-                            Agent.SetDestination(targetPos);
+                            Vector3 groundDest = new Vector3(targetPos.x, transform.position.y, targetPos.z);
+                            if (NavMesh.SamplePosition(groundDest, out NavMeshHit hit, 6.0f, NavMesh.AllAreas))
+                            {
+                                Agent.SetDestination(hit.position);
+                            }
+                            else
+                            {
+                                Agent.SetDestination(groundDest);
+                            }
                         }
                     }
                     return;
@@ -538,6 +592,11 @@ namespace LlamAcademy.Dinos.Enemy
 
             if (targetCol != null)
             {
+                _PatrolPauseTimer = 0f;
+                if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                {
+                    Agent.speed = 3.5f;
+                }
                 Vector3 targetPos = targetCol.bounds.center;
                 float distToTarget = Vector3.Distance(transform.position, targetPos);
 
@@ -594,6 +653,138 @@ namespace LlamAcademy.Dinos.Enemy
                 if (Animator != null)
                 {
                     Animator.SetBool(AnimationConstants.IS_ATTACKING_PARAMETER, false);
+                }
+
+                // KHÔNG CÓ KẺ ĐỊCH GẦN: NPC ĐI TUẦN TRA QUA LẠI TRÊN CẦU GỖ HOẶC MẶT ĐẤT
+                PerformIdlePatrol();
+            }
+        }
+
+        
+        private void InitializePatrolPoints()
+        {
+            if (_HasInitializedPatrolPoints) return;
+
+            Vector3 origin = _DefaultPostPosition != Vector3.zero ? _DefaultPostPosition : transform.position;
+            _IsStandingOnBridge = false;
+
+            // 1. Kiểm tra vật thể NPC đang đứng bên dưới
+            Collider standingSurface = null;
+            if (Physics.Raycast(origin + Vector3.up * 1.5f, Vector3.down, out RaycastHit hit, 5.0f))
+            {
+                standingSurface = hit.collider;
+            }
+
+            // Kiểm tra xem vật thể có phải là cầu gỗ / sàn gỗ / platform
+            Transform curr = standingSurface != null ? standingSurface.transform : null;
+            while (curr != null && curr.parent != null && curr.name.ToLower().Contains("mesh"))
+            {
+                curr = curr.parent;
+            }
+
+            string surfName = (curr != null ? curr.name : (standingSurface != null ? standingSurface.name : "")).ToLower();
+            if (surfName.Contains("bridge") || surfName.Contains("cầu") || surfName.Contains("plank") || surfName.Contains("wood") || surfName.Contains("tier"))
+            {
+                _IsStandingOnBridge = true;
+            }
+
+            Vector3 patrolDir;
+            float patrolDist;
+
+            if (_IsStandingOnBridge && standingSurface != null)
+            {
+                // CẦU GỖ: Di chuyển qua lại dọc theo chiều dài của cầu gỗ
+                Bounds b = standingSurface.bounds;
+                Vector3 bridgeForward = standingSurface.transform.forward;
+                bridgeForward.y = 0;
+                Vector3 bridgeRight = standingSurface.transform.right;
+                bridgeRight.y = 0;
+
+                if (b.size.z >= b.size.x)
+                {
+                    patrolDir = (bridgeForward != Vector3.zero) ? bridgeForward.normalized : Vector3.forward;
+                    patrolDist = Mathf.Clamp(b.extents.z * 0.65f, 1.8f, 3.8f);
+                }
+                else
+                {
+                    patrolDir = (bridgeRight != Vector3.zero) ? bridgeRight.normalized : Vector3.right;
+                    patrolDist = Mathf.Clamp(b.extents.x * 0.65f, 1.8f, 3.8f);
+                }
+            }
+            else
+            {
+                // MẶT ĐẤT: Đi tuần tra qua lại quanh vị trí đóng quân
+                float angle = ((Mathf.Abs(GetHashCode()) % 8) * 45f) * Mathf.Deg2Rad;
+                patrolDir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)).normalized;
+                patrolDist = 2.4f;
+            }
+
+            Vector3 candidateA = origin + patrolDir * patrolDist;
+            Vector3 candidateB = origin - patrolDir * patrolDist;
+
+            if (NavMesh.SamplePosition(candidateA, out NavMeshHit hitA, 2.5f, NavMesh.AllAreas))
+            {
+                _PatrolPointA = hitA.position;
+            }
+            else
+            {
+                _PatrolPointA = origin;
+            }
+
+            if (NavMesh.SamplePosition(candidateB, out NavMeshHit hitB, 2.5f, NavMesh.AllAreas))
+            {
+                _PatrolPointB = hitB.position;
+            }
+            else
+            {
+                _PatrolPointB = origin;
+            }
+
+            _HasInitializedPatrolPoints = true;
+        }
+
+        private void PerformIdlePatrol()
+        {
+            if (Agent == null || !Agent.enabled || !Agent.isOnNavMesh) return;
+
+            if (!_HasInitializedPatrolPoints)
+            {
+                InitializePatrolPoints();
+            }
+
+            Vector3 targetDest = (_PatrolWaypointIndex == 0) ? _PatrolPointA : _PatrolPointB;
+            float distToTarget = Vector3.Distance(transform.position, targetDest);
+
+            // Tốc độ đi bộ tuần tra nhẹ nhàng, tự nhiên
+            Agent.speed = 1.6f;
+
+            if (_PatrolPauseTimer > 0f)
+            {
+                _PatrolPauseTimer -= Time.deltaTime;
+                Agent.isStopped = true;
+                if (_PatrolPauseTimer <= 0f)
+                {
+                    _PatrolWaypointIndex = 1 - _PatrolWaypointIndex;
+                    targetDest = (_PatrolWaypointIndex == 0) ? _PatrolPointA : _PatrolPointB;
+                    Agent.isStopped = false;
+                    Agent.SetDestination(targetDest);
+                }
+            }
+            else
+            {
+                if (distToTarget <= 0.6f)
+                {
+                    // Đã tới điểm mút tuần tra: dừng lại quan sát 1.8 - 2.8 giây
+                    _PatrolPauseTimer = UnityEngine.Random.Range(1.8f, 2.8f);
+                    Agent.isStopped = true;
+                }
+                else
+                {
+                    Agent.isStopped = false;
+                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, targetDest) > 0.5f)
+                    {
+                        Agent.SetDestination(targetDest);
+                    }
                 }
             }
         }
@@ -746,6 +937,7 @@ namespace LlamAcademy.Dinos.Enemy
             Material flintMat = CreateSafeWeaponMaterial(new Color(0.22f, 0.24f, 0.26f), 0.35f);
             tip.GetComponent<Renderer>().sharedMaterial = flintMat;
 
+            Destroy(arrow, 5.0f);
             return arrow;
         }
 
@@ -773,6 +965,7 @@ namespace LlamAcademy.Dinos.Enemy
             tip.transform.localRotation = Quaternion.Euler(90f, 0, 0);
             tip.GetComponent<Renderer>().sharedMaterial = flintMat;
 
+            Destroy(spear, 5.0f);
             return spear;
         }
 
@@ -810,9 +1003,18 @@ namespace LlamAcademy.Dinos.Enemy
                 }
 
                 // 2. Khủng long đang xâm nhập căn cứ
-                bool isInvadingBase = Vector3.Distance(targetPos, basePos) <= 16.0f;
+                bool isInvadingBase = Vector3.Distance(targetPos, basePos) <= 25.0f || targetPos.z <= -20.0f;
                 if (dino != null && dino.HasReachedBase) isInvadingBase = true;
-                if (col.TryGetComponent(out FlyingUnit fu) && fu.HasReachedBase) isInvadingBase = true;
+                if (col.TryGetComponent(out FlyingUnit fu))
+                {
+                    score += 350f; // Luôn ưu tiên quái bay vì chúng bay thẳng qua phòng tuyến!
+                    if (fu.HasReachedBase || isInvadingBase) score += 500f;
+                }
+                else if (col.GetComponentInParent<FlyingUnit>() != null)
+                {
+                    score += 350f;
+                    if (isInvadingBase) score += 500f;
+                }
 
                 if (isInvadingBase)
                 {
@@ -964,7 +1166,24 @@ namespace LlamAcademy.Dinos.Enemy
             }
         }
 
-        public override void Die()
+                private float _LastGroundCheckTime = 0f;
+        private void CheckElevatedGroundIntegrity()
+        {
+            if (transform.position.y <= 1.2f) return;
+            if (Time.time - _LastGroundCheckTime < 0.35f) return;
+            _LastGroundCheckTime = Time.time;
+
+            // Bắn raycast xuống dưới từ chân để kiểm tra có bề mặt collider bên dưới hay không
+            if (!Physics.Raycast(transform.position + Vector3.up * 0.4f, Vector3.down, out RaycastHit hit, 2.2f))
+            {
+                // Không còn vật thể nào đỡ dưới chân, công trình đã sụp đổ -> NPC hy sinh
+                Debug.Log($"<color=orange>[Defender]</color> NPC {name} mất chỗ đứng do công trình bên dưới bị phá hủy!");
+                TakeDamage(Health);
+                Die();
+            }
+        }
+
+public override void Die()
         {
             AllDefenders.Remove(this);
             if (GraphAgent != null)

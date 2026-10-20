@@ -19,7 +19,7 @@ namespace LlamAcademy.Dinos.Unit
             MoveSpeed = 3.2f;
             base.Awake();
             ConfigureNavMeshAgent();
-            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 5250;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 7875;
             Health = MaxHealth;
             AttackDamage = 65;
             BuildingDamageMultiplier = 2.5f;

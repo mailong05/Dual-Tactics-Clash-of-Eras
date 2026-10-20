@@ -187,11 +187,11 @@ namespace LlamAcademy.Dinos.Player
                         Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, spawnPos, rot);
                         spawnedDino.transform.localScale = SpawnDino.Prefab.transform.localScale;
                         spawnedDino.UnitType = SpawnDino;
-                        if (spawnedDino.MaxHealth <= 0)
-                        {
-                            spawnedDino.MaxHealth = SpawnDino.Health;
-                            spawnedDino.Health = SpawnDino.Health;
-                        }
+                        int assaultLvl = (PrehistoricGameModeManager.Instance != null) ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
+                        float assaultHpMult = 1.0f + (assaultLvl - 1) * 0.15f;
+                        int finalHp = Mathf.RoundToInt(SpawnDino.Health * assaultHpMult);
+                        spawnedDino.MaxHealth = finalHp;
+                        spawnedDino.Health = finalHp;
                         spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
                         spawnedDino.enabled = true;
 
