@@ -1051,10 +1051,42 @@ namespace LlamAcademy.Dinos.RoundManagement
             Debug.Log("<color=cyan>[Assault]</color> Khởi động chiến dịch Công Thành từ Màn 1!");
         }
 
-        public void ContinueAssaultFromMenu()
+        public void LoadAssaultLevel(int targetLevel, int savedMeat, int savedHp)
         {
             SetGameMode(PrehistoricGameMode.DinoAssault);
 
+            AssaultLevel = Mathf.Max(1, targetLevel);
+            ClearAllDinos();
+            SetupVillageDefensesForLevel(AssaultLevel);
+
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.ResourcesToSpend = savedMeat > 0 ? savedMeat : (250 + (AssaultLevel - 1) * 75);
+            }
+
+            if (Unit.PrehistoricVillageBase.Instance != null && savedHp > 0)
+            {
+                Unit.PrehistoricVillageBase.Instance.Health = savedHp;
+            }
+
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
+            if (UI.PrehistoricMainMenu.Instance != null)
+            {
+                UI.PrehistoricMainMenu.Instance.IsOpen = false;
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
+            Debug.Log($"<color=cyan>[Assault]</color> Đã tải chiến dịch Công Thành: Màn {AssaultLevel} ({savedMeat} Thịt)!");
+        }
+
+        public void ContinueAssaultFromMenu()
+        {
             int targetLevel = 1;
             int savedMeat = 250;
 
@@ -1069,24 +1101,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            AssaultLevel = targetLevel;
-            ClearAllDinos();
-            SetupVillageDefensesForLevel(AssaultLevel);
-
-            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
-            if (spawner != null)
-            {
-                spawner.ResourcesToSpend = savedMeat;
-            }
-
-            AssaultPhase = PrehistoricAssaultPhase.Setup;
-            if (RoundManager.Instance != null)
-            {
-                RoundManager.Instance.State = GameState.Setup;
-            }
-
-            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
-            Debug.Log($"<color=cyan>[Assault]</color> Tiếp tục chiến dịch Công Thành từ Màn {AssaultLevel} ({savedMeat} Thịt)!");
+            LoadAssaultLevel(targetLevel, savedMeat, 1000);
         }
 
         public void RestartAssaultFromLevel1()

@@ -1998,13 +1998,53 @@ namespace LlamAcademy.Dinos.RoundManagement
             ShowAnnouncement("⚔ BẮT ĐẦU CHIẾN DỊCH THỦ THÀNH MỚI: ĐỢT 1! ⚔", 4.0f);
         }
 
-        public void ContinueDefenseFromMenu()
+        public void LoadDefenseWave(int targetWave, int savedGold, int savedHp)
         {
             if (PrehistoricGameModeManager.Instance != null)
             {
                 PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
             }
 
+            Time.timeScale = 1.0f;
+            if (WaveSpawnRoutine != null)
+            {
+                StopCoroutine(WaveSpawnRoutine);
+                WaveSpawnRoutine = null;
+            }
+            StopAllCoroutines();
+
+            ClearAllActiveMonsters();
+            PrehistoricDinoBase.ClearClipsCache();
+
+            _CurrentWave = Mathf.Clamp(targetWave, 1, _MaxWaves);
+            _CurrentBaseHealth = savedHp > 0 ? savedHp : _MaxBaseHealth;
+
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.SetCurrentRound(_CurrentWave);
+            }
+
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            if (Player.TowerPlacer.Instance != null)
+            {
+                Player.TowerPlacer.Instance.ResetGoldToDefault(savedGold > 0 ? savedGold : StartingGold);
+            }
+
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
+            ResetPlayerAndCameraPosition();
+
+            if (UI.PrehistoricMainMenu.Instance != null)
+            {
+                UI.PrehistoricMainMenu.Instance.IsOpen = false;
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
+            ShowAnnouncement($"⚔ ĐÃ TẢI ĐỢT {_CurrentWave}: CHUẨN BỊ CHIẾN ĐẤU! ⚔", 4.0f);
+        }
+
+        public void ContinueDefenseFromMenu()
+        {
             int targetWave = 1;
             int savedGold = StartingGold;
             int savedHp = _MaxBaseHealth;
@@ -2021,42 +2061,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            Time.timeScale = 1.0f;
-            if (WaveSpawnRoutine != null)
-            {
-                StopCoroutine(WaveSpawnRoutine);
-                WaveSpawnRoutine = null;
-            }
-            StopAllCoroutines();
-
-            ClearAllActiveMonsters();
-            PrehistoricDinoBase.ClearClipsCache();
-
-            _CurrentWave = targetWave;
-            _CurrentBaseHealth = savedHp;
-
-            if (RoundManager.Instance != null)
-            {
-                RoundManager.Instance.SetCurrentRound(_CurrentWave);
-            }
-
-            ResetEntireVillage(keepPlayerTowers: false);
-
-            if (Player.TowerPlacer.Instance != null)
-            {
-                Player.TowerPlacer.Instance.ResetGoldToDefault(savedGold);
-            }
-
-            SetPhase(PrehistoricWavePhase.BuildingPhase);
-            ResetPlayerAndCameraPosition();
-
-            if (UI.PrehistoricMainMenu.Instance != null)
-            {
-                UI.PrehistoricMainMenu.Instance.IsOpen = false;
-            }
-
-            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
-            ShowAnnouncement($"⚔ TIẾP TỤC ĐỢT {_CurrentWave}: CHUẨN BỊ CHIẾN ĐẤU! ⚔", 4.0f);
+            LoadDefenseWave(targetWave, savedGold, savedHp);
         }
 
         public void StartNewGameFromMenu()

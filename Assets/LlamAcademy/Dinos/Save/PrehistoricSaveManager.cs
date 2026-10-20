@@ -35,6 +35,31 @@ namespace LlamAcademy.Dinos.Save
         public string LastSavedTimestamp = "";
     }
 
+    /// <summary>
+    /// Independent Save Slot Data structure for Multi-Slot Save & Load (Red Dead Redemption / Woodcutter style).
+    /// </summary>
+    [Serializable]
+    public class SaveSlotData
+    {
+        public string SlotId = "";
+        public int SlotIndex = 0; // 0 = AutoSave, 1..5 = Manual slots
+        public PrehistoricGameMode Mode = PrehistoricGameMode.TowerDefense;
+        public bool IsAutoSave = false;
+
+        // Progress details
+        public int WaveOrLevel = 1;
+        public int Resources = 500; // Gold for TD, Meat for Assault
+        public int BaseHealth = 1000;
+        public int MaxBaseHealth = 1000;
+        public int TotalMonstersKilled = 0;
+        public int TotalScore = 0;
+        public bool HasActiveRun = true;
+
+        // Metadata
+        public string SavedTimestamp = "";
+        public string ChiefName = "Tù Trưởng Tiền Sử";
+        public string CustomTitle = "";
+    }
 
     [Serializable]
     public class PrehistoricSaveData
@@ -116,11 +141,14 @@ namespace LlamAcademy.Dinos.Save
     {
         public static PrehistoricSaveManager Instance { get; private set; }
 
+        public const int MAX_MANUAL_SLOTS = 5;
+
         private const string SAVE_FILE_NAME = "PrehistoricGameSave_v2.json";
         private const string LEGACY_SAVE_FILE_NAME = "PrehistoricGameSave.json";
 
         private string SaveFilePath => Path.Combine(Application.persistentDataPath, SAVE_FILE_NAME);
         private string LegacySaveFilePath => Path.Combine(Application.persistentDataPath, LEGACY_SAVE_FILE_NAME);
+        public string SaveSlotsDirectory => Path.Combine(Application.persistentDataPath, "SaveSlots");
 
         public PrehistoricSaveData CurrentData { get; private set; } = new();
 
@@ -137,7 +165,24 @@ namespace LlamAcademy.Dinos.Save
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            EnsureSlotsDirectoryExists();
             LoadSaveData();
+            MigrateInitialSlotsIfMissing();
+        }
+
+        private void EnsureSlotsDirectoryExists()
+        {
+            try
+            {
+                if (!Directory.Exists(SaveSlotsDirectory))
+                {
+                    Directory.CreateDirectory(SaveSlotsDirectory);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SaveSystem] Error creating slots directory: {ex.Message}");
+            }
         }
 
         public bool HasSaveFile()
@@ -198,6 +243,219 @@ namespace LlamAcademy.Dinos.Save
             if (CurrentData.AssaultProfile == null) CurrentData.AssaultProfile = new AssaultSaveProfile();
         }
 
+        private void MigrateInitialSlotsIfMissing()
+        {
+            // Seed Auto-Save slots if active runs exist and slots files don't
+            if (HasActiveDefenseSave() && !HasSlotData(PrehistoricGameMode.TowerDefense, 0, isAutoSave: true))
+            {
+                SaveToSlot(PrehistoricGameMode.TowerDefense, 0, isAutoSave: true);
+            }
+            if (HasActiveAssaultSave() && !HasSlotData(PrehistoricGameMode.DinoAssault, 0, isAutoSave: true))
+            {
+                SaveToSlot(PrehistoricGameMode.DinoAssault, 0, isAutoSave: true);
+            }
+        }
+
+        // =========================================================
+        // MULTI-SLOT SAVE & LOAD IMPLEMENTATION
+        // =========================================================
+
+        public string GetSlotFilePath(PrehistoricGameMode mode, int slotIndex, bool isAutoSave = false)
+        {
+            EnsureSlotsDirectoryExists();
+            string prefix = mode == PrehistoricGameMode.TowerDefense ? "defense" : "assault";
+            string fileName = (isAutoSave || slotIndex == 0)
+                ? $"{prefix}_autosave.json"
+                : $"{prefix}_slot_{slotIndex}.json";
+            return Path.Combine(SaveSlotsDirectory, fileName);
+        }
+
+        public bool HasSlotData(PrehistoricGameMode mode, int slotIndex, bool isAutoSave = false)
+        {
+            return File.Exists(GetSlotFilePath(mode, slotIndex, isAutoSave));
+        }
+
+        public SaveSlotData GetSlotData(PrehistoricGameMode mode, int slotIndex, bool isAutoSave = false)
+        {
+            string path = GetSlotFilePath(mode, slotIndex, isAutoSave);
+            if (!File.Exists(path)) return null;
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                return JsonUtility.FromJson<SaveSlotData>(json);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SaveSystem] Error reading slot file {path}: {ex.Message}");
+                return null;
+            }
+        }
+
+        public bool SaveToSlot(PrehistoricGameMode mode, int slotIndex, bool isAutoSave = false)
+        {
+            EnsureSlotsDirectoryExists();
+            EnsureProfilesInitialized();
+
+            string prefix = mode == PrehistoricGameMode.TowerDefense ? "defense" : "assault";
+            string slotId = (isAutoSave || slotIndex == 0) ? $"{prefix}_autosave" : $"{prefix}_slot_{slotIndex}";
+
+            SaveSlotData slot = new SaveSlotData
+            {
+                SlotId = slotId,
+                SlotIndex = slotIndex,
+                Mode = mode,
+                IsAutoSave = isAutoSave || slotIndex == 0,
+                ChiefName = CurrentData.PlayerChiefName,
+                SavedTimestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                HasActiveRun = true
+            };
+
+            if (mode == PrehistoricGameMode.TowerDefense)
+            {
+                int wave = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentWave : CurrentData.DefenseProfile.CurrentWave;
+                int baseHp = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentBaseHealth : CurrentData.DefenseProfile.BaseHealth;
+                int maxHp = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.MaxBaseHealth : CurrentData.DefenseProfile.MaxBaseHealth;
+                int gold = TowerPlacer.Instance != null ? TowerPlacer.Instance.Gold : CurrentData.DefenseProfile.Gold;
+                int killed = CurrentData.DefenseProfile.TotalMonstersKilled;
+                int score = (wave * 1000) + (killed * 25) + gold;
+
+                slot.WaveOrLevel = wave;
+                slot.Resources = gold;
+                slot.BaseHealth = baseHp;
+                slot.MaxBaseHealth = maxHp;
+                slot.TotalMonstersKilled = killed;
+                slot.TotalScore = score;
+                slot.CustomTitle = isAutoSave ? $"Tự động lưu - Đợt {wave}" : $"Thủ Thành - Đợt {wave}";
+
+                // Đồng bộ cập nhật vào hồ sơ bộ nhớ
+                CurrentData.DefenseProfile.CurrentWave = wave;
+                CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, wave);
+                CurrentData.DefenseProfile.BaseHealth = baseHp;
+                CurrentData.DefenseProfile.MaxBaseHealth = maxHp;
+                CurrentData.DefenseProfile.Gold = gold;
+                CurrentData.DefenseProfile.TotalScore = score;
+                CurrentData.DefenseProfile.HasActiveRun = true;
+                CurrentData.DefenseProfile.LastSavedTimestamp = slot.SavedTimestamp;
+            }
+            else
+            {
+                int level = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : CurrentData.AssaultProfile.AssaultLevel;
+                int meat = 250;
+                DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
+                if (spawner != null) meat = spawner.ResourcesToSpend;
+                else if (CurrentData.AssaultProfile != null) meat = CurrentData.AssaultProfile.Meat;
+
+                int baseHp = 1000;
+                int maxHp = 1000;
+                if (PrehistoricVillageBase.Instance != null)
+                {
+                    baseHp = PrehistoricVillageBase.Instance.Health;
+                    maxHp = PrehistoricVillageBase.Instance.MaxHealth;
+                }
+                else if (CurrentData.AssaultProfile != null)
+                {
+                    baseHp = CurrentData.AssaultProfile.BaseHealth;
+                    maxHp = CurrentData.AssaultProfile.MaxBaseHealth;
+                }
+
+                slot.WaveOrLevel = level;
+                slot.Resources = meat;
+                slot.BaseHealth = baseHp;
+                slot.MaxBaseHealth = maxHp;
+                slot.CustomTitle = isAutoSave ? $"Tự động lưu - Màn {level}" : $"Công Thành - Màn {level}";
+
+                // Đồng bộ cập nhật vào hồ sơ bộ nhớ
+                CurrentData.AssaultProfile.AssaultLevel = level;
+                CurrentData.AssaultProfile.HighestLevelReached = Mathf.Max(CurrentData.AssaultProfile.HighestLevelReached, level);
+                CurrentData.AssaultProfile.Meat = meat;
+                CurrentData.AssaultProfile.BaseHealth = baseHp;
+                CurrentData.AssaultProfile.MaxBaseHealth = maxHp;
+                CurrentData.AssaultProfile.HasActiveRun = true;
+                CurrentData.AssaultProfile.LastSavedTimestamp = slot.SavedTimestamp;
+            }
+
+            try
+            {
+                string filePath = GetSlotFilePath(mode, slotIndex, isAutoSave);
+                string json = JsonUtility.ToJson(slot, true);
+                File.WriteAllText(filePath, json);
+
+                SaveDataToDisk();
+                Debug.Log($"<color=green>[SaveSystem]</color> Saved Slot: {slotId} (Mode: {mode}, Wave/Lvl: {slot.WaveOrLevel}, Res: {slot.Resources})");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SaveSystem] Error saving to slot {slotId}: {ex.Message}");
+                return false;
+            }
+        }
+
+        public bool DeleteSlot(PrehistoricGameMode mode, int slotIndex, bool isAutoSave = false)
+        {
+            string path = GetSlotFilePath(mode, slotIndex, isAutoSave);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    File.Delete(path);
+                    Debug.Log($"<color=orange>[SaveSystem]</color> Deleted save slot: {path}");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SaveSystem] Error deleting slot: {ex.Message}");
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        public void LoadGameFromSlot(SaveSlotData slot)
+        {
+            if (slot == null) return;
+
+            if (slot.Mode == PrehistoricGameMode.TowerDefense)
+            {
+                CurrentData.DefenseProfile.CurrentWave = slot.WaveOrLevel;
+                CurrentData.DefenseProfile.Gold = slot.Resources;
+                CurrentData.DefenseProfile.BaseHealth = slot.BaseHealth;
+                CurrentData.DefenseProfile.MaxBaseHealth = slot.MaxBaseHealth;
+                CurrentData.DefenseProfile.TotalMonstersKilled = slot.TotalMonstersKilled;
+                CurrentData.DefenseProfile.TotalScore = slot.TotalScore;
+                CurrentData.DefenseProfile.HasActiveRun = true;
+                CurrentData.LastPlayedMode = PrehistoricGameMode.TowerDefense;
+
+                SaveDataToDisk();
+
+                if (PrehistoricGameplayManager.Instance != null)
+                {
+                    PrehistoricGameplayManager.Instance.LoadDefenseWave(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                }
+            }
+            else
+            {
+                CurrentData.AssaultProfile.AssaultLevel = slot.WaveOrLevel;
+                CurrentData.AssaultProfile.Meat = slot.Resources;
+                CurrentData.AssaultProfile.BaseHealth = slot.BaseHealth;
+                CurrentData.AssaultProfile.MaxBaseHealth = slot.MaxBaseHealth;
+                CurrentData.AssaultProfile.HasActiveRun = true;
+                CurrentData.LastPlayedMode = PrehistoricGameMode.DinoAssault;
+
+                SaveDataToDisk();
+
+                if (PrehistoricGameModeManager.Instance != null)
+                {
+                    PrehistoricGameModeManager.Instance.LoadAssaultLevel(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                }
+            }
+        }
+
+        // =========================================================
+        // AUTO-SAVE INTEGRATIONS
+        // =========================================================
+
         public void AutoSaveCurrentRun(bool hasActiveRun = true)
         {
             PrehistoricGameMode currentMode = PrehistoricGameMode.TowerDefense;
@@ -239,6 +497,7 @@ namespace LlamAcademy.Dinos.Save
             }
 
             SaveDataToDisk();
+            SaveToSlot(PrehistoricGameMode.TowerDefense, 0, isAutoSave: true);
             Debug.Log($"<color=green>[SaveSystem]</color> Auto-Saved Defense Run: Wave {CurrentData.DefenseProfile.CurrentWave}, Gold {CurrentData.DefenseProfile.Gold}g, Active: {hasActiveRun}");
         }
 
@@ -250,7 +509,7 @@ namespace LlamAcademy.Dinos.Save
             {
                 int level = PrehistoricGameModeManager.Instance.AssaultLevel;
                 int meat = 250;
-                DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+                DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
                 if (spawner != null) meat = spawner.ResourcesToSpend;
 
                 int baseHp = 1000;
@@ -270,6 +529,7 @@ namespace LlamAcademy.Dinos.Save
             }
 
             SaveDataToDisk();
+            SaveToSlot(PrehistoricGameMode.DinoAssault, 0, isAutoSave: true);
             Debug.Log($"<color=green>[SaveSystem]</color> Auto-Saved Assault Run: Level {CurrentData.AssaultProfile.AssaultLevel}, Meat {CurrentData.AssaultProfile.Meat}, Active: {hasActiveRun}");
         }
 
@@ -319,6 +579,7 @@ namespace LlamAcademy.Dinos.Save
             EnsureProfilesInitialized();
             CurrentData.DefenseProfile = new DefenseSaveProfile();
             SaveDataToDisk();
+            DeleteSlot(PrehistoricGameMode.TowerDefense, 0, isAutoSave: true);
             Debug.Log("<color=orange>[SaveSystem]</color> Reset Defense save profile.");
         }
 
@@ -327,6 +588,7 @@ namespace LlamAcademy.Dinos.Save
             EnsureProfilesInitialized();
             CurrentData.AssaultProfile = new AssaultSaveProfile();
             SaveDataToDisk();
+            DeleteSlot(PrehistoricGameMode.DinoAssault, 0, isAutoSave: true);
             Debug.Log("<color=orange>[SaveSystem]</color> Reset Assault save profile.");
         }
 
@@ -336,14 +598,15 @@ namespace LlamAcademy.Dinos.Save
             {
                 if (File.Exists(SaveFilePath)) File.Delete(SaveFilePath);
                 if (File.Exists(LegacySaveFilePath)) File.Delete(LegacySaveFilePath);
+                if (Directory.Exists(SaveSlotsDirectory)) Directory.Delete(SaveSlotsDirectory, true);
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[SaveSystem] Error deleting save file: {ex.Message}");
+                Debug.LogWarning($"[SaveSystem] Error deleting save files: {ex.Message}");
             }
 
             CurrentData = new PrehistoricSaveData();
-            Debug.Log("<color=orange>[SaveSystem]</color> All save data has been completely reset.");
+            Debug.Log("<color=orange>[SaveSystem]</color> All save data and slot files have been completely reset.");
             OnGameSaved?.Invoke(CurrentData);
         }
 

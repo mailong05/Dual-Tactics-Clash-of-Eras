@@ -222,7 +222,7 @@ namespace LlamAcademy.Dinos.UI
                 float cardW = Mathf.Clamp(screenW * 0.44f, 520f, 720f * scale);
                 cardW = Mathf.Min(cardW, screenW - 24f);
 
-                float cardH = Mathf.Clamp(460f * scale, 410f, screenH - 120f);
+                float cardH = Mathf.Clamp(520f * scale, 450f, screenH - 100f);
 
                 // Căn giữa toàn bộ cụm Logo + Phụ đề + Card Menu theo chiều dọc màn hình
                 float subH = 28f * scale;
@@ -406,6 +406,20 @@ namespace LlamAcademy.Dinos.UI
                         PrehistoricAudioManager.Instance?.PlayButtonClick();
                         OnContinueClicked();
                     }
+                }
+
+                GUILayout.Space(6f * scale);
+
+                // ------------------------------------------
+                // Nút 3: TẢI GAME (Load Game / Danh Sách Lưu)
+                // ------------------------------------------
+                GUI.backgroundColor = new Color(0.20f, 0.65f, 0.95f, 0.98f);
+                string loadLabel = $"<b><size={Mathf.RoundToInt(15 * scale)}>📂 TẢI GAME (DANH SÁCH LƯU)</size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#E0F2FE>Chọn màn chơi từ các file đã lưu</color></size>";
+
+                if (GUILayout.Button(loadLabel, GUILayout.Height(mainBtnH * 0.90f)))
+                {
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    PrehistoricSaveLoadDialog.EnsureInstance().OpenLoadDialog(isDefense ? PrehistoricGameMode.TowerDefense : PrehistoricGameMode.DinoAssault);
                 }
 
                 GUILayout.Space(6f * scale);
