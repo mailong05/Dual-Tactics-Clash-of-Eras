@@ -148,19 +148,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 return;
             }
-            // Hotkey 'M' or 'F1' to toggle Mode Select Menu
+            // Phím tắt M / F1 đổi chế độ trong trận đã được chuyển ra Menu Chính
             if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame || Keyboard.current.f1Key.wasPressedThisFrame))
             {
-                if (IsGameInProgress())
+                if (PrehistoricGameplayManager.Instance != null)
                 {
-                    if (PrehistoricGameplayManager.Instance != null)
-                    {
-                        PrehistoricGameplayManager.Instance.ShowAnnouncement("⚠ ĐANG TRONG TRẬN CHIẾN! KHÔNG THỂ ĐỔI CHẾ ĐỘ!", 2.5f);
-                    }
-                }
-                else
-                {
-                    ShowModeSelectModal = !ShowModeSelectModal;
+                    PrehistoricGameplayManager.Instance.ShowAnnouncement("ℹ Muốn đổi chế độ chơi: Hãy mở Cài đặt (Esc) và bấm [Menu Chính]!", 2.5f);
                 }
             }
 
@@ -406,8 +399,8 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawTopModeBanner()
         {
-            float width = 390f;
-            float height = 52f;
+            float width = 250f;
+            float height = 48f;
             float x = Mobile.MobileUIHelper.ScreenWidth - width - 20f;
             float y = 15f;
 
@@ -420,7 +413,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             string modeText;
             if (_CurrentMode == PrehistoricGameMode.TowerDefense)
             {
-                modeText = "<b><color=#55FF55>🛡️ CHẾ ĐỘ: THỦ THÁP (TD)</color></b>";
+                modeText = "<b><color=#55FF55>🛡️ CHẾ ĐỘ: THỦ THÀNH</color></b>";
             }
             else
             {
@@ -430,26 +423,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 modeText = $"<b><color=#FF5555>🦖 CÔNG THÀNH - MÀN {AssaultLevel}</color></b>\n<size=11><color=#FFD700>🏛️ Căn Cứ Làng:{baseHpStr}</color></size>";
             }
 
-            GUILayout.Label(modeText, GUILayout.Height(40));
-
-            bool inCombat = IsGameInProgress();
-            if (inCombat)
-            {
-                GUI.enabled = false;
-                GUI.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-                GUILayout.Button("<b>[🔒 ĐANG ĐẤU]</b>", GUILayout.Width(115), GUILayout.Height(38));
-                GUI.enabled = true;
-            }
-            else
-            {
-                GUI.backgroundColor = new Color(1f, 0.85f, 0.3f);
-                if (GUILayout.Button("<b>[⚙️ ĐỔI CHẾ ĐỘ]</b>", GUILayout.Width(125), GUILayout.Height(38)))
-                {
-                    ShowModeSelectModal = !ShowModeSelectModal;
-                    Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
-                }
-            }
-            GUI.backgroundColor = Color.white;
+            GUILayout.Label(modeText, GUILayout.Height(36));
 
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -1037,6 +1011,80 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 RoundManager.Instance.State = GameState.Setup;
             }
+        }
+
+        
+        public void StartNewAssaultFromMenu()
+        {
+            SetGameMode(PrehistoricGameMode.DinoAssault);
+            AssaultLevel = 1;
+            ClearAllDinos();
+            SetupVillageDefensesForLevel(1);
+
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.ResourcesToSpend = 250;
+            }
+
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
+            if (Save.PrehistoricSaveManager.Instance != null)
+            {
+                var prof = Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile;
+                if (prof != null)
+                {
+                    prof.AssaultLevel = 1;
+                    prof.Meat = 250;
+                    prof.HasActiveRun = true;
+                }
+                Save.PrehistoricSaveManager.Instance.AutoSaveAssaultRun(true);
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
+            Debug.Log("<color=cyan>[Assault]</color> Khởi động chiến dịch Công Thành từ Màn 1!");
+        }
+
+        public void ContinueAssaultFromMenu()
+        {
+            SetGameMode(PrehistoricGameMode.DinoAssault);
+
+            int targetLevel = 1;
+            int savedMeat = 250;
+
+            if (Save.PrehistoricSaveManager.Instance != null)
+            {
+                Save.PrehistoricSaveManager.Instance.LoadSaveData();
+                var prof = Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile;
+                if (prof != null)
+                {
+                    targetLevel = Mathf.Max(1, prof.AssaultLevel);
+                    if (prof.Meat > 0) savedMeat = prof.Meat;
+                }
+            }
+
+            AssaultLevel = targetLevel;
+            ClearAllDinos();
+            SetupVillageDefensesForLevel(AssaultLevel);
+
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.ResourcesToSpend = savedMeat;
+            }
+
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
+            Debug.Log($"<color=cyan>[Assault]</color> Tiếp tục chiến dịch Công Thành từ Màn {AssaultLevel} ({savedMeat} Thịt)!");
         }
 
         public void RestartAssaultFromLevel1()

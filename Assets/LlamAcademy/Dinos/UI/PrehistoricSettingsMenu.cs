@@ -418,6 +418,7 @@ namespace LlamAcademy.Dinos.UI
                 {
                     IsOpen = false;
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
                     PrehistoricGameplayManager.Instance?.ReturnToMainMenu();
                 }
             }

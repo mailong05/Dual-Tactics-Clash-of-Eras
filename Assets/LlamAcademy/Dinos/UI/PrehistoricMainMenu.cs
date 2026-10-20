@@ -27,6 +27,7 @@ namespace LlamAcademy.Dinos.UI
         [Header("Menu State")]
         public bool IsOpen = true;
         public bool Use2DBackground = true;
+        public PrehistoricGameMode SelectedMode = PrehistoricGameMode.TowerDefense;
 
         private Texture2D _coverTexture;
         private Texture2D _logoTexture;
@@ -237,17 +238,16 @@ namespace LlamAcademy.Dinos.UI
                     GetCenteredStyle(13, new Color(1f, 0.84f, 0.2f)));
 
                 // ==========================================
-                // 4. KHUNG MENU CHÍNH (4 NÚT BẤM)
+                // 4. KHUNG MENU CHÍNH (BỘ CHỌN CHẾ ĐỘ + NÚT BẤM)
                 // ==========================================
-                float cardW = Mathf.Min(380f, screenW - 28f);
-                float cardH = 268f;
+                float cardW = Mathf.Min(440f, screenW - 28f);
+                float cardH = 340f;
                 float cardX = (screenW - cardW) / 2f;
-                float cardY = subY + 28f;
+                float cardY = subY + 22f;
 
-                // Điều chỉnh vị trí nếu màn hình thấp (mobile ngang)
-                if (cardY + cardH > screenH - 42f)
+                if (cardY + cardH > screenH - 38f)
                 {
-                    cardY = screenH - cardH - 42f;
+                    cardY = screenH - cardH - 38f;
                 }
 
                 Rect cardRect = new Rect(cardX, cardY, cardW, cardH);
@@ -257,42 +257,108 @@ namespace LlamAcademy.Dinos.UI
                 GUI.Box(cardRect, GUIContent.none);
                 GUI.backgroundColor = Color.white;
 
-                float padX = 16f;
-                float padY = 14f;
+                float padX = 14f;
+                float padY = 12f;
                 float innerW = cardW - padX * 2f;
                 float innerH = cardH - padY * 2f;
 
                 GUILayout.BeginArea(new Rect(cardX + padX, cardY + padY, innerW, innerH));
                 GUILayout.BeginVertical();
 
-                // Lấy thông tin Save file hiện có
-                bool hasSave = PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.HasSaveFile();
-                int savedWave = 1;
-                if (hasSave && PrehistoricSaveManager.Instance.CurrentData != null)
+                // ------------------------------------------
+                // TAB CHỌN CHẾ ĐỘ CHƠI (THỦ THÀNH vs CÔNG THÀNH)
+                // ------------------------------------------
+                GUILayout.Label("<size=12><b><color=#FFD700>⚔️ LỰA CHỌN CHẾ ĐỘ CHIẾN DỊCH:</color></b></size>", GUI.skin.label);
+                GUILayout.BeginHorizontal();
+
+                bool isDefense = (SelectedMode == PrehistoricGameMode.TowerDefense);
+                bool isAssault = (SelectedMode == PrehistoricGameMode.DinoAssault);
+
+                GUI.backgroundColor = isDefense ? new Color(0.18f, 0.75f, 0.95f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
+                if (GUILayout.Button(isDefense ? "<b>🛡️ THỦ THÀNH</b>\n<size=10>(Đang chọn)</size>" : "🛡️ THỦ THÀNH\n<size=10>(Bảo vệ Làng)</size>", GUILayout.Height(42)))
                 {
-                    savedWave = Mathf.Max(1, PrehistoricSaveManager.Instance.CurrentData.CurrentWave);
+                    SelectedMode = PrehistoricGameMode.TowerDefense;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
                 }
 
+                GUI.backgroundColor = isAssault ? new Color(0.95f, 0.45f, 0.15f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
+                if (GUILayout.Button(isAssault ? "<b>🦖 CÔNG THÀNH</b>\n<size=10>(Đang chọn)</size>" : "🦖 CÔNG THÀNH\n<size=10>(Chỉ huy Khủng long)</size>", GUILayout.Height(42)))
+                {
+                    SelectedMode = PrehistoricGameMode.DinoAssault;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+
+                GUI.backgroundColor = Color.white;
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(6);
+
+                // Thông tin tiến trình của chế độ đang chọn
+                bool hasActiveSave = false;
+                string modeProgressInfo = "";
+
+                if (isDefense)
+                {
+                    hasActiveSave = PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.HasActiveDefenseSave();
+                    int curWave = 1;
+                    int curGold = 500;
+                    if (PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.CurrentData.DefenseProfile != null)
+                    {
+                        curWave = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave;
+                        curGold = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.Gold;
+                    }
+                    modeProgressInfo = hasActiveSave 
+                        ? $"Tiến trình: <b>Đợt {curWave}</b> (Vàng: <b>{curGold}g</b>)"
+                        : "Chưa có trận chiến dang dở";
+                }
+                else
+                {
+                    hasActiveSave = PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.HasActiveAssaultSave();
+                    int curLevel = 1;
+                    int curMeat = 250;
+                    if (PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.CurrentData.AssaultProfile != null)
+                    {
+                        curLevel = PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.AssaultLevel;
+                        curMeat = PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.Meat;
+                    }
+                    modeProgressInfo = hasActiveSave 
+                        ? $"Tiến trình: <b>Màn {curLevel}</b> (Thịt: <b>{curMeat}</b>)"
+                        : "Chưa có trận chiến dang dở";
+                }
+
+                GUILayout.BeginHorizontal(GUI.skin.box);
+                GUILayout.Label($"<size=11><color=#E0EEFF>📌 {modeProgressInfo}</color></size>", GUI.skin.label);
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(6);
+
                 // ------------------------------------------
-                // Nút 1: CHƠI MỚI (Bắt đầu từ Đợt 1)
+                // Nút 1: CHƠI MỚI (New Game)
                 // ------------------------------------------
                 GUI.backgroundColor = new Color(0.96f, 0.54f, 0.12f, 0.98f);
-                if (GUILayout.Button("<b><size=15>🎮 CHƠI MỚI</size></b>\n<size=10><color=#FFF0D0>Bắt đầu chiến dịch từ Đợt 1</color></size>", GUILayout.Height(50)))
+                string newGameLabel = isDefense 
+                    ? "<b><size=14>🎮 CHƠI MỚI THỦ THÀNH</size></b>\n<size=10><color=#FFF0D0>Bắt đầu chiến dịch từ Đợt 1</color></size>"
+                    : "<b><size=14>🎮 CHƠI MỚI CÔNG THÀNH</size></b>\n<size=10><color=#FFF0D0>Bắt đầu chiếm làng từ Màn 1</color></size>";
+
+                if (GUILayout.Button(newGameLabel, GUILayout.Height(46)))
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     OnNewGameClicked();
                 }
 
-                GUILayout.Space(6);
+                GUILayout.Space(5);
 
                 // ------------------------------------------
-                // Nút 2: TIẾP TỤC (Tiếp tục đợt đã lưu)
+                // Nút 2: TIẾP TỤC (Continue)
                 // ------------------------------------------
-                if (hasSave && savedWave > 1)
+                if (hasActiveSave)
                 {
                     GUI.backgroundColor = new Color(0.20f, 0.78f, 0.38f, 0.98f);
-                    string contLabel = $"<b><size=15>⏩ TIẾP TỤC (ĐỢT {savedWave})</size></b>\n<size=10><color=#E0FFE8>Tiếp nối trận chiến đang dang dở</color></size>";
-                    if (GUILayout.Button(contLabel, GUILayout.Height(50)))
+                    string contLabel = isDefense
+                        ? $"<b><size=14>⏩ TIẾP TỤC (ĐỢT {PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave})</size></b>\n<size=10><color=#E0FFE8>Tiếp nối chiến dịch Thủ Thành</color></size>"
+                        : $"<b><size=14>⏩ TIẾP TỤC (MÀN {PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.AssaultLevel})</size></b>\n<size=10><color=#E0FFE8>Tiếp nối chiến dịch Công Thành</color></size>";
+
+                    if (GUILayout.Button(contLabel, GUILayout.Height(46)))
                     {
                         PrehistoricAudioManager.Instance?.PlayButtonClick();
                         OnContinueClicked();
@@ -301,43 +367,45 @@ namespace LlamAcademy.Dinos.UI
                 else
                 {
                     GUI.backgroundColor = new Color(0.35f, 0.40f, 0.45f, 0.65f);
-                    string contLabel = "<b><size=15><color=#A0A0A0>⏩ TIẾP TỤC</color></size></b>\n<size=10><color=#888888>(Chưa có đợt lưu trước đó)</color></size>";
-                    if (GUILayout.Button(contLabel, GUILayout.Height(50)))
+                    string contLabel = isDefense
+                        ? "<b><size=14><color=#A0A0A0>⏩ TIẾP TỤC THỦ THÀNH</color></size></b>\n<size=10><color=#888888>(Chưa có đợt lưu trước đó)</color></size>"
+                        : "<b><size=14><color=#A0A0A0>⏩ TIẾP TỤC CÔNG THÀNH</color></size></b>\n<size=10><color=#888888>(Chưa có màn lưu trước đó)</color></size>";
+
+                    if (GUILayout.Button(contLabel, GUILayout.Height(46)))
                     {
                         PrehistoricAudioManager.Instance?.PlayButtonClick();
                         OnContinueClicked();
                     }
                 }
 
-                GUILayout.Space(6);
+                GUILayout.Space(5);
 
                 // ------------------------------------------
-                // Nút 3: CÀI ĐẶT (Settings Menu)
+                // Hàng nút Cài đặt & Thoát game
                 // ------------------------------------------
+                GUILayout.BeginHorizontal();
+
                 GUI.backgroundColor = new Color(0.20f, 0.60f, 0.90f, 0.98f);
-                if (GUILayout.Button("<b><size=15>⚙️ CÀI ĐẶT</size></b>\n<size=10><color=#E0F0FF>Âm thanh, góc nhìn, AR & lưu dữ liệu</color></size>", GUILayout.Height(48)))
+                if (GUILayout.Button("<b><size=13>⚙️ CÀI ĐẶT</size></b>", GUILayout.Height(40)))
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     OnSettingsClicked();
                 }
 
-                GUILayout.Space(6);
-
-                // ------------------------------------------
-                // Nút 4: THOÁT GAME (Quit)
-                // ------------------------------------------
                 GUI.backgroundColor = new Color(0.85f, 0.22f, 0.22f, 0.98f);
-                if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME</size></b>\n<size=10><color=#FFD0D0>Lưu tiến trình và thoát ứng dụng</color></size>", GUILayout.Height(48)))
+                if (GUILayout.Button("<b><size=13>🚪 THOÁT GAME</size></b>", GUILayout.Height(40)))
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     OnQuitClicked();
                 }
 
                 GUI.backgroundColor = Color.white;
+                GUILayout.EndHorizontal();
+
                 GUILayout.EndVertical();
                 GUILayout.EndArea();
 
-                // ==========================================
+                                // ==========================================
                 // 5. THANH THÔNG TIN THỐNG KÊ Ở CHÂN MÀN HÌNH
                 // ==========================================
                 float footY = screenH - 32f;
@@ -373,21 +441,42 @@ namespace LlamAcademy.Dinos.UI
         private void OnNewGameClicked()
         {
             IsOpen = false;
-            var mgr = PrehistoricGameplayManager.Instance != null 
-                ? PrehistoricGameplayManager.Instance 
-                : FindFirstObjectByType<PrehistoricGameplayManager>();
-            if (mgr != null)
+            if (SelectedMode == PrehistoricGameMode.TowerDefense)
             {
-                mgr.StartNewGameFromMenu();
+                var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
+                if (mgr != null)
+                {
+                    mgr.StartNewDefenseGameFromMenu();
+                }
+            }
+            else
+            {
+                var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
+                if (gmm != null)
+                {
+                    gmm.StartNewAssaultFromMenu();
+                }
             }
         }
 
         private void OnContinueClicked()
         {
             IsOpen = false;
-            if (PrehistoricGameplayManager.Instance != null)
+            if (SelectedMode == PrehistoricGameMode.TowerDefense)
             {
-                PrehistoricGameplayManager.Instance.ContinueGameFromMenu();
+                var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
+                if (mgr != null)
+                {
+                    mgr.ContinueDefenseFromMenu();
+                }
+            }
+            else
+            {
+                var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
+                if (gmm != null)
+                {
+                    gmm.ContinueAssaultFromMenu();
+                }
             }
         }
 

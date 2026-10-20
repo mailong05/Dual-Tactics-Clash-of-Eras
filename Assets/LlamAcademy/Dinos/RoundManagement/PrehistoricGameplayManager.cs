@@ -1908,53 +1908,52 @@ namespace LlamAcademy.Dinos.RoundManagement
             FullResetGame();
         }
 
-        public void StartNewGameFromMenu()
+        public void StartNewDefenseGameFromMenu()
         {
-            Time.timeScale = 1.0f;
-
-            // 1. Dọn sạch 100% khủng long của cả 2 chế độ và ép buộc chuyển Game Mode về Thủ thành (Tower Defense)
             if (PrehistoricGameModeManager.Instance != null)
             {
-                PrehistoricGameModeManager.Instance.ClearAllDinos();
                 PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
             }
 
-            // 2. Kích hoạt lại PrehistoricGameplayManager
-            enabled = true;
-
-            // 3. Reset toàn bộ game từ Màn 1 (xóa tháp cũ, 500 vàng, 6 NPC, BuildingPhase)
             FullResetGame();
 
-            // 4. Đóng Menu Chính
-            if (UI.PrehistoricMainMenu.Instance != null)
+            if (Save.PrehistoricSaveManager.Instance != null)
             {
-                UI.PrehistoricMainMenu.Instance.IsOpen = false;
-            }
-
-            // 5. Đặt lại góc nhìn Camera về mặc định phòng thủ làng
-            if (Player.CameraControl.Instance != null)
-            {
-                Player.CameraControl.Instance.SetPerspective(Player.CameraPerspective.Rear_TowerDefense);
+                var prof = Save.PrehistoricSaveManager.Instance.CurrentData.DefenseProfile;
+                if (prof != null)
+                {
+                    prof.CurrentWave = 1;
+                    prof.Gold = StartingGold;
+                    prof.BaseHealth = _MaxBaseHealth;
+                    prof.HasActiveRun = true;
+                }
+                Save.PrehistoricSaveManager.Instance.AutoSaveDefenseRun(true);
             }
 
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
-            ShowAnnouncement("⚔️ BẮT ĐẦU MỚI (ĐỢT 1)! HÃY ĐẶT THÁP PHÒNG THỦ! 🛡️", 4.0f);
+            ShowAnnouncement("⚔ BẮT ĐẦU CHIẾN DỊCH THỦ THÀNH MỚI: ĐỢT 1! ⚔", 4.0f);
         }
 
-        public void ContinueGameFromMenu()
+        public void ContinueDefenseFromMenu()
         {
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
+            }
+
             int targetWave = 1;
             int savedGold = StartingGold;
             int savedHp = _MaxBaseHealth;
 
             if (Save.PrehistoricSaveManager.Instance != null)
             {
-                var save = Save.PrehistoricSaveManager.Instance.LoadSaveData();
-                if (save != null)
+                Save.PrehistoricSaveManager.Instance.LoadSaveData();
+                var prof = Save.PrehistoricSaveManager.Instance.CurrentData.DefenseProfile;
+                if (prof != null)
                 {
-                    targetWave = Mathf.Clamp(save.CurrentWave, 1, _MaxWaves);
-                    if (save.Gold > 0) savedGold = save.Gold;
-                    if (save.BaseHealth > 0) savedHp = save.BaseHealth;
+                    targetWave = Mathf.Clamp(prof.CurrentWave, 1, _MaxWaves);
+                    if (prof.Gold > 0) savedGold = prof.Gold;
+                    if (prof.BaseHealth > 0) savedHp = prof.BaseHealth;
                 }
             }
 
@@ -1996,7 +1995,17 @@ namespace LlamAcademy.Dinos.RoundManagement
             ShowAnnouncement($"⚔ TIẾP TỤC ĐỢT {_CurrentWave}: CHUẨN BỊ CHIẾN ĐẤU! ⚔", 4.0f);
         }
 
-        public void ReturnToMainMenu()
+        public void StartNewGameFromMenu()
+        {
+            StartNewDefenseGameFromMenu();
+        }
+
+        public void ContinueGameFromMenu()
+        {
+            ContinueDefenseFromMenu();
+        }
+
+                public void ReturnToMainMenu()
         {
             Time.timeScale = 1.0f;
             if (WaveSpawnRoutine != null)
@@ -2006,22 +2015,21 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             StopAllCoroutines();
 
+            // LƯU TIẾN TRÌNH CHÍNH XÁC CỦA CHẾ ĐỘ ĐANG CHƠI TRƯỚC KHI DỌN DẸP
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
-            // Dọn sạch khủng long và thiết lập lại trạng thái nếu đang ở chế độ Công Thành
             if (PrehistoricGameModeManager.Instance != null)
             {
                 PrehistoricGameModeManager.Instance.ClearAllDinos();
-                PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
             }
 
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.State = GameState.Setup;
             }
-
-            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             if (UI.PrehistoricSettingsMenu.Instance != null)
             {
