@@ -144,6 +144,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void Update()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             // Hotkey 'M' or 'F1' to toggle Mode Select Menu
             if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame || Keyboard.current.f1Key.wasPressedThisFrame))
             {
@@ -348,6 +352,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnGUI()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             Mobile.MobileUIHelper.BeginScaling();
             try
             {

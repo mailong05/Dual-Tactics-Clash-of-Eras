@@ -168,6 +168,10 @@ namespace LlamAcademy.Dinos.Player
 
         private void Update()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense)
             {
                 return;
@@ -577,6 +581,10 @@ namespace LlamAcademy.Dinos.Player
 
         private void OnGUI()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             if (SelectedTower == null) return;
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense) return;
 

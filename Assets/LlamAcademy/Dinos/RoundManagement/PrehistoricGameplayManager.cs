@@ -226,6 +226,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject settingsGO = new GameObject("PrehistoricSettingsMenu");
                 settingsGO.AddComponent<UI.PrehistoricSettingsMenu>();
             }
+            if (UI.PrehistoricMainMenu.Instance == null)
+            {
+                GameObject menuGO = new GameObject("PrehistoricMainMenu");
+                menuGO.AddComponent<UI.PrehistoricMainMenu>();
+            }
             if (AR.ARTabletopController.Instance == null)
             {
                 GameObject arGO = new GameObject("ARTabletopController");
@@ -292,11 +297,22 @@ namespace LlamAcademy.Dinos.RoundManagement
             ConfigureAllCustomBarricades();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
-            ShowAnnouncement($"ĐỢT {_CurrentWave}: HÃY ĐẶT THÁP PHÒNG THỦ TRƯỚC KHI BẮT ĐẦU!", 4.0f);
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                Audio.PrehistoricAudioManager.Instance?.PlayOpeningBgm();
+            }
+            else
+            {
+                ShowAnnouncement($"ĐỢT {_CurrentWave}: HÃY ĐẶT THÁP PHÒNG THỦ TRƯỚC KHI BẮT ĐẦU!", 4.0f);
+            }
         }
 
         private void Update()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             if (AnnouncementTimer > 0f)
             {
                 AnnouncementTimer -= Time.deltaTime;
@@ -1691,6 +1707,100 @@ namespace LlamAcademy.Dinos.RoundManagement
             FullResetGame();
         }
 
+        public void StartNewGameFromMenu()
+        {
+            FullResetGame();
+            if (UI.PrehistoricMainMenu.Instance != null)
+            {
+                UI.PrehistoricMainMenu.Instance.IsOpen = false;
+            }
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
+            ShowAnnouncement("⚔ BẮT ĐẦU MỚI (ĐỢT 1)! HÃY ĐẶT THÁP PHÒNG THỦ! ⚔", 4.0f);
+        }
+
+        public void ContinueGameFromMenu()
+        {
+            int targetWave = 1;
+            int savedGold = StartingGold;
+            int savedHp = _MaxBaseHealth;
+
+            if (Save.PrehistoricSaveManager.Instance != null)
+            {
+                var save = Save.PrehistoricSaveManager.Instance.LoadSaveData();
+                if (save != null)
+                {
+                    targetWave = Mathf.Clamp(save.CurrentWave, 1, _MaxWaves);
+                    if (save.Gold > 0) savedGold = save.Gold;
+                    if (save.BaseHealth > 0) savedHp = save.BaseHealth;
+                }
+            }
+
+            Time.timeScale = 1.0f;
+            if (WaveSpawnRoutine != null)
+            {
+                StopCoroutine(WaveSpawnRoutine);
+                WaveSpawnRoutine = null;
+            }
+            StopAllCoroutines();
+
+            ClearAllActiveMonsters();
+            PrehistoricDinoBase.ClearClipsCache();
+
+            _CurrentWave = targetWave;
+            _CurrentBaseHealth = savedHp;
+
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.SetCurrentRound(_CurrentWave);
+            }
+
+            ResetEntireVillage(keepPlayerTowers: false);
+
+            if (Player.TowerPlacer.Instance != null)
+            {
+                Player.TowerPlacer.Instance.ResetGoldToDefault(savedGold);
+            }
+
+            SetPhase(PrehistoricWavePhase.BuildingPhase);
+            ResetPlayerAndCameraPosition();
+
+            if (UI.PrehistoricMainMenu.Instance != null)
+            {
+                UI.PrehistoricMainMenu.Instance.IsOpen = false;
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
+            ShowAnnouncement($"⚔ TIẾP TỤC ĐỢT {_CurrentWave}: CHUẨN BỊ CHIẾN ĐẤU! ⚔", 4.0f);
+        }
+
+        public void ReturnToMainMenu()
+        {
+            Time.timeScale = 1.0f;
+            if (WaveSpawnRoutine != null)
+            {
+                StopCoroutine(WaveSpawnRoutine);
+                WaveSpawnRoutine = null;
+            }
+            StopAllCoroutines();
+
+            ClearAllActiveMonsters();
+            PrehistoricDinoBase.ClearClipsCache();
+
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
+
+            if (UI.PrehistoricSettingsMenu.Instance != null)
+            {
+                UI.PrehistoricSettingsMenu.Instance.IsOpen = false;
+            }
+
+            if (UI.PrehistoricMainMenu.Instance != null)
+            {
+                UI.PrehistoricMainMenu.Instance.IsOpen = true;
+            }
+
+            Audio.PrehistoricAudioManager.Instance?.PlayOpeningBgm();
+        }
+
         public void ShowAnnouncement(string message, float duration = 3.0f)
         {
             ScreenAnnouncement = message;
@@ -1699,6 +1809,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnGUI()
         {
+            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense)
             {
                 return;

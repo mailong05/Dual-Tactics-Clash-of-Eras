@@ -99,6 +99,11 @@ namespace LlamAcademy.Dinos.UI
 
         private void DrawSettingsToggleButton()
         {
+            if (PrehistoricMainMenu.Instance != null && PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return;
+            }
+
             float btnW = 145f;
             float btnH = 34f;
             float x = 20f;
@@ -388,15 +393,37 @@ namespace LlamAcademy.Dinos.UI
             // ==========================================
             GUILayout.BeginHorizontal();
 
-            GUI.backgroundColor = new Color(0.2f, 0.85f, 0.4f);
-            if (GUILayout.Button("<b><size=14>▶ TIẾP TỤC CHƠI</size></b>", GUILayout.Height(42)))
+            bool isFromMainMenu = PrehistoricMainMenu.Instance != null && PrehistoricMainMenu.Instance.IsOpen;
+
+            if (isFromMainMenu)
             {
-                IsOpen = false;
-                PrehistoricAudioManager.Instance?.PlayButtonClick();
+                GUI.backgroundColor = new Color(0.2f, 0.75f, 0.95f);
+                if (GUILayout.Button("<b><size=14>◀ QUAY LẠI MENU CHÍNH</size></b>", GUILayout.Height(42)))
+                {
+                    IsOpen = false;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+            }
+            else
+            {
+                GUI.backgroundColor = new Color(0.2f, 0.85f, 0.4f);
+                if (GUILayout.Button("<b><size=14>▶ TIẾP TỤC CHƠI</size></b>", GUILayout.Height(42)))
+                {
+                    IsOpen = false;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+
+                GUI.backgroundColor = new Color(0.95f, 0.55f, 0.15f);
+                if (GUILayout.Button("<b><size=14>🏠 MENU CHÍNH</size></b>", GUILayout.Height(42)))
+                {
+                    IsOpen = false;
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    PrehistoricGameplayManager.Instance?.ReturnToMainMenu();
+                }
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f);
-            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME</size></b>", GUILayout.Height(42), GUILayout.Width(170)))
+            if (GUILayout.Button("<b><size=14>🚪 THOÁT GAME</size></b>", GUILayout.Height(42), GUILayout.Width(130)))
             {
                 QuitGame();
             }
