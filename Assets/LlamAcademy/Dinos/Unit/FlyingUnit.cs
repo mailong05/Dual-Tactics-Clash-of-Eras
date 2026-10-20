@@ -27,8 +27,8 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = 200;
-            Health = 200;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 540;
+            Health = MaxHealth;
             if (GetComponent<Collider>() == null && GetComponentInChildren<Collider>() == null)
             {
                 SphereCollider sc = gameObject.AddComponent<SphereCollider>();

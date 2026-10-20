@@ -340,56 +340,56 @@ namespace LlamAcademy.Dinos.AI
             switch (waveIndex)
             {
                 case 1:
-                    raptorCount = 10;
+                    raptorCount = 13; // +3 con
                     break;
                 case 2:
-                    raptorCount = 10;
-                    pteroCount = 4;
+                    raptorCount = 12;
+                    pteroCount = 5; // Tổng: 17 con (+3)
                     break;
                 case 3:
-                    raptorCount = 12;
-                    pteroCount = 5;
-                    ankylCount = 3;
+                    raptorCount = 13;
+                    pteroCount = 6;
+                    ankylCount = 4; // Tổng: 23 con (+3)
                     break;
                 case 4:
-                    raptorCount = 14;
-                    pteroCount = 6;
-                    ankylCount = 4;
+                    raptorCount = 15;
+                    pteroCount = 7;
+                    ankylCount = 5; // Tổng: 27 con (+3)
                     break;
                 case 5:
-                    raptorCount = 16;
-                    pteroCount = 7;
-                    ankylCount = 5;
+                    raptorCount = 17;
+                    pteroCount = 8;
+                    ankylCount = 6; // Tổng: 31 con (+3)
                     break;
                 case 6:
-                    raptorCount = 18;
-                    pteroCount = 8;
-                    ankylCount = 6;
+                    raptorCount = 19;
+                    pteroCount = 9;
+                    ankylCount = 7; // Tổng: 35 con (+3)
                     break;
                 case 7:
-                    raptorCount = 20;
-                    pteroCount = 9;
-                    ankylCount = 7;
+                    raptorCount = 21;
+                    pteroCount = 10;
+                    ankylCount = 8; // Tổng: 39 con (+3)
                     break;
                 case 8:
                     raptorCount = 22;
-                    pteroCount = 10;
-                    ankylCount = 8;
+                    pteroCount = 11;
+                    ankylCount = 9; // Tổng: 42 + 1 T-Rex = 43 con
                     break;
                 case 9:
                     raptorCount = 24;
-                    pteroCount = 11;
-                    ankylCount = 9;
+                    pteroCount = 12;
+                    ankylCount = 10; // Tổng: 46 + 1 T-Rex = 47 con
                     break;
                 case 10:
                 default:
-                    raptorCount = 18;
+                    raptorCount = 20;
                     pteroCount = 10;
-                    ankylCount = 5;
+                    ankylCount = 5; // Tổng: 35 + 2 T-Rex = 37 con
                     break;
             }
 
-                        bool spawnBoss = (waveIndex == 10);
+            int bossSpawnCount = (waveIndex == 8 || waveIndex == 9) ? 1 : (waveIndex >= 10 ? 2 : 0);
 
             string rationale = "";
 
@@ -429,7 +429,13 @@ namespace LlamAcademy.Dinos.AI
             if (raptorPrefab != null) for (int i = 0; i < raptorCount; i++) queue.Add(raptorPrefab);
             if (pteroPrefab != null) for (int i = 0; i < pteroCount; i++) queue.Add(pteroPrefab);
             if (ankylPrefab != null) for (int i = 0; i < ankylCount; i++) queue.Add(ankylPrefab);
-            if (spawnBoss && bossPrefab != null) queue.Add(bossPrefab);
+            if (bossPrefab != null)
+            {
+                for (int b = 0; b < bossSpawnCount; b++)
+                {
+                    queue.Add(bossPrefab);
+                }
+            }
 
             // Xáo trộn thứ tự xuất hiện tự nhiên
             for (int i = 0; i < queue.Count - 2; i++)

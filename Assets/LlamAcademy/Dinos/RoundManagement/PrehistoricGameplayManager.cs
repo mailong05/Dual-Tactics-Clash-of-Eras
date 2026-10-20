@@ -383,9 +383,20 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             // In Wave 10, track Boss health
-            if (_CurrentWave == _MaxWaves && ActiveBossInstance == null && _CurrentPhase == PrehistoricWavePhase.CombatPhase)
+            if (_CurrentWave >= 8 && _CurrentPhase == PrehistoricWavePhase.CombatPhase)
             {
-                ActiveBossInstance = FindFirstObjectByType<BossDino>();
+                if (ActiveBossInstance == null || ActiveBossInstance.Health <= 0 || !ActiveBossInstance.gameObject.activeInHierarchy)
+                {
+                    var bosses = FindObjectsByType<BossDino>(FindObjectsSortMode.None);
+                    for (int b = 0; b < bosses.Length; b++)
+                    {
+                        if (bosses[b] != null && bosses[b].Health > 0 && bosses[b].gameObject.activeInHierarchy)
+                        {
+                            ActiveBossInstance = bosses[b];
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -624,63 +635,69 @@ namespace LlamAcademy.Dinos.RoundManagement
             switch (waveIndex)
             {
                 case 1:
-                    // Wave 1: 10 Velociraptors (Cân bằng với 10 NPC phòng thủ)
-                    AddMultiple(queue, RaptorPrefab, 10);
+                    // Wave 1: 13 Velociraptors (+3 con)
+                    AddMultiple(queue, RaptorPrefab, 13);
                     break;
                 case 2:
-                    // Wave 2: 10 Raptors + 4 Pterodactyls (Tổng: 14 khủng long vs 13 NPC)
-                    AddMultiple(queue, RaptorPrefab, 10);
-                    AddMultiple(queue, PterodactylPrefab, 4);
-                    break;
-                case 3:
-                    // Wave 3: 12 Raptors + 5 Pterodactyls + 3 Ankylosaurus (Tổng: 20 khủng long vs 16 NPC)
+                    // Wave 2: 12 Raptors + 5 Pterodactyls (Tổng: 17 con, +3 con)
                     AddMultiple(queue, RaptorPrefab, 12);
                     AddMultiple(queue, PterodactylPrefab, 5);
-                    AddMultiple(queue, AnkylosaurusPrefab, 3);
                     break;
-                case 4:
-                    // Wave 4: 14 Raptors + 6 Pterodactyls + 4 Ankylosaurus (Tổng: 24 khủng long vs 19 NPC)
-                    AddMultiple(queue, RaptorPrefab, 14);
+                case 3:
+                    // Wave 3: 13 Raptors + 6 Pterodactyls + 4 Ankylosaurus (Tổng: 23 con, +3 con)
+                    AddMultiple(queue, RaptorPrefab, 13);
                     AddMultiple(queue, PterodactylPrefab, 6);
                     AddMultiple(queue, AnkylosaurusPrefab, 4);
                     break;
-                case 5:
-                    // Wave 5: 16 Raptors + 7 Pterodactyls + 5 Ankylosaurus (Tổng: 28 khủng long vs 22 NPC)
-                    AddMultiple(queue, RaptorPrefab, 16);
+                case 4:
+                    // Wave 4: 15 Raptors + 7 Pterodactyls + 5 Ankylosaurus (Tổng: 27 con, +3 con)
+                    AddMultiple(queue, RaptorPrefab, 15);
                     AddMultiple(queue, PterodactylPrefab, 7);
                     AddMultiple(queue, AnkylosaurusPrefab, 5);
                     break;
-                case 6:
-                    // Wave 6: 18 Raptors + 8 Pterodactyls + 6 Ankylosaurus (Tổng: 32 khủng long vs 25 NPC)
-                    AddMultiple(queue, RaptorPrefab, 18);
+                case 5:
+                    // Wave 5: 17 Raptors + 8 Pterodactyls + 6 Ankylosaurus (Tổng: 31 con, +3 con)
+                    AddMultiple(queue, RaptorPrefab, 17);
                     AddMultiple(queue, PterodactylPrefab, 8);
                     AddMultiple(queue, AnkylosaurusPrefab, 6);
                     break;
-                case 7:
-                    // Wave 7: 20 Raptors + 9 Pterodactyls + 7 Ankylosaurus (Tổng: 36 khủng long vs 28 NPC)
-                    AddMultiple(queue, RaptorPrefab, 20);
+                case 6:
+                    // Wave 6: 19 Raptors + 9 Pterodactyls + 7 Ankylosaurus (Tổng: 35 con, +3 con)
+                    AddMultiple(queue, RaptorPrefab, 19);
                     AddMultiple(queue, PterodactylPrefab, 9);
                     AddMultiple(queue, AnkylosaurusPrefab, 7);
                     break;
-                case 8:
-                    // Wave 8: 22 Raptors + 10 Pterodactyls + 8 Ankylosaurus (Tổng: 40 khủng long vs 31 NPC)
-                    AddMultiple(queue, RaptorPrefab, 22);
+                case 7:
+                    // Wave 7: 21 Raptors + 10 Pterodactyls + 8 Ankylosaurus (Tổng: 39 con, +3 con)
+                    AddMultiple(queue, RaptorPrefab, 21);
                     AddMultiple(queue, PterodactylPrefab, 10);
                     AddMultiple(queue, AnkylosaurusPrefab, 8);
                     break;
-                case 9:
-                    // Wave 9: 24 Raptors + 11 Pterodactyls + 9 Ankylosaurus (Tổng: 44 khủng long vs 34 NPC)
-                    AddMultiple(queue, RaptorPrefab, 24);
+                case 8:
+                    // Wave 8: 22 Raptors + 11 Pterodactyls + 9 Ankylosaurus + 1 BẠO CHÚA T-REX! (Tổng: 43 con)
+                    AddMultiple(queue, RaptorPrefab, 22);
                     AddMultiple(queue, PterodactylPrefab, 11);
                     AddMultiple(queue, AnkylosaurusPrefab, 9);
+                    if (TRexBossPrefab != null) queue.Add(TRexBossPrefab);
+                    break;
+                case 9:
+                    // Wave 9: 24 Raptors + 12 Pterodactyls + 10 Ankylosaurus + 1 BẠO CHÚA T-REX! (Tổng: 47 con)
+                    AddMultiple(queue, RaptorPrefab, 24);
+                    AddMultiple(queue, PterodactylPrefab, 12);
+                    AddMultiple(queue, AnkylosaurusPrefab, 10);
+                    if (TRexBossPrefab != null) queue.Add(TRexBossPrefab);
                     break;
                 case 10:
                 default:
-                    // Wave 10: TRẬN CHIẾN CUỐI CÙNG - BOSS T-REX APEX CÙNG ĐỘI QUÂN HỘ VỆ! (Tổng: 33)
-                    AddMultiple(queue, RaptorPrefab, 10);
+                    // Wave 10: ĐẠI CHIẾN TỐI HẬU - 2 CON BẠO CHÚA T-REX CÙNG XUẤT TRẬN! (Tổng: 37 con)
+                    AddMultiple(queue, RaptorPrefab, 12);
                     AddMultiple(queue, PterodactylPrefab, 6);
                     AddMultiple(queue, AnkylosaurusPrefab, 5);
-                    queue.Add(TRexBossPrefab); // The mighty T-Rex Apex Boss!
+                    if (TRexBossPrefab != null)
+                    {
+                        queue.Add(TRexBossPrefab); // T-Rex Boss 1
+                        queue.Add(TRexBossPrefab); // T-Rex Boss 2
+                    }
                     AddMultiple(queue, RaptorPrefab, 8);
                     AddMultiple(queue, PterodactylPrefab, 4);
                     break;
@@ -970,17 +987,17 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             switch (wave)
             {
-                case 1: return 10;
-                case 2: return 14;
-                case 3: return 16;
-                case 4: return 18;
-                case 5: return 22;
-                case 6: return 24;
-                case 7: return 26;
-                case 8: return 28;
-                case 9: return 30;
-                case 10: return 32;
-                default: return Mathf.Clamp(8 + wave * 3, 10, 48);
+                case 1: return 13;
+                case 2: return 17;
+                case 3: return 23;
+                case 4: return 27;
+                case 5: return 31;
+                case 6: return 35;
+                case 7: return 39;
+                case 8: return 43; // có 1 Bạo Chúa T-Rex
+                case 9: return 47; // có 1 Bạo Chúa T-Rex
+                case 10: return 37; // ĐẠI CHIẾN: có 2 Bạo Chúa T-Rex
+                default: return Mathf.Clamp(10 + wave * 4, 13, 55);
             }
         }
 
@@ -2125,9 +2142,22 @@ namespace LlamAcademy.Dinos.RoundManagement
                     DrawTowerPlacementToolbar();
                 }
 
-                if (_CurrentWave == _MaxWaves && ActiveBossInstance != null && ActiveBossInstance.Health > 0)
+                if (_CurrentWave >= 8 && _CurrentPhase == PrehistoricWavePhase.CombatPhase)
                 {
-                    DrawBossHealthBar();
+                    var aliveBosses = FindObjectsByType<BossDino>(FindObjectsSortMode.None);
+                    bool hasAliveBoss = false;
+                    for (int b = 0; b < aliveBosses.Length; b++)
+                    {
+                        if (aliveBosses[b] != null && aliveBosses[b].Health > 0 && aliveBosses[b].gameObject.activeInHierarchy)
+                        {
+                            hasAliveBoss = true;
+                            break;
+                        }
+                    }
+                    if (hasAliveBoss)
+                    {
+                        DrawBossHealthBar();
+                    }
                 }
 
                 if (_CurrentPhase == PrehistoricWavePhase.GameOver)
@@ -2583,48 +2613,56 @@ namespace LlamAcademy.Dinos.RoundManagement
             Cursor.visible = true;
 
             // Lớp phủ nền mờ
-            GUI.color = new Color(0f, 0.12f, 0.05f, 0.85f);
+            GUI.color = new Color(0f, 0.08f, 0.04f, 0.92f);
             GUI.DrawTexture(new Rect(0, 0, Mobile.MobileUIHelper.ScreenWidth, Mobile.MobileUIHelper.ScreenHeight), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            float modalW = Mathf.Min(660f, Mobile.MobileUIHelper.ScreenWidth - 24f);
-            float modalH = 360f;
+            float modalW = Mathf.Min(720f, Mobile.MobileUIHelper.ScreenWidth - 24f);
+            float modalH = 410f;
             float x = (Mobile.MobileUIHelper.ScreenWidth - modalW) / 2f;
             float y = (Mobile.MobileUIHelper.ScreenHeight - modalH) / 2f;
 
             Rect modalRect = new Rect(x, y, modalW, modalH);
             Mobile.MobileUIHelper.RegisterUIRect(modalRect);
 
-            GUI.backgroundColor = new Color(0.05f, 0.25f, 0.1f, 0.98f);
+            GUI.backgroundColor = new Color(0.06f, 0.24f, 0.12f, 0.98f);
             GUI.Box(modalRect, "");
 
-            GUILayout.BeginArea(new Rect(x + 20, y + 16, modalW - 40, modalH - 32));
+            GUILayout.BeginArea(new Rect(x + 24, y + 18, modalW - 48, modalH - 36));
             GUILayout.BeginVertical();
 
-            GUILayout.Label("<b><size=24><color=#FFD700>🏆 CHIẾN THẮNG KHẢI HOÀN! 🏆</color></size></b>", GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            GUILayout.Label("<size=16>Chúc mừng bạn! Bạo Chúa T-Rex và toàn bộ bầy khủng long đã bị tiêu diệt hoàn toàn!</size>");
-            GUILayout.Label($"<size=15>Ngôi làng tiền sử được bảo vệ trọn vẹn với <b>{_CurrentBaseHealth} HP</b> còn lại!</size>");
-            GUILayout.Space(22);
+            GUILayout.Label("<b><size=24><color=#FFD700>🏆 CHIẾN THẮNG KHẢI HOÀN - HOÀN THÀNH TRÒ CHƠI! 🏆</color></size></b>", GUILayout.ExpandWidth(true));
+            GUILayout.Space(8);
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("<size=16><b>🎉 Chúc mừng bạn đã phá đảo Màn 10 và hoàn thành xuất sắc trò chơi!</b></size>");
+            GUILayout.Space(4);
+            GUILayout.Label("<size=14><color=#00FFAA><b>✨ Bạn đã hoàn thành trò chơi và chúng tôi sẽ tiếp tục phát triển phần chơi mới!</b></color></size>");
+            GUILayout.Label("<size=12><color=#E0FFE8>Cảm ơn bạn đã đồng hành và chỉ huy bảo vệ bộ lạc tiền sử vượt qua 10 đợt tiến công khốc liệt của bầy khủng long bạo chúa.</color></size>");
+            GUILayout.Space(4);
+            GUILayout.Label($"<size=13>Ngôi làng tiền sử được bảo vệ kiên cố với <b>{_CurrentBaseHealth} / {_MaxBaseHealth} HP</b> còn lại!</size>");
+            GUILayout.EndVertical();
+
+            GUILayout.Space(14);
 
             GUILayout.BeginHorizontal();
 
             GUI.backgroundColor = new Color(0.2f, 0.8f, 0.3f, 1f);
-            if (GUILayout.Button("<b><size=15>🎉 CHƠI LẠI TỪ ĐẦU</size></b>", GUILayout.Height(60)))
+            if (GUILayout.Button("<b><size=15>🎉 CHƠI LẠI TỪ ĐẦU</size></b>\n<size=11>(Khởi động lại Đợt 1)</size>", GUILayout.Height(62)))
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 FullResetGame();
             }
 
             GUI.backgroundColor = new Color(0.2f, 0.65f, 0.95f, 1f);
-            if (GUILayout.Button("<b><size=15>🏠 MENU CHÍNH</size></b>", GUILayout.Height(60)))
+            if (GUILayout.Button("<b><size=15>🏠 MENU CHÍNH</size></b>\n<size=11>(Về màn hình chính)</size>", GUILayout.Height(62)))
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 ReturnToMainMenu();
             }
 
             GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME</size></b>", GUILayout.Height(60)))
+            if (GUILayout.Button("<b><size=15>🚪 THOÁT GAME</size></b>\n<size=11>(Rời trò chơi)</size>", GUILayout.Height(62)))
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
                 QuitGame();

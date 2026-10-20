@@ -204,18 +204,35 @@ namespace LlamAcademy.Dinos.UI
                 GUI.backgroundColor = Color.white;
 
                 // ==========================================
-                // 3. LOGO VÀ TIÊU ĐỀ GAME
+                // 3. TÍNH TOÁN KÍCH THƯỚC ĐÁP ỨNG TOÀN KHUNG HÌNH (RESPONSIVE PC & MOBILE)
                 // ==========================================
-                float logoMaxW = Mathf.Min(480f, screenW - 32f);
-                float logoH = 140f;
+                // Tỉ lệ co giãn linh hoạt theo chiều cao màn hình thực tế (chuẩn hóa trên 1080p, 2K, 4K, 720p, mobile)
+                float scale = Mathf.Clamp(screenH / 880f, 0.90f, 1.75f);
+
+                // Kích thước Logo
+                float logoMaxW = Mathf.Clamp(screenW * 0.38f, 380f, 640f * scale);
+                float logoH = 135f * scale;
                 if (_logoTexture != null && _logoTexture.width > 0)
                 {
                     float aspect = (float)_logoTexture.height / _logoTexture.width;
-                    logoH = Mathf.Min(150f, logoMaxW * aspect);
+                    logoH = Mathf.Clamp(logoMaxW * aspect, 105f * scale, 175f * scale);
                 }
 
+                // Kích thước Card Menu chính (mở rộng thoải mái trên PC 1080p+, vừa vặn màn hình)
+                float cardW = Mathf.Clamp(screenW * 0.44f, 520f, 720f * scale);
+                cardW = Mathf.Min(cardW, screenW - 24f);
+
+                float cardH = Mathf.Clamp(460f * scale, 410f, screenH - 120f);
+
+                // Căn giữa toàn bộ cụm Logo + Phụ đề + Card Menu theo chiều dọc màn hình
+                float subH = 28f * scale;
+                float gapLogoSub = 6f * scale;
+                float gapSubCard = 16f * scale;
+                float totalContentH = logoH + gapLogoSub + subH + gapSubCard + cardH;
+
+                float startY = Mathf.Max(16f, (screenH - totalContentH - 34f) / 2f);
                 float logoX = (screenW - logoMaxW) / 2f;
-                float logoY = Mathf.Max(12f, screenH * 0.04f);
+                float logoY = startY;
 
                 if (_logoTexture != null)
                 {
@@ -224,41 +241,38 @@ namespace LlamAcademy.Dinos.UI
                 }
                 else
                 {
-                    // Fallback Text Logo nếu chưa load được texture
-                    GUI.Label(new Rect(logoX, logoY, logoMaxW, 60f),
-                        "<size=28><b><color=#FFAA00>🦖 ADAPTIVE TOWER DEFENSE 3D 🦖</color></b></size>",
-                        GetCenteredStyle(28, Color.yellow));
-                    logoH = 60f;
+                    GUI.Label(new Rect(logoX, logoY, logoMaxW, 60f * scale),
+                        $"<size={Mathf.RoundToInt(28 * scale)}><b><color=#FFAA00>🦖 ADAPTIVE TOWER DEFENSE 3D 🦖</color></b></size>",
+                        GetCenteredStyle(Mathf.RoundToInt(28 * scale), Color.yellow));
+                    logoH = 60f * scale;
                 }
 
-                // Phụ đề phong cách tiền sử hào hùng
-                float subY = logoY + logoH + 2f;
-                GUI.Label(new Rect(10f, subY, screenW - 20f, 26f),
-                    "<size=13><b><color=#FFD700>★ CHIẾN THUẬT PHÒNG THỦ & SINH TỒN THỜI TIỀN SỬ ★</color></b></size>",
-                    GetCenteredStyle(13, new Color(1f, 0.84f, 0.2f)));
+                // Phụ đề phong cách tiền sử
+                float subY = logoY + logoH + gapLogoSub;
+                GUI.Label(new Rect(10f, subY, screenW - 20f, subH),
+                    $"<size={Mathf.RoundToInt(14 * scale)}><b><color=#FFD700>★ CHIẾN THUẬT PHÒNG THỦ & SINH TỒN THỜI TIỀN SỬ ★</color></b></size>",
+                    GetCenteredStyle(Mathf.RoundToInt(14 * scale), new Color(1f, 0.84f, 0.2f)));
 
                 // ==========================================
-                // 4. KHUNG MENU CHÍNH (BỘ CHỌN CHẾ ĐỘ + NÚT BẤM)
+                // 4. KHUNG MENU CHÍNH (BỘ CHỌN CHẾ ĐỘ + NÚT BẤM CỠ LỚN SANG TRỌNG)
                 // ==========================================
-                float cardW = Mathf.Min(440f, screenW - 28f);
-                float cardH = 340f;
                 float cardX = (screenW - cardW) / 2f;
-                float cardY = subY + 22f;
+                float cardY = subY + subH + gapSubCard;
 
-                if (cardY + cardH > screenH - 38f)
+                if (cardY + cardH > screenH - 36f)
                 {
-                    cardY = screenH - cardH - 38f;
+                    cardY = screenH - cardH - 36f;
                 }
 
                 Rect cardRect = new Rect(cardX, cardY, cardW, cardH);
                 MobileUIHelper.RegisterUIRect(cardRect);
 
-                GUI.backgroundColor = new Color(0.08f, 0.12f, 0.18f, 0.94f);
+                GUI.backgroundColor = new Color(0.06f, 0.10f, 0.16f, 0.96f);
                 GUI.Box(cardRect, GUIContent.none);
                 GUI.backgroundColor = Color.white;
 
-                float padX = 14f;
-                float padY = 12f;
+                float padX = 18f * scale;
+                float padY = 16f * scale;
                 float innerW = cardW - padX * 2f;
                 float innerH = cardH - padY * 2f;
 
@@ -268,21 +282,28 @@ namespace LlamAcademy.Dinos.UI
                 // ------------------------------------------
                 // TAB CHỌN CHẾ ĐỘ CHƠI (THỦ THÀNH vs CÔNG THÀNH)
                 // ------------------------------------------
-                GUILayout.Label("<size=12><b><color=#FFD700>⚔️ LỰA CHỌN CHẾ ĐỘ CHIẾN DỊCH:</color></b></size>", GUI.skin.label);
+                GUILayout.Label($"<size={Mathf.RoundToInt(13 * scale)}><b><color=#FFD700>⚔️ LỰA CHỌN CHẾ ĐỘ CHIẾN DỊCH:</color></b></size>", GUI.skin.label);
                 GUILayout.BeginHorizontal();
 
                 bool isDefense = (SelectedMode == PrehistoricGameMode.TowerDefense);
                 bool isAssault = (SelectedMode == PrehistoricGameMode.DinoAssault);
+                float tabBtnH = Mathf.Round(48f * scale);
 
                 GUI.backgroundColor = isDefense ? new Color(0.18f, 0.75f, 0.95f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
-                if (GUILayout.Button(isDefense ? "<b>🛡️ THỦ THÀNH</b>\n<size=10>(Đang chọn)</size>" : "🛡️ THỦ THÀNH\n<size=10>(Bảo vệ Làng)</size>", GUILayout.Height(42)))
+                string defTabLabel = isDefense 
+                    ? $"<b><size={Mathf.RoundToInt(14 * scale)}>🛡️ THỦ THÀNH</size></b>\n<size={Mathf.RoundToInt(11 * scale)}>(Đang chọn)</size>"
+                    : $"<size={Mathf.RoundToInt(14 * scale)}>🛡️ THỦ THÀNH</size>\n<size={Mathf.RoundToInt(11 * scale)}>(Bảo vệ Làng)</size>";
+                if (GUILayout.Button(defTabLabel, GUILayout.Height(tabBtnH)))
                 {
                     SelectedMode = PrehistoricGameMode.TowerDefense;
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                 }
 
                 GUI.backgroundColor = isAssault ? new Color(0.95f, 0.45f, 0.15f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
-                if (GUILayout.Button(isAssault ? "<b>🦖 CÔNG THÀNH</b>\n<size=10>(Đang chọn)</size>" : "🦖 CÔNG THÀNH\n<size=10>(Chỉ huy Khủng long)</size>", GUILayout.Height(42)))
+                string assTabLabel = isAssault
+                    ? $"<b><size={Mathf.RoundToInt(14 * scale)}>🦖 CÔNG THÀNH</size></b>\n<size={Mathf.RoundToInt(11 * scale)}>(Đang chọn)</size>"
+                    : $"<size={Mathf.RoundToInt(14 * scale)}>🦖 CÔNG THÀNH</size>\n<size={Mathf.RoundToInt(11 * scale)}>(Chỉ huy Khủng long)</size>";
+                if (GUILayout.Button(assTabLabel, GUILayout.Height(tabBtnH)))
                 {
                     SelectedMode = PrehistoricGameMode.DinoAssault;
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
@@ -291,7 +312,7 @@ namespace LlamAcademy.Dinos.UI
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(6);
+                GUILayout.Space(8f * scale);
 
                 // Thông tin tiến trình của chế độ đang chọn
                 bool hasActiveSave = false;
@@ -307,9 +328,16 @@ namespace LlamAcademy.Dinos.UI
                         curWave = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave;
                         curGold = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.Gold;
                     }
-                    modeProgressInfo = hasActiveSave 
-                        ? $"Tiến trình: <b>Đợt {curWave}</b> (Vàng: <b>{curGold}g</b>)"
-                        : "Chưa có trận chiến dang dở";
+                    if (curWave >= 10 && !hasActiveSave)
+                    {
+                        modeProgressInfo = "🏆 <b>ĐÃ PHÁ ĐẢO HOÀN THÀNH TRÒ CHƠI (MÀN 10)</b>";
+                    }
+                    else
+                    {
+                        modeProgressInfo = hasActiveSave 
+                            ? $"Tiến trình: <b>Đợt {curWave}</b> (Vàng: <b>{curGold}g</b>)"
+                            : "Chưa có trận chiến dang dở";
+                    }
                 }
                 else
                 {
@@ -327,26 +355,28 @@ namespace LlamAcademy.Dinos.UI
                 }
 
                 GUILayout.BeginHorizontal(GUI.skin.box);
-                GUILayout.Label($"<size=11><color=#E0EEFF>📌 {modeProgressInfo}</color></size>", GUI.skin.label);
+                GUILayout.Label($"<size={Mathf.RoundToInt(12 * scale)}><color=#E0EEFF>📌 {modeProgressInfo}</color></size>", GUI.skin.label);
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(6);
+                GUILayout.Space(8f * scale);
+
+                float mainBtnH = Mathf.Round(56f * scale);
 
                 // ------------------------------------------
                 // Nút 1: CHƠI MỚI (New Game)
                 // ------------------------------------------
                 GUI.backgroundColor = new Color(0.96f, 0.54f, 0.12f, 0.98f);
                 string newGameLabel = isDefense 
-                    ? "<b><size=14>🎮 CHƠI MỚI THỦ THÀNH</size></b>\n<size=10><color=#FFF0D0>Bắt đầu chiến dịch từ Đợt 1</color></size>"
-                    : "<b><size=14>🎮 CHƠI MỚI CÔNG THÀNH</size></b>\n<size=10><color=#FFF0D0>Bắt đầu chiếm làng từ Màn 1</color></size>";
+                    ? $"<b><size={Mathf.RoundToInt(16 * scale)}>🎮 CHƠI MỚI THỦ THÀNH</size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#FFF0D0>Bắt đầu chiến dịch từ Đợt 1</color></size>"
+                    : $"<b><size={Mathf.RoundToInt(16 * scale)}>🎮 CHƠI MỚI CÔNG THÀNH</size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#FFF0D0>Bắt đầu chiếm làng từ Màn 1</color></size>";
 
-                if (GUILayout.Button(newGameLabel, GUILayout.Height(46)))
+                if (GUILayout.Button(newGameLabel, GUILayout.Height(mainBtnH)))
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     OnNewGameClicked();
                 }
 
-                GUILayout.Space(5);
+                GUILayout.Space(6f * scale);
 
                 // ------------------------------------------
                 // Nút 2: TIẾP TỤC (Continue)
@@ -355,10 +385,10 @@ namespace LlamAcademy.Dinos.UI
                 {
                     GUI.backgroundColor = new Color(0.20f, 0.78f, 0.38f, 0.98f);
                     string contLabel = isDefense
-                        ? $"<b><size=14>⏩ TIẾP TỤC (ĐỢT {PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave})</size></b>\n<size=10><color=#E0FFE8>Tiếp nối chiến dịch Thủ Thành</color></size>"
-                        : $"<b><size=14>⏩ TIẾP TỤC (MÀN {PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.AssaultLevel})</size></b>\n<size=10><color=#E0FFE8>Tiếp nối chiến dịch Công Thành</color></size>";
+                        ? $"<b><size={Mathf.RoundToInt(16 * scale)}>⏩ TIẾP TỤC (ĐỢT {PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave})</size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#E0FFE8>Tiếp nối chiến dịch Thủ Thành</color></size>"
+                        : $"<b><size={Mathf.RoundToInt(16 * scale)}>⏩ TIẾP TỤC (MÀN {PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.AssaultLevel})</size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#E0FFE8>Tiếp nối chiến dịch Công Thành</color></size>";
 
-                    if (GUILayout.Button(contLabel, GUILayout.Height(46)))
+                    if (GUILayout.Button(contLabel, GUILayout.Height(mainBtnH)))
                     {
                         PrehistoricAudioManager.Instance?.PlayButtonClick();
                         OnContinueClicked();
@@ -368,32 +398,33 @@ namespace LlamAcademy.Dinos.UI
                 {
                     GUI.backgroundColor = new Color(0.35f, 0.40f, 0.45f, 0.65f);
                     string contLabel = isDefense
-                        ? "<b><size=14><color=#A0A0A0>⏩ TIẾP TỤC THỦ THÀNH</color></size></b>\n<size=10><color=#888888>(Chưa có đợt lưu trước đó)</color></size>"
-                        : "<b><size=14><color=#A0A0A0>⏩ TIẾP TỤC CÔNG THÀNH</color></size></b>\n<size=10><color=#888888>(Chưa có màn lưu trước đó)</color></size>";
+                        ? $"<b><size={Mathf.RoundToInt(16 * scale)}><color=#A0A0A0>⏩ TIẾP TỤC THỦ THÀNH</color></size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#888888>(Chưa có đợt lưu trước đó)</color></size>"
+                        : $"<b><size={Mathf.RoundToInt(16 * scale)}><color=#A0A0A0>⏩ TIẾP TỤC CÔNG THÀNH</color></size></b>\n<size={Mathf.RoundToInt(11 * scale)}><color=#888888>(Chưa có màn lưu trước đó)</color></size>";
 
-                    if (GUILayout.Button(contLabel, GUILayout.Height(46)))
+                    if (GUILayout.Button(contLabel, GUILayout.Height(mainBtnH)))
                     {
                         PrehistoricAudioManager.Instance?.PlayButtonClick();
                         OnContinueClicked();
                     }
                 }
 
-                GUILayout.Space(5);
+                GUILayout.Space(6f * scale);
 
                 // ------------------------------------------
                 // Hàng nút Cài đặt & Thoát game
                 // ------------------------------------------
+                float subBtnH = Mathf.Round(46f * scale);
                 GUILayout.BeginHorizontal();
 
                 GUI.backgroundColor = new Color(0.20f, 0.60f, 0.90f, 0.98f);
-                if (GUILayout.Button("<b><size=13>⚙️ CÀI ĐẶT</size></b>", GUILayout.Height(40)))
+                if (GUILayout.Button($"<b><size={Mathf.RoundToInt(14 * scale)}>⚙️ CÀI ĐẶT</size></b>", GUILayout.Height(subBtnH)))
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     OnSettingsClicked();
                 }
 
                 GUI.backgroundColor = new Color(0.85f, 0.22f, 0.22f, 0.98f);
-                if (GUILayout.Button("<b><size=13>🚪 THOÁT GAME</size></b>", GUILayout.Height(40)))
+                if (GUILayout.Button($"<b><size={Mathf.RoundToInt(14 * scale)}>🚪 THOÁT GAME</size></b>", GUILayout.Height(subBtnH)))
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     OnQuitClicked();
