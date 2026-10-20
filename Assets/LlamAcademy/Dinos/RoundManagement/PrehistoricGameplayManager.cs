@@ -105,6 +105,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             CleanupInvisibleAndStrayObjects();
             EnsureVillageFortressWallActive();
             ConfigureAllCustomBarricades();
+            EnsureVillageInteriorDefenses();
             EnsureAudioManagerAndSettingsMenu();
         }
 
@@ -1338,11 +1339,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name.ToLower();
 
-                // Dọn dẹp component Wall/NavMeshObstacle nếu vô tình bị gán trên Big Tower hoặc Arch Entry trong làng
+                // Bỏ qua nếu là đối tượng tuyến 2 (Big Tower / Arch Entry) để EnsureVillageInteriorDefenses xử lý riêng
                 if (n.Contains("big tower") || n.Contains("arch entry"))
                 {
-                    if (t.TryGetComponent(out Unit.Wall errW)) Destroy(errW);
-                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle errO)) Destroy(errO);
                     continue;
                 }
 
@@ -1534,6 +1533,149 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        /// <summary>
+        /// Cấu hình tuyến phòng thủ thứ 2 của làng: Các cổng vòm (Arch Entry Wall) và chòi bộ lạc trung tâm (Big Tower with Platform).
+        /// 1. Vòm cổng Arch Entry Wall: Tắt convex collider đang bịt kín vòm, thêm BoxCollider ở 2 cột trụ và sàn đi bộ trên cao,
+        ///    để vòm cổng ở giữa rộng 5.4m hoàn toàn thông thoáng cho khủng long chạy thẳng vào làng mà không bị kẹt vô hình.
+        /// 2. Gán Wall component (HP) cho Arch Entry và Big Tower để nếu quái húc trực diện thì có thể tấn công và phá hủy được.
+        /// 3. Bỏ qua va chạm vật lý giữa khủng long và khủng long (Layer 8) để quái không bị chèn ép nêm chặt lẫn nhau.
+        /// </summary>
+        public void EnsureVillageInteriorDefenses()
+        {
+            // Bỏ qua va chạm vật lý giữa khủng long và khủng long (Layer 8)
+            Physics.IgnoreLayerCollision(8, 8, true);
+
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // 1. CỔNG VÒM VÀ CẦU GỖ TUYẾN 2 (Arch Entry Wall)
+                if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Bật lại Renderer
+                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends) if (r != null) r.enabled = true;
+
+                    // Tắt MeshCollider dạng Convex đang bịt kín khoảng trống vòm cổng
+                    MeshCollider[] meshCols = t.GetComponentsInChildren<MeshCollider>(true);
+                    foreach (var mc in meshCols)
+                    {
+                        if (mc != null) mc.enabled = false;
+                    }
+
+                    // Tắt carving trên NavMeshObstacle của cầu để đường đi NavMesh luôn thông suốt
+                    UnityEngine.AI.NavMeshObstacle[] obstacles = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
+                    foreach (var obs in obstacles)
+                    {
+                        if (obs != null) obs.carving = false;
+                    }
+
+                    // Thêm 2 BoxCollider ở 2 bên chân cột trụ của vòm cổng (để giữa vòm cổng rộng 5.4m hoàn toàn thông suốt)
+                    Transform leftPillar = t.Find("Collider_Pillar_Left");
+                    if (leftPillar == null)
+                    {
+                        GameObject lp = new GameObject("Collider_Pillar_Left");
+                        lp.transform.SetParent(t, false);
+                        lp.transform.localPosition = new Vector3(-3.8f, 2.2f, 0f);
+                        BoxCollider bcL = lp.AddComponent<BoxCollider>();
+                        bcL.size = new Vector3(2.2f, 4.4f, 3.2f);
+                    }
+                    else
+                    {
+                        if (leftPillar.TryGetComponent(out BoxCollider bcL)) bcL.enabled = true;
+                    }
+
+                    Transform rightPillar = t.Find("Collider_Pillar_Right");
+                    if (rightPillar == null)
+                    {
+                        GameObject rp = new GameObject("Collider_Pillar_Right");
+                        rp.transform.SetParent(t, false);
+                        rp.transform.localPosition = new Vector3(3.8f, 2.2f, 0f);
+                        BoxCollider bcR = rp.AddComponent<BoxCollider>();
+                        bcR.size = new Vector3(2.2f, 4.4f, 3.2f);
+                    }
+                    else
+                    {
+                        if (rightPillar.TryGetComponent(out BoxCollider bcR)) bcR.enabled = true;
+                    }
+
+                    // Mặt sàn phía trên cho Cung Thủ Làng đứng
+                    Transform floorDeck = t.Find("Collider_Walkway_Deck");
+                    if (floorDeck == null)
+                    {
+                        GameObject fd = new GameObject("Collider_Walkway_Deck");
+                        fd.transform.SetParent(t, false);
+                        fd.transform.localPosition = new Vector3(0f, 4.2f, 0f);
+                        BoxCollider bcF = fd.AddComponent<BoxCollider>();
+                        bcF.size = new Vector3(10.0f, 0.4f, 3.2f);
+                    }
+                    else
+                    {
+                        if (floorDeck.TryGetComponent(out BoxCollider bcF)) bcF.enabled = true;
+                    }
+
+                    // Gán Wall component (400 HP) cho cổng vòm
+                    if (!t.TryGetComponent(out Unit.Wall wArch))
+                    {
+                        wArch = t.gameObject.AddComponent<Unit.Wall>();
+                        wArch.MaxHealth = 400;
+                        wArch.Health = 400;
+                        wArch.Root = t.gameObject;
+                        wArch.EnsureHealthBarAttached();
+                    }
+                    else
+                    {
+                        if (wArch.MaxHealth <= 0) wArch.MaxHealth = 400;
+                        if (wArch.Health <= 0) wArch.Health = wArch.MaxHealth;
+                        wArch.Root = t.gameObject;
+                        wArch.EnsureHealthBarAttached();
+                    }
+                }
+                // 2. CHÒI BỘ LẠC TRUNG TÂM (Big Tower with Platform)
+                else if (n.StartsWith("Big Tower with Platform", StringComparison.OrdinalIgnoreCase))
+                {
+                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends) if (r != null) r.enabled = true;
+
+                    // Tắt carving trên NavMeshObstacle
+                    UnityEngine.AI.NavMeshObstacle[] obstacles = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
+                    foreach (var obs in obstacles)
+                    {
+                        if (obs != null) obs.carving = false;
+                    }
+
+                    // Tắt MeshCollider dạng convex nếu có
+                    MeshCollider[] meshCols = t.GetComponentsInChildren<MeshCollider>(true);
+                    foreach (var mc in meshCols)
+                    {
+                        if (mc != null) mc.enabled = false;
+                    }
+
+                    // Đảm bảo có BoxCollider bao quanh thân chòi/sàn tròn
+                    EnsureBoxCollider(t.gameObject, new Vector3(7.5f, 4.5f, 7.5f), new Vector3(0f, 2.25f, 0f));
+
+                    // Gán Wall component (600 HP) cho chòi
+                    if (!t.TryGetComponent(out Unit.Wall wTower))
+                    {
+                        wTower = t.gameObject.AddComponent<Unit.Wall>();
+                        wTower.MaxHealth = 600;
+                        wTower.Health = 600;
+                        wTower.Root = t.gameObject;
+                        wTower.EnsureHealthBarAttached();
+                    }
+                    else
+                    {
+                        if (wTower.MaxHealth <= 0) wTower.MaxHealth = 600;
+                        if (wTower.Health <= 0) wTower.Health = wTower.MaxHealth;
+                        wTower.Root = t.gameObject;
+                        wTower.EnsureHealthBarAttached();
+                    }
+                }
+            }
+        }
+
         private static BoxCollider EnsureBoxCollider(GameObject go, Vector3 size, Vector3 center)
         {
             if (!go.TryGetComponent(out BoxCollider col)) col = go.AddComponent<BoxCollider>();
@@ -1606,6 +1748,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // Đảm bảo cấu hình va chạm và chướng ngại vật
             ConfigureAllCustomBarricades();
+            EnsureVillageInteriorDefenses();
 
             // Phục hồi và đảm bảo 2 chòi canh trên bờ tường thành (Village_Watchtower_Left & Right)
             EnsureVillageWatchtowers();

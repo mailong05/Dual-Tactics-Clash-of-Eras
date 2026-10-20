@@ -296,6 +296,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 PrehistoricGameplayManager.Instance.EnsureVillageFortressWallActive();
                 PrehistoricGameplayManager.Instance.ConfigureAllCustomBarricades();
+                PrehistoricGameplayManager.Instance.EnsureVillageInteriorDefenses();
             }
 
             if (mode == PrehistoricGameMode.DinoAssault)

@@ -209,6 +209,16 @@ namespace LlamAcademy.Dinos.Unit
             Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
             if (Agent.radius > 0.45f) Agent.radius = 0.45f;
             _DefaultAgentRadius = Agent.radius;
+
+            // Giới hạn BoxCollider của khủng long không quá to để không bị kẹt góc tường hoặc chèn ép nhau
+            if (TryGetComponent(out BoxCollider bc))
+            {
+                Vector3 sz = bc.size;
+                if (sz.x > 1.3f || sz.z > 2.6f)
+                {
+                    bc.size = new Vector3(Mathf.Min(sz.x, 1.3f), sz.y, Mathf.Min(sz.z, 2.6f));
+                }
+            }
         }
 
         protected virtual void OnEnable()
@@ -445,8 +455,8 @@ namespace LlamAcademy.Dinos.Unit
                 if (wall == null) wall = EnsureDynamicWall(col);
                 if (wall != null && wall.Health > 0)
                 {
-                    // Bỏ qua tường nằm sát khe hở này hoặc bất kỳ khe hở nào đã mở trên cùng hàng rào
-                    if (TacticalBreachMemory.HasInstance && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 6.0f))
+                    // Chỉ bỏ qua bức tường đã mở (trong bán kính 2.2m), cho phép tấn công các tường liền kề
+                    if (TacticalBreachMemory.HasInstance && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 2.2f))
                     {
                         continue;
                     }
@@ -469,7 +479,7 @@ namespace LlamAcademy.Dinos.Unit
 
                     Vector3 lateralDir = Vector3.Cross(Vector3.up, toBaseDir).normalized;
                     float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, toWall));
-                    if (lateralOffset > 4.5f) continue;
+                    if (lateralOffset > 15.0f) continue;
 
                     if (d < minDistance)
                     {
@@ -1027,6 +1037,23 @@ namespace LlamAcademy.Dinos.Unit
                     }
                     else
                     {
+                        // Kiểm tra nếu ngay trước mặt có vật thể cản trở vật lý
+                        if (Physics.SphereCast(transform.position + Vector3.up * 0.8f, 0.6f, transform.forward, out RaycastHit rHit, 3.2f, TargetLayers))
+                        {
+                            Wall dynamicWall = EnsureDynamicWall(rHit.collider);
+                            if (dynamicWall != null && dynamicWall.Health > 0)
+                            {
+                                CurrentTarget = dynamicWall;
+                                hasValidTarget = true;
+                            }
+                            else
+                            {
+                                // Vật thể tĩnh không thể phá hủy: Nudge nhẹ Agent sang ngang để trượt lướt qua góc
+                                Vector3 sideNudge = Vector3.Cross(Vector3.up, transform.forward).normalized * 0.6f;
+                                Agent.Move(sideNudge * Time.deltaTime * MoveSpeed);
+                            }
+                        }
+
                         Agent.isStopped = false;
                         Agent.ResetPath();
                         if (TargetBase != null) Agent.SetDestination(TargetBase.position);
@@ -1348,12 +1375,11 @@ namespace LlamAcademy.Dinos.Unit
 
             string n = targetT.gameObject.name.ToLower();
 
-            // Tuyệt đối KHÔNG biến container nhóm, chòi canh lớn, cổng vòm, cầu, sàn gỗ, đường đi, mặt đất thành tường
+            // Tuyệt đối KHÔNG biến container nhóm tổng, cầu sàn đi bộ, mặt đất, terrain thành tường
             if (n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
                 n == "right_flank_wall" || n == "gate_complex" || n == "gate_entryway" ||
-                n.Contains("big tower") || n.Contains("arch entry") || n.Contains("watchtower") ||
-                n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) ||
-                n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
+                n == "world" || n == "props" ||
+                n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain"))
             {
                 return null;
             }
@@ -1363,7 +1389,8 @@ namespace LlamAcademy.Dinos.Unit
 
             if (n.Contains("wall") || n.Contains("barricade") ||
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
-                n.Contains("plank_defenses") ||
+                n.Contains("plank_defenses") || n.Contains("big tower") || n.Contains("arch entry") ||
+                n.Contains("tower") || n.Contains("platform") ||
                 hasWallTag)
             {
                 GameObject go = targetT.gameObject;
@@ -1500,15 +1527,10 @@ namespace LlamAcademy.Dinos.Unit
                 IDamageable candidate = null;
                 if (wall != null && wall.Health > 0)
                 {
-                    // Chỉ bỏ qua tường làng nằm sát khe hở đã mở, KHÔNG bỏ qua Barricade rào cọc của người chơi
-                    if (TacticalBreachMemory.HasInstance && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 4.5f))
+                    // Nếu khủng long đang tích cực di chuyển qua khe hở (đã có slot), bỏ qua các bức tường bên mép
+                    if (_IsNavigatingBreach && TacticalBreachMemory.HasInstance && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 3.5f))
                     {
-                        string wName = wall.name.ToLower();
-                        bool isBarricade = wName.Contains("barricade") || wName.Contains("rào cọc") || wName.Contains("cọc gỗ");
-                        if (!isBarricade)
-                        {
-                            continue;
-                        }
+                        continue;
                     }
                     candidate = wall;
                 }
