@@ -76,6 +76,7 @@ namespace LlamAcademy.Dinos.Unit
         public LlamAcademy.Dinos.AI.BreachPoint CurrentBreachPoint => _CurrentBreachPoint;
         protected float _DefaultAgentRadius = 0.45f;
         protected float _BreachTransitTimer = 0f;
+        protected float _StuckTimer = 0f;
         protected readonly HashSet<LlamAcademy.Dinos.AI.BreachPoint> _TraversedBreaches = new();
 
         private Vector3 _OrigBoxColliderSize = Vector3.zero;
@@ -1012,20 +1013,55 @@ namespace LlamAcademy.Dinos.Unit
                 }
             }
 
+            // 0. ANTI-STUCK WATCHDOG: Nếu quái đang di chuyển nhưng bị khựng/kẹt (velocity < 0.15f) quá 0.75s
+            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && Agent.velocity.sqrMagnitude < 0.15f)
+            {
+                _StuckTimer += Time.deltaTime;
+                if (_StuckTimer >= 0.75f)
+                {
+                    IDamageable emergencyBlocker = FindEmergencyWallBlocker(5.8f);
+                    if (emergencyBlocker != null)
+                    {
+                        CurrentTarget = emergencyBlocker;
+                        hasValidTarget = true;
+                    }
+                    else
+                    {
+                        Agent.isStopped = false;
+                        Agent.ResetPath();
+                        if (TargetBase != null) Agent.SetDestination(TargetBase.position);
+                    }
+                    _StuckTimer = 0f;
+                }
+            }
+            else
+            {
+                _StuckTimer = 0f;
+            }
+
             if (hasValidTarget)
             {
                 Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
                 Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
                 Vector3 closestPoint = targetCol != null ? targetCol.ClosestPoint(transform.position) : targetCenter;
-                float distToTarget = Vector3.Distance(transform.position, closestPoint);
+
+                // TÍNH KHOẢNG CÁCH 2D MẶT PHẲNG ĐỂ LOẠI BỎ SAI SỐ ĐỘ CAO Y / DỐC TERRAIN
+                Vector3 flatDiff = transform.position - closestPoint;
+                flatDiff.y = 0;
+                float distToTarget = flatDiff.magnitude;
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-                // Tường/rào cọc gỗ có NavMeshObstacle tạo khoảng đệm (carve buffer), mở rộng tầm đánh 1.5m để quái luôn đánh được
+                // Tường/rào cọc gỗ có NavMeshObstacle tạo khoảng đệm (carve buffer), mở rộng tầm đánh 2.5m để quái luôn đánh được
                 float effectiveAttackRange = (CurrentTarget is Wall) 
-                    ? (AttackRange + agentRadius + 1.5f) 
+                    ? Mathf.Max(AttackRange + agentRadius + 2.5f, 4.8f) 
                     : (AttackRange + agentRadius + 0.5f);
 
-                if (distToTarget <= effectiveAttackRange)
+                // KIỂM TRA BỊ CẢN TRỞ: Nếu quái nhắm tường và đã dừng lại / không thể tiến sát hơn do vướng lỗ carve của NavMeshObstacle
+                bool isBlockedNearWall = (CurrentTarget is Wall) && (Agent != null && Agent.isOnNavMesh) &&
+                    (Agent.velocity.sqrMagnitude < 0.25f || Agent.remainingDistance <= Agent.stoppingDistance + 0.6f) &&
+                    distToTarget <= 5.8f;
+
+                if (distToTarget <= effectiveAttackRange || isBlockedNearWall)
                 {
                     if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
 
@@ -1058,8 +1094,8 @@ namespace LlamAcademy.Dinos.Unit
                             if (dirOut.sqrMagnitude > 0.001f) dirOut.Normalize();
                             else dirOut = (transform.position - targetCenter).normalized;
 
-                            Vector3 standAttempt = closestPoint + dirOut * 1.2f;
-                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 2.5f, NavMesh.AllAreas))
+                            Vector3 standAttempt = closestPoint + dirOut * 1.5f;
+                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 3.0f, NavMesh.AllAreas))
                             {
                                 walkTarget = sHit.position;
                             }
@@ -1289,19 +1325,35 @@ namespace LlamAcademy.Dinos.Unit
         private static Wall EnsureDynamicWall(Collider col)
         {
             if (col == null) return null;
-            Transform root = col.transform.root;
+
+            // 1. Nếu col hoặc bất kỳ cha nào đã có sẵn component Wall thì dùng luôn, tuyệt đối không tạo thêm!
+            Wall existingWall = col.GetComponentInParent<Wall>();
+            if (existingWall != null) return existingWall;
+
+            // 2. Chỉ leo lên các đối tượng cấp prefab đơn lẻ, KHÔNG leo lên các container nhóm cha
             Transform targetT = col.transform;
-            while (targetT.parent != null && targetT.parent != root &&
+            while (targetT.parent != null && targetT.parent != col.transform.root &&
                    !targetT.parent.name.ToLower().Contains("world") &&
                    !targetT.parent.name.ToLower().Contains("props"))
             {
+                string pn = targetT.parent.name.ToLower();
+                if (pn.Contains("fortress") || pn.Contains("wing") || pn.Contains("flank") ||
+                    pn.Contains("gate_complex") || pn.Contains("gate_entryway") ||
+                    pn.Contains("container") || pn.Contains("group"))
+                {
+                    break; // Dừng lại ở đối tượng con, không leo lên container nhóm!
+                }
                 targetT = targetT.parent;
             }
 
             string n = targetT.gameObject.name.ToLower();
 
-            // Tuyệt đối KHÔNG biến cầu, sàn gỗ, đường đi, mặt đất thành tường
-            if (n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) || n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
+            // Tuyệt đối KHÔNG biến container nhóm, chòi canh lớn, cổng vòm, cầu, sàn gỗ, đường đi, mặt đất thành tường
+            if (n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
+                n == "right_flank_wall" || n == "gate_complex" || n == "gate_entryway" ||
+                n.Contains("big tower") || n.Contains("arch entry") || n.Contains("watchtower") ||
+                n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) ||
+                n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground"))
             {
                 return null;
             }
@@ -1358,9 +1410,12 @@ namespace LlamAcademy.Dinos.Unit
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
 
-                // A. NẾU ĐÃ ÁP SÁT CỰ LY CẬN CHIẾN (<= AttackRange + agentRadius + 0.8m):
-                // TẤN CÔNG NGAY LẬP TỨC! Không tìm đường vòng hay khe hở xa nữa!
-                if (distToBlocker <= AttackRange + agentRadius + 0.8f)
+                // A. NẾU ĐÃ ÁP SÁT CỰ LY CẬN CHIẾN HOẶC VẬT CẢN TRƯỚC MẶT: TẤN CÔNG NGAY LẬP TỨC!
+                float attackThreshold = (directFrontBlocker is Wall)
+                    ? Mathf.Max(AttackRange + agentRadius + 2.5f, 4.8f)
+                    : (AttackRange + agentRadius + 0.8f);
+
+                if (distToBlocker <= attackThreshold)
                 {
                     return directFrontBlocker;
                 }
@@ -1388,6 +1443,40 @@ namespace LlamAcademy.Dinos.Unit
                 Agent.SetDestination(basePos);
             }
             return null;
+        }
+
+        private IDamageable FindEmergencyWallBlocker(float radius)
+        {
+            int hits = Physics.OverlapSphereNonAlloc(transform.position, radius, ScanBuffer, TargetLayers);
+            IDamageable nearestWall = null;
+            float nearestDist = float.MaxValue;
+
+            for (int i = 0; i < hits; i++)
+            {
+                Collider col = ScanBuffer[i];
+                if (col == null || col.gameObject == gameObject) continue;
+
+                Wall wall = col.GetComponentInParent<Wall>();
+                if (wall == null) wall = EnsureDynamicWall(col);
+                if (wall != null && wall.Health > 0)
+                {
+                    Vector3 closest;
+                    try { closest = col.ClosestPoint(transform.position); }
+                    catch { closest = col.bounds.ClosestPoint(transform.position); }
+
+                    Vector3 flat = closest - transform.position;
+                    flat.y = 0;
+                    float d = flat.magnitude;
+
+                    float dotFwd = Vector3.Dot(transform.forward, flat.normalized);
+                    if (dotFwd >= -0.2f && d < nearestDist)
+                    {
+                        nearestDist = d;
+                        nearestWall = wall;
+                    }
+                }
+            }
+            return nearestWall;
         }
 
         protected virtual IDamageable FindDirectFrontBlocker(Vector3 myPos, Vector3 basePos, float myDistToBase, Vector3 toBaseDir)
@@ -1445,17 +1534,18 @@ namespace LlamAcademy.Dinos.Unit
 
                 float colDistToBase = Vector3.Distance(closest, basePos);
 
-                // Kiểm tra góc hướng về căn cứ:
+                // Kiểm tra góc hướng về căn cứ và hướng nhìn phía trước:
                 float dotToBase = Vector3.Dot(toBaseDir, dirToCol);
+                float dotForward = Vector3.Dot(transform.forward, dirToCol);
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-                bool isVeryClose = distToCol <= AttackRange + agentRadius + 0.8f;
+                bool isVeryClose = distToCol <= Mathf.Max(AttackRange + agentRadius + 2.0f, 4.8f);
 
                 if (isVeryClose)
                 {
                     // Khi đã ở cự ly áp sát cận chiến (ngay trước mặt):
-                    // Chỉ bỏ qua nếu vật thể THỰC SỰ ở hẳn sau lưng (dot < -0.2f VÀ xa căn cứ hơn 1.2m)
-                    if (dotToBase < -0.2f && colDistToBase > myDistToBase + 1.2f)
+                    // Chỉ bỏ qua nếu vật thể THỰC SỰ ở hẳn sau lưng cả hướng nhìn lẫn căn cứ
+                    if (dotForward < -0.2f && dotToBase < -0.2f && colDistToBase > myDistToBase + 1.2f)
                     {
                         continue;
                     }
@@ -1463,24 +1553,24 @@ namespace LlamAcademy.Dinos.Unit
                 else
                 {
                     // Khi ở xa hơn:
-                    // 1. Phải hướng về phía căn cứ (dotToBase >= 0.15f)
-                    // 2. Không được nằm xa căn cứ hơn khủng long
-                    if (dotToBase < 0.15f || colDistToBase > myDistToBase + 1.0f)
+                    // 1. Phải hướng về phía căn cứ (dotToBase >= 0.05f) hoặc nằm ngay trước mặt (dotForward >= 0.25f)
+                    // 2. Không được nằm xa căn cứ hơn khủng long quá 1.5m
+                    if ((dotToBase < 0.05f && dotForward < 0.25f) || colDistToBase > myDistToBase + 1.5f)
                     {
                         continue;
                     }
 
-                    // 3. Nằm trong hành lang di chuyển về căn cứ
+                    // 3. Nằm trong hành lang di chuyển về căn cứ (mở rộng lên 5.5m để bao quát 2 cánh)
                     float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, flatToCol));
-                    if (lateralOffset > 4.5f)
+                    if (lateralOffset > 5.5f)
                     {
                         continue;
                     }
                 }
 
-                // Điểm số ưu tiên: Càng gần và càng thẳng hướng căn cứ thì điểm càng cao
-                float closeBonus = isVeryClose ? 200f : 0f;
-                float score = closeBonus + (dotToBase * 15f) - distToCol;
+                // Điểm số ưu tiên: Càng gần và càng thẳng hướng căn cứ / hướng nhìn thì điểm càng cao
+                float closeBonus = isVeryClose ? 250f : 0f;
+                float score = closeBonus + (dotToBase * 15f) + (dotForward * 10f) - distToCol;
 
                 if (score > bestScore)
                 {

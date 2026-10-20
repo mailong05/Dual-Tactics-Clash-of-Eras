@@ -142,6 +142,24 @@ namespace LlamAcademy.Dinos.Utility
                         continue;
                     }
 
+                    // TỐI ƯU HÓA GIAO DIỆN & SẠCH SẼ MÀN HÌNH:
+                    // Đối với các công trình tĩnh (tường thành, rào cọc gỗ, barricade), CHỈ HIỂN THỊ thanh máu khi đã bị tổn thương (Health < MaxHealth).
+                    // Khi còn nguyên vẹn 100% máu, ẩn thanh máu đi để không làm ngập tràn che kín màn hình với hàng chục thanh máu xanh.
+                    // Căn cứ làng (PrehistoricVillageBase) và các tháp của người chơi vẫn luôn hiển thị bình thường.
+                    bool isWallStructure = (keyValuePair.Key is Unit.Wall) || 
+                        keyValuePair.Key.gameObject.name.ToLower().Contains("wall") ||
+                        keyValuePair.Key.gameObject.name.ToLower().Contains("barricade") ||
+                        keyValuePair.Key.gameObject.name.ToLower().Contains("plank_defenses");
+
+                    if (isWallStructure && !(keyValuePair.Key is Unit.PrehistoricVillageBase) && keyValuePair.Key.Health >= keyValuePair.Key.MaxHealth)
+                    {
+                        if (keyValuePair.Value.gameObject.activeSelf)
+                        {
+                            keyValuePair.Value.gameObject.SetActive(false);
+                        }
+                        continue;
+                    }
+
                     if (!keyValuePair.Value.gameObject.activeSelf)
                     {
                         keyValuePair.Value.gameObject.SetActive(true);

@@ -86,6 +86,12 @@ namespace LlamAcademy.Dinos.AI
 
         private void HandleGameStateChange(GameState oldState, GameState newState)
         {
+            // Tách biệt hoàn toàn: Tuyệt đối không sinh quái địch trong chế độ Khủng Long Công Thành (Dino Assault)
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             // Khi PrehistoricGameplayManager đang quản lý wave của game (10 Wave chuẩn),
             // AdaptiveWaveManager tuyệt đối không tự ý spawn trùng lặp wave quái riêng biệt
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
@@ -101,6 +107,12 @@ namespace LlamAcademy.Dinos.AI
 
         public void StartNextAdaptiveWave()
         {
+            // Tách biệt hoàn toàn: Tuyệt đối không sinh quái địch trong chế độ Khủng Long Công Thành (Dino Assault)
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
             {
                 return;
@@ -112,6 +124,11 @@ namespace LlamAcademy.Dinos.AI
 
         private IEnumerator SpawnAdaptiveWaveRoutine()
         {
+            // Tách biệt hoàn toàn: Tuyệt đối không sinh quái địch trong chế độ Khủng Long Công Thành (Dino Assault)
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                yield break;
+            }
             CurrentWave = RoundManager.Instance != null ? RoundManager.Instance.Round : CurrentWave;
             OnWaveStarted?.Invoke(CurrentWave);
 

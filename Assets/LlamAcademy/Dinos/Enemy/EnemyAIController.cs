@@ -485,6 +485,14 @@ namespace LlamAcademy.Dinos.Enemy
         /// <returns>The amount spent</returns>
         private int SpawnNewTroops(float resourceSpend, int maxSpend)
         {
+            // QUY ĐỊNH NGHIÊM NGẶT SỐ LƯỢNG NPC: Khi PrehistoricGameplayManager đang quản lý,
+            // số lượng NPC luôn được thiết lập cố định chuẩn xác theo từng màn (6, 8, 10, ...),
+            // không cho phép legacy AI tự động tiêu tài nguyên để sinh thêm quân tràn lan.
+            if (LlamAcademy.Dinos.RoundManagement.PrehistoricGameplayManager.Instance != null)
+            {
+                return 0;
+            }
+
             int remainingSpend = Mathf.CeilToInt(maxSpend * resourceSpend);
             int initialSpend = remainingSpend;
 

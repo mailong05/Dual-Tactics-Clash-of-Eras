@@ -9,7 +9,7 @@ namespace LlamAcademy.Dinos.Unit
 {
     public class Wall : Unit
     {
-        [SerializeField] private GameObject Root;
+        [field: SerializeField] public GameObject Root { get; set; }
         [field: SerializeField] public float HealthToCostMultiplier { get; private set; } = 0.2f;
         [SerializeField] private NavMeshUpdateData UpdateNavMeshData;
 

@@ -241,7 +241,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             AdaptiveWaveManager waveMgr = AdaptiveWaveManager.Instance != null ? AdaptiveWaveManager.Instance : FindFirstObjectByType<AdaptiveWaveManager>();
             if (waveMgr != null)
             {
-                // PrehistoricGameplayManager làm chủ toàn bộ wave trong Tower Defense; tắt AdaptiveWaveManager để triệt tiêu sinh quái trùng lặp
+                // Tắt triệt để mọi Coroutine của AdaptiveWaveManager để không bao giờ sinh quái ngẫu nhiên
+                waveMgr.StopAllCoroutines();
                 waveMgr.enabled = false;
             }
 
@@ -256,10 +257,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    // Khởi tạo lượng thịt ban đầu cân bằng (60 thịt)
-                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < 60)
+                    // Khởi tạo lượng thịt ban đầu dồi dào (250 thịt cơ bản + 75 thịt mỗi cấp màn)
+                    int targetMeat = 250 + (AssaultLevel - 1) * 75;
+                    if (Application.isPlaying && dinoSpawner.ResourcesToSpend < targetMeat)
                     {
-                        dinoSpawner.ResourcesToSpend = 60;
+                        dinoSpawner.ResourcesToSpend = targetMeat;
                     }
                 }
             }
@@ -581,9 +583,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
-            if (GUILayout.Button("+30 Thịt", GUILayout.Width(75), GUILayout.Height(26)))
+            if (GUILayout.Button("+100 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
             {
-                if (spawner != null) spawner.ResourcesToSpend += 30;
+                if (spawner != null) spawner.ResourcesToSpend += 100;
             }
             GUILayout.EndHorizontal();
 
@@ -741,6 +743,20 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             AssaultPhase = PrehistoricAssaultPhase.Combat;
             _DefeatCheckTimer = 0f;
+
+            // TÁCH BIỆT TRIỆT ĐỂ: Dừng hoàn toàn AdaptiveWaveManager và PrehistoricGameplayManager,
+            // đảm bảo KHÔNG MỘT CON KHỦNG LONG LẠ NÀO tự ý xuất hiện khi bấm Xuất quân
+            AdaptiveWaveManager waveMgr = AdaptiveWaveManager.Instance != null ? AdaptiveWaveManager.Instance : FindFirstObjectByType<AdaptiveWaveManager>();
+            if (waveMgr != null)
+            {
+                waveMgr.StopAllCoroutines();
+                waveMgr.enabled = false;
+            }
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.StopAllCoroutines();
+            }
+
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.State = GameState.Running;
@@ -963,11 +979,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 NavMeshManager.Instance.RecalculateTriangulation(true);
             }
 
-            // 5. Làm mới và hồi phục toàn bộ NPC Thợ săn / Cung thủ phòng thủ làng
+            // 5. Làm mới và hồi phục toàn bộ NPC Thợ săn / Cung thủ phòng thủ làng theo quy định nghiêm ngặt của màn
             EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
             if (enemyAI != null)
             {
-                enemyAI.ResetDefendersToExactCount(4 + (level - 1) * 3);
+                enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(level));
             }
         }
 
@@ -1017,7 +1033,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend += 60;
+                spawner.ResourcesToSpend += 120; // Thưởng thịt dồi dào (+120) khi thắng màn
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1026,7 +1042,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RoundManager.Instance.State = GameState.Setup;
             }
 
-            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Giữ nguyên đội quân sống sót (+40% HP), Làng tăng cường phòng tuyến, nhận +60 Thịt!");
+            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Giữ nguyên đội quân sống sót (+40% HP), Làng tăng cường phòng tuyến, nhận +120 Thịt!");
         }
 
         public void RetryCurrentAssaultLevel()
@@ -1036,11 +1052,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Tái thiết lập phòng tuyến làng cho màn hiện tại
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Hồi phục lượng thịt ban đầu cân bằng (60 thịt)
+            // Hồi phục lượng thịt dồi dào theo màn
+            int targetMeat = 250 + (AssaultLevel - 1) * 75;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
-            if (spawner != null && spawner.ResourcesToSpend < 60)
+            if (spawner != null && spawner.ResourcesToSpend < targetMeat)
             {
-                spawner.ResourcesToSpend = 60;
+                spawner.ResourcesToSpend = targetMeat;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1059,7 +1076,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = 60;
+                spawner.ResourcesToSpend = 250;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1070,7 +1087,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             Debug.Log("<color=cyan>[Assault Reset]</color> Chơi lại chế độ Công Thành từ Màn 1!");
         }
 
-        private void ClearAllDinos()
+        public void ClearAllDinos()
         {
             var allDinos = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
             foreach (var d in allDinos)

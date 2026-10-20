@@ -309,6 +309,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void Update()
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
             {
                 return;
@@ -472,6 +477,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void StartNextWave()
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault) return;
             if (_CurrentPhase != PrehistoricWavePhase.BuildingPhase) return;
 
             // Xóa sạch toàn bộ quái vật còn sót lại từ đợt cũ trước khi bắt đầu đợt mới
@@ -490,6 +496,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private IEnumerator SpawnWaveRoutine(int waveIndex)
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault) yield break;
             ActiveMonsters.Clear();
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
             {
@@ -920,22 +927,30 @@ namespace LlamAcademy.Dinos.RoundManagement
             return ActiveMonsters.Contains(unit);
         }
 
-        public int GetTargetDefendersForWave(int wave)
+        public static int GetTargetDefendersForWave(int wave)
         {
-            // Màn 1: 4 NPC | Màn 2: 7 NPC | Màn 3: 10 NPC (VD: 10 NPC) | Màn 4: 13 NPC | Màn 5: 16 NPC
-            return Mathf.Clamp(4 + (wave - 1) * 3, 4, 25);
+            // Quy định nghiêm ngặt 100% số lượng NPC theo mỗi màn:
+            // Màn 1: 6 NPC | Màn 2: 8 NPC | Màn 3: 10 NPC (khớp đúng ví dụ) | Màn 4: 12 NPC | Màn 5: 14 NPC
+            // Màn 6: 16 NPC | Màn 7: 18 NPC | Màn 8: 20 NPC | Màn 9: 22 NPC | Màn 10+: 24 NPC
+            return Mathf.Clamp(4 + wave * 2, 6, 24);
         }
 
         public void EnsureVillageDefendersActive()
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
                 ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
                 : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
             if (ai != null)
             {
                 ai.enabled = true;
-                ai.ResourcesToSpend += 300 + (_CurrentWave * 80);
-                ai.EnsureDefendersAlive(GetTargetDefendersForWave(_CurrentWave));
+                int targetCount = GetTargetDefendersForWave(_CurrentWave);
+                // Luôn reset chính xác số lượng NPC theo quy định màn, không thừa không thiếu
+                ai.ResetDefendersToExactCount(targetCount);
             }
         }
 
@@ -1083,22 +1098,29 @@ namespace LlamAcademy.Dinos.RoundManagement
                 EnsureNavMeshObstacle(rt, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
             }
 
-            // Mái Vòm Cổng Thành Tiền Sử (Archway)
+            // Tạo nhóm Gate_Entryway đại diện cho TOÀN BỘ CỔNG (Khung cổng vòm gỗ + Đuốc + Cánh cổng chắn)
+            GameObject gateEntryway = new GameObject("Gate_Entryway");
+            gateEntryway.transform.SetParent(gateGroup.transform);
+
+            // Mái Vòm Cổng Thành Tiền Sử (Archway - Cổng gỗ 3 cột trong Ảnh 3)
+            GameObject arch = null;
             if (archPrefab != null)
             {
-                GameObject arch = Instantiate(archPrefab, new Vector3(-2.2f, 0.2f, wallZ), Quaternion.identity, gateGroup.transform);
+                arch = Instantiate(archPrefab, new Vector3(-2.2f, 0.2f, wallZ), Quaternion.identity, gateEntryway.transform);
                 arch.name = "Gate_Overhead_Arch";
                 arch.transform.localScale = new Vector3(0.74f, 0.75f, 0.7f);
             }
 
             // Đuốc Lửa Cổng Thành
+            GameObject tl = null;
+            GameObject tr = null;
             if (torchPrefab != null)
             {
-                GameObject tl = Instantiate(torchPrefab, new Vector3(-4.5f, 0f, wallZ + 1.6f), Quaternion.identity, gateGroup.transform);
+                tl = Instantiate(torchPrefab, new Vector3(-4.5f, 0f, wallZ + 1.6f), Quaternion.identity, gateEntryway.transform);
                 tl.name = "Gate_Torch_Left";
                 tl.transform.localScale = Vector3.one * 1.3f;
 
-                GameObject tr = Instantiate(torchPrefab, new Vector3(0.1f, 0f, wallZ + 1.6f), Quaternion.identity, gateGroup.transform);
+                tr = Instantiate(torchPrefab, new Vector3(0.1f, 0f, wallZ + 1.6f), Quaternion.identity, gateEntryway.transform);
                 tr.name = "Gate_Torch_Right";
                 tr.transform.localScale = Vector3.one * 1.3f;
             }
@@ -1106,15 +1128,23 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Cánh Cổng Gỗ Kiên Cố Chắn Khủng Long (1000 HP)
             if (barricadePrefab != null)
             {
-                GameObject gateBar = Instantiate(barricadePrefab, new Vector3(-2.2f, 0f, wallZ), Quaternion.identity, gateGroup.transform);
+                GameObject gateBar = Instantiate(barricadePrefab, new Vector3(-2.2f, 0f, wallZ), Quaternion.identity, gateEntryway.transform);
                 gateBar.name = "Gate_Portcullis_Barricade";
                 gateBar.transform.localScale = new Vector3(1.8f, 1.4f, 1.0f);
-                if (gateBar.TryGetComponent(out Unit.Unit ugb))
+                if (gateBar.TryGetComponent(out Unit.Wall ugb))
                 {
                     if (barricadeSO != null) ugb.UnitType = barricadeSO;
                     ugb.Health = 1000;
                     ugb.MaxHealth = 1000;
                     ugb.EnsureHealthBarAttached();
+                    // Khi cánh cổng hết máu, làm biến mất TOÀN BỘ CỔNG (Gate_Entryway gồm Khung cổng vòm, Đuốc, và Cánh cổng)
+                    ugb.Root = gateEntryway;
+                    ugb.OnDeath += (deadUnit) => {
+                        if (gateEntryway != null) gateEntryway.SetActive(false);
+                        if (arch != null) arch.SetActive(false);
+                        if (tl != null) tl.SetActive(false);
+                        if (tr != null) tr.SetActive(false);
+                    };
                 }
                 EnsureNavMeshObstacle(gateBar, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
             }
@@ -1282,6 +1312,22 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void ConfigureAllCustomBarricades()
         {
+            // Dọn dẹp component Wall/NavMeshObstacle/BoxCollider nếu vô tình bị gán trên các container nhóm cha
+            string[] containerNames = new string[] {
+                "Village_Fortress_Wall", "Left_Wing_Wall", "Right_Wing_Wall", "Right_Flank_Wall",
+                "Gate_Complex", "Gate_Entryway"
+            };
+            foreach (var cName in containerNames)
+            {
+                GameObject cObj = GameObject.Find(cName);
+                if (cObj != null)
+                {
+                    if (cObj.TryGetComponent(out Unit.Wall errW)) Destroy(errW);
+                    if (cObj.TryGetComponent(out BoxCollider errB)) Destroy(errB);
+                    if (cObj.TryGetComponent(out UnityEngine.AI.NavMeshObstacle errO)) Destroy(errO);
+                }
+            }
+
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             var barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
             if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
@@ -1292,10 +1338,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name.ToLower();
 
+                // Dọn dẹp component Wall/NavMeshObstacle nếu vô tình bị gán trên Big Tower hoặc Arch Entry trong làng
+                if (n.Contains("big tower") || n.Contains("arch entry"))
+                {
+                    if (t.TryGetComponent(out Unit.Wall errW)) Destroy(errW);
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle errO)) Destroy(errO);
+                    continue;
+                }
+
                 // 1. Bỏ qua các container rỗng hoặc đối tượng hệ thống không phải tường, và TUYỆT ĐỐI không biến cầu/đường đi thành tường
                 if (n == "gate_complex" || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" || n == "right_flank_wall" ||
                     n.Contains("bridge") || (n.Contains("plank") && !n.Contains("defenses")) || n.Contains("road") || n.Contains("path") || n.Contains("walkway") ||
-                    n.Contains("floor") || n.Contains("ground") ||
+                    n.Contains("floor") || n.Contains("ground") || n.Contains("watchtower") ||
                     n.Contains("camera") || n.Contains("light") || n.Contains("spawn") ||
                     n.Contains("system") || n.Contains("event") || n.Contains("healthbar") ||
                     n.Contains("canvas") || n.Contains("ui") || n.Contains("dino") ||
@@ -1614,17 +1668,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 enemyAI.enabled = true;
                 int defenderCount = GetTargetDefendersForWave(_CurrentWave);
-                if (!keepPlayerTowers)
-                {
-                    // Chơi lại màn X hoặc Chơi lại từ đầu: Reset chính xác 100% số lượng NPC theo quy định của màn
-                    enemyAI.ResetDefendersToExactCount(defenderCount);
-                }
-                else
-                {
-                    // Chuyển màn mới thông thường: Giữ NPC của người chơi, bổ sung đủ số lượng NPC làng
-                    enemyAI.ClearAllDefenders(includePlayerPlaced: false);
-                    enemyAI.EnsureDefendersAlive(defenderCount);
-                }
+                // Luôn luôn reset chính xác 100% số lượng NPC theo quy định của màn
+                enemyAI.ResetDefendersToExactCount(defenderCount);
             }
 
             // 7. Dọn sạch các thanh máu rác/mồ côi nếu có trên màn hình
@@ -1709,13 +1754,35 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void StartNewGameFromMenu()
         {
+            Time.timeScale = 1.0f;
+
+            // 1. Dọn sạch 100% khủng long của cả 2 chế độ và ép buộc chuyển Game Mode về Thủ thành (Tower Defense)
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                PrehistoricGameModeManager.Instance.ClearAllDinos();
+                PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
+            }
+
+            // 2. Kích hoạt lại PrehistoricGameplayManager
+            enabled = true;
+
+            // 3. Reset toàn bộ game từ Màn 1 (xóa tháp cũ, 500 vàng, 6 NPC, BuildingPhase)
             FullResetGame();
+
+            // 4. Đóng Menu Chính
             if (UI.PrehistoricMainMenu.Instance != null)
             {
                 UI.PrehistoricMainMenu.Instance.IsOpen = false;
             }
+
+            // 5. Đặt lại góc nhìn Camera về mặc định phòng thủ làng
+            if (Player.CameraControl.Instance != null)
+            {
+                Player.CameraControl.Instance.SetPerspective(Player.CameraPerspective.Rear_TowerDefense);
+            }
+
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
-            ShowAnnouncement("⚔ BẮT ĐẦU MỚI (ĐỢT 1)! HÃY ĐẶT THÁP PHÒNG THỦ! ⚔", 4.0f);
+            ShowAnnouncement("⚔️ BẮT ĐẦU MỚI (ĐỢT 1)! HÃY ĐẶT THÁP PHÒNG THỦ! 🛡️", 4.0f);
         }
 
         public void ContinueGameFromMenu()
@@ -1786,6 +1853,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
             PrehistoricDinoBase.ClearClipsCache();
 
+            // Dọn sạch khủng long và thiết lập lại trạng thái nếu đang ở chế độ Công Thành
+            if (PrehistoricGameModeManager.Instance != null)
+            {
+                PrehistoricGameModeManager.Instance.ClearAllDinos();
+                PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
+            }
+
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             if (UI.PrehistoricSettingsMenu.Instance != null)
@@ -1809,6 +1888,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnGUI()
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
             {
                 return;

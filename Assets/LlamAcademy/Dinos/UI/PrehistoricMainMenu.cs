@@ -373,9 +373,12 @@ namespace LlamAcademy.Dinos.UI
         private void OnNewGameClicked()
         {
             IsOpen = false;
-            if (PrehistoricGameplayManager.Instance != null)
+            var mgr = PrehistoricGameplayManager.Instance != null 
+                ? PrehistoricGameplayManager.Instance 
+                : FindFirstObjectByType<PrehistoricGameplayManager>();
+            if (mgr != null)
             {
-                PrehistoricGameplayManager.Instance.StartNewGameFromMenu();
+                mgr.StartNewGameFromMenu();
             }
         }
 
