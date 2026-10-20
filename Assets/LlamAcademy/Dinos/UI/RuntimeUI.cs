@@ -111,9 +111,13 @@ namespace LlamAcademy.Dinos.UI
 
         private void Update()
         {
+            if (Keyboard.current == null || Dinos == null) return;
+
             foreach (DinoSO dino in Dinos)
             {
-                if (Keyboard.current[dino.Hotkey].wasReleasedThisFrame && DinoToButtonDictionary[dino].enabledSelf)
+                if (dino == null || !DinoToButtonDictionary.ContainsKey(dino)) continue;
+
+                if (Keyboard.current[dino.Hotkey] != null && Keyboard.current[dino.Hotkey].wasReleasedThisFrame && DinoToButtonDictionary[dino].enabledSelf)
                 {
                     SelectDino(dino);
                     AnimateClick(DinoToButtonDictionary[dino]);
