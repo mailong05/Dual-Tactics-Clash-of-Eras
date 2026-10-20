@@ -183,6 +183,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     foreach (var d in dinos) { if (d != null && d.Health > 0) livingDinos++; }
                     var stds = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
                     foreach (var d in stds) { if (d != null && d.Health > 0) livingDinos++; }
+                    var flyings = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
+                    foreach (var f in flyings) { if (f != null && f.Health > 0) livingDinos++; }
 
                     DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
                     int food = spawner != null ? spawner.ResourcesToSpend : 0;
@@ -992,49 +994,18 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             AssaultLevel++;
 
-            // GIỮ NGUYÊN ĐỘI QUÂN KHỦNG LONG: Hồi máu +40% cho các khủng long sống sót và dừng lại chờ xuất quân
-            var dinoBases = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
-            foreach (var d in dinoBases)
-            {
-                if (d != null && d.Health > 0)
-                {
-                    d.Health = Mathf.Min(d.MaxHealth, d.Health + Mathf.RoundToInt(d.MaxHealth * 0.4f));
-                    d.EnsureHealthBarAttached();
-                    var agent = d.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
-                }
-            }
-
-            var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
-            foreach (var d in stdDinos)
-            {
-                if (d != null && d.Health > 0)
-                {
-                    d.Health = Mathf.Min(d.MaxHealth, d.Health + Mathf.RoundToInt(d.MaxHealth * 0.4f));
-                    d.EnsureHealthBarAttached();
-                    var agent = d.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
-                }
-            }
-
-            var flyingUnits = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
-            foreach (var f in flyingUnits)
-            {
-                if (f != null && f.Health > 0)
-                {
-                    f.Health = Mathf.Min(f.MaxHealth, f.Health + Mathf.RoundToInt(f.MaxHealth * 0.4f));
-                    f.EnsureHealthBarAttached();
-                }
-            }
+            // Dọn dẹp sạch toàn bộ khủng long đợt trước khi qua màn mới
+            ClearAllDinos();
 
             // Khôi phục và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Thưởng thịt cân bằng cho màn kế tiếp (+60 thịt)
+            // Cung cấp thịt dồi dào theo màn mới để người chơi dàn trận
+            int targetMeat = 250 + (AssaultLevel - 1) * 75;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend += 120; // Thưởng thịt dồi dào (+120) khi thắng màn
+                spawner.ResourcesToSpend = Mathf.Max(spawner.ResourcesToSpend + 120, targetMeat);
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1043,7 +1014,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RoundManager.Instance.State = GameState.Setup;
             }
 
-            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Giữ nguyên đội quân sống sót (+40% HP), Làng tăng cường phòng tuyến, nhận +120 Thịt!");
+            Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Đã dọn sạch khủng long cũ, cấp thịt dồi dào cho màn mới!");
         }
 
         public void RetryCurrentAssaultLevel()
@@ -1093,17 +1064,56 @@ namespace LlamAcademy.Dinos.RoundManagement
             var allDinos = FindObjectsByType<Unit.PrehistoricDinoBase>(FindObjectsSortMode.None);
             foreach (var d in allDinos)
             {
-                if (d != null) Destroy(d.gameObject);
+                if (d != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    Destroy(d.gameObject);
+                }
             }
             var stdDinos = FindObjectsByType<Unit.Dino>(FindObjectsSortMode.None);
             foreach (var d in stdDinos)
             {
-                if (d != null) Destroy(d.gameObject);
+                if (d != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    Destroy(d.gameObject);
+                }
             }
             var flyDinos = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
             foreach (var d in flyDinos)
             {
-                if (d != null) Destroy(d.gameObject);
+                if (d != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    Destroy(d.gameObject);
+                }
+            }
+            var runnerDinos = FindObjectsByType<Unit.RunnerDino>(FindObjectsSortMode.None);
+            foreach (var d in runnerDinos)
+            {
+                if (d != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    Destroy(d.gameObject);
+                }
+            }
+            var siegeDinos = FindObjectsByType<Unit.SiegeDino>(FindObjectsSortMode.None);
+            foreach (var d in siegeDinos)
+            {
+                if (d != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    Destroy(d.gameObject);
+                }
+            }
+            var bossDinos = FindObjectsByType<Unit.BossDino>(FindObjectsSortMode.None);
+            foreach (var d in bossDinos)
+            {
+                if (d != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
+                    Destroy(d.gameObject);
+                }
             }
             if (RoundManager.Instance != null)
             {
@@ -1137,11 +1147,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label("<size=14><b><color=#55FF55>📊 THÔNG SỐ ĐỘ KHÓ MÀN TIẾP THEO (MÀN " + (AssaultLevel + 1) + "):</color></b></size>");
-            GUILayout.Label($"• <b>Bảo toàn quân lực</b>: Giữ nguyên bầy khủng long còn sống sót (+ hồi phục 40% HP)!\n" +
+            GUILayout.Label($"• <b>Dàn trận màn mới</b>: Làm sạch chiến trường, cấp {250 + AssaultLevel * 75} Thịt để tự do bố trí đội quân mới!\n" +
                             $"• <b>Phòng tuyến Làng củng cố</b>: Tái lập & bổ sung Máy bắn đá, Tháp nỏ, Cột sét, Bẫy gai!\n" +
-                            $"• <b>Quân phòng thủ Làng (NPC)</b>: {4 + AssaultLevel * 3} quân (+3 quân chi viện)\n" +
+                            $"• <b>Quân phòng thủ Làng (NPC)</b>: {PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel + 1)} quân phòng thủ\n" +
                             $"• <b>Máu Căn Cứ Làng</b>: {1000 + AssaultLevel * 350} HP (+350 HP)\n" +
-                            $"• <b>Chi viện lương thực</b>: +60 Thịt chiêu mộ thêm khủng long!");
+                            $"• <b>Chiến thuật</b>: Lựa chọn chủng loại khủng long phù hợp để đột phá và chiếm thành!");
             GUILayout.EndVertical();
 
             GUILayout.Space(16);

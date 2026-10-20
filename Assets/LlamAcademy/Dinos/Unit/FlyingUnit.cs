@@ -27,8 +27,14 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = 140;
-            Health = 140;
+            MaxHealth = 200;
+            Health = 200;
+            if (GetComponent<Collider>() == null && GetComponentInChildren<Collider>() == null)
+            {
+                SphereCollider sc = gameObject.AddComponent<SphereCollider>();
+                sc.radius = 1.2f;
+                sc.center = Vector3.zero;
+            }
 
             Transform modelChild = transform.Find("Model");
             VisualModel = modelChild != null ? modelChild : (transform.childCount > 0 ? transform.GetChild(0) : transform);

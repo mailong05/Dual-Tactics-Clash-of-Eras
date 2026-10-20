@@ -340,56 +340,56 @@ namespace LlamAcademy.Dinos.AI
             switch (waveIndex)
             {
                 case 1:
-                    raptorCount = 5;
+                    raptorCount = 10;
                     break;
                 case 2:
-                    raptorCount = 5;
-                    pteroCount = 2;
+                    raptorCount = 10;
+                    pteroCount = 4;
                     break;
                 case 3:
-                    raptorCount = 6;
-                    pteroCount = 2;
-                    ankylCount = 1;
+                    raptorCount = 12;
+                    pteroCount = 5;
+                    ankylCount = 3;
                     break;
                 case 4:
-                    raptorCount = 7;
-                    pteroCount = 3;
-                    ankylCount = 2;
+                    raptorCount = 14;
+                    pteroCount = 6;
+                    ankylCount = 4;
                     break;
                 case 5:
-                    raptorCount = 8;
-                    pteroCount = 4;
-                    ankylCount = 3;
+                    raptorCount = 16;
+                    pteroCount = 7;
+                    ankylCount = 5;
                     break;
                 case 6:
-                    raptorCount = 10;
-                    pteroCount = 5;
-                    ankylCount = 3;
+                    raptorCount = 18;
+                    pteroCount = 8;
+                    ankylCount = 6;
                     break;
                 case 7:
-                    raptorCount = 10;
-                    pteroCount = 5;
-                    ankylCount = 5;
+                    raptorCount = 20;
+                    pteroCount = 9;
+                    ankylCount = 7;
                     break;
                 case 8:
-                    raptorCount = 12;
-                    pteroCount = 6;
-                    ankylCount = 5;
+                    raptorCount = 22;
+                    pteroCount = 10;
+                    ankylCount = 8;
                     break;
                 case 9:
-                    raptorCount = 14;
-                    pteroCount = 7;
-                    ankylCount = 6;
+                    raptorCount = 24;
+                    pteroCount = 11;
+                    ankylCount = 9;
                     break;
                 case 10:
                 default:
-                    raptorCount = 10;
-                    pteroCount = 4;
-                    ankylCount = 3;
+                    raptorCount = 18;
+                    pteroCount = 10;
+                    ankylCount = 5;
                     break;
             }
 
-            bool spawnBoss = (waveIndex == 10);
+                        bool spawnBoss = (waveIndex == 10);
 
             string rationale = "";
 

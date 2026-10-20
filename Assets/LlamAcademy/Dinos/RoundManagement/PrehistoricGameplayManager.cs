@@ -549,6 +549,14 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         ActiveMonsters.Add(unitComp);
                         unitComp.OnDeath += HandleMonsterDeath;
+
+                        // TĂNG MÁU KHỦNG LONG THEO MỖI MÀN (+20% mỗi màn) ĐỂ CÂN BẰNG VỚI SỐ LƯỢNG NPC PHÒNG THỦ LÀNG
+                        float waveHpMult = 1.0f + (waveIndex - 1) * 0.20f;
+                        int baseHp = unitComp.MaxHealth > 0 ? unitComp.MaxHealth : (unitComp.UnitType != null ? unitComp.UnitType.Health : 280);
+                        int scaledMaxHp = Mathf.RoundToInt(baseHp * waveHpMult);
+                        unitComp.MaxHealth = scaledMaxHp;
+                        unitComp.Health = scaledMaxHp;
+                        unitComp.EnsureHealthBarAttached();
                     }
 
                     if (spawned.TryGetComponent(out Unit.PrehistoricDinoBase dinoBase))
@@ -616,68 +624,69 @@ namespace LlamAcademy.Dinos.RoundManagement
             switch (waveIndex)
             {
                 case 1:
-                    // Wave 1: 5 Velociraptors (Làm quen, nhịp độ vừa phải cân bằng)
-                    AddMultiple(queue, RaptorPrefab, 5);
+                    // Wave 1: 10 Velociraptors (Cân bằng với 10 NPC phòng thủ)
+                    AddMultiple(queue, RaptorPrefab, 10);
                     break;
                 case 2:
-                    // Wave 2: 5 Raptors + 2 Pterodactyls (Tổng: 7 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 5);
-                    AddMultiple(queue, PterodactylPrefab, 2);
+                    // Wave 2: 10 Raptors + 4 Pterodactyls (Tổng: 14 khủng long vs 13 NPC)
+                    AddMultiple(queue, RaptorPrefab, 10);
+                    AddMultiple(queue, PterodactylPrefab, 4);
                     break;
                 case 3:
-                    // Wave 3: 6 Raptors + 2 Pterodactyls + 1 Ankylosaurus (Tổng: 9 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 6);
-                    AddMultiple(queue, PterodactylPrefab, 2);
-                    AddMultiple(queue, AnkylosaurusPrefab, 1);
+                    // Wave 3: 12 Raptors + 5 Pterodactyls + 3 Ankylosaurus (Tổng: 20 khủng long vs 16 NPC)
+                    AddMultiple(queue, RaptorPrefab, 12);
+                    AddMultiple(queue, PterodactylPrefab, 5);
+                    AddMultiple(queue, AnkylosaurusPrefab, 3);
                     break;
                 case 4:
-                    // Wave 4: 7 Raptors + 3 Pterodactyls + 2 Ankylosaurus (Tổng: 12 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 7);
-                    AddMultiple(queue, PterodactylPrefab, 3);
-                    AddMultiple(queue, AnkylosaurusPrefab, 2);
+                    // Wave 4: 14 Raptors + 6 Pterodactyls + 4 Ankylosaurus (Tổng: 24 khủng long vs 19 NPC)
+                    AddMultiple(queue, RaptorPrefab, 14);
+                    AddMultiple(queue, PterodactylPrefab, 6);
+                    AddMultiple(queue, AnkylosaurusPrefab, 4);
                     break;
                 case 5:
-                    // Wave 5: 8 Raptors + 4 Pterodactyls + 3 Ankylosaurus (Tổng: 15 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 8);
-                    AddMultiple(queue, PterodactylPrefab, 4);
-                    AddMultiple(queue, AnkylosaurusPrefab, 3);
+                    // Wave 5: 16 Raptors + 7 Pterodactyls + 5 Ankylosaurus (Tổng: 28 khủng long vs 22 NPC)
+                    AddMultiple(queue, RaptorPrefab, 16);
+                    AddMultiple(queue, PterodactylPrefab, 7);
+                    AddMultiple(queue, AnkylosaurusPrefab, 5);
                     break;
                 case 6:
-                    // Wave 6: 10 Raptors + 5 Pterodactyls + 3 Ankylosaurus (Tổng: 18 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 10);
-                    AddMultiple(queue, PterodactylPrefab, 5);
-                    AddMultiple(queue, AnkylosaurusPrefab, 3);
+                    // Wave 6: 18 Raptors + 8 Pterodactyls + 6 Ankylosaurus (Tổng: 32 khủng long vs 25 NPC)
+                    AddMultiple(queue, RaptorPrefab, 18);
+                    AddMultiple(queue, PterodactylPrefab, 8);
+                    AddMultiple(queue, AnkylosaurusPrefab, 6);
                     break;
                 case 7:
-                    // Wave 7: 10 Raptors + 5 Pterodactyls + 5 Ankylosaurus (Tổng: 20 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 10);
-                    AddMultiple(queue, PterodactylPrefab, 5);
-                    AddMultiple(queue, AnkylosaurusPrefab, 5);
+                    // Wave 7: 20 Raptors + 9 Pterodactyls + 7 Ankylosaurus (Tổng: 36 khủng long vs 28 NPC)
+                    AddMultiple(queue, RaptorPrefab, 20);
+                    AddMultiple(queue, PterodactylPrefab, 9);
+                    AddMultiple(queue, AnkylosaurusPrefab, 7);
                     break;
                 case 8:
-                    // Wave 8: 12 Raptors + 6 Pterodactyls + 5 Ankylosaurus (Tổng: 23 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 12);
-                    AddMultiple(queue, PterodactylPrefab, 6);
-                    AddMultiple(queue, AnkylosaurusPrefab, 5);
+                    // Wave 8: 22 Raptors + 10 Pterodactyls + 8 Ankylosaurus (Tổng: 40 khủng long vs 31 NPC)
+                    AddMultiple(queue, RaptorPrefab, 22);
+                    AddMultiple(queue, PterodactylPrefab, 10);
+                    AddMultiple(queue, AnkylosaurusPrefab, 8);
                     break;
                 case 9:
-                    // Wave 9: 14 Raptors + 7 Pterodactyls + 6 Ankylosaurus (Tổng: 27 khủng long)
-                    AddMultiple(queue, RaptorPrefab, 14);
-                    AddMultiple(queue, PterodactylPrefab, 7);
-                    AddMultiple(queue, AnkylosaurusPrefab, 6);
+                    // Wave 9: 24 Raptors + 11 Pterodactyls + 9 Ankylosaurus (Tổng: 44 khủng long vs 34 NPC)
+                    AddMultiple(queue, RaptorPrefab, 24);
+                    AddMultiple(queue, PterodactylPrefab, 11);
+                    AddMultiple(queue, AnkylosaurusPrefab, 9);
                     break;
                 case 10:
                 default:
-                    // Wave 10: TRẬN CHIẾN CUỐI CÙNG - BOSS T-REX APEX CÙNG ĐỘI HỘ VỆ! (Tổng: 18)
-                    AddMultiple(queue, RaptorPrefab, 6);
-                    AddMultiple(queue, PterodactylPrefab, 4);
-                    AddMultiple(queue, AnkylosaurusPrefab, 3);
+                    // Wave 10: TRẬN CHIẾN CUỐI CÙNG - BOSS T-REX APEX CÙNG ĐỘI QUÂN HỘ VỆ! (Tổng: 33)
+                    AddMultiple(queue, RaptorPrefab, 10);
+                    AddMultiple(queue, PterodactylPrefab, 6);
+                    AddMultiple(queue, AnkylosaurusPrefab, 5);
                     queue.Add(TRexBossPrefab); // The mighty T-Rex Apex Boss!
-                    AddMultiple(queue, RaptorPrefab, 4);
+                    AddMultiple(queue, RaptorPrefab, 8);
+                    AddMultiple(queue, PterodactylPrefab, 4);
                     break;
             }
 
-            // Shuffle queue slightly so monster types alternate naturally
+                        // Shuffle queue slightly so monster types alternate naturally
             for (int i = 0; i < queue.Count - 2; i++)
             {
                 int r = UnityEngine.Random.Range(i, queue.Count);

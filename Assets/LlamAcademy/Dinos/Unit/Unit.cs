@@ -52,7 +52,7 @@ namespace LlamAcademy.Dinos.Unit
                 AttackRadius.OnTargetExit += OnTargetExit;
             }
 
-            if (UnitType != null)
+            if (UnitType != null && MaxHealth <= 0)
             {
                 MaxHealth = UnitType.Health;
                 Health = UnitType.Health;
