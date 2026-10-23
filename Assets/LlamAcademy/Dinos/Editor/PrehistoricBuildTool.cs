@@ -297,7 +297,7 @@ namespace LlamAcademy.Dinos.Editor
         public static void CommandLineBuild()
         {
             string outputPath = GetDefaultOutputPath();
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "-outputPath" && i + 1 < args.Length)

@@ -940,11 +940,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void SetupVillageDefensesForLevel(int level)
         {
-            // 0. Phục hồi 100% tất cả tường thành và rào chắn (kể cả những tường đã bị phá hủy / vô hiệu hóa ở màn trước)
+            // 0. Phục hồi tường hợp lệ (không phục hồi tường cảnh mặc định đã bị vô hiệu hóa)
             var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var wall in allWalls)
             {
-                if (wall != null)
+                if (wall != null && (wall.gameObject.name.Contains("(Clone)") || wall.gameObject.name.Contains("Assault_Wall")))
                 {
                     wall.FullRestore();
                 }
