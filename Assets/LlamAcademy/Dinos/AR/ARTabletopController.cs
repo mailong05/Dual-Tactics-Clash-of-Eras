@@ -75,6 +75,7 @@ namespace LlamAcademy.Dinos.AR
             }
 
             ARControlPill = new GameObject("AR_Mode_Toggle_Button");
+            ARControlPill.SetActive(false); // Ẩn uGUI pill để dùng nút bấm đồng bộ trong thanh điều khiển góc phải
             ARControlPill.transform.SetParent(canvas.transform, false);
 
             RectTransform rt = ARControlPill.AddComponent<RectTransform>();

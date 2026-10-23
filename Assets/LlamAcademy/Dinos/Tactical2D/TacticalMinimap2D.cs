@@ -21,7 +21,7 @@ namespace LlamAcademy.Dinos.Tactical2D
         [Header("Minimap 3D Coordinate Mapping")]
         [SerializeField] private Vector2 MapWorldSize = new Vector2(60f, 85f); // 3D bounds coverage
         [SerializeField] private Vector2 MapWorldCenter = new Vector2(0f, -5f);
-        [SerializeField] private float RadarDiameter = 190f;
+        [SerializeField] private float RadarDiameter = 160f;
 
         [Header("State")]
         [SerializeField] private bool IsMinimapVisible = true;
@@ -81,8 +81,8 @@ namespace LlamAcademy.Dinos.Tactical2D
             MinimapContainer.anchorMin = new Vector2(1f, 1f);
             MinimapContainer.anchorMax = new Vector2(1f, 1f);
             MinimapContainer.pivot = new Vector2(1f, 1f);
-            MinimapContainer.anchoredPosition = new Vector2(-20f, -115f);
-            MinimapContainer.sizeDelta = new Vector2(RadarDiameter, RadarDiameter + 30f);
+            MinimapContainer.anchoredPosition = new Vector2(-16f, -14f);
+            MinimapContainer.sizeDelta = new Vector2(RadarDiameter, RadarDiameter + 24f);
 
             // Radar Circular Background Frame
             Image bg = rootGO.AddComponent<Image>();

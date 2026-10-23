@@ -74,27 +74,34 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// <param name="rebuildEnemySurface"></param>
         public void RecalculateTriangulation(bool rebuildEnemySurface = false)
         {
-            NavMesh.RemoveAllNavMeshData();
             if (rebuildEnemySurface)
             {
-                if (EnemySurface != null)
+                try
                 {
-                    EnemySurface.BuildNavMesh();
-                }
-
-                if (DinoSurfaces != null)
-                {
-                    foreach (NavMeshSurface surface in DinoSurfaces)
+                    if (EnemySurface != null)
                     {
-                        if (surface != null)
+                        EnemySurface.BuildNavMesh();
+                    }
+
+                    if (DinoSurfaces != null)
+                    {
+                        foreach (NavMeshSurface surface in DinoSurfaces)
                         {
-                            surface.BuildNavMesh();
+                            if (surface != null)
+                            {
+                                surface.BuildNavMesh();
+                            }
                         }
                     }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[NavMeshManager] Note on rebuilding surfaces: {ex.Message}");
                 }
             }
             else
             {
+                NavMesh.RemoveAllNavMeshData();
                 if (EnemySurface != null && EnemySurface.navMeshData != null)
                 {
                     NavMesh.AddNavMeshData(EnemySurface.navMeshData);

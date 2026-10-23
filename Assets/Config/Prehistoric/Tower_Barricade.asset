@@ -22,7 +22,7 @@ MonoBehaviour:
   <DisplayName>k__BackingField: "R\xE0o C\u1ECDc G\u1ED7 C\u1EA3n \u0110\u01B0\u1EDDng"
   <Description>k__BackingField: 
   <Sprite>k__BackingField: {fileID: 0}
-  <Cost>k__BackingField: 20
+  <Cost>k__BackingField: 5
   <Hotkey>k__BackingField: 47
   <IsWall>k__BackingField: 1
   <CanTargetFlying>k__BackingField: 1

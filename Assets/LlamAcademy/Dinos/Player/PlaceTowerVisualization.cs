@@ -100,10 +100,12 @@ namespace LlamAcademy.Dinos.Player
 
             EnsureFootprintIndicator();
 
-            // Instantiate ghost preview — dùng SetParent(true) để giữ nguyên world scale gốc của prefab
-            CurrentPreviewInstance = Instantiate(prefabObj, transform.position, Quaternion.identity);
-            CurrentPreviewInstance.transform.SetParent(transform, true);
+            // Instantiate ghost preview — giữ nguyên local rotation identity và scale chuẩn đồng bộ 100% với góc đặt
+            CurrentPreviewInstance = Instantiate(prefabObj, transform.position, transform.rotation);
+            CurrentPreviewInstance.transform.SetParent(transform, false);
             CurrentPreviewInstance.transform.localPosition = Vector3.zero;
+            CurrentPreviewInstance.transform.localRotation = Quaternion.identity;
+            CurrentPreviewInstance.transform.localScale = prefabObj.transform.localScale;
 
             // Vô hiệu hóa toàn bộ Collider trên preview ghost
             foreach (Collider c in CurrentPreviewInstance.GetComponentsInChildren<Collider>(true))

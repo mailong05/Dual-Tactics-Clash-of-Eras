@@ -153,7 +153,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
             // Phím tắt M / F1 đổi chế độ trong trận đã được chuyển ra Menu Chính
-            if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame || Keyboard.current.f1Key.wasPressedThisFrame))
+            if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame))
             {
                 if (PrehistoricGameplayManager.Instance != null)
                 {
@@ -403,34 +403,35 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawTopModeBanner()
         {
-            float width = 250f;
-            float height = 48f;
-            float x = Mobile.MobileUIHelper.ScreenWidth - width - 20f;
-            float y = 15f;
+            // Bố trí ở góc trên bên trái, nằm ngay cạnh nút Cài Đặt/Menu để giải phóng toàn bộ góc phải
+            float width = 205f;
+            float height = 34f;
+            float x = 175f;
+            float y = 168f;
 
             Rect bannerRect = new Rect(x, y, width, height);
             Mobile.MobileUIHelper.RegisterUIRect(bannerRect);
 
-            GUILayout.BeginArea(bannerRect, GUI.skin.box);
-            GUILayout.BeginHorizontal();
-
             string modeText;
             if (_CurrentMode == PrehistoricGameMode.TowerDefense)
             {
-                modeText = "<b><color=#55FF55>🛡️ CHẾ ĐỘ: THỦ THÀNH</color></b>";
+                modeText = "<b><color=#55FF55>🛡️ THỦ THÀNH</color></b> <size=10><color=#CCCCCC>(Đổi Mode)</color></size>";
             }
             else
             {
-                string baseHpStr = (VillageBase != null && VillageBase.Health > 0)
-                    ? $" ({VillageBase.Health}/{VillageBase.MaxHealth} HP)"
-                    : "";
-                modeText = $"<b><color=#FF5555>🦖 CÔNG THÀNH - MÀN {AssaultLevel}</color></b>\n<size=11><color=#FFD700>🏛️ Căn Cứ Làng:{baseHpStr}</color></size>";
+                string baseHpStr = (VillageBase != null && VillageBase.Health > 0) ? $" ({VillageBase.Health} HP)" : "";
+                modeText = $"<b><color=#FF7755>🦖 CÔNG THÀNH M{AssaultLevel}</color></b><size=10><color=#FFD700>{baseHpStr}</color></size>";
             }
 
-            GUILayout.Label(modeText, GUILayout.Height(36));
+            Color oldBg = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.15f, 0.22f, 0.30f, 0.90f);
 
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+            if (GUI.Button(bannerRect, modeText))
+            {
+                ShowModeSelectModal = !ShowModeSelectModal;
+            }
+
+            GUI.backgroundColor = oldBg;
         }
 
         private void DrawModeSelectionModal()
@@ -667,6 +668,48 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GUILayout.EndHorizontal();
                 GUILayout.EndArea();
             }
+
+            // 3. Right-Side Utility Dock in Assault Mode (Đồng bộ với chế độ Thủ thành)
+            float dockWidth = 165f;
+            float rightX = Mobile.MobileUIHelper.ScreenWidth - dockWidth - 16f;
+            float dockY = 208f;
+            float btnH = 28f;
+
+            // Nút Bật/Tắt AI Director
+            Rect aiRect = new Rect(rightX, dockY, dockWidth, btnH);
+            Mobile.MobileUIHelper.RegisterUIRect(aiRect);
+            bool isAiOpen = UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen;
+            GUI.backgroundColor = isAiOpen ? new Color(0.2f, 0.9f, 0.6f, 0.95f) : new Color(0.12f, 0.28f, 0.36f, 0.88f);
+            if (GUI.Button(aiRect, isAiOpen ? "<b>🧠 AI Monitor: [BẬT]</b>" : "<b>🧠 AI Director [F1]</b>"))
+            {
+                UI.PrehistoricNeuralMonitorUI.Instance?.ToggleWindow();
+            }
+            dockY += btnH + 6f;
+
+            // Nút Chuyển Đổi Chế Độ AR
+            Rect arRect = new Rect(rightX, dockY, dockWidth, btnH);
+            Mobile.MobileUIHelper.RegisterUIRect(arRect);
+            bool isArActive = AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
+            GUI.backgroundColor = isArActive ? new Color(0.9f, 0.4f, 0.2f, 0.95f) : new Color(0.15f, 0.35f, 0.75f, 0.88f);
+            if (GUI.Button(arRect, isArActive ? "<b>🔙 THOÁT AR (3D)</b>" : "<b>📱 CHẾ ĐỘ AR</b>"))
+            {
+                AR.ARTabletopController.Instance?.ToggleARMode();
+            }
+            dockY += btnH + 6f;
+
+            // Nút Toàn Màn Hình [F11] trên PC
+            if (!Mobile.MobileUIHelper.IsMobile)
+            {
+                Rect fsRect = new Rect(rightX, dockY, dockWidth, btnH);
+                Mobile.MobileUIHelper.RegisterUIRect(fsRect);
+                GUI.backgroundColor = Screen.fullScreen ? new Color(0.2f, 0.7f, 0.9f, 0.85f) : new Color(0.22f, 0.24f, 0.28f, 0.88f);
+                string fsLabel = Screen.fullScreen ? "<b>⛶ CỬA SỔ [F11]</b>" : "<b>⛶ FULLSCREEN [F11]</b>";
+                if (GUI.Button(fsRect, fsLabel))
+                {
+                    Screen.fullScreen = !Screen.fullScreen;
+                }
+            }
+            GUI.backgroundColor = Color.white;
         }
 
         public void EnsureVillageBase()

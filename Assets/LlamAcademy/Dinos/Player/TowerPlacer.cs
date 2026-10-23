@@ -15,7 +15,7 @@ namespace LlamAcademy.Dinos.Player
         public static TowerPlacer Instance { get; private set; }
 
         [Header("Economy")]
-        [SerializeField] private int _Gold = 500;
+        [SerializeField] private int _Gold = 700;
         public int Gold
         {
             get => _Gold;
@@ -114,6 +114,9 @@ namespace LlamAcademy.Dinos.Player
             if (container == null)
             {
                 container = new GameObject("[Player_Placed_Towers]");
+                container.transform.position = Vector3.zero;
+                container.transform.rotation = Quaternion.identity;
+                container.transform.localScale = Vector3.one;
             }
             return container.transform;
         }
@@ -183,8 +186,10 @@ namespace LlamAcademy.Dinos.Player
         public void SelectTower(TowerSO tower)
         {
             SelectedTower = tower;
+            _CurrentRotationY = 0f;
             if (Visualization != null)
             {
+                Visualization.transform.rotation = Quaternion.identity;
                 Visualization.ChangeTower(SelectedTower);
             }
         }
@@ -192,8 +197,10 @@ namespace LlamAcademy.Dinos.Player
         public void DeselectTower()
         {
             SelectedTower = null;
+            _CurrentRotationY = 0f;
             if (Visualization != null)
             {
+                Visualization.transform.rotation = Quaternion.identity;
                 Visualization.ChangeTower(null);
             }
         }
@@ -381,6 +388,10 @@ namespace LlamAcademy.Dinos.Player
         public void RotateTower45()
         {
             _CurrentRotationY = (_CurrentRotationY + 45f) % 360f;
+            if (Visualization != null)
+            {
+                Visualization.transform.rotation = Quaternion.Euler(0f, _CurrentRotationY, 0f);
+            }
         }
 
         public void ConfirmPlacementFromUI()
@@ -460,10 +471,20 @@ namespace LlamAcademy.Dinos.Player
                 AlignTowerToGround(towerUnit.gameObject, position.y);
             }
 
-            // Recalculate NavMesh if placing a wall or obstacle structure
-            if (SelectedTower.IsWall && NavMeshManager.Instance != null)
+            // Cấu hình NavMeshObstacle cho tường vừa đặt để khắc sâu tức thì vào NavMesh
+            // Tuyệt đối không gọi RecalculateTriangulation(true) để tránh xóa sạch NavMesh làm vỡ agent và ném lỗi Failed to create agent
+            if (SelectedTower.IsWall)
             {
-                NavMeshManager.Instance.RecalculateTriangulation(true);
+                if (towerUnit.TryGetComponent(out NavMeshObstacle obs))
+                {
+                    obs.enabled = true;
+                    obs.carving = true;
+                    obs.carveOnlyStationary = false;
+                }
+                if (NavMeshManager.Instance != null)
+                {
+                    NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+                }
             }
 
             // Phân nhóm và đánh dấu công trình do người chơi đặt
