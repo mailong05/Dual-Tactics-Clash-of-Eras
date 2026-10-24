@@ -133,6 +133,22 @@ namespace LlamAcademy.Dinos.Player
                 }
             }
 
+            // Enforce upright and level ground placement on Model child during ghost preview
+            Transform previewModel = CurrentPreviewInstance.transform.Find("Model");
+            if (previewModel != null)
+            {
+                if (prefabObj.name.Contains("Catapult") || towerSO.name.Contains("Catapult"))
+                {
+                    previewModel.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                    previewModel.localPosition = new Vector3(0f, 1.4613f, 0f);
+                }
+                else if (prefabObj.name.Contains("Totem") || towerSO.name.Contains("Totem"))
+                {
+                    previewModel.localRotation = Quaternion.identity;
+                    previewModel.localPosition = new Vector3(-0.0389f, 0.5159f, -0.0028f);
+                }
+            }
+
             // Collect renderers and apply ghost material if provided
             Renderer[] childRenderers = CurrentPreviewInstance.GetComponentsInChildren<Renderer>(true);
             foreach (Renderer r in childRenderers)

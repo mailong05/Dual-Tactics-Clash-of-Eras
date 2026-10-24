@@ -606,8 +606,37 @@ namespace LlamAcademy.Dinos.Unit
 
             if (ModelAnimator != null)
             {
+                if (ModelAnimator.runtimeAnimatorController == null)
+                {
+                    string dinoName = gameObject.name.ToLower();
+                    if (dinoName.Contains("trex") || dinoName.Contains("t-rex") || this is BossDino)
+                    {
+                        ModelAnimator.runtimeAnimatorController = Resources.Load<RuntimeAnimatorController>("Animations/TRex_Controller");
+                    }
+                    else if (dinoName.Contains("velo") || this is RunnerDino)
+                    {
+                        ModelAnimator.runtimeAnimatorController = Resources.Load<RuntimeAnimatorController>("Animations/Velociraptor_Controller");
+                    }
+                }
+
                 ModelAnimator.enabled = true;
+                ModelAnimator.applyRootMotion = false;
                 ModelAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            }
+
+            if (gameObject.name.ToLower().Contains("trex") || this is BossDino)
+            {
+                Material trexMat = Resources.Load<Material>("Materials/M_TRex");
+                if (trexMat != null)
+                {
+                    foreach (var r in GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (r.sharedMaterial == null || r.sharedMaterial.name.Contains("Default") || r.sharedMaterial.name.Contains("None"))
+                        {
+                            r.sharedMaterial = trexMat;
+                        }
+                    }
+                }
             }
         }
 
@@ -786,6 +815,12 @@ namespace LlamAcademy.Dinos.Unit
 
         private async void TryLoadGlbAnimations()
         {
+            // If the model already has an active Animator with a controller (e.g. PBR Raptor, T-Rex FBX), use Mecanim directly!
+            if (ModelAnimator != null && ModelAnimator.runtimeAnimatorController != null)
+            {
+                return;
+            }
+
             string glbName = GetModelGlbFileName();
             if (s_ClipsCache.TryGetValue(glbName, out var cachedClips))
             {
@@ -939,6 +974,14 @@ namespace LlamAcademy.Dinos.Unit
             {
                 Agent.isStopped = false;
                 Agent.SetDestination(TargetBase.position);
+
+                if (ModelAnimator != null && ModelAnimator.enabled)
+                {
+                    SetAnimatorBoolIfExists(ModelAnimator, "IsMoving", true);
+                    SetAnimatorBoolIfExists(ModelAnimator, "Walk", true);
+                    SetAnimatorFloatIfExists(ModelAnimator, "Speed", MoveSpeed > 0 ? MoveSpeed : 2.5f);
+                    ModelAnimator.Play("Walk", 0, 0f);
+                }
             }
 
             EnsureHealthBarAttached();
@@ -955,6 +998,14 @@ namespace LlamAcademy.Dinos.Unit
             {
                 Agent.isStopped = false;
                 Agent.SetDestination(destination);
+
+                if (ModelAnimator != null && ModelAnimator.enabled)
+                {
+                    SetAnimatorBoolIfExists(ModelAnimator, "IsMoving", true);
+                    SetAnimatorBoolIfExists(ModelAnimator, "Walk", true);
+                    SetAnimatorFloatIfExists(ModelAnimator, "Speed", MoveSpeed > 0 ? MoveSpeed : 2.5f);
+                    ModelAnimator.Play("Walk", 0, 0f);
+                }
             }
         }
 
@@ -1346,7 +1397,7 @@ namespace LlamAcademy.Dinos.Unit
         protected virtual void UpdateAnimation(float currentSpeed)
         {
             _CurrentSpeed = currentSpeed;
-            bool isMoving = currentSpeed > 0.15f;
+            bool isMoving = currentSpeed > 0.15f || (Agent != null && Agent.hasPath && !Agent.isStopped && Agent.remainingDistance > 0.5f);
 
             // Nhịp bước đi tăng tiến mượt mà theo vận tốc di chuyển
             if (isMoving)
@@ -1443,8 +1494,7 @@ namespace LlamAcademy.Dinos.Unit
             // Kiểm tra xem có Mecanim hoặc Legacy clip thực sự đang phát cử động xương hay không
             bool hasRealMecanimMotion = ModelAnimator != null 
                 && ModelAnimator.enabled 
-                && ModelAnimator.runtimeAnimatorController != null
-                && ModelAnimator.GetCurrentAnimatorClipInfo(0).Length > 0;
+                && ModelAnimator.runtimeAnimatorController != null;
 
             bool hasRealLegacyAnim = ModelLegacyAnimation != null 
                 && ModelLegacyAnimation.enabled 

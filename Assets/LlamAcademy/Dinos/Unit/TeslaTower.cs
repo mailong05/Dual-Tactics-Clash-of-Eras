@@ -22,6 +22,22 @@ namespace LlamAcademy.Dinos.Unit
         private float LastAttackTime;
         private Collider[] OverlapBuffer = new Collider[20];
 
+        protected override void Awake()
+        {
+            base.Awake();
+
+            // Enforce 100% upright pillar placement (no pitch or roll tilt)
+            Vector3 euler = transform.eulerAngles;
+            transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
+
+            Transform model = transform.Find("Model");
+            if (model != null)
+            {
+                model.localRotation = Quaternion.identity;
+                model.localPosition = new Vector3(-0.0389f, 0.5159f, -0.0028f);
+            }
+        }
+
         protected override void Start()
         {
             base.Start();

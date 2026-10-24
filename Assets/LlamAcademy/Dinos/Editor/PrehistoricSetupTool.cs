@@ -770,7 +770,7 @@ namespace LlamAcademy.Dinos.Editor
                     if (explosionVFX != null) so.FindProperty("ImpactExplosionVFX").objectReferenceValue = explosionVFX.GetComponent<ParticleSystem>();
                     so.ApplyModifiedPropertiesWithoutUndo();
                 },
-                customRotation: Vector3.zero);
+                customRotation: new Vector3(0f, 180f, 0f));
 
             // 4. Cột Vật Tổ Sét (Shaman Totem - Height 4.2m, Upright Tauren Pillar Vector3.zero)
             createdPrefabs["ShamanTotem"] = CreateOrUpdatePrefab(
@@ -855,19 +855,34 @@ namespace LlamAcademy.Dinos.Editor
                 },
                 GetDinoRotation("Assets/pterodactyl_1.glb"));
 
-            // 9. Khủng Long Chạy Nhanh Velociraptor (Pack Runner: Length 1.6m, Height ~0.85m, nimble swarm)
+            // 9. Khủng Long Chạy Nhanh Velociraptor (Pack Runner: Length 1.6m, Height ~1.6m, nimble swarm)
             createdPrefabs["Velociraptor"] = CreateOrUpdatePrefab(
-                "Assets/velociraptor.glb",
+                "Assets/PBRVelociraptor/Prefabs/PBR/15K/PBR_Velociraptor_Green.prefab",
                 $"{PREFAB_DIR}/Prefab_Velociraptor.prefab",
                 1.6f,
                 DimensionMode.MaxExtent,
                 go =>
                 {
-                    if (!go.TryGetComponent(out RunnerDino _)) go.AddComponent<RunnerDino>();
-                    EnsureCapsuleCollider(go, 0.4f, 1.0f);
-                    EnsureNavMeshAgent(go, 5.5f, 0.4f, 1.0f);
+                    if (!go.TryGetComponent(out RunnerDino runner)) runner = go.AddComponent<RunnerDino>();
+                    EnsureCapsuleCollider(go, 0.45f, 1.6f);
+                    EnsureNavMeshAgent(go, 5.5f, 0.45f, 1.6f);
+
+                    Animator anim = go.GetComponentInChildren<Animator>(true);
+                    if (anim != null)
+                    {
+                        anim.applyRootMotion = false;
+                        anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                        var ctrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Resources/Animations/Velociraptor_Controller.controller");
+                        if (ctrl != null) anim.runtimeAnimatorController = ctrl;
+
+                        var so = new SerializedObject(runner);
+                        so.FindProperty("ModelAnimator").objectReferenceValue = anim;
+                        Transform visual = go.transform.Find("Model");
+                        if (visual != null) so.FindProperty("VisualModel").objectReferenceValue = visual;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                    }
                 },
-                GetDinoRotation("Assets/velociraptor.glb"));
+                Vector3.zero);
 
             // 10. Khủng Long Công Thành Ankylosaurus (Siege Tank: Length 5.0m, Width ~2.1m, Height ~2.0m)
             createdPrefabs["Ankylosaurus"] = CreateOrUpdatePrefab(
@@ -885,17 +900,41 @@ namespace LlamAcademy.Dinos.Editor
 
             // 11. Boss T-Rex Khổng Lồ (Apex Boss: Towering Height 5.5m, Length ~11.5m, Width ~3.1m)
             createdPrefabs["TRexBoss"] = CreateOrUpdatePrefab(
-                "Assets/animated_t-rex_dinosaur_biting_attack_loop.glb",
+                "Assets/Animations/Dino/T-rex/T-Rex.fbx",
                 $"{PREFAB_DIR}/Prefab_TRexBoss.prefab",
                 5.5f,
                 DimensionMode.Height,
                 go =>
                 {
-                    if (!go.TryGetComponent(out BossDino _)) go.AddComponent<BossDino>();
+                    if (!go.TryGetComponent(out BossDino boss)) boss = go.AddComponent<BossDino>();
                     EnsureCapsuleCollider(go, 1.8f, 5.5f);
                     EnsureNavMeshAgent(go, 2.4f, 1.8f, 5.5f);
+
+                    Material trexMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Animations/Dino/T-rex/M_TRex.mat");
+                    if (trexMat != null)
+                    {
+                        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                        {
+                            r.sharedMaterial = trexMat;
+                        }
+                    }
+
+                    Animator anim = go.GetComponentInChildren<Animator>(true);
+                    if (anim != null)
+                    {
+                        anim.applyRootMotion = false;
+                        anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                        var ctrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Resources/Animations/TRex_Controller.controller");
+                        if (ctrl != null) anim.runtimeAnimatorController = ctrl;
+
+                        var so = new SerializedObject(boss);
+                        so.FindProperty("ModelAnimator").objectReferenceValue = anim;
+                        Transform visual = go.transform.Find("Model");
+                        if (visual != null) so.FindProperty("VisualModel").objectReferenceValue = visual;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                    }
                 },
-                GetDinoRotation("Assets/animated_t-rex_dinosaur_biting_attack_loop.glb"));
+                Vector3.zero);
 
             return createdPrefabs;
         }

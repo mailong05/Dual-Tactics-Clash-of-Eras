@@ -28,6 +28,23 @@ namespace LlamAcademy.Dinos.Unit
         private Collider[] OverlapBuffer = new Collider[25];
         private bool IsLaunching = false;
 
+        protected override void Awake()
+        {
+            base.Awake();
+
+            // Enforce 100% upright and level ground placement (no X/Z pitch tilt, all 4 wheels on ground)
+            Vector3 euler = transform.eulerAngles;
+            transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
+
+            Transform model = transform.Find("Model");
+            if (model != null)
+            {
+                // The raw GLB catapult fires towards -Z. Rotate 180 degrees around Y so the firing basket faces +Z (target/forward).
+                model.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                model.localPosition = new Vector3(0f, 1.4613f, 0f);
+            }
+        }
+
         protected override void Start()
         {
             base.Start();
