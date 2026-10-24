@@ -18,6 +18,7 @@ namespace LlamAcademy.Dinos.Player
         }
 
         public static DinoSpawner Instance { get; private set; }
+        public bool AllowPlacingDinos { get; set; } = true;
         public delegate void SpawnDinoEvent(Unit.Unit spawnedDino);
         public event SpawnDinoEvent OnSpawnDino;
         public delegate void DinoDeathEvent(Unit.Unit deadDino);
@@ -90,8 +91,6 @@ namespace LlamAcademy.Dinos.Player
             }
         }
 
-        private float _PassiveFoodTimer = 0f;
-
         public void Update()
         {
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.DinoAssault)
@@ -99,16 +98,28 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            // Hồi phục lượng thịt định kỳ chậm rãi và cân bằng (+2 thịt mỗi 2.5 giây)
-            _PassiveFoodTimer += Time.deltaTime;
-            if (_PassiveFoodTimer >= 2.5f)
+            // Thịt được cấp cố định theo từng màn, KHÔNG tự động tăng liên tục
+            // Sau khi bấm Xuất quân (Combat phase), khóa hoàn toàn việc đặt thêm khủng long
+            bool isSetupPhase = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup;
+            if (PrehistoricGameModeManager.Instance != null)
             {
-                _PassiveFoodTimer = 0f;
-                ResourcesToSpend += 2;
+                isSetupPhase = (PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Setup);
             }
 
-            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
-            bool canPlace = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup || RoundManager.Instance.State == GameState.Running || isAssault;
+            bool canPlace = isSetupPhase && AllowPlacingDinos;
+            if (!canPlace)
+            {
+                if (SpawnDino != null)
+                {
+                    SpawnDino = null;
+                }
+                if (Visualization != null && Visualization.gameObject.activeSelf)
+                {
+                    Visualization.ChangeDino(null);
+                }
+                return;
+            }
+
             if (canPlace)
             {
                 if (Camera == null) Camera = Camera.main;
@@ -227,7 +238,7 @@ namespace LlamAcademy.Dinos.Player
                             }
                         }
 
-                        bool isCombatActive = isAssault && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.IsAssaultActive;
+                        bool isCombatActive = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault && PrehistoricGameModeManager.Instance.IsAssaultActive;
                         if (isCombatActive)
                         {
                             if (navAgent != null && navAgent.isOnNavMesh)
@@ -281,6 +292,13 @@ namespace LlamAcademy.Dinos.Player
 
         public void ChangeActiveDino(DinoSO Dino)
         {
+            if (!AllowPlacingDinos)
+            {
+                SpawnDino = null;
+                if (Visualization != null) Visualization.ChangeDino(null);
+                return;
+            }
+
             SpawnDino = Dino;
             if (Visualization != null)
             {

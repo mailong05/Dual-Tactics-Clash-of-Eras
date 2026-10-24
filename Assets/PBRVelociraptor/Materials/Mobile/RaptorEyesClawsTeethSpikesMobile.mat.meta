@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d737c3d5f2ef50f4b9a3a0cf85875282
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 165201
+  packageName: PBR Velociraptors
+  packageVersion: 1.2
+  assetPath: Assets/PBRVelociraptor/Materials/Mobile/RaptorEyesClawsTeethSpikesMobile.mat
+  uploadId: 522318

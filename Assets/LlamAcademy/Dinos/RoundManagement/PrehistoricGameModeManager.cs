@@ -183,13 +183,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                     var flyings = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
                     foreach (var f in flyings) { if (f != null && f.Health > 0) livingDinos++; }
 
-                    DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
-                    int food = spawner != null ? spawner.ResourcesToSpend : 0;
-
-                    if (livingDinos == 0 && food < 15)
+                    // Khi da xuat quan (Combat phase): neu toan bo khung long tren san da nga xuong va nha chinh lang van con dung vung -> Xu thua!
+                    if (livingDinos == 0)
                     {
                         _DefeatCheckTimer += Time.deltaTime;
-                        if (_DefeatCheckTimer >= 5.0f)
+                        if (_DefeatCheckTimer >= 1.5f)
                         {
                             TriggerAssaultDefeat();
                         }
@@ -616,6 +614,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GUILayout.BeginArea(dockRect, GUI.skin.box);
                 GUILayout.BeginHorizontal();
 
+                bool isSetupPhaseNow = (AssaultPhase == PrehistoricAssaultPhase.Setup);
+                GUI.enabled = isSetupPhaseNow;
                 for (int i = 0; i < AvailableDinos.Count; i++)
                 {
                     DinoSO d = AvailableDinos[i];
@@ -626,17 +626,23 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                     string displayName = GetDinoDisplayName(d);
                     string hotkey = (!Mobile.MobileUIHelper.IsMobile) ? $"[{i + 1}] " : "";
-                    string btnLabel = $"<b>{hotkey}{displayName}</b>\n<color={(canAfford ? "#FFD700" : "#FFAAAA")}>{d.Cost} thịt</color>";
+                    string btnLabel = isSetupPhaseNow 
+                        ? $"<b>{hotkey}{displayName}</b>\n<color={(canAfford ? "#FFD700" : "#FFAAAA")}>{d.Cost} thịt</color>"
+                        : $"<b>{displayName}</b>\n<color=#888888>[Đã khóa]</color>";
 
                     if (isSelected) GUI.backgroundColor = new Color(1f, 0.3f, 0.2f);
                     else GUI.backgroundColor = canAfford ? new Color(0.2f, 0.25f, 0.3f, 0.95f) : new Color(0.4f, 0.4f, 0.4f, 0.6f);
 
                     if (GUILayout.Button(btnLabel, GUILayout.Height(55), GUILayout.Width(cardWidth)))
                     {
-                        SelectDino(isSelected ? null : d);
-                        Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+                        if (isSetupPhaseNow)
+                        {
+                            SelectDino(isSelected ? null : d);
+                            Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+                        }
                     }
                 }
+                GUI.enabled = true;
 
                 // Nút Xuất Quân đặt ngay bên phải thanh chọn quân, loại bỏ 100% tình trạng chồng chéo
                 bool isSetupPhase = RoundManager.Instance == null || RoundManager.Instance.State == GameState.Setup;
@@ -776,6 +782,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             AssaultPhase = PrehistoricAssaultPhase.Combat;
             _DefeatCheckTimer = 0f;
+
+            // Khóa quyền đặt quân khi đã bấm Xuất Quân
+            DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (spawner != null)
+            {
+                spawner.AllowPlacingDinos = false;
+                spawner.ChangeActiveDino(null);
+            }
+            SelectDino(null);
 
             // TÁCH BIỆT TRIỆT ĐỂ: Dừng hoàn toàn AdaptiveWaveManager và PrehistoricGameplayManager,
             // đảm bảo KHÔNG MỘT CON KHỦNG LONG LẠ NÀO tự ý xuất hiện khi bấm Xuất quân
@@ -944,45 +959,45 @@ namespace LlamAcademy.Dinos.RoundManagement
         private static readonly DefenseSpawnSpec[] VillageDefenseSpecs = new DefenseSpawnSpec[]
         {
             // --- CẤP 1 (3 vũ khí): Tiền đồn mở đầu (quay thẳng hướng cổng làng) ---
-            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-9.5f, 0.25f, -9.5f), Quaternion.Euler(0, 35, 0), 1),
-            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(7.5f, 0.15f, -10.5f), Quaternion.Euler(0, -40, 0), 1),
-            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.05f, -13.0f), Quaternion.identity, 1),
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-9.5f, 0f, -9.5f), Quaternion.Euler(0, 35, 0), 1),
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(7.5f, 0f, -10.5f), Quaternion.Euler(0, -40, 0), 1),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.02f, -13.0f), Quaternion.identity, 1),
 
             // --- CẤP 2 (5 vũ khí): Bổ sung Cột Sét Shaman & Rào chắn gỗ 6m chặn ngang hành lang ---
             new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -16.0f), Quaternion.identity, 2),
             new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(-7.5f, 0f, -18.5f), Quaternion.Euler(0, 15, 0), 2),
 
             // --- CẤP 3 (7 vũ khí): Bổ sung Máy Bắn Đá sân giữa & Bẫy chông quảng trường ---
-            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(7.0f, 0.25f, -21.0f), Quaternion.Euler(0, -23, 0), 3),
-            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.05f, -22.5f), Quaternion.identity, 3),
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(7.0f, 0f, -21.0f), Quaternion.Euler(0, -23, 0), 3),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.02f, -22.5f), Quaternion.identity, 3),
 
             // --- CẤP 4 (9 vũ khí): Bổ sung Tháp Nỏ ngã ba & Cột Sét Shaman sườn phải ---
-            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(-8.0f, 0.15f, -26.0f), Quaternion.Euler(0, 12, 0), 4),
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(-8.0f, 0f, -26.0f), Quaternion.Euler(0, 12, 0), 4),
             new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(6.5f, 0f, -26.0f), Quaternion.Euler(0, -18, 0), 4),
 
             // --- CẤP 5 (11 vũ khí): Pháo đài trung tâm - Máy Bắn Đá căn cứ & Rào chắn gỗ 6m lõi ---
-            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-6.0f, 0.25f, -31.0f), Quaternion.Euler(0, 7, 0), 5),
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(-6.0f, 0f, -31.0f), Quaternion.Euler(0, 7, 0), 5),
             new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -29.5f), Quaternion.identity, 5),
 
             // --- CẤP 6 (13 vũ khí): Cương tỏa căn cứ - Tháp Nỏ bảo vệ & Bẫy chông tiền căn cứ ---
-            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(4.5f, 0.15f, -32.5f), Quaternion.Euler(0, -11, 0), 6),
-            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.05f, -33.0f), Quaternion.identity, 6),
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(4.5f, 0f, -32.5f), Quaternion.Euler(0, -11, 0), 6),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.02f, -33.0f), Quaternion.identity, 6),
 
             // --- CẤP 7 (15 vũ khí): Pháo đài tối cường - Cột Sét điện thờ & Tháp Nỏ sườn xa ---
             new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(-5.0f, 0f, -35.5f), Quaternion.Euler(0, 5, 0), 7),
-            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(-11.5f, 0.15f, -14.5f), Quaternion.Euler(0, 31, 0), 7),
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(-11.5f, 0f, -14.5f), Quaternion.Euler(0, 31, 0), 7),
 
             // --- CẤP 8 (17 vũ khí): Vành đai hỏa ngực - Máy Bắn Đá sườn xa & Bẫy chông áp sát trứng ---
-            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(9.5f, 0.25f, -15.5f), Quaternion.Euler(0, -35, 0), 8),
-            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.05f, -36.5f), Quaternion.identity, 8),
+            new DefenseSpawnSpec("Prefab_Catapult", new Vector3(9.5f, 0f, -15.5f), Quaternion.Euler(0, -35, 0), 8),
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(-2.2f, 0.02f, -36.5f), Quaternion.identity, 8),
 
             // --- CẤP 9 (19 vũ khí): Đại trận tiền sử - Tháp Nỏ chính diện & Cột Bão Sét Shaman ---
-            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(2.0f, 0.15f, -27.5f), Quaternion.Euler(0, -8, 0), 9),
+            new DefenseSpawnSpec("Prefab_Ballista", new Vector3(2.0f, 0f, -27.5f), Quaternion.Euler(0, -8, 0), 9),
             new DefenseSpawnSpec("Prefab_ShamanTotem", new Vector3(5.5f, 0f, -35.0f), Quaternion.Euler(0, -12, 0), 9),
 
             // --- CẤP 10+ (21 vũ khí): Pháo Đài Tối Thượng Hoàng Gia - Rào chắn tử thủ 6m & Bẫy chông bên sườn ---
             new DefenseSpawnSpec("Prefab_Barricade", new Vector3(-2.2f, 0f, -37.2f), Quaternion.identity, 10),
-            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(3.5f, 0.05f, -20.0f), Quaternion.identity, 10)
+            new DefenseSpawnSpec("Prefab_SpikeTrap", new Vector3(3.5f, 0.02f, -20.0f), Quaternion.identity, 10)
         };
 
         /// <summary>
@@ -1053,11 +1068,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 0. Dọn sạch 100% công trình và clone phòng thủ cũ để làm mới hoàn toàn
             CleanAllAssaultDefenses();
 
-            // 1. Phục hồi tường hợp lệ
+            // 1. Phục hồi toàn bộ tường trong làng
             var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var wall in allWalls)
             {
-                if (wall != null && (wall.gameObject.name.Contains("(Clone)") || wall.gameObject.name.Contains("Assault_Wall")))
+                if (wall != null)
                 {
                     wall.FullRestore();
                 }
@@ -1099,26 +1114,28 @@ namespace LlamAcademy.Dinos.RoundManagement
                     Vector3 spawnPos = spec.Position;
                     Quaternion spawnRot = spec.Rotation;
 
-                    // 1. Raycast xuống để tìm chính xác cao độ mặt đất tại vị trí đặt,
-                    // đảm bảo vũ khí và bẫy luôn tiếp đất hoàn hảo trên mọi địa hình, không bao giờ bị chìm dưới đất!
-                    int groundMask = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius");
-                    if (Physics.Raycast(new Vector3(spawnPos.x, 25f, spawnPos.z), Vector3.down, out RaycastHit groundHit, 50f, groundMask))
+                    // 1. Dò tìm chính xác cao độ mặt đất bằng NavMesh hoặc Raycast không xuyên trigger,
+                    // đảm bảo vũ khí và bẫy luôn tiếp đất phẳng phiu, không lơ lửng, không chìm!
+                    if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(spawnPos.x, 0.5f, spawnPos.z), out UnityEngine.AI.NavMeshHit navHit, 3.5f, UnityEngine.AI.NavMesh.AllAreas))
                     {
-                        spawnPos.y = groundHit.point.y;
+                        spawnPos.y = navHit.position.y;
+                    }
+                    else
+                    {
+                        int groundMask = ~LayerMask.GetMask("Ignore Raycast", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius");
+                        if (Physics.Raycast(new Vector3(spawnPos.x, 10f, spawnPos.z), Vector3.down, out RaycastHit groundHit, 20f, groundMask, QueryTriggerInteraction.Ignore))
+                        {
+                            spawnPos.y = Mathf.Clamp(groundHit.point.y, -0.2f, 0.4f);
+                        }
+                        else
+                        {
+                            spawnPos.y = 0.0f;
+                        }
                     }
 
-                    // Độ cao nâng an toàn cho từng loại máy/vũ khí để chân đế/bánh xe đứng vững chãi trên mặt đất
-                    if (spec.PrefabName.Contains("Catapult"))
+                    if (spec.PrefabName.Contains("SpikeTrap"))
                     {
-                        spawnPos.y += 0.25f; // Nâng cao Máy Bắn Đá để 4 bánh xe nổi hoàn toàn trên mặt đất
-                    }
-                    else if (spec.PrefabName.Contains("Ballista"))
-                    {
-                        spawnPos.y += 0.15f; // Tháp Nỏ tiếp đất vững vàng
-                    }
-                    else if (spec.PrefabName.Contains("SpikeTrap"))
-                    {
-                        spawnPos.y += 0.05f; // Bẫy chông nằm sát mặt đất
+                        spawnPos.y += 0.02f;
                     }
 
                     // 2. Định hướng quay thẳng ra cổng làng (facing towards the village gate / entrance)
@@ -1211,23 +1228,50 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void RetryCurrentAssaultLevel()
         {
             ClearAllDinos();
+            CleanAllAssaultDefenses();
 
-            // Tái thiết lập phòng tuyến làng cho màn hiện tại
+            // 1. Phục hồi toàn bộ tường trong làng
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall != null) wall.FullRestore();
+            }
+
+            // 2. Khởi tạo/Hồi phục máu Căn cứ làng theo cấp độ màn chơi
+            EnsureVillageBase();
+            if (VillageBase != null)
+            {
+                int baseHp = 1000 + (AssaultLevel - 1) * 350;
+                VillageBase.RestoreBase(baseHp);
+            }
+
+            // 3. Tái thiết lập phòng tuyến làng cho màn hiện tại
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Hồi phục lượng thịt dồi dào theo màn
+            // 4. Cấp lại đúng số lượng thịt cố định của màn và mở lại quyền đặt quân
             int targetMeat = 250 + (AssaultLevel - 1) * 75;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
-            if (spawner != null && spawner.ResourcesToSpend < targetMeat)
+            if (spawner != null)
             {
                 spawner.ResourcesToSpend = targetMeat;
+                spawner.AllowPlacingDinos = true;
+                spawner.ChangeActiveDino(null);
             }
+            SelectDino(null);
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.State = GameState.Setup;
             }
+
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
+
+            _DefeatCheckTimer = 0f;
+            Debug.Log($"<color=cyan>[Assault Retry]</color> Đã làm mới 100% chiến trường Màn {AssaultLevel}!");
         }
 
         
@@ -1323,19 +1367,43 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             AssaultLevel = 1;
             ClearAllDinos();
+            CleanAllAssaultDefenses();
+
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall != null) wall.FullRestore();
+            }
+
+            EnsureVillageBase();
+            if (VillageBase != null)
+            {
+                VillageBase.RestoreBase(1000);
+            }
+
             SetupVillageDefensesForLevel(1);
 
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
                 spawner.ResourcesToSpend = 250;
+                spawner.AllowPlacingDinos = true;
+                spawner.ChangeActiveDino(null);
             }
+            SelectDino(null);
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.State = GameState.Setup;
             }
+
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
+
+            _DefeatCheckTimer = 0f;
             Debug.Log("<color=cyan>[Assault Reset]</color> Chơi lại chế độ Công Thành từ Màn 1!");
         }
 

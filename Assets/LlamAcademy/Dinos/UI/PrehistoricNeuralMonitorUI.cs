@@ -7,9 +7,12 @@ using UnityEngine.InputSystem;
 namespace LlamAcademy.Dinos.UI
 {
     /// <summary>
-    /// Explainable AI (XAI) Holographic Monitor HUD.
-    /// Visualizes real-time Neural Network telemetry, Softmax distribution, Spatial Route Bias (Q-Learning),
-    /// Deep Learning Mazing adaptation, and Dynamic Difficulty Adjustment (DDA) metrics directly in-game.
+    /// Explainable AI (XAI) Dual Monitor HUD.
+    /// Dedicated telemetry and visualization for BOTH game modes:
+    /// 1. [Thủ Thành - Tower Defense]: Deep Learning (PrehistoricTacticsNet), Softmax distribution,
+    ///    Spatial Route Bias (Q-Learning), Mazing adaptation, and Dynamic Difficulty Adjustment (DDA).
+    /// 2. [Công Thành - Dino Assault]: Village AI Defense Director, Garrison Defenders, Automated Defense Batteries,
+    ///    Tactical Breach Memory, Player Deployed Dino Threat Breakdown, and Reactive Village Defense Strategy.
     /// </summary>
     [DefaultExecutionOrder(-40)]
     public class PrehistoricNeuralMonitorUI : MonoBehaviour
@@ -35,6 +38,8 @@ namespace LlamAcademy.Dinos.UI
 
         [Header("=== Window State ===")]
         [SerializeField] private bool _IsOpen = false;
+        [SerializeField] private int _SelectedModeTab = -1; // -1: Auto, 0: Tower Defense, 1: Dino Assault
+
         public bool IsOpen
         {
             get => _IsOpen;
@@ -49,6 +54,7 @@ namespace LlamAcademy.Dinos.UI
         private GUIStyle _boldLabelStyle;
         private GUIStyle _barBgStyle;
         private GUIStyle _buttonStyle;
+        private GUIStyle _tabButtonStyle;
         private GUIStyle _rationaleBoxStyle;
         private GUIStyle _cardBoxStyle;
         private Texture2D _panelTex;
@@ -84,10 +90,22 @@ namespace LlamAcademy.Dinos.UI
         public void ToggleWindow()
         {
             _IsOpen = !_IsOpen;
-            if (_IsOpen && PrehistoricNeuralDirector.Instance != null)
+            if (_IsOpen)
             {
-                int currentWave = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentWave : 1;
-                PrehistoricNeuralDirector.Instance.Predict(currentWave);
+                // Auto-sync tab with current game mode if auto or switched
+                if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+                {
+                    _SelectedModeTab = 1;
+                }
+                else
+                {
+                    _SelectedModeTab = 0;
+                    if (PrehistoricNeuralDirector.Instance != null)
+                    {
+                        int currentWave = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentWave : 1;
+                        PrehistoricNeuralDirector.Instance.Predict(currentWave);
+                    }
+                }
             }
         }
 
@@ -156,6 +174,13 @@ namespace LlamAcademy.Dinos.UI
                 normal = { textColor = Color.white }
             };
 
+            _tabButtonStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 12,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.white }
+            };
+
             _rationaleBoxStyle = new GUIStyle(GUI.skin.box)
             {
                 normal = { background = _barBgTex, textColor = new Color(0.88f, 1f, 0.92f) },
@@ -189,8 +214,8 @@ namespace LlamAcademy.Dinos.UI
                 // Draw full XAI Monitor window
                 float screenW = Mobile.MobileUIHelper.ScreenWidth;
                 float screenH = Mobile.MobileUIHelper.ScreenHeight;
-                float winWidth = Mathf.Min(600f, screenW * 0.95f);
-                float winHeight = Mathf.Min(650f, screenH * 0.92f);
+                float winWidth = Mathf.Min(620f, screenW * 0.95f);
+                float winHeight = Mathf.Min(680f, screenH * 0.92f);
                 float winX = (screenW - winWidth) * 0.5f;
                 float winY = (screenH - winHeight) * 0.5f;
 
@@ -201,179 +226,74 @@ namespace LlamAcademy.Dinos.UI
 
                 _scrollPos = GUILayout.BeginScrollView(_scrollPos);
 
-                // 1. Header
-                GUILayout.Label("🧠 PREHISTORIC TACTICS NET - AI DIRECTOR", _headerStyle);
+                // 1. Main Header
+                GUILayout.Label("🧠 PREHISTORIC AI DIRECTOR MONITOR", _headerStyle);
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("<color=#55FF88>● ON-DEVICE NEURAL INFERENCE (C#)</color>", _labelStyle);
+                GUILayout.Label("<color=#55FF88>● ON-DEVICE NEURAL & HEURISTIC ENGINE (C#)</color>", _labelStyle);
                 float latency = PrehistoricNeuralDirector.Instance != null ? PrehistoricNeuralDirector.Instance.LastInferenceLatencyMs : 0.05f;
                 GUILayout.Label($"<color=#AAAAAA>⚡ Latency: {latency:F2} ms | Edge AI</color>", _labelStyle);
                 GUILayout.EndHorizontal();
 
                 GUILayout.Space(4);
+
+                // Determine active mode tab
+                int activeTab = _SelectedModeTab;
+                if (activeTab < 0)
+                {
+                    activeTab = (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault) ? 1 : 0;
+                }
+
+                // 2. Mode Tab Switcher
+                GUILayout.BeginHorizontal();
+                Color oldCol = GUI.color;
+
+                bool isTD = (activeTab == 0);
+                GUI.color = isTD ? new Color(0.35f, 1f, 0.75f) : new Color(0.6f, 0.65f, 0.7f);
+                if (GUILayout.Button(isTD ? "▶ 🛡️ THỦ THÀNH (TOWER DEFENSE AI)" : "🛡️ THỦ THÀNH (TOWER DEFENSE AI)", _tabButtonStyle, GUILayout.Height(32)))
+                {
+                    _SelectedModeTab = 0;
+                    activeTab = 0;
+                    if (PrehistoricNeuralDirector.Instance != null)
+                    {
+                        int currentWave = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentWave : 1;
+                        PrehistoricNeuralDirector.Instance.Predict(currentWave);
+                    }
+                }
+
+                bool isAssault = (activeTab == 1);
+                GUI.color = isAssault ? new Color(1f, 0.65f, 0.35f) : new Color(0.6f, 0.65f, 0.7f);
+                if (GUILayout.Button(isAssault ? "▶ ⚔️ CÔNG THÀNH (VILLAGE DEFENSE AI)" : "⚔️ CÔNG THÀNH (VILLAGE DEFENSE AI)", _tabButtonStyle, GUILayout.Height(32)))
+                {
+                    _SelectedModeTab = 1;
+                    activeTab = 1;
+                }
+                GUI.color = oldCol;
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(4);
                 DrawSeparator();
 
-                if (PrehistoricNeuralDirector.Instance != null && PrehistoricNeuralDirector.Instance.HasPrediction)
+                // 3. Render Mode-Specific Telemetry
+                if (activeTab == 0)
                 {
-                    var pred = PrehistoricNeuralDirector.Instance.LatestPrediction;
-
-                    // =========================================================================
-                    // MỤC ĐẶC BIỆT: NHẬN DIỆN CHIẾN THUẬT MAZING CỦA NGƯỜI CHƠI (TỰ DO XÂY TƯỜNG)
-                    // =========================================================================
-                    GUILayout.Space(4);
-                    if (pred.WallCount == 0)
-                    {
-                        GUILayout.BeginVertical(_cardBoxStyle);
-                        GUILayout.Label("🟢 <color=#4ADE80><b>CHIẾN THUẬT PHÒNG THỦ: CĂN CỨ MỞ (0 TƯỜNG ĐẶT)</b></color>", _boldLabelStyle);
-                        GUILayout.Label("<color=#FDE047>⚡ ĐIỀU CHỈNH DEEP LEARNING:</color> Phát hiện người chơi để căn cứ trống trải! Mạng nơ-ron tự động kích hoạt bầy <color=#FB923C><b>Velociraptor Swarm Rush (+85%)</b></color> tốc độ cao tràn thẳng qua trung tâm trước khi người chơi kịp hoàn thiện tháp. Cắt giảm Pterodactyl (-60%) và Ankylosaurus (-50%) vì không có tường cản!", _labelStyle);
-                        GUILayout.Label("<color=#94A3B8>Tác động Logits: Runner +0.85 | Flyer -0.60 | Tank -0.50 | Thích ứng: Mở đường càn quét</color>", _labelStyle);
-                        GUILayout.EndVertical();
-                    }
-                    else
-                    {
-                        float wallPctFlyer = Mathf.Clamp01(pred.WallCount / 6f) * 70f;
-                        float wallPctTank = Mathf.Clamp01(pred.WallCount / 6f) * 55f;
-                        GUILayout.BeginVertical(_cardBoxStyle);
-                        GUILayout.Label($"🟡 <color=#FACC15><b>CHIẾN THUẬT PHÒNG THỦ: CĂN CỨ MÊ CUNG ({pred.WallCount} TƯỜNG ĐẶT)</b></color>", _boldLabelStyle);
-                        GUILayout.Label($"<color=#FDE047>⚡ ĐIỀU CHỈNH DEEP LEARNING:</color> Phát hiện người chơi xây {pred.WallCount} tường chắn tạo mê cung! Mạng nơ-ron thích ứng triển khai <color=#38BDF8><b>Pterodactyl (+{wallPctFlyer:F0}%)</b></color> bay thẳng qua đầu tường và <color=#4ADE80><b>Ankylosaurus (+{wallPctTank:F0}%)</b></color> thiết giáp húc đổ tường giải vây cho đồng đội!", _labelStyle);
-                        GUILayout.Label($"<color=#94A3B8>Tác động Logits: Flyer +{(pred.WallCount / 6f) * 0.70f:F2} | Tank +{(pred.WallCount / 6f) * 0.55f:F2} | Runner -{(pred.WallCount / 6f) * 0.40f:F2} (giảm tắc nghẽn)</color>", _labelStyle);
-                        GUILayout.EndVertical();
-                    }
-
-                    GUILayout.Space(6);
-                    DrawSeparator();
-
-                    // =========================================================================
-                    // 1. Multi-Task Head 1: Dinosaur Archetype Probabilities (Softmax)
-                    // =========================================================================
-                    GUILayout.Space(4);
-                    GUILayout.Label("1. DỰ ĐOÁN PHỐI HỢP QUÁI VẬT (SOFTMAX DISTRIBUTION)", _subHeaderStyle);
-
-                    string[] archNames = { "Velociraptor (Runner)", "Pterodactyl (Flyer)", "Ankylosaurus (Tank)", "T-Rex (Apex Boss)" };
-                    Color[] archColors = {
-                        new Color(1f, 0.7f, 0.2f),   // Orange
-                        new Color(0.3f, 0.8f, 1f),   // Cyan
-                        new Color(0.4f, 1f, 0.4f),   // Lime
-                        new Color(1f, 0.35f, 0.35f)  // Red
-                    };
-
-                    for (int i = 0; i < archNames.Length; i++)
-                    {
-                        float prob = pred.ArchetypeDistribution != null && i < pred.ArchetypeDistribution.Length ? pred.ArchetypeDistribution[i] : 0f;
-                        DrawProgressBar(archNames[i], prob, $"{prob * 100f:F1}%", archColors[i]);
-                    }
-
-                    GUILayout.Space(6);
-                    DrawSeparator();
-
-                    // =========================================================================
-                    // 2. Multi-Task Head 2 & Reinforcement Learning: Route Spatial Policy (Q-Learning)
-                    // =========================================================================
-                    GUILayout.Space(4);
-                    GUILayout.Label("2. HỌC TĂNG CƯỜNG CHỌN CỔNG (Q-LEARNING SPATIAL POLICY)", _subHeaderStyle);
-                    GUILayout.Label("<color=#38BDF8>● Thuật toán: Q(s, a) ← Q(s, a) + α[R + γ max Q' - Q]  |  α=0.25, γ=0.85, ε=0.15</color>", _labelStyle);
-                    GUILayout.Label($"<color=#4ADE80>● Tích hợp Deadliness Heatmap</color> | Huấn luyện: <color=#FDE047><b>{pred.RlEpisodes} episodes</b></color>", _labelStyle);
-
-                    string[] routeNames = { "Cổng Bắc (Trung Tâm)", "Cánh Đông (Đột Kích Sườn)", "Sườn Tây (Men Vách Núi)" };
-                    Color[] routeColors = {
-                        new Color(0.85f, 0.5f, 1f),
-                        new Color(0.35f, 0.85f, 1f),
-                        new Color(1f, 0.75f, 0.35f)
-                    };
-
-                    for (int i = 0; i < routeNames.Length; i++)
-                    {
-                        float prob = pred.RouteDistribution != null && i < pred.RouteDistribution.Length ? pred.RouteDistribution[i] : 0.33f;
-                        float qVal = pred.QValues != null && i < pred.QValues.Length ? pred.QValues[i] : 0f;
-                        int deaths = pred.RouteDeaths != null && i < pred.RouteDeaths.Length ? pred.RouteDeaths[i] : 0;
-                        int hits = pred.RouteHits != null && i < pred.RouteHits.Length ? pred.RouteHits[i] : 0;
-
-                        DrawProgressBar(routeNames[i], prob, $"{prob * 100f:F1}%", routeColors[i]);
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Space(195);
-                        GUILayout.Label($"<size=10><color=#94A3B8>Q: <color=#38BDF8><b>{qVal:+0.0;-0.0;0.0}</b></color> | ☠ Tử vong: <color=#F87171><b>{deaths}</b></color> (-8đ) | 🎯 Đột kích: <color=#4ADE80><b>{hits}</b></color> (+30đ)</color></size>", _labelStyle);
-                        GUILayout.EndHorizontal();
-                    }
-
-                    if (!string.IsNullOrEmpty(pred.RlTacticalExplanation))
-                    {
-                        GUILayout.Space(2);
-                        GUILayout.Box($"<color=#E2E8F0><b>Phân Tích Q-Policy:</b> {pred.RlTacticalExplanation}</color>", _rationaleBoxStyle);
-                    }
-
-                    GUILayout.Space(6);
-                    DrawSeparator();
-
-                    // =========================================================================
-                    // 3. Multi-Task Head 3 & 4: Evaluation & DDA Engine
-                    // =========================================================================
-                    GUILayout.Space(4);
-                    GUILayout.Label("3. THÍCH ỨNG ĐỘ KHÓ & ĐÁNH GIÁ SƠ HỞ (DDA & VULNERABILITY)", _subHeaderStyle);
-
-                    DrawProgressBar("Điểm Yếu Phòng Tuyến (Vulnerability)", pred.VulnerabilityScore, $"{pred.VulnerabilityScore * 100f:F1}%",
-                        pred.VulnerabilityScore > 0.5f ? new Color(1f, 0.4f, 0.4f) : new Color(0.4f, 0.8f, 1f));
-
-                    DrawProgressBar("Kỹ Năng Người Chơi (DDA Player Skill)", pred.PlayerSkillRating, $"{pred.PlayerSkillRating * 100f:F1}%",
-                        new Color(0.4f, 1f, 0.7f));
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label($"Hệ số áp lực: <color=#FFFF55><b>{pred.DifficultyMultiplier:F2}x</b></color>", _boldLabelStyle);
-                    GUILayout.Label($"Quy mô đợt quái đề xuất: <color=#55FFFF><b>{pred.RecommendedWaveSize} con</b></color>", _boldLabelStyle);
-                    GUILayout.EndHorizontal();
-
-                    GUILayout.Space(6);
-                    DrawSeparator();
-
-                    // =========================================================================
-                    // 4. Section 4: 12-Dimensional Telemetry Sensor Grid
-                    // =========================================================================
-                    GUILayout.Space(4);
-                    GUILayout.Label("4. CẢM BIẾN TRẬN ĐẤU (12 INPUT TELEMETRY FEATURES)", _subHeaderStyle);
-                    if (pred.InputFeatures != null && pred.InputFeatures.Length >= 12)
-                    {
-                        GUILayout.BeginHorizontal();
-                        GUILayout.BeginVertical(GUILayout.Width(winWidth * 0.46f));
-                        DrawMiniMetric("Vàng tích lũy", pred.InputFeatures[0]);
-                        DrawMiniMetric("Máu Căn Cứ", pred.InputFeatures[1]);
-                        DrawMiniMetric("Tiến trình đợt", pred.InputFeatures[2]);
-                        DrawMiniMetric("Chòi Cung Thủ", pred.InputFeatures[3]);
-                        DrawMiniMetric("Tháp Nỏ Ballista", pred.InputFeatures[4]);
-                        DrawMiniMetric("Pháo Bắn Đá", pred.InputFeatures[5]);
-                        GUILayout.EndVertical();
-
-                        GUILayout.BeginVertical(GUILayout.Width(winWidth * 0.46f));
-                        DrawMiniMetric("Trụ Sấm Sét", pred.InputFeatures[6]);
-                        DrawMiniMetric("Tháp Băng/Hắc Ín", pred.InputFeatures[7]);
-                        DrawMiniMetric("Bẫy Chông Độc", pred.InputFeatures[8]);
-                        DrawMiniMetric($"Tường Rào Chắn ({pred.WallCount})", pred.InputFeatures[9]);
-                        DrawMiniMetric("Mật độ DPS", pred.InputFeatures[10]);
-                        DrawMiniMetric("DDA Skill Rating", pred.InputFeatures[11]);
-                        GUILayout.EndVertical();
-                        GUILayout.EndHorizontal();
-                    }
-
-                    GUILayout.Space(6);
-                    DrawSeparator();
-
-                    // =========================================================================
-                    // 5. Section 5: Explainable AI Tactical Rationale
-                    // =========================================================================
-                    GUILayout.Space(4);
-                    GUILayout.Label("5. GIẢI THÍCH CHIẾN THUẬT (EXPLAINABLE AI RATIONALE)", _subHeaderStyle);
-                    GUILayout.Box(pred.TacticalRationale, _rationaleBoxStyle, GUILayout.MinHeight(54));
+                    DrawTowerDefenseUIDirector(winWidth);
                 }
                 else
                 {
-                    GUILayout.Label("Đang chờ mạng nơ-ron thu thập dữ liệu...", _labelStyle);
+                    DrawAssaultDefenseUIDirector(winWidth);
                 }
 
                 GUILayout.Space(10);
 
-                // 6. Footer Action Buttons
+                // 4. Footer Action Buttons
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("⟳ CẬP NHẬT SUY LUẬN", _buttonStyle, GUILayout.Height(32)))
+                if (GUILayout.Button("⟳ CẬP NHẬT TRÍ TUỆ NHÂN TẠO", _buttonStyle, GUILayout.Height(32)))
                 {
-                    int currentWave = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentWave : 1;
-                    PrehistoricNeuralDirector.Instance?.Predict(currentWave);
+                    if (activeTab == 0 && PrehistoricNeuralDirector.Instance != null)
+                    {
+                        int currentWave = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.CurrentWave : 1;
+                        PrehistoricNeuralDirector.Instance.Predict(currentWave);
+                    }
                 }
                 if (GUILayout.Button("✕ ĐÓNG CỬA SỔ [F1]", _buttonStyle, GUILayout.Height(32)))
                 {
@@ -388,6 +308,217 @@ namespace LlamAcademy.Dinos.UI
             {
                 Mobile.MobileUIHelper.EndScaling();
             }
+        }
+
+        private void DrawTowerDefenseUIDirector(float winWidth)
+        {
+            if (PrehistoricNeuralDirector.Instance != null && PrehistoricNeuralDirector.Instance.HasPrediction)
+            {
+                var pred = PrehistoricNeuralDirector.Instance.LatestPrediction;
+
+                // =========================================================================
+                // MỤC ĐẶC BIỆT: NHẬN DIỆN CHIẾN THUẬT MAZING CỦA NGƯỜI CHƠI (TỰ DO XÂY TƯỜNG)
+                // =========================================================================
+                GUILayout.Space(4);
+                if (pred.WallCount == 0)
+                {
+                    GUILayout.BeginVertical(_cardBoxStyle);
+                    GUILayout.Label("🟢 <color=#4ADE80><b>CHIẾN THUẬT PHÒNG THỦ: CĂN CỨ MỞ (0 TƯỜNG ĐẶT)</b></color>", _boldLabelStyle);
+                    GUILayout.Label("<color=#FDE047>⚡ ĐIỀU CHỈNH DEEP LEARNING:</color> Phát hiện người chơi để căn cứ trống trải! Mạng nơ-ron tự động kích hoạt bầy <color=#FB923C><b>Velociraptor Swarm Rush (+85%)</b></color> tốc độ cao tràn thẳng qua trung tâm trước khi người chơi kịp hoàn thiện tháp. Cắt giảm Pterodactyl (-60%) và Ankylosaurus (-50%) vì không có tường cản!", _labelStyle);
+                    GUILayout.Label("<color=#94A3B8>Tác động Logits: Runner +0.85 | Flyer -0.60 | Tank -0.50 | Thích ứng: Mở đường càn quét</color>", _labelStyle);
+                    GUILayout.EndVertical();
+                }
+                else
+                {
+                    float wallPctFlyer = Mathf.Clamp01(pred.WallCount / 6f) * 70f;
+                    float wallPctTank = Mathf.Clamp01(pred.WallCount / 6f) * 55f;
+                    GUILayout.BeginVertical(_cardBoxStyle);
+                    GUILayout.Label($"🟡 <color=#FACC15><b>CHIẾN THUẬT PHÒNG THỦ: CĂN CỨ MÊ CUNG ({pred.WallCount} TƯỜNG ĐẶT)</b></color>", _boldLabelStyle);
+                    GUILayout.Label($"<color=#FDE047>⚡ ĐIỀU CHỈNH DEEP LEARNING:</color> Phát hiện người chơi xây {pred.WallCount} tường chắn tạo mê cung! Mạng nơ-ron thích ứng triển khai <color=#38BDF8><b>Pterodactyl (+{wallPctFlyer:F0}%)</b></color> bay thẳng qua đầu tường và <color=#4ADE80><b>Ankylosaurus (+{wallPctTank:F0}%)</b></color> thiết giáp húc đổ tường giải vây cho đồng đội!", _labelStyle);
+                    GUILayout.Label($"<color=#94A3B8>Tác động Logits: Flyer +{(pred.WallCount / 6f) * 0.70f:F2} | Tank +{(pred.WallCount / 6f) * 0.55f:F2} | Runner -{(pred.WallCount / 6f) * 0.40f:F2} (giảm tắc nghẽn)</color>", _labelStyle);
+                    GUILayout.EndVertical();
+                }
+
+                GUILayout.Space(6);
+                DrawSeparator();
+
+                // =========================================================================
+                // 1. Section 1: Softmax Dino Composition
+                // =========================================================================
+                GUILayout.Space(4);
+                GUILayout.Label("1. CƠ CẤU ĐỘI HÌNH KHỦNG LONG PHẢN CÔNG (SOFTMAX DISTRIBUTION)", _subHeaderStyle);
+                DrawProgressBar("🦖 Velociraptor (Runner)", pred.ArchetypeDistribution[0], $"{(pred.ArchetypeDistribution[0] * 100f):F1}%", new Color(1f, 0.6f, 0.2f));
+                DrawProgressBar("🦅 Pterodactyl (Không kích Flyer)", pred.ArchetypeDistribution[1], $"{(pred.ArchetypeDistribution[1] * 100f):F1}%", new Color(0.3f, 0.8f, 1f));
+                DrawProgressBar("🛡️ Ankylosaurus (Phá Tường Tank)", pred.ArchetypeDistribution[2], $"{(pred.ArchetypeDistribution[2] * 100f):F1}%", new Color(0.4f, 0.9f, 0.4f));
+                DrawProgressBar("👑 T-Rex Boss (Apex Kích Thước)", pred.ArchetypeDistribution[3], $"{(pred.ArchetypeDistribution[3] * 100f):F1}%", new Color(1f, 0.25f, 0.35f));
+
+                GUILayout.Space(6);
+                DrawSeparator();
+
+                // =========================================================================
+                // 2. Section 2: Q-Learning Spatial Policy (Spawn Gates)
+                // =========================================================================
+                GUILayout.Space(4);
+                GUILayout.Label("2. HỌC TĂNG CƯỜNG CHỌN CỔNG ĐỘT KÍCH (Q-LEARNING POLICY)", _subHeaderStyle);
+                DrawProgressBar("Cổng Bắc (Đột Kích Trực Diện)", pred.RouteDistribution[0], $"{(pred.RouteDistribution[0] * 100f):F1}%", new Color(1f, 0.4f, 0.4f));
+                DrawProgressBar("Cổng Đông (Đánh Bọc Sườn)", pred.RouteDistribution[1], $"{(pred.RouteDistribution[1] * 100f):F1}%", new Color(0.4f, 0.7f, 1f));
+                DrawProgressBar("Cổng Tây (Tập Kích Vòng Ngoài)", pred.RouteDistribution[2], $"{(pred.RouteDistribution[2] * 100f):F1}%", new Color(0.8f, 0.5f, 1f));
+
+                GUILayout.Space(2);
+                if (pred.QValues != null && pred.QValues.Length >= 3)
+                {
+                    GUILayout.Label($"<color=#AAAAAA>Q-Values: [Bắc: {pred.QValues[0]:F2} | Đông: {pred.QValues[1]:F2} | Tây: {pred.QValues[2]:F2}] | Số đợt đã huấn luyện: {pred.RlEpisodes}</color>", _labelStyle);
+                }
+
+                GUILayout.Space(6);
+                DrawSeparator();
+
+                // =========================================================================
+                // 3. Section 3: Dynamic Difficulty Adjustment (DDA)
+                // =========================================================================
+                GUILayout.Space(4);
+                GUILayout.Label("3. ĐIỀU CHỈNH ĐỘ KHÓ ĐỘNG THEO KỸ NĂNG NGƯỜI CHƠI (DDA)", _subHeaderStyle);
+                DrawProgressBar("Đánh Giá Kỹ Năng Người Chơi", pred.PlayerSkillRating, $"{(pred.PlayerSkillRating * 100f):F0} / 100", new Color(0.9f, 0.85f, 0.2f));
+                DrawProgressBar("Chỉ Số Dễ Bị Xâm Nhập (Vulnerability)", pred.VulnerabilityScore, $"{(pred.VulnerabilityScore * 100f):F0}%", new Color(0.5f, 1f, 0.5f));
+                DrawProgressBar("Chỉ Số Hung Hãn Toàn Cục (Aggression)", pred.AggressionIndex, $"{(pred.AggressionIndex * 100f):F0}%", new Color(1f, 0.4f, 0.3f));
+
+                GUILayout.Space(2);
+                GUILayout.Label($"Quy mô đợt đề xuất: <b>{pred.RecommendedWaveSize} khủng long</b> (Hệ số quy mô: <b>{pred.DifficultyMultiplier:F2}x</b>)", _labelStyle);
+
+                GUILayout.Space(6);
+                DrawSeparator();
+
+                // =========================================================================
+                // 4. Section 4: Telemetry Features (Inputs to MLP)
+                // =========================================================================
+                GUILayout.Space(4);
+                GUILayout.Label("4. DỮ LIỆU ĐẦU VÀO MẠNG NƠ-RON (12 TELEMETRY FEATURES)", _subHeaderStyle);
+                if (pred.InputFeatures != null && pred.InputFeatures.Length >= 12)
+                {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.BeginVertical(GUILayout.Width(winWidth * 0.46f));
+                    DrawMiniMetric("Máu Làng", pred.InputFeatures[0]);
+                    DrawMiniMetric("Số Đợt Hiện Tại", pred.InputFeatures[1]);
+                    DrawMiniMetric("Vàng Hiện Có", pred.InputFeatures[2]);
+                    DrawMiniMetric("Tổng Số Tháp", pred.InputFeatures[3]);
+                    DrawMiniMetric("Chòi Cung Thủ", pred.InputFeatures[4]);
+                    DrawMiniMetric("Tháp Bắn Nỏ", pred.InputFeatures[5]);
+                    GUILayout.EndVertical();
+
+                    GUILayout.BeginVertical(GUILayout.Width(winWidth * 0.46f));
+                    DrawMiniMetric("Trụ Sấm Sét", pred.InputFeatures[6]);
+                    DrawMiniMetric("Tháp Băng/Hắc Ín", pred.InputFeatures[7]);
+                    DrawMiniMetric("Bẫy Chông Độc", pred.InputFeatures[8]);
+                    DrawMiniMetric($"Tường Rào Chắn ({pred.WallCount})", pred.InputFeatures[9]);
+                    DrawMiniMetric("Mật độ DPS", pred.InputFeatures[10]);
+                    DrawMiniMetric("DDA Skill Rating", pred.InputFeatures[11]);
+                    GUILayout.EndVertical();
+                    GUILayout.EndHorizontal();
+                }
+
+                GUILayout.Space(6);
+                DrawSeparator();
+
+                // =========================================================================
+                // 5. Section 5: Explainable AI Tactical Rationale
+                // =========================================================================
+                GUILayout.Space(4);
+                GUILayout.Label("5. GIẢI THÍCH CHIẾN THUẬT (EXPLAINABLE AI RATIONALE)", _subHeaderStyle);
+                GUILayout.Box(pred.TacticalRationale, _rationaleBoxStyle, GUILayout.MinHeight(54));
+            }
+            else
+            {
+                GUILayout.Label("Đang chờ mạng nơ-ron thu thập dữ liệu...", _labelStyle);
+            }
+        }
+
+        private void DrawAssaultDefenseUIDirector(float winWidth)
+        {
+            var director = PrehistoricNeuralDirector.Instance;
+            if (director == null) return;
+
+            var data = director.GetAssaultDefenseTelemetry();
+
+            GUILayout.Space(6);
+            // Mode Banner
+            GUILayout.BeginVertical(_cardBoxStyle);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"<b>⚔️ CHẾ ĐỘ: CÔNG THÀNH TIỀN SỬ (MÀN {data.AssaultLevel})</b>", _boldLabelStyle);
+            GUILayout.Label($"<color=#FDE047>● {data.PhaseName}</color>", _boldLabelStyle);
+            GUILayout.EndHorizontal();
+            GUILayout.Label($"Chiến lược làng: <color=#38BDF8><b>{data.VillageStrategyTitle}</b></color>", _labelStyle);
+            GUILayout.EndVertical();
+
+            GUILayout.Space(6);
+            DrawSeparator();
+
+            // 1. Village Core & Readiness
+            GUILayout.Space(4);
+            GUILayout.Label("1. TÌNH TRẠNG LÕI CĂN CỨ LÀNG (BASE CORE INTEGRITY)", _subHeaderStyle);
+            Color hpCol = data.BaseHealthPercent > 0.6f ? new Color(0.2f, 0.9f, 0.3f) : (data.BaseHealthPercent > 0.3f ? new Color(1f, 0.8f, 0.2f) : new Color(1f, 0.25f, 0.25f));
+            DrawProgressBar("Máu Lõi Căn Cứ", data.BaseHealthPercent, $"{data.BaseHealth}/{data.MaxBaseHealth}", hpCol);
+            DrawProgressBar("Chỉ Số Sẵn Sàng Phòng Thủ", data.DefenseReadiness, $"{(data.DefenseReadiness * 100f):F0}%", new Color(0.35f, 0.85f, 1f));
+            DrawProgressBar("Mức Độ Đe Dọa Từ Khủng Long", data.ThreatLevel, $"{(data.ThreatLevel * 100f):F0}%", new Color(1f, 0.45f, 0.3f));
+
+            GUILayout.Space(6);
+            DrawSeparator();
+
+            // 2. Garrison & Automated Defenses
+            GUILayout.Space(4);
+            GUILayout.Label("2. QUÂN LỰC DÂN BINH & PIN PHÒNG THỦ TỰ ĐỘNG", _subHeaderStyle);
+            GUILayout.BeginHorizontal();
+            GUILayout.BeginVertical(GUILayout.Width(winWidth * 0.46f));
+            DrawMiniMetric($"Chiến Binh Cận Chiến ({data.HunterCount})", Mathf.Clamp01(data.HunterCount / 8f));
+            DrawMiniMetric($"Cung Thủ Bờ Tường/Cầu ({data.ArcherCount})", Mathf.Clamp01(data.ArcherCount / 8f));
+            DrawMiniMetric($"Tổng Quân Phòng Ngự ({data.DefenderCount})", Mathf.Clamp01(data.DefenderCount / 12f));
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical(GUILayout.Width(winWidth * 0.46f));
+            DrawMiniMetric($"Máy Bắn Đá Lửa ({data.ActiveCatapults})", Mathf.Clamp01(data.ActiveCatapults / 4f));
+            DrawMiniMetric($"Tháp Nỏ Phóng Lao ({data.ActiveBallistas})", Mathf.Clamp01(data.ActiveBallistas / 4f));
+            DrawMiniMetric($"Cột Sấm Sét Shaman ({data.ActiveShamanTotems})", Mathf.Clamp01(data.ActiveShamanTotems / 4f));
+            DrawMiniMetric($"Bẫy Chông Gai Độc ({data.ActiveSpikeTraps})", Mathf.Clamp01(data.ActiveSpikeTraps / 6f));
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+            DrawSeparator();
+
+            // 3. Walls & Tactical Breach Memory
+            GUILayout.Space(4);
+            GUILayout.Label("3. GIÁM SÁT ĐỘT PHÁ TƯỜNG THÀNH (TACTICAL BREACH MEMORY)", _subHeaderStyle);
+            GUILayout.BeginVertical(_cardBoxStyle);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"Tổng số phân đoạn tường: <b>{data.TotalWalls}</b>", _labelStyle);
+            GUILayout.Label($"Điểm tường đã bị phá hủy: <color=#FF6666><b>{data.BreachedWalls}</b></color>", _labelStyle);
+            GUILayout.EndHorizontal();
+            if (data.BreachedWalls > 0)
+            {
+                GUILayout.Label($"⚠️ <color=#FFAA00><b>PHÒNG TUYẾN BỊ CHỌC THỦNG:</b></color> AI đang điều động {data.HunterCount} Chiến binh chiếm giữ các vị trí cửa đột phá (Breach Slots: {data.ActiveBreachSlots}) để ngăn khủng long tiếp cận Nhà Chính!", _labelStyle);
+            }
+            else
+            {
+                GUILayout.Label("🛡️ <color=#55FF88><b>PHÒNG TUYẾN NGUYÊN VẸN:</b></color> Toàn bộ tường thành kiên cố đang bao bọc cổng làng và chặn đứng các đợt càn quét trực diện.", _labelStyle);
+            }
+            GUILayout.EndVertical();
+
+            GUILayout.Space(6);
+            DrawSeparator();
+
+            // 4. Player Deployed Dinos Threat Breakdown
+            GUILayout.Space(4);
+            GUILayout.Label("4. PHÂN TÍCH QUÂN BÀI KHỦNG LONG CỦA NGƯỜI CHƠI", _subHeaderStyle);
+            DrawProgressBar("🦖 Velociraptor (Runner Bầy Đàn)", Mathf.Clamp01(data.PlayerRaptors / 8f), $"{data.PlayerRaptors} con", new Color(1f, 0.65f, 0.2f));
+            DrawProgressBar("🛡️ Ankylosaurus (Siege Tank Phá Tường)", Mathf.Clamp01(data.PlayerTanks / 4f), $"{data.PlayerTanks} con", new Color(0.4f, 0.85f, 0.4f));
+            DrawProgressBar("👑 T-Rex Boss (Apex Sát Thủ)", Mathf.Clamp01(data.PlayerTRexes / 2f), $"{data.PlayerTRexes} con", new Color(1f, 0.25f, 0.35f));
+
+            GUILayout.Space(6);
+            DrawSeparator();
+
+            // 5. Explainable AI Defense Rationale
+            GUILayout.Space(4);
+            GUILayout.Label("5. CHIẾN THUẬT PHẢN ỨNG CỦA AI PHÒNG THỦ LÀNG (EXPLAINABLE AI)", _subHeaderStyle);
+            GUILayout.Box(data.TacticalRationale, _rationaleBoxStyle, GUILayout.MinHeight(54));
         }
 
         private void DrawProgressBar(string label, float val, string displayValue, Color fillCol)

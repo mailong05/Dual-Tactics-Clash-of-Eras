@@ -666,5 +666,148 @@ namespace LlamAcademy.Dinos.AI
 
             Debug.Log($"<color=#00FFAA>[Q-Learning & DDA]</color> Completed Episode {_rlEpisodes} | Player Skill: <b>{_PlayerSkillRating:F2}</b> | Q-Values: [{_qValues[0]:F1}, {_qValues[1]:F1}, {_qValues[2]:F1}]");
         }
-    }
+    
+        #region Dino Assault Mode - AI Village Defense Director
+        [System.Serializable]
+        public struct AssaultDefenseAIData
+        {
+            public int AssaultLevel;
+            public string PhaseName;
+            public int BaseHealth;
+            public int MaxBaseHealth;
+            public float BaseHealthPercent;
+            public int DefenderCount;
+            public int ArcherCount;
+            public int HunterCount;
+            public int ActiveCatapults;
+            public int ActiveBallistas;
+            public int ActiveShamanTotems;
+            public int ActiveSpikeTraps;
+            public int TotalWalls;
+            public int BreachedWalls;
+            public int ActiveBreachSlots;
+            public int PlayerLivingDinos;
+            public int PlayerRaptors;
+            public int PlayerTanks;
+            public int PlayerTRexes;
+            public float ThreatLevel;       // 0..1
+            public float DefenseReadiness;  // 0..1
+            public string TacticalRationale;
+            public string VillageStrategyTitle;
+        }
+
+        public AssaultDefenseAIData GetAssaultDefenseTelemetry()
+        {
+            var data = new AssaultDefenseAIData();
+
+            var modeMgr = PrehistoricGameModeManager.Instance;
+            data.AssaultLevel = modeMgr != null ? modeMgr.AssaultLevel : 1;
+            data.PhaseName = (modeMgr != null && modeMgr.AssaultPhase == PrehistoricAssaultPhase.Combat) ? "GIAO TRANH KHỐC LIỆT" : "CHUẨN BỊ PHÒNG THỦ";
+
+            var baseVillage = PrehistoricVillageBase.Instance;
+            if (baseVillage != null)
+            {
+                data.BaseHealth = baseVillage.Health;
+                data.MaxBaseHealth = baseVillage.MaxHealth > 0 ? baseVillage.MaxHealth : 1000;
+            }
+            else
+            {
+                data.BaseHealth = 1000;
+                data.MaxBaseHealth = 1000;
+            }
+            data.BaseHealthPercent = data.MaxBaseHealth > 0 ? Mathf.Clamp01((float)data.BaseHealth / data.MaxBaseHealth) : 1f;
+
+            // Count village defenders
+            var defenders = FindObjectsByType<Enemy.Defender>(FindObjectsSortMode.None);
+            data.DefenderCount = defenders.Length;
+            foreach (var d in defenders)
+            {
+                if (d == null) continue;
+                string n = d.gameObject.name.ToLower();
+                if (n.Contains("archer")) data.ArcherCount++;
+                else data.HunterCount++;
+            }
+
+            // Count automated defense batteries
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
+            foreach (var u in allUnits)
+            {
+                if (u == null) continue;
+                if (u is CatapultTower) data.ActiveCatapults++;
+                else if (u is TeslaTower) data.ActiveShamanTotems++;
+                else if (u is BallistaTower) data.ActiveBallistas++;
+                else if (u is GroundTrap) data.ActiveSpikeTraps++;
+            }
+
+            // Walls & Breach Memory
+            var walls = FindObjectsByType<Unit.Wall>(FindObjectsSortMode.None);
+            data.TotalWalls = walls.Length;
+            foreach (var w in walls)
+            {
+                if (w != null && (w.Health <= 0 || !w.gameObject.activeInHierarchy))
+                {
+                    data.BreachedWalls++;
+                }
+            }
+
+            var breachMem = TacticalBreachMemory.Instance;
+            if (breachMem != null)
+            {
+                data.ActiveBreachSlots = breachMem.ActiveBreaches != null ? breachMem.ActiveBreaches.Count : 0;
+            }
+
+            // Player Deployed Dinos
+            var dinos = FindObjectsByType<PrehistoricDinoBase>(FindObjectsSortMode.None);
+            foreach (var dino in dinos)
+            {
+                if (dino != null && dino.Health > 0)
+                {
+                    data.PlayerLivingDinos++;
+                    string n = dino.gameObject.name.ToLower();
+                    if (n.Contains("raptor") || n.Contains("velociraptor")) data.PlayerRaptors++;
+                    else if (n.Contains("ankylosaurus") || n.Contains("tank")) data.PlayerTanks++;
+                    else if (n.Contains("trex") || n.Contains("boss")) data.PlayerTRexes++;
+                }
+            }
+
+            // Defense Readiness: based on Base Health + active defenders + active automated batteries
+            float batteryFactor = Mathf.Clamp01((data.ActiveCatapults * 2 + data.ActiveBallistas * 2 + data.ActiveShamanTotems * 2 + data.ActiveSpikeTraps) / 12f);
+            float defenderFactor = Mathf.Clamp01(data.DefenderCount / 8f);
+            data.DefenseReadiness = Mathf.Clamp01(data.BaseHealthPercent * 0.5f + batteryFactor * 0.3f + defenderFactor * 0.2f);
+
+            // Threat level: based on deployed dinos
+            float threatRaw = (data.PlayerRaptors * 1f + data.PlayerTanks * 2.5f + data.PlayerTRexes * 5f) / 15f;
+            data.ThreatLevel = Mathf.Clamp01(threatRaw);
+
+            // Tactical Rationale & Strategy Title
+            if (data.PlayerTRexes > 0)
+            {
+                data.VillageStrategyTitle = "BÁO ĐỘNG ĐỎ: ĐỐI ĐẦU APEX BOSS T-REX";
+                data.TacticalRationale = $"AI Làng kích hoạt giao thức phòng thủ tổng lực đối phó T-Rex ({data.PlayerTRexes} con)! Tập trung toàn bộ {data.ActiveBallistas} Tháp Nỏ tầm xa và {data.ActiveCatapults} Máy Bắn Đá dồn sát thương xuyên giáp, các Cung thủ trên cầu giữ cự ly tối đa!";
+            }
+            else if (data.PlayerTanks > 0 && data.BreachedWalls > 0)
+            {
+                data.VillageStrategyTitle = "NGUY CƠ THỦNG TƯỜNG: CẢN PHÁ KHỦNG LONG THIẾT GIÁP";
+                data.TacticalRationale = $"Khủng long bọc thép ({data.PlayerTanks} Ankylosaurus) đã tạo ra {data.BreachedWalls} điểm thủng tường! AI Làng đang điều phối {data.HunterCount} Chiến binh cơ động lập phòng tuyến chặn cửa đột phá, Cột Sét Shaman giật liên hoàn bảo vệ lõi căn cứ!";
+            }
+            else if (data.PlayerRaptors > 3)
+            {
+                data.VillageStrategyTitle = "CHỐNG BẦY ĐÀN: ĐÁNH CHẶN VELOCIRAPTOR CƠ ĐỘNG";
+                data.TacticalRationale = $"Phát hiện bầy Velociraptor tốc độ cao ({data.PlayerRaptors} con) tiến công nhanh! {data.ActiveCatapults} Máy Bắn Đá Lửa chuyển sang bắn chặn trước cổng, Bẫy Chông Gai ({data.ActiveSpikeTraps} hố) làm chậm đường tiến để Cung thủ tiêu diệt gọn!";
+            }
+            else if (data.PlayerLivingDinos == 0)
+            {
+                data.VillageStrategyTitle = "PHÒNG THỦ VỮNG CHẮC: ĐỀ CAO CẢNH GIÁC";
+                data.TacticalRationale = $"Chưa có khủng long nào xâm nhập lãnh thổ làng. Toàn bộ {data.DefenderCount} dân quân và {data.ActiveCatapults + data.ActiveBallistas + data.ActiveShamanTotems} tháp phòng thủ đang trong trạng thái sẵn sàng chiến đấu 100%!";
+            }
+            else
+            {
+                data.VillageStrategyTitle = "CHIẾN ĐẤU CÂN BẰNG: ĐIỀU PHỐI HỎA LỰC TOÀN DIỆN";
+                data.TacticalRationale = $"Lực lượng khủng long ({data.PlayerLivingDinos} con) đang áp sát phòng tuyến! AI Phòng Thủ Làng đang phân bố mục tiêu: Nỏ bắn mục tiêu lớn, Máy Bắn Đá quét cụm quân và Cung thủ yểm trợ bờ tường!";
+            }
+
+            return data;
+        }
+        #endregion
+}
 }

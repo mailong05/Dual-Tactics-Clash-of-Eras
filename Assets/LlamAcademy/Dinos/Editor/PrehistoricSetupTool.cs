@@ -1027,6 +1027,19 @@ namespace LlamAcademy.Dinos.Editor
 
             GameObject savedPrefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             DestroyImmediate(root);
+
+            try
+            {
+                string resDir = "Assets/Resources/Prefabs/Prehistoric";
+                if (!Directory.Exists(resDir)) Directory.CreateDirectory(resDir);
+                string resPrefabPath = Path.Combine(resDir, Path.GetFileName(prefabPath));
+                File.Copy(prefabPath, resPrefabPath, true);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[Prehistoric TD] Could not sync prefab to Resources: {ex.Message}");
+            }
+
             return savedPrefab;
         }
 

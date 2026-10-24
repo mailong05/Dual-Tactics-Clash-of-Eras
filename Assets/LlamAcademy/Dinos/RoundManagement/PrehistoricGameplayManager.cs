@@ -1334,7 +1334,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             _CurrentWave++;
 
             // Phục hồi làng cho đợt mới và giữ lại các tháp người chơi đã đặt
-            ResetEntireVillage(keepPlayerTowers: true);
+            ResetEntireVillage(keepPlayerTowers: false);
+            TowerPlacer.Instance?.ClearAllPlacedTowers();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ResetPlayerAndCameraPosition();
@@ -1354,7 +1355,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             _CurrentWave++;
 
             // Reset và phục hồi toàn bộ ngôi làng (tường, căn cứ, NPC chiến binh) cho bàn/đợt mới
-            ResetEntireVillage(keepPlayerTowers: true);
+            ResetEntireVillage(keepPlayerTowers: false);
+            TowerPlacer.Instance?.ClearAllPlacedTowers();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ShowAnnouncement($"ĐỢT {_CurrentWave}: HÃY ĐẶT THÊM THÁP VÀ BẤM 'BẮT ĐẦU ĐỢT' (SPACE)!", 4.0f);

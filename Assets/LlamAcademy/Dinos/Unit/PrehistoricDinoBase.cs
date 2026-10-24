@@ -40,11 +40,47 @@ namespace LlamAcademy.Dinos.Unit
         private string _WalkClipName;
         private string _AttackClipName;
 
-        // Skeletal Bone Rig
-        private Transform _LeftLegBone;
-        private Transform _RightLegBone;
-        private Quaternion _LeftLegBaseRot;
-        private Quaternion _RightLegBaseRot;
+        // Skeletal Bone Rig (Universal Biped & Quadruped)
+        private bool _IsQuadruped = false;
+
+        // Biped / Back Legs (T-Rex, Velociraptor, Ankylosaurus Back Legs)
+        private Transform _LeftThighBone;
+        private Transform _LeftShinBone;
+        private Transform _LeftFootBone;
+        private Quaternion _LeftThighBaseRot;
+        private Quaternion _LeftShinBaseRot;
+        private Quaternion _LeftFootBaseRot;
+
+        private Transform _RightThighBone;
+        private Transform _RightShinBone;
+        private Transform _RightFootBone;
+        private Quaternion _RightThighBaseRot;
+        private Quaternion _RightShinBaseRot;
+        private Quaternion _RightFootBaseRot;
+
+        // Quadruped Front Legs (Ankylosaurus)
+        private Transform _FrontLeftThighBone;
+        private Transform _FrontLeftShinBone;
+        private Transform _FrontLeftFootBone;
+        private Quaternion _FrontLeftThighBaseRot;
+        private Quaternion _FrontLeftShinBaseRot;
+        private Quaternion _FrontLeftFootBaseRot;
+
+        private Transform _FrontRightThighBone;
+        private Transform _FrontRightShinBone;
+        private Transform _FrontRightFootBone;
+        private Quaternion _FrontRightThighBaseRot;
+        private Quaternion _FrontRightShinBaseRot;
+        private Quaternion _FrontRightFootBaseRot;
+
+        // Forearms (T-Rex, Velociraptor)
+        private Transform _LeftArmBone;
+        private Transform _RightArmBone;
+        private Quaternion _LeftArmBaseRot;
+        private Quaternion _RightArmBaseRot;
+
+        private Transform _SpineBone;
+        private Quaternion _SpineBaseRot;
 
         private Transform _HeadBone;
         private Transform _NeckBone;
@@ -580,23 +616,120 @@ namespace LlamAcademy.Dinos.Unit
             if (VisualModel == null) return;
 
             Transform[] allBones = VisualModel.GetComponentsInChildren<Transform>(true);
+            
+            // Check if model has 4 legs (Quadruped)
+            foreach (Transform t in allBones)
+            {
+                if (t == VisualModel) continue;
+                string n = t.name.ToLower();
+                if (n.Contains("frontupleg") || n.Contains("frontleg") || n.Contains("frontlowleg") || n.Contains("frontfoot"))
+                {
+                    _IsQuadruped = true;
+                    break;
+                }
+            }
+
+            if (this is SiegeDino || gameObject.name.ToLower().Contains("ankyl"))
+            {
+                _IsQuadruped = true;
+            }
+
             foreach (Transform t in allBones)
             {
                 if (t == VisualModel) continue;
                 string n = t.name.ToLower();
 
-                // Left Leg / Thigh / BackLeg
-                if (_LeftLegBone == null && (n.Contains("leg.001.l") || n.Contains("leftupleg") || n.Contains("backleg.l") || n.Contains("backupleg.l") || n.Contains("leg.l") || n.Contains("thigh.l") || n.Contains("upleg.l")))
+                // Quadruped Front Left
+                if (_FrontLeftThighBone == null && (n.Contains("frontupleg.l") || n.Contains("front_upleg.l")))
                 {
-                    _LeftLegBone = t;
-                    _LeftLegBaseRot = t.localRotation;
+                    _FrontLeftThighBone = t;
+                    _FrontLeftThighBaseRot = t.localRotation;
                 }
-                // Right Leg / Thigh / BackLeg
-                else if (_RightLegBone == null && (n.Contains("leg.001.r") || n.Contains("rightupleg") || n.Contains("backleg.r") || n.Contains("backupleg.r") || n.Contains("leg.r") || n.Contains("thigh.r") || n.Contains("upleg.r")))
+                else if (_FrontLeftShinBone == null && (n.Contains("frontlowleg.l") || n.Contains("front_lowleg.l")))
                 {
-                    _RightLegBone = t;
-                    _RightLegBaseRot = t.localRotation;
+                    _FrontLeftShinBone = t;
+                    _FrontLeftShinBaseRot = t.localRotation;
                 }
+                else if (_FrontLeftFootBone == null && (n.Contains("frontfoot.l") || n.Contains("frontleg.l")))
+                {
+                    _FrontLeftFootBone = t;
+                    _FrontLeftFootBaseRot = t.localRotation;
+                }
+
+                // Quadruped Front Right
+                else if (_FrontRightThighBone == null && (n.Contains("frontupleg.r") || n.Contains("front_upleg.r")))
+                {
+                    _FrontRightThighBone = t;
+                    _FrontRightThighBaseRot = t.localRotation;
+                }
+                else if (_FrontRightShinBone == null && (n.Contains("frontlowleg.r") || n.Contains("front_lowleg.r")))
+                {
+                    _FrontRightShinBone = t;
+                    _FrontRightShinBaseRot = t.localRotation;
+                }
+                else if (_FrontRightFootBone == null && (n.Contains("frontfoot.r") || n.Contains("frontleg.r")))
+                {
+                    _FrontRightFootBone = t;
+                    _FrontRightFootBaseRot = t.localRotation;
+                }
+
+                // Back Left / Main Left Leg Thigh
+                else if (_LeftThighBone == null && (n.Contains("bn_leftupleg") || n.Contains("leg.001.l") || n.Contains("backupleg.l") || n.Contains("thigh.l") || n.Contains("upleg.l")))
+                {
+                    _LeftThighBone = t;
+                    _LeftThighBaseRot = t.localRotation;
+                }
+                // Back Left Shin / Knee
+                else if (_LeftShinBone == null && (n.Contains("bn_leftleg") || n.Contains("leg.002.l") || n.Contains("backlowleg.l") || n.Contains("shin.l") || n.Contains("knee.l")))
+                {
+                    _LeftShinBone = t;
+                    _LeftShinBaseRot = t.localRotation;
+                }
+                // Back Left Foot / Ankle
+                else if (_LeftFootBone == null && (n.Contains("bn_leftfoot") || n.Contains("leg.003.l") || n.Contains("backfoot.l") || (n.Contains("backleg.l") && !n.Contains("backupleg")) || n.Contains("foot.l")))
+                {
+                    _LeftFootBone = t;
+                    _LeftFootBaseRot = t.localRotation;
+                }
+
+                // Back Right / Main Right Leg Thigh
+                else if (_RightThighBone == null && (n.Contains("bn_rightupleg") || n.Contains("leg.001.r") || n.Contains("backupleg.r") || n.Contains("thigh.r") || n.Contains("upleg.r")))
+                {
+                    _RightThighBone = t;
+                    _RightThighBaseRot = t.localRotation;
+                }
+                // Back Right Shin / Knee
+                else if (_RightShinBone == null && (n.Contains("bn_rightleg") || n.Contains("leg.002.r") || n.Contains("backlowleg.r") || n.Contains("shin.r") || n.Contains("knee.r")))
+                {
+                    _RightShinBone = t;
+                    _RightShinBaseRot = t.localRotation;
+                }
+                // Back Right Foot / Ankle
+                else if (_RightFootBone == null && (n.Contains("bn_rightfoot") || n.Contains("leg.003.r") || n.Contains("backfoot.r") || (n.Contains("backleg.r") && !n.Contains("backupleg")) || n.Contains("foot.r")))
+                {
+                    _RightFootBone = t;
+                    _RightFootBaseRot = t.localRotation;
+                }
+
+                // Forearms (T-Rex / Raptor)
+                else if (_LeftArmBone == null && (n.Contains("bn_leftarm") || n.Contains("arm.001.l") || n.Contains("arm.l")))
+                {
+                    _LeftArmBone = t;
+                    _LeftArmBaseRot = t.localRotation;
+                }
+                else if (_RightArmBone == null && (n.Contains("bn_rightarm") || n.Contains("arm.001.r") || n.Contains("arm.r")))
+                {
+                    _RightArmBone = t;
+                    _RightArmBaseRot = t.localRotation;
+                }
+
+                // Spine / Hips
+                else if (_SpineBone == null && (n.Contains("bn_spine.4") || n.Contains("spine1") || n.Contains("hips_21") || n.Contains("hips")))
+                {
+                    _SpineBone = t;
+                    _SpineBaseRot = t.localRotation;
+                }
+
                 // Head
                 else if (_HeadBone == null && (n.Contains("head") || n.Contains("skull")))
                 {
@@ -615,8 +748,8 @@ namespace LlamAcademy.Dinos.Unit
                     _JawBone = t;
                     _JawBaseRot = t.localRotation;
                 }
-                // Tail segments
-                else if (n.Contains("tail") && _TailBones.Count < 8)
+                // Tail segments (store up to 10 tail bones)
+                else if (n.Contains("tail") && _TailBones.Count < 10)
                 {
                     _TailBones.Add(t);
                     _TailBaseRots.Add(t.localRotation);
@@ -1215,12 +1348,20 @@ namespace LlamAcademy.Dinos.Unit
             _CurrentSpeed = currentSpeed;
             bool isMoving = currentSpeed > 0.15f;
 
+            // Nhịp bước đi tăng tiến mượt mà theo vận tốc di chuyển
+            if (isMoving)
+            {
+                float strideMultiplier = _IsQuadruped ? 2.5f : 3.2f;
+                float strideRate = Mathf.Max(currentSpeed * strideMultiplier, 2.8f);
+                _GaitTimer += Time.deltaTime * strideRate;
+            }
+
             bool hasRealLegacyAnim = ModelLegacyAnimation != null 
                 && ModelLegacyAnimation.enabled 
                 && ModelLegacyAnimation.GetClipCount() > 0;
 
-            // 1. Mecanim Animator Parameters (only if no legacy clip active)
-            if (!hasRealLegacyAnim && ModelAnimator != null && ModelAnimator.enabled)
+            // 1. Mecanim Animator Parameters
+            if (ModelAnimator != null && ModelAnimator.enabled)
             {
                 SetAnimatorFloatIfExists(ModelAnimator, "Speed", currentSpeed);
                 SetAnimatorFloatIfExists(ModelAnimator, "Forward", currentSpeed);
@@ -1229,7 +1370,7 @@ namespace LlamAcademy.Dinos.Unit
                 SetAnimatorBoolIfExists(ModelAnimator, "Run", currentSpeed > 3.0f);
             }
 
-            // 2. Legacy Animation Clip Playback
+            // 2. Legacy Animation Clip Playback (nếu có sẵn clip thực sự)
             if (hasRealLegacyAnim)
             {
                 string activeClip = _WalkClipName;
@@ -1260,20 +1401,31 @@ namespace LlamAcademy.Dinos.Unit
                 }
             }
 
-            // 3. Root Visual Stride Bob & Rolling Sway (ONLY applied if NO skeletal clip is playing)
-            if (!hasRealLegacyAnim && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
+            // 3. Dao động trọng tâm thân mình (Root Body Bobbing & Rolling Waddle)
+            if (_HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
             {
                 if (isMoving)
                 {
-                    float strideRate = Mathf.Max(currentSpeed * 2.5f, 2.5f);
-                    _GaitTimer += Time.deltaTime * strideRate;
+                    if (_IsQuadruped)
+                    {
+                        // Khủng long thiết giáp 4 chân: bước đi lặc lè, chuyển dịch trọng tâm uyển chuyển
+                        float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.05f;
+                        float waddleRoll = Mathf.Sin(_GaitTimer) * 3.5f;
+                        float heavePitch = Mathf.Cos(_GaitTimer * 2f) * 1.2f;
 
-                    float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.08f;
-                    float swayRoll = Mathf.Sin(_GaitTimer) * 3.5f;
-                    float pitch = Mathf.Cos(_GaitTimer * 2f) * 1.5f;
+                        VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
+                        VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(heavePitch, 0f, waddleRoll);
+                    }
+                    else
+                    {
+                        // Khủng long 2 chân (T-Rex & Velociraptor): sải chân dài nhịp nhàng, lắc hông & nhấp nhô
+                        float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.08f;
+                        float swayRoll = Mathf.Sin(_GaitTimer) * 2.8f;
+                        float pitch = Mathf.Cos(_GaitTimer * 2f) * 1.8f;
 
-                    VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
-                    VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitch, 0f, swayRoll);
+                        VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
+                        VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitch, 0f, swayRoll);
+                    }
                 }
                 else
                 {
@@ -1282,90 +1434,168 @@ namespace LlamAcademy.Dinos.Unit
                     VisualModel.localRotation = Quaternion.Slerp(VisualModel.localRotation, _BaseModelLocalRot, Time.deltaTime * 4f);
                 }
             }
-            else if (hasRealLegacyAnim && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
-            {
-                // Keep model stable at root offset for clean, glitch-free skeletal animation
-                VisualModel.localPosition = _BaseModelLocalPos;
-                VisualModel.localRotation = _BaseModelLocalRot;
-            }
         }
 
         protected virtual void LateUpdate()
         {
             if (VisualModel == null) return;
 
-            // CRITICAL FIX: If real rigged skeleton animations are playing,
-            // DO NOT override bone localRotations! Doing so causes severe jitter and fighting between animation and math!
-            bool hasRealAnimation = (ModelLegacyAnimation != null && ModelLegacyAnimation.enabled && ModelLegacyAnimation.isPlaying)
-                || (ModelAnimator != null && ModelAnimator.enabled && ModelAnimator.runtimeAnimatorController != null);
+            // Kiểm tra xem có Mecanim hoặc Legacy clip thực sự đang phát cử động xương hay không
+            bool hasRealMecanimMotion = ModelAnimator != null 
+                && ModelAnimator.enabled 
+                && ModelAnimator.runtimeAnimatorController != null
+                && ModelAnimator.GetCurrentAnimatorClipInfo(0).Length > 0;
 
-            if (hasRealAnimation)
-            {
-                return;
-            }
+            bool hasRealLegacyAnim = ModelLegacyAnimation != null 
+                && ModelLegacyAnimation.enabled 
+                && ModelLegacyAnimation.isPlaying 
+                && !string.IsNullOrEmpty(_WalkClipName);
 
+            bool skipLegs = hasRealMecanimMotion || hasRealLegacyAnim;
             bool isMoving = _CurrentSpeed > 0.15f;
 
-            // 1. Chân bước đi / chạy nhịp nhàng (Alternating Leg Swings) - Fallback only
-            if (isMoving)
+            if (!skipLegs)
             {
-                float legSwing = Mathf.Sin(_GaitTimer) * 26f;
-                if (_LeftLegBone != null)
+                if (_IsQuadruped)
                 {
-                    _LeftLegBone.localRotation = _LeftLegBaseRot * Quaternion.Euler(legSwing, 0f, 0f);
+                    // =========================================================================
+                    // KHỦNG LONG THIẾT GIÁP 4 CHÂN (Ankylosaurus)
+                    // Dáng đi 4 chân đối xứng chéo (Diagonal Trot Gait):
+                    // Cặp chéo A (Trước Trái + Sau Phải) và Cặp chéo B (Trước Phải + Sau Trái)
+                    // =========================================================================
+                    if (isMoving)
+                    {
+                        float pairASwing = Mathf.Sin(_GaitTimer) * 24f;
+                        float pairBSwing = -pairASwing;
+
+                        // Cặp chéo A: Chân trước trái & Chân sau phải cùng bước
+                        if (_FrontLeftThighBone != null)
+                            _FrontLeftThighBone.localRotation = _FrontLeftThighBaseRot * Quaternion.Euler(pairASwing, 0f, 0f);
+                        if (_FrontLeftShinBone != null)
+                            _FrontLeftShinBone.localRotation = _FrontLeftShinBaseRot * Quaternion.Euler(Mathf.Clamp(-pairASwing * 0.85f, 0f, 25f), 0f, 0f);
+
+                        if (_RightThighBone != null)
+                            _RightThighBone.localRotation = _RightThighBaseRot * Quaternion.Euler(pairASwing, 0f, 0f);
+                        if (_RightShinBone != null)
+                            _RightShinBone.localRotation = _RightShinBaseRot * Quaternion.Euler(Mathf.Clamp(-pairASwing * 0.85f, 0f, 25f), 0f, 0f);
+
+                        // Cặp chéo B: Chân trước phải & Chân sau trái cùng bước
+                        if (_FrontRightThighBone != null)
+                            _FrontRightThighBone.localRotation = _FrontRightThighBaseRot * Quaternion.Euler(pairBSwing, 0f, 0f);
+                        if (_FrontRightShinBone != null)
+                            _FrontRightShinBone.localRotation = _FrontRightShinBaseRot * Quaternion.Euler(Mathf.Clamp(-pairBSwing * 0.85f, 0f, 25f), 0f, 0f);
+
+                        if (_LeftThighBone != null)
+                            _LeftThighBone.localRotation = _LeftThighBaseRot * Quaternion.Euler(pairBSwing, 0f, 0f);
+                        if (_LeftShinBone != null)
+                            _LeftShinBone.localRotation = _LeftShinBaseRot * Quaternion.Euler(Mathf.Clamp(-pairBSwing * 0.85f, 0f, 25f), 0f, 0f);
+                    }
+                    else
+                    {
+                        float t = Time.deltaTime * 6f;
+                        if (_FrontLeftThighBone != null) _FrontLeftThighBone.localRotation = Quaternion.Slerp(_FrontLeftThighBone.localRotation, _FrontLeftThighBaseRot, t);
+                        if (_FrontLeftShinBone != null) _FrontLeftShinBone.localRotation = Quaternion.Slerp(_FrontLeftShinBone.localRotation, _FrontLeftShinBaseRot, t);
+                        if (_FrontRightThighBone != null) _FrontRightThighBone.localRotation = Quaternion.Slerp(_FrontRightThighBone.localRotation, _FrontRightThighBaseRot, t);
+                        if (_FrontRightShinBone != null) _FrontRightShinBone.localRotation = Quaternion.Slerp(_FrontRightShinBone.localRotation, _FrontRightShinBaseRot, t);
+                        if (_LeftThighBone != null) _LeftThighBone.localRotation = Quaternion.Slerp(_LeftThighBone.localRotation, _LeftThighBaseRot, t);
+                        if (_LeftShinBone != null) _LeftShinBone.localRotation = Quaternion.Slerp(_LeftShinBone.localRotation, _LeftShinBaseRot, t);
+                        if (_RightThighBone != null) _RightThighBone.localRotation = Quaternion.Slerp(_RightThighBone.localRotation, _RightThighBaseRot, t);
+                        if (_RightShinBone != null) _RightShinBone.localRotation = Quaternion.Slerp(_RightShinBone.localRotation, _RightShinBaseRot, t);
+                    }
                 }
-                if (_RightLegBone != null)
+                else
                 {
-                    _RightLegBone.localRotation = _RightLegBaseRot * Quaternion.Euler(-legSwing, 0f, 0f);
-                }
-            }
-            else
-            {
-                if (_LeftLegBone != null)
-                {
-                    _LeftLegBone.localRotation = Quaternion.Slerp(_LeftLegBone.localRotation, _LeftLegBaseRot, Time.deltaTime * 6f);
-                }
-                if (_RightLegBone != null)
-                {
-                    _RightLegBone.localRotation = Quaternion.Slerp(_RightLegBone.localRotation, _RightLegBaseRot, Time.deltaTime * 6f);
+                    // =========================================================================
+                    // KHỦNG LONG 2 CHÂN (T-Rex & Velociraptor)
+                    // Hai chân bước đi đều đặn, co gập khớp gối tự nhiên, kết hợp vung 2 chi trước
+                    // =========================================================================
+                    if (isMoving)
+                    {
+                        float legSwing = Mathf.Sin(_GaitTimer) * 28f;
+
+                        // Chân Trái: Đùi vung trước-sau, Gối co gập khi đẩy lùi, Bàn chân giữ thế
+                        if (_LeftThighBone != null)
+                            _LeftThighBone.localRotation = _LeftThighBaseRot * Quaternion.Euler(legSwing, 0f, 0f);
+                        if (_LeftShinBone != null)
+                            _LeftShinBone.localRotation = _LeftShinBaseRot * Quaternion.Euler(Mathf.Clamp(-legSwing * 1.15f, 0f, 32f), 0f, 0f);
+                        if (_LeftFootBone != null)
+                            _LeftFootBone.localRotation = _LeftFootBaseRot * Quaternion.Euler(Mathf.Clamp(legSwing * 0.45f, -15f, 15f), 0f, 0f);
+
+                        // Chân Phải: Pha ngược lại hoàn toàn so với Chân Trái
+                        if (_RightThighBone != null)
+                            _RightThighBone.localRotation = _RightThighBaseRot * Quaternion.Euler(-legSwing, 0f, 0f);
+                        if (_RightShinBone != null)
+                            _RightShinBone.localRotation = _RightShinBaseRot * Quaternion.Euler(Mathf.Clamp(legSwing * 1.15f, 0f, 32f), 0f, 0f);
+                        if (_RightFootBone != null)
+                            _RightFootBone.localRotation = _RightFootBaseRot * Quaternion.Euler(Mathf.Clamp(-legSwing * 0.45f, -15f, 15f), 0f, 0f);
+
+                        // Hai chi trước vung nhẹ nhịp nhàng đối trọng
+                        if (_LeftArmBone != null)
+                            _LeftArmBone.localRotation = _LeftArmBaseRot * Quaternion.Euler(-legSwing * 0.45f, 0f, 0f);
+                        if (_RightArmBone != null)
+                            _RightArmBone.localRotation = _RightArmBaseRot * Quaternion.Euler(legSwing * 0.45f, 0f, 0f);
+                    }
+                    else
+                    {
+                        float t = Time.deltaTime * 6f;
+                        if (_LeftThighBone != null) _LeftThighBone.localRotation = Quaternion.Slerp(_LeftThighBone.localRotation, _LeftThighBaseRot, t);
+                        if (_LeftShinBone != null) _LeftShinBone.localRotation = Quaternion.Slerp(_LeftShinBone.localRotation, _LeftShinBaseRot, t);
+                        if (_LeftFootBone != null) _LeftFootBone.localRotation = Quaternion.Slerp(_LeftFootBone.localRotation, _LeftFootBaseRot, t);
+                        if (_RightThighBone != null) _RightThighBone.localRotation = Quaternion.Slerp(_RightThighBone.localRotation, _RightThighBaseRot, t);
+                        if (_RightShinBone != null) _RightShinBone.localRotation = Quaternion.Slerp(_RightShinBone.localRotation, _RightShinBaseRot, t);
+                        if (_RightFootBone != null) _RightFootBone.localRotation = Quaternion.Slerp(_RightFootBone.localRotation, _RightFootBaseRot, t);
+                        if (_LeftArmBone != null) _LeftArmBone.localRotation = Quaternion.Slerp(_LeftArmBone.localRotation, _LeftArmBaseRot, t);
+                        if (_RightArmBone != null) _RightArmBone.localRotation = Quaternion.Slerp(_RightArmBone.localRotation, _RightArmBaseRot, t);
+                    }
                 }
             }
 
-            // 2. Đuôi uốn lượn hình sin mềm mại theo nhịp di chuyển (Multi-Joint Tail Sway)
+            // =========================================================================
+            // ĐUÔI UỐN LƯỢN / QUẢ CHÙY ĐUÔI LẮC LƯ THEO NHỊP (Multi-Joint Tail Sway)
+            // =========================================================================
             for (int i = 0; i < _TailBones.Count; i++)
             {
                 if (_TailBones[i] == null) continue;
-                float phase = isMoving ? (_GaitTimer - (i * 0.45f)) : (Time.time * 2.2f - (i * 0.35f));
-                float amp = isMoving ? 6.5f : 3.0f;
+                float phase = isMoving ? (_GaitTimer - (i * 0.45f)) : (Time.time * 2.0f - (i * 0.35f));
+                float amp = _IsQuadruped ? (isMoving ? 12.0f : 4.0f) : (isMoving ? 7.5f : 3.0f);
                 float sway = Mathf.Sin(phase) * amp;
                 _TailBones[i].localRotation = _TailBaseRots[i] * Quaternion.Euler(0f, sway, 0f);
             }
 
-            // 3. Đầu & Cổ lắc lư theo nhịp bước chân (Head & Neck Rhythm)
+            // =========================================================================
+            // ĐẦU & CỔ GẬT GÙ THEO NHỊP BƯỚC CHÂN (Head & Neck Rhythm)
+            // =========================================================================
             if (isMoving)
             {
-                float headBob = Mathf.Cos(_GaitTimer * 2f) * 3.5f;
+                float headBob = Mathf.Cos(_GaitTimer * 2f) * (_IsQuadruped ? 2.5f : 3.8f);
                 if (_HeadBone != null)
                 {
                     _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(headBob, 0f, 0f);
                 }
                 if (_NeckBone != null)
                 {
-                    _NeckBone.localRotation = _NeckBaseRot * Quaternion.Euler(-headBob * 0.5f, 0f, 0f);
+                    _NeckBone.localRotation = _NeckBaseRot * Quaternion.Euler(-headBob * 0.45f, 0f, 0f);
                 }
             }
+            else
+            {
+                if (_HeadBone != null) _HeadBone.localRotation = Quaternion.Slerp(_HeadBone.localRotation, _HeadBaseRot, Time.deltaTime * 4f);
+                if (_NeckBone != null) _NeckBone.localRotation = Quaternion.Slerp(_NeckBone.localRotation, _NeckBaseRot, Time.deltaTime * 4f);
+            }
 
-            // 4. Hàm há to & cắn mạnh khi tấn công (Attack Jaw Bite Animation)
+            // =========================================================================
+            // HÀM HÁ TO & CẮN MẠNH KHI TẤN CÔNG (Attack Jaw Bite Animation)
+            // =========================================================================
             if (_AttackAnimProgress >= 0f)
             {
-                float jawAngle = Mathf.Sin(_AttackAnimProgress * Mathf.PI) * 32f;
+                float jawAngle = Mathf.Sin(_AttackAnimProgress * Mathf.PI) * 35f;
                 if (_JawBone != null)
                 {
                     _JawBone.localRotation = _JawBaseRot * Quaternion.Euler(jawAngle, 0f, 0f);
                 }
                 if (_HeadBone != null)
                 {
-                    _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(jawAngle * 0.4f, 0f, 0f);
+                    _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(jawAngle * 0.35f, 0f, 0f);
                 }
             }
         }

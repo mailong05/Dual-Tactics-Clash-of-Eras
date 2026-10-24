@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 629b32e1c30ed2742921e6dbca348fd1
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 165201
+  packageName: PBR Velociraptors
+  packageVersion: 1.2
+  assetPath: Assets/PBRVelociraptor/Scripts/RaptorSoundEffects.cs
+  uploadId: 522318

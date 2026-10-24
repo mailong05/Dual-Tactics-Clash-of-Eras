@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 16e48d3be13f7b54993823807c430bba
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 165201
+  packageName: PBR Velociraptors
+  packageVersion: 1.2
+  assetPath: Assets/PBRVelociraptor/Materials/Mobile/RaptorBodyAMobile.mat
+  uploadId: 522318
