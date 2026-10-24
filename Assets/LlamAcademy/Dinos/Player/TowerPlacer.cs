@@ -515,13 +515,33 @@ namespace LlamAcademy.Dinos.Player
             if (RoundManager.Instance == null || RoundManager.Instance.DinoTarget == null) return false;
             if (MonsterSpawnPoints == null || MonsterSpawnPoints.Length == 0) return false;
 
-            Vector3 targetPos = RoundManager.Instance.DinoTarget.position;
+            Vector3 targetPos;
+            try
+            {
+                if (RoundManager.Instance.DinoTarget.gameObject == null) return false;
+                targetPos = RoundManager.Instance.DinoTarget.position;
+            }
+            catch
+            {
+                return false;
+            }
 
             foreach (Transform spawnPoint in MonsterSpawnPoints)
             {
                 if (spawnPoint == null) continue;
 
-                if (NavMesh.CalculatePath(spawnPoint.position, targetPos, NavMesh.AllAreas, PathCheckBuffer))
+                Vector3 spPos;
+                try
+                {
+                    if (spawnPoint.gameObject == null) continue;
+                    spPos = spawnPoint.position;
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (NavMesh.CalculatePath(spPos, targetPos, NavMesh.AllAreas, PathCheckBuffer))
                 {
                     // If the path already cannot reach target, or if candidate point directly cuts the path
                     if (PathCheckBuffer.status != NavMeshPathStatus.PathComplete)

@@ -12,6 +12,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private float AttackRange = 9.0f;
         [SerializeField] private float AttackInterval = 1.2f;
         [SerializeField] private int DamagePerHit = 25;
+        public void SetDamage(int dmg) => DamagePerHit = dmg;
         [SerializeField] private int MaxChains = 4;
         [SerializeField] private float ChainRadius = 6.0f;
         [SerializeField] private LayerMask EnemyLayers;

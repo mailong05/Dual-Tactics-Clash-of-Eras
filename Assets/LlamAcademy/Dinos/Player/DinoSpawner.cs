@@ -185,6 +185,10 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, spawnPos, rot);
+                        if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
+                        {
+                            Environment.PrehistoricVolcanicMutant.ApplyMutation(spawnedDino.gameObject);
+                        }
                         spawnedDino.transform.localScale = SpawnDino.Prefab.transform.localScale;
                         spawnedDino.UnitType = SpawnDino;
                         int assaultLvl = (PrehistoricGameModeManager.Instance != null) ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;

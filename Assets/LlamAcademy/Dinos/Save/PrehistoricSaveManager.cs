@@ -75,6 +75,9 @@ namespace LlamAcademy.Dinos.Save
         public PrehistoricGameMode LastPlayedMode = PrehistoricGameMode.TowerDefense;
         public string PlayerChiefName = "Tù Trưởng Tiền Sử";
 
+        // Tiến trình mở khóa bản đồ: 0 = Thung Lũng Cổ Đại, 1 = Núi Dung Nham (Vượt Đợt 10), 2 = Núi Băng Tuyết (Vượt Đợt 20)
+        public int UnlockedMapMax = 0;
+
         // Backwards compatibility shortcuts cho code cũ
         public int CurrentWave
         {
@@ -253,8 +256,58 @@ namespace LlamAcademy.Dinos.Save
 
         private void EnsureProfilesInitialized()
         {
+            if (CurrentData == null) CurrentData = new PrehistoricSaveData();
             if (CurrentData.DefenseProfile == null) CurrentData.DefenseProfile = new DefenseSaveProfile();
             if (CurrentData.AssaultProfile == null) CurrentData.AssaultProfile = new AssaultSaveProfile();
+
+            // Tự động kiểm tra nếu người chơi đã từng vượt qua đợt 10 ở bản lưu cũ
+            if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+            {
+                CurrentData.UnlockedMapMax = 1;
+            }
+            if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+            {
+                CurrentData.UnlockedMapMax = 2;
+            }
+        }
+
+        public bool IsMapUnlocked(PrehistoricMapType map)
+        {
+            if (map == PrehistoricMapType.AncientValley) return true;
+            EnsureProfilesInitialized();
+            if (CurrentData == null) return false;
+
+            if (map == PrehistoricMapType.VolcanicGorge)
+            {
+                return CurrentData.UnlockedMapMax >= 1 || 
+                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 10);
+            }
+            if (map == PrehistoricMapType.GlacialTundra)
+            {
+                return CurrentData.UnlockedMapMax >= 2 || 
+                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 20);
+            }
+            return true;
+        }
+
+        public void UnlockMap(PrehistoricMapType map)
+        {
+            EnsureProfilesInitialized();
+            if (CurrentData == null) return;
+
+            int required = map switch
+            {
+                PrehistoricMapType.VolcanicGorge => 1,
+                PrehistoricMapType.GlacialTundra => 2,
+                _ => 0
+            };
+
+            if (CurrentData.UnlockedMapMax < required)
+            {
+                CurrentData.UnlockedMapMax = required;
+                SaveDataToDisk();
+                Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Chúc mừng! Đã mở khóa bản đồ mới: <b>{map}</b>!");
+            }
         }
 
         private void MigrateInitialSlotsIfMissing()
@@ -363,6 +416,14 @@ namespace LlamAcademy.Dinos.Save
                 // Đồng bộ cập nhật vào hồ sơ bộ nhớ
                 CurrentData.DefenseProfile.CurrentWave = wave;
                 CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, wave);
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+                {
+                    CurrentData.UnlockedMapMax = 1;
+                }
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+                {
+                    CurrentData.UnlockedMapMax = 2;
+                }
                 CurrentData.DefenseProfile.BaseHealth = baseHp;
                 CurrentData.DefenseProfile.MaxBaseHealth = maxHp;
                 CurrentData.DefenseProfile.Gold = gold;
@@ -547,6 +608,14 @@ namespace LlamAcademy.Dinos.Save
 
                 CurrentData.DefenseProfile.CurrentWave = wave;
                 CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, wave);
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+                {
+                    CurrentData.UnlockedMapMax = 1;
+                }
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+                {
+                    CurrentData.UnlockedMapMax = 2;
+                }
                 CurrentData.DefenseProfile.BaseHealth = baseHp;
                 CurrentData.DefenseProfile.MaxBaseHealth = maxHp;
                 CurrentData.DefenseProfile.Gold = gold;

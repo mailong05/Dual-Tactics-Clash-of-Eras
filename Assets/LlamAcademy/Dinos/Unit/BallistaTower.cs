@@ -11,6 +11,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private float AttackRange = 16.0f;
         [SerializeField] private float FireInterval = 2.2f;
         [SerializeField] private int SpearDamage = 70;
+        public void SetDamage(int dmg) => SpearDamage = dmg;
         [SerializeField] private float SpearSpeed = 28.0f;
         [SerializeField] private int PierceCount = 2;
         [SerializeField] private LayerMask EnemyLayers;

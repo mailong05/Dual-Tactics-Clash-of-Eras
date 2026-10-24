@@ -11,6 +11,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private float MinRange = 3.5f;
         [SerializeField] private float FireInterval = 3.0f;
         [SerializeField] private int ExplosionDamage = 50;
+        public void SetDamage(int dmg) => ExplosionDamage = dmg;
         [SerializeField] private float ExplosionRadius = 4.0f;
         [SerializeField] private LayerMask EnemyLayers;
 

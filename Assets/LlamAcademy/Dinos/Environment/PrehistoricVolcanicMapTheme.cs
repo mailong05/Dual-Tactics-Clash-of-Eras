@@ -19,6 +19,7 @@ namespace LlamAcademy.Dinos.Environment
 
         private GameObject _vfxRoot;
         private Material _lavaWaterfallMaterial;
+        private Material _emberMaterial;
         private readonly List<Light> _lavaLights = new List<Light>();
         private readonly List<float> _lightBaseIntensities = new List<float>();
         private readonly Dictionary<Material, Color> _originalMaterialColors = new Dictionary<Material, Color>();
@@ -386,6 +387,39 @@ namespace LlamAcademy.Dinos.Environment
             }
         }
 
+        private Material GetEmberParticleMaterial()
+        {
+            if (_emberMaterial != null) return _emberMaterial;
+
+            Material baseMat = Resources.Load<Material>("Materials/Particle_LavaEmber");
+            if (baseMat == null)
+            {
+                baseMat = Resources.Load<Material>("Materials/Trail_LavaFire");
+            }
+
+            if (baseMat != null)
+            {
+                _emberMaterial = new Material(baseMat);
+            }
+            else
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                             ?? Shader.Find("Universal Render Pipeline/Particles/Lit")
+                             ?? Shader.Find("Universal Render Pipeline/Particles/Simple Lit")
+                             ?? Shader.Find("Particles/Standard Unlit")
+                             ?? Shader.Find("Sprites/Default");
+                _emberMaterial = new Material(shader);
+                _emberMaterial.color = new Color(1f, 0.65f, 0.15f, 0.9f);
+                if (_emberMaterial.HasProperty("_BaseColor")) _emberMaterial.SetColor("_BaseColor", new Color(1f, 0.65f, 0.15f, 0.9f));
+                if (_emberMaterial.HasProperty("_EmissionColor"))
+                {
+                    _emberMaterial.EnableKeyword("_EMISSION");
+                    _emberMaterial.SetColor("_EmissionColor", new Color(2.5f, 1.2f, 0.2f));
+                }
+            }
+            return _emberMaterial;
+        }
+
         private void BuildVolcanicEmberParticles()
         {
             GameObject psGo = new GameObject("Volcanic_Embers_VFX");
@@ -425,6 +459,7 @@ namespace LlamAcademy.Dinos.Environment
 
             var renderer = psGo.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.material = GetEmberParticleMaterial();
         }
 
         private void DecorateLavaBoulders()
@@ -545,6 +580,10 @@ namespace LlamAcademy.Dinos.Environment
             if (_lavaWaterfallMaterial != null)
             {
                 Destroy(_lavaWaterfallMaterial);
+            }
+            if (_emberMaterial != null)
+            {
+                Destroy(_emberMaterial);
             }
         }
 

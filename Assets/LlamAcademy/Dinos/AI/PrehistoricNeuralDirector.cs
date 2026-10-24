@@ -517,27 +517,45 @@ namespace LlamAcademy.Dinos.AI
         public Transform SelectSpawnGateByQLearning(Transform[] spawnPoints)
         {
             if (spawnPoints == null || spawnPoints.Length == 0) return null;
-            if (spawnPoints.Length == 1) return spawnPoints[0];
+
+            List<Transform> validPoints = new List<Transform>();
+            for (int i = 0; i < spawnPoints.Length; i++)
+            {
+                try
+                {
+                    if (spawnPoints[i] != null && spawnPoints[i].gameObject != null)
+                    {
+                        validPoints.Add(spawnPoints[i]);
+                    }
+                }
+                catch
+                {
+                    // Ignore destroyed or unmarshalled transform
+                }
+            }
+
+            if (validPoints.Count == 0) return null;
+            if (validPoints.Count == 1) return validPoints[0];
 
             // Epsilon-greedy exploration
             if (UnityEngine.Random.value < EXPLORATION_EPSILON)
             {
-                return spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
+                return validPoints[UnityEngine.Random.Range(0, validPoints.Count)];
             }
 
             // Softmax sampling over Q-probabilities
             float r = UnityEngine.Random.value;
             float cumulative = 0f;
-            for (int i = 0; i < spawnPoints.Length && i < NUM_ROUTES; i++)
+            for (int i = 0; i < validPoints.Count && i < NUM_ROUTES; i++)
             {
                 cumulative += _qRouteProbabilities[i];
                 if (r <= cumulative)
                 {
-                    return spawnPoints[i];
+                    return validPoints[i];
                 }
             }
 
-            return spawnPoints[0];
+            return validPoints[0];
         }
 
         /// <summary>

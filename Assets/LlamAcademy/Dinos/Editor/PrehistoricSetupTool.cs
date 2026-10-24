@@ -752,7 +752,7 @@ namespace LlamAcademy.Dinos.Editor
                     EnsureBoxCollider(go, new Vector3(2.2f, 2.0f, 2.5f), new Vector3(0, 1.0f, 0));
                 });
 
-            // 3. Máy Bắn Đá Lửa (Catapult - Max Extent 3.2m, Upright -90 deg X)
+            // 3. Máy Bắn Đá Lửa (Catapult - Max Extent 3.2m, Upright on 4 wheels Vector3.zero)
             createdPrefabs["Catapult"] = CreateOrUpdatePrefab(
                 "Assets/free__catapult.glb",
                 $"{PREFAB_DIR}/Prefab_Catapult.prefab",
@@ -769,9 +769,10 @@ namespace LlamAcademy.Dinos.Editor
                     if (lavaBoulder != null) so.FindProperty("BoulderPrefab").objectReferenceValue = lavaBoulder;
                     if (explosionVFX != null) so.FindProperty("ImpactExplosionVFX").objectReferenceValue = explosionVFX.GetComponent<ParticleSystem>();
                     so.ApplyModifiedPropertiesWithoutUndo();
-                });
+                },
+                customRotation: Vector3.zero);
 
-            // 4. Cột Vật Tổ Sét (Shaman Totem - Height 4.2m, Upright -90 deg X)
+            // 4. Cột Vật Tổ Sét (Shaman Totem - Height 4.2m, Upright Tauren Pillar Vector3.zero)
             createdPrefabs["ShamanTotem"] = CreateOrUpdatePrefab(
                 "Assets/highmountain_tauren_shaman_totem.glb",
                 $"{PREFAB_DIR}/Prefab_ShamanTotem.prefab",
@@ -790,7 +791,8 @@ namespace LlamAcademy.Dinos.Editor
                         fp = fpGO.transform;
                     }
                     fp.localPosition = new Vector3(0, 3.9f, 0);
-                });
+                },
+                customRotation: Vector3.zero);
 
             // 5. Vũng Hắc Ín (Tar Pit Trap - Procedural)
             createdPrefabs["TarPit"] = CreateOrUpdateTarPitPrefab($"{PREFAB_DIR}/Prefab_TarPit.prefab");
@@ -808,11 +810,11 @@ namespace LlamAcademy.Dinos.Editor
                     if (!go.TryGetComponent(out GroundTrap _)) go.AddComponent<GroundTrap>();
                 });
 
-            // 7. Rào Cọc Gỗ Cản Đường (Barricade - Width across road 3.0m along X, Upright -90 deg X, 0 deg Y)
+            // 7. Rào Cọc Gỗ Cản Đường (Barricade - Reinforced Width 6.0m along X, Upright -90 deg X, 0 deg Y)
             createdPrefabs["Barricade"] = CreateOrUpdatePrefab(
                 "Assets/wooden__barricade_low.glb",
                 $"{PREFAB_DIR}/Prefab_Barricade.prefab",
-                3.0f,
+                6.0f,
                 DimensionMode.HorizontalWidth,
                 go =>
                 {
@@ -822,9 +824,9 @@ namespace LlamAcademy.Dinos.Editor
                         obs = go.AddComponent<NavMeshObstacle>();
                     }
                     obs.carving = true;
-                    obs.size = new Vector3(3.0f, 1.4f, 0.8f);
-                    obs.center = new Vector3(0, 0.7f, 0);
-                    EnsureBoxCollider(go, new Vector3(3.0f, 1.4f, 0.8f), new Vector3(0, 0.7f, 0));
+                    obs.size = new Vector3(6.0f, 2.0f, 1.0f);
+                    obs.center = new Vector3(0, 1.0f, 0);
+                    EnsureBoxCollider(go, new Vector3(6.0f, 2.0f, 1.0f), new Vector3(0, 1.0f, 0));
 
                     Material woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Prehistoric_Wood.mat");
                     if (woodMat != null)
