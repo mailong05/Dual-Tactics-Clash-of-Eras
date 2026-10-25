@@ -40,44 +40,9 @@ namespace LlamAcademy.Dinos.Editor
 
         private static void SetupCatapultAndTotemPrefabs()
         {
-            // --- 1. CATAPULT ---
-            string catPath = $"{PREFAB_DIR}/Prefab_Catapult.prefab";
-            if (File.Exists(catPath))
-            {
-                GameObject root = PrefabUtility.LoadPrefabContents(catPath);
-                Transform model = root.transform.Find("Model");
-                if (model != null)
-                {
-                    // GLB fires towards -Z. 180 deg Y rotation faces +Z (towards incoming dinos / village gate)
-                    model.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                    model.localPosition = new Vector3(0f, 1.4613f, 0f);
-                }
-                root.transform.rotation = Quaternion.identity;
-                PrefabUtility.SaveAsPrefabAsset(root, catPath);
-                PrefabUtility.UnloadPrefabContents(root);
-
-                SyncToResources(catPath);
-                Debug.Log("<color=green>[Prehistoric TD]</color> Prefab_Catapult updated: facing +Z, 4 wheels level on ground.");
-            }
-
-            // --- 2. SHAMAN TOTEM ---
-            string totemPath = $"{PREFAB_DIR}/Prefab_ShamanTotem.prefab";
-            if (File.Exists(totemPath))
-            {
-                GameObject root = PrefabUtility.LoadPrefabContents(totemPath);
-                Transform model = root.transform.Find("Model");
-                if (model != null)
-                {
-                    model.localRotation = Quaternion.identity;
-                    model.localPosition = new Vector3(-0.0389f, 0.5159f, -0.0028f);
-                }
-                root.transform.rotation = Quaternion.identity;
-                PrefabUtility.SaveAsPrefabAsset(root, totemPath);
-                PrefabUtility.UnloadPrefabContents(root);
-
-                SyncToResources(totemPath);
-                Debug.Log("<color=green>[Prehistoric TD]</color> Prefab_ShamanTotem updated: upright, zero tilt.");
-            }
+            // Prefabs are preserved in clean commit 85492a8 format (-90 deg X rotation for Sketchfab models).
+            SyncToResources($"{PREFAB_DIR}/Prefab_Catapult.prefab");
+            SyncToResources($"{PREFAB_DIR}/Prefab_ShamanTotem.prefab");
         }
 
         private static void SetupVelociraptorPrefab()
@@ -112,11 +77,11 @@ namespace LlamAcademy.Dinos.Editor
                 Object.DestroyImmediate(oldModel.gameObject);
             }
 
-            // Instantiate PBR Raptor
+            // Instantiate PBR Raptor (quay 180 độ quanh Y để đầu hướng thẳng ra phía trước / căn cứ làng)
             GameObject newModel = (GameObject)PrefabUtility.InstantiatePrefab(pbrPrefab, root.transform);
             newModel.name = "Model";
             newModel.transform.localPosition = Vector3.zero;
-            newModel.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+            newModel.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
 
             // Target dimensions: Velociraptor height ~1.6m
             FitModelDimensions(newModel, 1.6f);

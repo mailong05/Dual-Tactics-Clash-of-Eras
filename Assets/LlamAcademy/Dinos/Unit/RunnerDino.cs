@@ -15,6 +15,13 @@ namespace LlamAcademy.Dinos.Unit
             AttackInterval = 0.9f;
             BuildingDamageMultiplier = 2.5f;
             GoldReward = 12;
+
+            if (VisualModel != null)
+            {
+                // Căn chỉnh đầu khủng long nhỏ quay chuẩn 100% về phía trước (+Z / hướng căn cứ làng)
+                VisualModel.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                _BaseModelLocalRot = VisualModel.localRotation;
+            }
         }
     }
 }

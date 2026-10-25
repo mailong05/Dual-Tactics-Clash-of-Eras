@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using LlamAcademy.Dinos.Config;
 using LlamAcademy.Dinos.Unit;
@@ -46,12 +46,12 @@ namespace LlamAcademy.Dinos.Utility
             Vector3 yPosition = y.transform.position;
             if (x.TryGetComponent(out Collider xCollider))
             {
-                xPosition = xCollider.ClosestPoint(Source);
+                xPosition = Unit.PrehistoricDinoBase.GetSafeClosestPoint(xCollider, Source);
             }
 
             if (y.TryGetComponent(out Collider yCollider))
             {
-                yPosition = yCollider.ClosestPoint(Source);
+                yPosition = Unit.PrehistoricDinoBase.GetSafeClosestPoint(yCollider, Source);
             }
             bool path1Success = NavMesh.CalculatePath(Source, xPosition, Filter, path1);
             bool path2Success = NavMesh.CalculatePath(Source, yPosition, Filter, path2);

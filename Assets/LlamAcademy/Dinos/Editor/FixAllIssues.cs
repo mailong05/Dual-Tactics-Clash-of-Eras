@@ -353,47 +353,10 @@ namespace LlamAcademy.Dinos.Editor
 
         public static void FixCatapultAndTotemOrientation()
         {
-            // Catapult: Make sure it's 100% horizontal flat on the ground.
-            string catPath = $"{PREFAB_DIR}/Prefab_Catapult.prefab";
-            if (File.Exists(catPath))
-            {
-                GameObject root = PrefabUtility.LoadPrefabContents(catPath);
-                Transform model = root.transform.Find("Model");
-                if (model != null)
-                {
-                    // Check if mesh has internal tilt and level it flat
-                    // In free__catapult.glb, the front of the catapult is at Z+ in local coordinates.
-                    // When rotated 180° Y, it faces +Z (towards incoming dinos).
-                    // We ensure X and Z rotation are strictly 0.
-                    model.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                    model.localPosition = new Vector3(0f, 1.4613f, 0f);
-                }
-
-                root.transform.rotation = Quaternion.identity;
-                PrefabUtility.SaveAsPrefabAsset(root, catPath);
-                PrefabUtility.UnloadPrefabContents(root);
-                SyncToResources(catPath);
-                Debug.Log("<color=green>[FixAllIssues]</color> Prefab_Catapult rotation set to level (X=0, Y=180, Z=0).");
-            }
-
-            // Shaman Totem: Make sure it's 100% upright pillar (zero tilt on X/Z)
-            string totemPath = $"{PREFAB_DIR}/Prefab_ShamanTotem.prefab";
-            if (File.Exists(totemPath))
-            {
-                GameObject root = PrefabUtility.LoadPrefabContents(totemPath);
-                Transform model = root.transform.Find("Model");
-                if (model != null)
-                {
-                    model.localRotation = Quaternion.identity;
-                    model.localPosition = new Vector3(-0.0389f, 0.5159f, -0.0028f);
-                }
-
-                root.transform.rotation = Quaternion.identity;
-                PrefabUtility.SaveAsPrefabAsset(root, totemPath);
-                PrefabUtility.UnloadPrefabContents(root);
-                SyncToResources(totemPath);
-                Debug.Log("<color=green>[FixAllIssues]</color> Prefab_ShamanTotem rotation set to upright (X=0, Y=0, Z=0).");
-            }
+            // Prefabs are preserved in clean commit 85492a8 format (-90 deg X rotation for Sketchfab models).
+            SyncToResources($"{PREFAB_DIR}/Prefab_Catapult.prefab");
+            SyncToResources($"{PREFAB_DIR}/Prefab_ShamanTotem.prefab");
+            Debug.Log("<color=green>[FixAllIssues]</color> Synced Catapult and ShamanTotem prefabs to Resources.");
         }
 
         private static void EnsureParameter(AnimatorController ctrl, string name, AnimatorControllerParameterType type)

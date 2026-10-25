@@ -5,14 +5,14 @@ using UnityEngine.EventSystems;
 namespace LlamAcademy.Dinos.Mobile
 {
     /// <summary>
-    /// Utility class for adaptive mobile UI scaling, DPI adaptation, and touch hit testing.
-    /// Ensures IMGUI elements render at finger-friendly proportions on all Android screen sizes and resolutions.
-    /// PC desktop resolution and layout remain 100% unaffected.
+    /// Utility class for adaptive UI scaling, DPI adaptation, and touch/mouse hit testing.
+    /// Ensures IMGUI elements render at clear, comfortable, proportional sizes on all screen resolutions,
+    /// both on Mobile (Android/iOS) and on PC Standalone (.exe) across Full HD, 2K, and 4K displays.
     /// </summary>
     public static class MobileUIHelper
     {
-        // Reference virtual height in landscape mode (640p provides ideal touch targets for mobile)
-        private const float BASE_REFERENCE_HEIGHT = 640f;
+        // Reference virtual height in landscape mode (720p base reference provides ideal button proportions across all resolutions)
+        private const float BASE_REFERENCE_HEIGHT = 720f;
 
         public static bool ForceMobileSimulation = false;
 
@@ -32,21 +32,20 @@ namespace LlamAcademy.Dinos.Mobile
         }
 
         /// <summary>
-        /// Proportional scale factor for mobile devices.
-        /// On PC standalone, always returns 1.0f.
+        /// Proportional scale factor for all platforms (Mobile & PC Standalone .exe).
+        /// Adapts dynamically to screen resolution: 720p=1.0x, 1080p=1.5x, 1440p=2.0x, 4K=3.0x.
         /// </summary>
         public static float ScaleFactor
         {
             get
             {
-                if (!IsMobile) return 1.0f;
                 float factor = (float)Screen.height / BASE_REFERENCE_HEIGHT;
                 return Mathf.Max(1.0f, factor);
             }
         }
 
-        public static float ScreenWidth => IsMobile ? (Screen.width / ScaleFactor) : Screen.width;
-        public static float ScreenHeight => IsMobile ? (Screen.height / ScaleFactor) : Screen.height;
+        public static float ScreenWidth => Screen.width / ScaleFactor;
+        public static float ScreenHeight => Screen.height / ScaleFactor;
 
         private static Matrix4x4 _cachedMatrix = Matrix4x4.identity;
         private static bool _isScalingActive = false;
@@ -75,12 +74,11 @@ namespace LlamAcademy.Dinos.Mobile
         }
 
         /// <summary>
-        /// Begins scaling the IMGUI matrix on mobile platforms.
+        /// Begins scaling the IMGUI matrix across all platforms.
         /// Must be paired with EndScaling().
         /// </summary>
         public static void BeginScaling()
         {
-            if (!IsMobile) return;
             _cachedMatrix = GUI.matrix;
             _isScalingActive = true;
 
@@ -93,7 +91,7 @@ namespace LlamAcademy.Dinos.Mobile
         /// </summary>
         public static void EndScaling()
         {
-            if (!IsMobile || !_isScalingActive) return;
+            if (!_isScalingActive) return;
             GUI.matrix = _cachedMatrix;
             _isScalingActive = false;
         }

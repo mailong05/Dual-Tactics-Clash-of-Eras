@@ -59,7 +59,7 @@ namespace LlamAcademy.Dinos.Behavior
 
             if (DamageableCollider != null)
             {
-                return DamageableCollider.ClosestPoint(Transform.position);
+                return Unit.PrehistoricDinoBase.GetSafeClosestPoint(DamageableCollider, Transform.position);
             }
 
             return ClosestAttackable.Value.transform.position;

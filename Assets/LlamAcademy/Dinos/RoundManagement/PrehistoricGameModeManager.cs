@@ -411,8 +411,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         private void DrawTopModeBanner()
         {
             // Bố trí ở góc trên bên trái, nằm ngay cạnh nút Cài Đặt/Menu để giải phóng toàn bộ góc phải
-            float width = 205f;
-            float height = 34f;
+            float width = 230f;
+            float height = 40f;
             float x = 175f;
             float y = 168f;
 
@@ -594,8 +594,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 2. Bottom Unified Dino Command Dock (Thanh điều khiển khủng long & Xuất quân thống nhất)
             if (AvailableDinos != null && AvailableDinos.Count > 0)
             {
-                float cardWidth = 145f;
-                float actionBtnWidth = 175f;
+                float cardWidth = 155f;
+                float actionBtnWidth = 185f;
                 float maxDockW = Mobile.MobileUIHelper.ScreenWidth - 24f;
                 float baseTotalW = AvailableDinos.Count * cardWidth + actionBtnWidth + 24f;
                 if (baseTotalW > maxDockW)
@@ -606,9 +606,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 float totalWidth = AvailableDinos.Count * cardWidth + actionBtnWidth + 24f;
                 float startX = (Mobile.MobileUIHelper.ScreenWidth - totalWidth) / 2f;
-                float startY = Mobile.MobileUIHelper.ScreenHeight - 85f;
-
-                Rect dockRect = new Rect(startX, startY, totalWidth, 75);
+                float startY = Mobile.MobileUIHelper.ScreenHeight - 96f;
+                Rect dockRect = new Rect(startX, startY, totalWidth, 86);
                 Mobile.MobileUIHelper.RegisterUIRect(dockRect);
 
                 GUILayout.BeginArea(dockRect, GUI.skin.box);
@@ -633,7 +632,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (isSelected) GUI.backgroundColor = new Color(1f, 0.3f, 0.2f);
                     else GUI.backgroundColor = canAfford ? new Color(0.2f, 0.25f, 0.3f, 0.95f) : new Color(0.4f, 0.4f, 0.4f, 0.6f);
 
-                    if (GUILayout.Button(btnLabel, GUILayout.Height(55), GUILayout.Width(cardWidth)))
+                    if (GUILayout.Button(btnLabel, GUILayout.Height(64), GUILayout.Width(cardWidth)))
                     {
                         if (isSetupPhaseNow)
                         {
@@ -649,7 +648,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (isSetupPhase)
                 {
                     GUI.backgroundColor = new Color(1f, 0.4f, 0.15f);
-                    if (GUILayout.Button("<b><size=14>⚔️ XUẤT QUÂN\n(START ASSAULT)</size></b>", GUILayout.Height(55), GUILayout.Width(actionBtnWidth)))
+                    if (GUILayout.Button("<b><size=15>⚔️ XUẤT QUÂN\n(START ASSAULT)</size></b>", GUILayout.Height(64), GUILayout.Width(actionBtnWidth)))
                     {
                         if (RoundManager.Instance != null)
                         {
@@ -1147,11 +1146,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                         aimDir.y = 0;
                         if (aimDir.sqrMagnitude > 0.01f)
                         {
-                            spawnRot = Quaternion.LookRotation(aimDir.normalized);
+                            spawnRot = Quaternion.LookRotation(aimDir.normalized, Vector3.up);
                         }
                     }
 
+                    // Đảm bảo tuyệt đối không có góc nghiêng trục X hay Z (0 pitch, 0 roll, đứng thẳng 100%)
+                    Vector3 eulerClean = spawnRot.eulerAngles;
+                    spawnRot = Quaternion.Euler(0f, eulerClean.y, 0f);
+
                     GameObject spawned = Instantiate(prefab, spawnPos, spawnRot, rootDefenses.transform);
+                    spawned.transform.rotation = spawnRot;
                     spawned.AddComponent<AssaultDefenseMarker>();
 
                     if (spawned.TryGetComponent(out Unit.Unit unitComp))

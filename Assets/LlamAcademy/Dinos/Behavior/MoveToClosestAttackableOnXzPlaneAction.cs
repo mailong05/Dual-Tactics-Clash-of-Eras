@@ -62,7 +62,7 @@ namespace LlamAcademy.Dinos.Behavior
             Vector3 targetLocation;
             if (TargetCollider != null)
             {
-                targetLocation = TargetCollider.ClosestPoint(Self.Value.transform.position);
+                targetLocation = Unit.PrehistoricDinoBase.GetSafeClosestPoint(TargetCollider, Self.Value.transform.position);
             }
             else
             {

@@ -41,7 +41,7 @@ namespace LlamAcademy.Dinos.Unit
         private string _AttackClipName;
 
         // Skeletal Bone Rig (Universal Biped & Quadruped)
-        private bool _IsQuadruped = false;
+        protected bool _IsQuadruped = false;
 
         // Biped / Back Legs (T-Rex, Velociraptor, Ankylosaurus Back Legs)
         private Transform _LeftThighBone;
@@ -96,9 +96,9 @@ namespace LlamAcademy.Dinos.Unit
         private float _GaitTimer;
         private float _CurrentSpeed;
         private float _AttackAnimProgress = -1f;
-        private Vector3 _BaseModelLocalPos;
-        private Quaternion _BaseModelLocalRot;
-        private bool _HasBaseModelTransform;
+        protected Vector3 _BaseModelLocalPos;
+        protected Quaternion _BaseModelLocalRot;
+        protected bool _HasBaseModelTransform;
         private bool _IsAttackingAnim;
         private bool _hasReachedBase = false;
         public bool HasReachedBase => _hasReachedBase;
@@ -498,8 +498,7 @@ namespace LlamAcademy.Dinos.Unit
                     }
 
                     Vector3 closest;
-                    try { closest = col.ClosestPoint(myPos); }
-                    catch { closest = col.bounds.ClosestPoint(myPos); }
+                    closest = GetSafeClosestPoint(col, myPos);
 
                     // QUY TẮC CỐT LÕI: Tường thay thế không được nằm ở sau lưng
                     float wallDistToBase = Vector3.Distance(closest, basePos);
@@ -1183,7 +1182,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
                 Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
-                Vector3 closestPoint = targetCol != null ? targetCol.ClosestPoint(transform.position) : targetCenter;
+                Vector3 closestPoint = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : targetCenter;
 
                 // KIỂM TRA MỤC TIÊU CÓ THỰC SỰ Ở PHÍA SAU LƯNG (ĐÃ ĐI QUA RỒI) HAY KHÔNG:
                 if (TargetBase != null && !(CurrentTarget is PrehistoricVillageBase))
@@ -1254,7 +1253,7 @@ namespace LlamAcademy.Dinos.Unit
             {
                 Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
                 Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
-                Vector3 closestPoint = targetCol != null ? targetCol.ClosestPoint(transform.position) : targetCenter;
+                Vector3 closestPoint = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : targetCenter;
 
                 // TÍNH KHOẢNG CÁCH 2D MẶT PHẲNG ĐỂ LOẠI BỎ SAI SỐ ĐỘ CAO Y / DỐC TERRAIN
                 Vector3 flatDiff = transform.position - closestPoint;
@@ -1283,10 +1282,10 @@ namespace LlamAcademy.Dinos.Unit
                 {
                     if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
 
-                    // Face target
+                    // Face target (giữ ổn định hướng khi đang cắn để không bị giật giật ngang)
                     Vector3 look = (targetCenter - transform.position);
                     look.y = 0;
-                    if (look.sqrMagnitude > 0.01f)
+                    if (!_IsAttackingAnim && look.sqrMagnitude > 0.01f)
                     {
                         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), Time.deltaTime * 6f);
                     }
@@ -1346,7 +1345,7 @@ namespace LlamAcademy.Dinos.Unit
 
                 // Check if reached base (Hỗ trợ bầy đàn cắn phá căn cứ đồng thời)
                 Collider baseCol = TargetBase.GetComponentInChildren<Collider>();
-                Vector3 baseClosest = baseCol != null ? baseCol.ClosestPoint(transform.position) : TargetBase.position;
+                Vector3 baseClosest = baseCol != null ? GetSafeClosestPoint(baseCol, transform.position) : TargetBase.position;
                 Vector3 flatBaseDiff = transform.position - baseClosest;
                 flatBaseDiff.y = 0;
                 float distToBase = flatBaseDiff.magnitude;
@@ -1453,7 +1452,12 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // 3. Dao động trọng tâm thân mình (Root Body Bobbing & Rolling Waddle)
-            if (_HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
+            // Tuyệt đối KHÔNG can thiệp lắc hông/xoay thân nếu mô hình đã có Mecanim clip thực thụ (tránh lỗi sải chân hoặc chạy ngang)
+            bool hasRealMecanimMotion = ModelAnimator != null 
+                && ModelAnimator.enabled 
+                && ModelAnimator.runtimeAnimatorController != null;
+
+            if (!hasRealMecanimMotion && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
             {
                 if (isMoving)
                 {
@@ -1740,7 +1744,7 @@ namespace LlamAcademy.Dinos.Unit
             if (directFrontBlocker != null)
             {
                 Collider blockerCol = directFrontBlocker.Transform.GetComponentInChildren<Collider>();
-                Vector3 closestPoint = blockerCol != null ? blockerCol.ClosestPoint(myPos) : directFrontBlocker.Transform.position;
+                Vector3 closestPoint = blockerCol != null ? GetSafeClosestPoint(blockerCol, myPos) : directFrontBlocker.Transform.position;
                 float distToBlocker = Vector3.Distance(myPos, closestPoint);
 
                 float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
@@ -1780,6 +1784,20 @@ namespace LlamAcademy.Dinos.Unit
             return null;
         }
 
+                public static Vector3 GetSafeClosestPoint(Collider col, Vector3 point)
+        {
+            if (col == null) return point;
+            if (col is BoxCollider || col is SphereCollider || col is CapsuleCollider)
+            {
+                return col.ClosestPoint(point);
+            }
+            if (col is MeshCollider mc && mc.convex)
+            {
+                return col.ClosestPoint(point);
+            }
+            return col.bounds.ClosestPoint(point);
+        }
+
         private IDamageable FindEmergencyWallBlocker(float radius)
         {
             int hits = Physics.OverlapSphereNonAlloc(transform.position, radius, ScanBuffer, TargetLayers);
@@ -1796,8 +1814,7 @@ namespace LlamAcademy.Dinos.Unit
                 if (wall != null && wall.Health > 0)
                 {
                     Vector3 closest;
-                    try { closest = col.ClosestPoint(transform.position); }
-                    catch { closest = col.bounds.ClosestPoint(transform.position); }
+                    closest = GetSafeClosestPoint(col, transform.position);
 
                     Vector3 flat = closest - transform.position;
                     flat.y = 0;
@@ -1854,8 +1871,7 @@ namespace LlamAcademy.Dinos.Unit
                 if (candidate == null) continue;
 
                 Vector3 closest;
-                try { closest = col.ClosestPoint(myPos); }
-                catch { closest = col.bounds.ClosestPoint(myPos); }
+                closest = GetSafeClosestPoint(col, myPos);
 
                 Vector3 flatToCol = new Vector3(closest.x - myPos.x, 0f, closest.z - myPos.z);
                 float distToCol = flatToCol.magnitude;
@@ -1944,22 +1960,40 @@ namespace LlamAcademy.Dinos.Unit
                 && !string.IsNullOrEmpty(_AttackClipName) 
                 && ModelLegacyAnimation[_AttackClipName] != null;
 
+            bool hasRealMecanim = ModelAnimator != null 
+                && ModelAnimator.enabled 
+                && ModelAnimator.runtimeAnimatorController != null;
+
             if (hasAttackClip)
             {
                 ModelLegacyAnimation[_AttackClipName].speed = 1.3f;
                 ModelLegacyAnimation.CrossFade(_AttackClipName, 0.12f);
                 StartCoroutine(AttackClipResetRoutine());
             }
+            else if (hasRealMecanim)
+            {
+                // Khủng long dùng Mecanim Animator chuẩn (T-Rex, Velociraptor):
+                // Kích hoạt animation cắn mượt mà, KHÔNG chạy lung lay xương giả lập gây giật lắc
+                SetAnimatorTriggerIfExists(ModelAnimator, "IsAttacking");
+                SetAnimatorTriggerIfExists(ModelAnimator, "Attack");
+                SetAnimatorTriggerIfExists(ModelAnimator, "Bite");
+                StartCoroutine(MecanimAttackRoutine());
+            }
             else
             {
-                if (ModelAnimator != null && ModelAnimator.enabled)
-                {
-                    SetAnimatorTriggerIfExists(ModelAnimator, "IsAttacking");
-                    SetAnimatorTriggerIfExists(ModelAnimator, "Attack");
-                    SetAnimatorTriggerIfExists(ModelAnimator, "Bite");
-                }
+                // Chỉ chạy lung lay giả lập nếu mô hình hoàn toàn không có animation
                 StartCoroutine(AttackMotionRoutine());
             }
+        }
+
+        
+        protected virtual IEnumerator MecanimAttackRoutine()
+        {
+            _IsAttackingAnim = true;
+            // Khóa trạng thái trong suốt thời gian vung đầu/cắn để không bị gián đoạn hay co giật
+            float biteDuration = Mathf.Min(AttackInterval * 0.85f, 0.95f);
+            yield return new WaitForSeconds(biteDuration);
+            _IsAttackingAnim = false;
         }
 
         protected virtual IEnumerator AttackClipResetRoutine()
