@@ -267,11 +267,21 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnemyAIController enemyAI = EnemyAIController.Instance != null ? EnemyAIController.Instance : FindFirstObjectByType<EnemyAIController>();
             if (enemyAI != null)
             {
-                // Cho phép NPC Defender chiến đấu bảo vệ làng ở cả 2 chế độ!
-                enemyAI.enabled = true;
-                if (Application.isPlaying)
+                if (mode == PrehistoricGameMode.DinoAssault)
                 {
-                    enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel));
+                    enemyAI.enabled = true;
+                    if (Application.isPlaying)
+                    {
+                        enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(AssaultLevel));
+                    }
+                }
+                else
+                {
+                    // Chế độ Thủ Thành: Dọn sạch 100% NPC tự do, người chơi tự do xây tháp và mua quân theo ý muốn
+                    if (Application.isPlaying)
+                    {
+                        enemyAI.ClearAllDefenders(includePlayerPlaced: false);
+                    }
                 }
             }
 
@@ -294,7 +304,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 PrehistoricGameplayManager.Instance.DeactivateDefaultSceneBarricades();
                 PrehistoricGameplayManager.Instance.ConfigureAllCustomBarricades();
-                PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(AssaultLevel);
+                if (mode == PrehistoricGameMode.DinoAssault)
+                {
+                    PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(AssaultLevel);
+                }
+                else
+                {
+                    PrehistoricGameplayManager.Instance.RemoveAllVillageFrontBarricades();
+                    PrehistoricGameplayManager.Instance.CleanAllScenicWallHealthBars();
+                }
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
             }
 

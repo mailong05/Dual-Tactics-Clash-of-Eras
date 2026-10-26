@@ -502,6 +502,17 @@ namespace LlamAcademy.Dinos.Enemy
                 return;
             }
 
+            // Chế độ Thủ thành: Khi đang ở Pha chuẩn bị (BuildingPhase), NPC đứng yên tại vị trí gác, không đi tuần lung tung!
+            if (PrehistoricGameplayManager.Instance != null &&
+                PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.BuildingPhase)
+            {
+                if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                {
+                    Agent.isStopped = true;
+                }
+                return;
+            }
+
             if (!_HasRecordedDefaultPost)
             {
                 _DefaultPostPosition = transform.position;

@@ -1840,20 +1840,30 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void EnsureVillageDefendersActive()
         {
-            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            if (PrehistoricGameModeManager.Instance == null || PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.TowerDefense)
             {
+                // Ở chế độ Thủ Thành: Tuyệt đối không tự động sinh lính tự do trên cầu gỗ và sân làng!
+                // Người chơi tự tay mua lính từ toolbar phím 5 nếu cần. Cầu gỗ phải hoàn toàn thông thoáng!
+                var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+                    ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
+                    : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
+                if (ai != null)
+                {
+                    ai.ClearAllDefenders(includePlayerPlaced: false);
+                }
                 return;
             }
 
-            var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+            // Ở chế độ Công Thành (Dino Assault): Làng AI cần lính phòng thủ theo cấp độ màn
+            var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
                 ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
                 : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
-            if (ai != null)
+            if (enemyAI != null)
             {
-                ai.enabled = true;
-                int targetCount = GetTargetDefendersForWave(_CurrentWave);
-                // Luôn reset chính xác số lượng NPC theo quy định màn, không thừa không thiếu
-                ai.ResetDefendersToExactCount(targetCount);
+                enemyAI.enabled = true;
+                int assaultLvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : _CurrentWave;
+                int targetCount = GetTargetDefendersForWave(assaultLvl);
+                enemyAI.ResetDefendersToExactCount(targetCount);
             }
         }
 
@@ -2238,6 +2248,45 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// - Nếu keepPlayerTowers = false: dọn tháp đã đặt và reset vàng về 500
         /// - Nếu keepPlayerTowers = true: hồi đầy 100% máu cho các tháp phòng thủ hiện có
         /// </summary>
+        /// <summary>
+        /// Dọn sạch thanh máu của tất cả các công trình cảnh quan map (chòi, lều, cọc rào cảnh) trong chế độ Thủ Thành,
+        /// để tránh thanh máu ma xuất hiện lơ lửng trên màn hình (đặc biệt là góc trên bên phải dưới Mini-map).
+        /// </summary>
+        public void CleanAllScenicWallHealthBars()
+        {
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < allWalls.Length; i++)
+            {
+                var w = allWalls[i];
+                if (w == null) continue;
+
+                // Giữ lại công trình do người chơi đặt (có PlayerPlacedTowerMarker hoặc chứa "(Clone)")
+                if (w.GetComponent<PlayerPlacedTowerMarker>() != null || w.gameObject.name.Contains("(Clone)"))
+                {
+                    continue;
+                }
+
+                // Giữ lại Căn Cứ Làng chính
+                if (w is Unit.PrehistoricVillageBase)
+                {
+                    continue;
+                }
+
+                if (Utility.HealthBarCanvas.HasInstance)
+                {
+                    Utility.HealthBarCanvas.Instance.Unregister(w);
+                }
+
+                // Gỡ bỏ component Wall trên các công trình cảnh quan tĩnh trong chế độ Thủ thành
+                Destroy(w);
+            }
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+        }
+
         public void ResetEntireVillage(bool keepPlayerTowers = true)
         {
             LocateBaseTarget();
@@ -2247,13 +2296,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             CleanupInvisibleAndStrayObjects();
             DeactivateDefaultSceneBarricades();
 
-            // 1. Phục hồi 100% tất cả tường do người chơi đặt (Clone)
-            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            foreach (var wall in allWalls)
+            bool isTowerDefense = (PrehistoricGameModeManager.Instance == null || 
+                                   PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.TowerDefense);
+
+            // 1. Phục hồi 100% tất cả tường do người chơi đặt (Clone) nếu giữ lại
+            if (keepPlayerTowers)
             {
-                if (wall != null && wall.gameObject.name.Contains("(Clone)"))
+                var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                foreach (var wall in allWalls)
                 {
-                    wall.FullRestore();
+                    if (wall != null && wall.gameObject.name.Contains("(Clone)"))
+                    {
+                        wall.FullRestore();
+                    }
                 }
             }
 
@@ -2268,6 +2323,13 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Phục hồi và đảm bảo 2 chòi canh trên bờ tường thành (Village_Watchtower_Left & Right)
             EnsureVillageWatchtowers();
             EnsureScenicBridgeWatchtowers();
+
+            if (isTowerDefense)
+            {
+                // Ở chế độ Thủ Thành: Xóa sạch hàng rào cọc gỗ trước làng và gỡ bỏ thanh máu của công trình cảnh quan
+                RemoveAllVillageFrontBarricades();
+                CleanAllScenicWallHealthBars();
+            }
 
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
@@ -2319,16 +2381,31 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 6. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders) theo màn hiện tại
+            // 6. Xử lý NPC Chiến binh phòng thủ làng:
             var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
                 ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
                 : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
-            if (enemyAI != null)
+
+            if (isTowerDefense)
             {
-                enemyAI.enabled = true;
-                int defenderCount = GetTargetDefendersForWave(_CurrentWave);
-                // Luôn luôn reset chính xác 100% số lượng NPC theo quy định của màn
-                enemyAI.ResetDefendersToExactCount(defenderCount);
+                // Ở chế độ Thủ Thành: DỌN SẠCH TOÀN BỘ NPC CHIẾN BINH TỰ DO!
+                // Tuyệt đối không sinh lính tự động dồn cục trên cầu gỗ!
+                // Người chơi tự mua lính phòng thủ (Tribal Warrior 45g) từ Toolbar nếu muốn!
+                if (enemyAI != null)
+                {
+                    enemyAI.ClearAllDefenders(includePlayerPlaced: keepPlayerTowers);
+                }
+            }
+            else
+            {
+                // Ở chế độ Công Thành (Dino Assault): Làng AI sinh số lượng lính phòng thủ theo cấp độ màn
+                if (enemyAI != null)
+                {
+                    enemyAI.enabled = true;
+                    int assaultLvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : _CurrentWave;
+                    int defenderCount = GetTargetDefendersForWave(assaultLvl);
+                    enemyAI.ResetDefendersToExactCount(defenderCount);
+                }
             }
 
             // 7. Dọn sạch các thanh máu rác/mồ côi nếu có trên màn hình
@@ -2337,7 +2414,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
 
-            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% ngôi làng cho Màn {_CurrentWave}: Tường thành, 2 Chòi Canh Làng, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
+            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% ngôi làng cho Màn {_CurrentWave}: Mode={(isTowerDefense ? "Thủ Thành" : "Công Thành")}, Căn cứ ({_CurrentBaseHealth} HP)!");
         }
 
         public void FullResetGame()
@@ -2363,9 +2440,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ResetRoundToStart();
+                RoundManager.Instance.State = GameState.Setup;
             }
 
-            // 5. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, 4 NPC)
+            // 5. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, không lính rác)
             ResetEntireVillage(keepPlayerTowers: false);
 
             // 6. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
@@ -2373,6 +2451,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
             ResetPlayerAndCameraPosition();
+            if (CameraControl.Instance != null)
+            {
+                CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
+                CameraControl.Instance.ResetToCenter();
+            }
 
             ShowAnnouncement("⚔ CHƠI LẠI TỪ ĐẦU (MÀN 1)! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN! ⚔", 4.0f);
         }
@@ -2395,15 +2478,23 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.SetCurrentRound(_CurrentWave);
+                RoundManager.Instance.State = GameState.Setup;
             }
 
-            // Chơi lại màn X: Reset theo màn (tất cả mọi thứ NPC, vật thể, xóa bỏ tất cả các vật thể người chơi đã đặt)
+            // Chơi lại màn X: Reset hoàn toàn theo màn (xóa quái, xóa tháp cũ, xóa lính rác, reset vàng chuẩn cho màn X)
             ResetEntireVillage(keepPlayerTowers: false);
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
 
             ResetPlayerAndCameraPosition();
-            ShowAnnouncement($"🔄 CHƠI LẠI MÀN {_CurrentWave}! PHÒNG TUYẾN ĐÃ ĐƯỢC RESET! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
+            if (CameraControl.Instance != null)
+            {
+                CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
+                CameraControl.Instance.ResetToCenter();
+            }
+
+            int waveGold = StartingGold + (_CurrentWave - 1) * 200;
+            ShowAnnouncement($"🔄 ĐÃ RESET HOÀN TOÀN MÀN {_CurrentWave}! BẠN CÓ {waveGold}g ĐỂ DÀN TRẬN MỚI! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
         }
 
         public void RestartGame()
@@ -2976,7 +3067,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Label("<b><size=22><color=#FF4444>☠ THẤT THỦ! LÀNG TIỀN SỬ ĐÃ BỊ PHÁ HỦY ☠</color></size></b>", GUILayout.ExpandWidth(true));
             GUILayout.Space(8);
             GUILayout.Label($"<size=16>Bầy khủng long hung hãn đã tràn qua tuyến phòng thủ ở <b>Đợt {_CurrentWave} / {_MaxWaves}</b>!</size>");
-            GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ làng (Tường, Căn cứ, NPC) sẵn sàng phục hồi lại toàn bộ 100%.</color></size>");
+            GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ làng (Căn cứ, Tháp) sẵn sàng thiết lập lại toàn bộ cho màn mới.</color></size>");
             GUILayout.Space(18);
 
             // 4 nút lựa chọn rõ ràng: Thử lại đợt này / Lưu game chọn khe / Chơi từ Wave 1 / Về Menu
@@ -3052,9 +3143,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label($"<size=14><b><color=#55FF55>📊 THÔNG SỐ ĐỘ KHÓ ĐỢT TIẾP THEO (ĐỢT {nextWave} / {_MaxWaves}):</color></b></size>");
             GUILayout.Label($"• <b>Bầy khủng long tấn công</b>: {nextMonsters} con (Độ hung hãn và tốc độ gia tăng)\n" +
-                            $"• <b>Chiến binh phòng thủ Làng (NPC)</b>: {nextDefenders} quân phòng thủ tiếp viện\n" +
-                            $"• <b>Phòng tuyến Làng</b>: Tự động phục hồi toàn bộ tường gỗ, cổng thành và căn cứ 100% HP\n" +
-                            $"• <b>Chiến lược</b>: Sử dụng vàng vừa nhận để đặt thêm tháp, sẵn sàng cho đợt công kích mới!");
+                            $"• <b>Phòng tuyến Làng</b>: Căn cứ phục hồi 100% HP\n" +
+                            $"• <b>Chiến lược</b>: Sử dụng vàng vừa nhận để xây thêm tháp, đặt bẫy và chiêu mộ chiến binh!");
             GUILayout.EndVertical();
 
             GUILayout.Space(14);
