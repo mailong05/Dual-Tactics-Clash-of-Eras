@@ -90,6 +90,13 @@ namespace LlamAcademy.Dinos.Unit
             }
             gameObject.SetActive(true);
 
+            // Kích hoạt lại toàn bộ các GameObject con cháu (bảo đảm cọc gỗ đứng và khiên tròn đều active)
+            Transform[] allChildren = GetComponentsInChildren<Transform>(true);
+            foreach (var child in allChildren)
+            {
+                if (child != null) child.gameObject.SetActive(true);
+            }
+
             if (MaxHealth <= 0 || MaxHealth == 450 || MaxHealth == 250) MaxHealth = 900;
             Health = MaxHealth;
 

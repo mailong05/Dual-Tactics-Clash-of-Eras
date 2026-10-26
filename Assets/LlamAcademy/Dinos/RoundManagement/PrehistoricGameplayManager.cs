@@ -291,11 +291,11 @@ namespace LlamAcademy.Dinos.RoundManagement
         }
 
         /// <summary>
-        /// Trong chế độ Thủ Thành (Tower Defense): Vô hiệu hóa và xóa bỏ toàn bộ hàng rào cọc gỗ
-        /// và tường thành mặc định phía trước làng để giải phóng 100% không gian cho người chơi xây tháp,
-        /// tạo mê cung mazing theo ý muốn mà không bị cản trở bởi hàng rào hay thanh máu ma.
+        /// Khôi phục và làm mới 100% toàn bộ hàng rào gỗ, cọc rào, tường thành trước làng và 2 bên cánh
+        /// (Left_Wall_Segment, Right_Wall_Segment, Plank_Defenses, Barricade, Gate_Portcullis_Barricade, Flank_Barricade...)
+        /// Đảm bảo tất cả Renderers (cọc gỗ đứng, khiên tròn, khung đỡ), Collider và NavMeshObstacle đều hoạt động hoàn hảo như mới!
         /// </summary>
-        public void RemoveAllVillageFrontBarricades()
+        public void RestoreAllVillageBarricades()
         {
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (Transform t in allTransforms)
@@ -303,73 +303,110 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                // Tuyệt đối không can thiệp vào tường do người chơi xây
-                if (n.Contains("(Clone)")) continue;
-
-                // Bỏ qua cầu qua sông, dốc bộ, sàn deck
-                if (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                    n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                    n.Contains("Smooth Floor") || n.Contains("Walkway_Deck"))
-                {
-                    continue;
-                }
-
-                // Bỏ qua Player, Camera, Light, Canvas, Projectile, Căn cứ chính
+                // Bỏ qua Player, Camera, Light, Canvas, Dino, Base, Egg
                 if (n.Contains("Camera") || n.Contains("Light") || n.Contains("Canvas") ||
                     n.Contains("Player") || n.Contains("Dino") || n.Contains("Base") || n.Contains("Egg"))
                 {
                     continue;
                 }
 
-                // Kiểm tra các container cha của hàng rào
-                bool isContainerGroup = n == "Village_Fortress_Wall" ||
-                                        n == "Left_Wing_Wall" ||
-                                        n == "Right_Wing_Wall" ||
-                                        n == "Right_Flank_Wall" ||
-                                        n == "Gate_Complex";
+                // Nhận diện các container cha của hàng rào
+                bool isContainer = n == "Village_Fortress_Wall" || n == "Left_Wing_Wall" ||
+                                   n == "Right_Wing_Wall" || n == "Right_Flank_Wall" || n == "Gate_Complex";
 
-                // Kiểm tra các hàng rào cọc gỗ phía trước làng
-                bool isFrontFence = n.Contains("Plank_Defenses") ||
-                                    n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
-                                    n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
-                                    n.Contains("Barricade") || n.Contains("Palisade") ||
-                                    n.Contains("Gate_Portcullis_Barricade") ||
-                                    n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
-                                    n.Contains("Village_Left_Gap_Wall");
-
-                if (isContainerGroup || isFrontFence)
+                if (isContainer)
                 {
-                    if (t.TryGetComponent(out Unit.Wall w))
-                    {
-                        if (Utility.HealthBarCanvas.HasInstance)
-                        {
-                            Utility.HealthBarCanvas.Instance.Unregister(w);
-                        }
-                        Destroy(w);
-                    }
-                    if (t.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
-                    {
-                        Utility.HealthBarCanvas.Instance.Unregister(u);
-                    }
+                    t.gameObject.SetActive(true);
+                    continue;
+                }
 
-                    if (t.TryGetComponent(out Collider c)) c.enabled = false;
-                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                bool isVillageBarricade = n.Contains("Wall_Segment") || n.Contains("Plank_Defenses") ||
+                                          n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
+                                          n.Contains("Barricade") || n.Contains("Palisade") ||
+                                          n.Contains("Gate_Portcullis_Barricade") ||
+                                          n.Contains("Flank_Barricade") || n.Contains("Village_Left_Gap_Wall");
+
+                if (!isVillageBarricade) continue;
+
+                // Kích hoạt GameObject
+                t.gameObject.SetActive(true);
+
+                // Kích hoạt toàn bộ Hierarchy con cháu (bảo đảm cọc gỗ đứng Plank_Defenses_low và khiên Shields đều active)
+                Transform[] allChildren = t.GetComponentsInChildren<Transform>(true);
+                foreach (var child in allChildren)
+                {
+                    if (child != null) child.gameObject.SetActive(true);
+                }
+
+                // Kích hoạt lại toàn bộ Renderers
+                Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in rends)
+                {
+                    if (r != null) r.enabled = true;
+                }
+
+                // Nếu là node con nằm trong một Barricade/Wall Segment khác, không tạo thêm Wall/Collider riêng
+                Unit.Wall parentWall = t.parent != null ? t.parent.GetComponentInParent<Unit.Wall>(true) : null;
+                if (parentWall != null && parentWall.gameObject != t.gameObject)
+                {
+                    continue;
+                }
+
+                // Kích hoạt lại toàn bộ Colliders
+                Collider[] cols = t.GetComponentsInChildren<Collider>(true);
+                foreach (var c in cols)
+                {
+                    if (c != null) c.enabled = true;
+                }
+
+                // Cấu hình BoxCollider chính xác nếu thiếu
+                if (!t.TryGetComponent(out BoxCollider bc))
+                {
+                    bc = t.gameObject.AddComponent<BoxCollider>();
+                }
+                bc.size = new Vector3(3.2f, 2.0f, 1.4f);
+                bc.center = new Vector3(0f, 1.0f, 0f);
+                bc.enabled = true;
+
+                // Kích hoạt lại NavMeshObstacle Carving
+                if (!t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                {
+                    obs = t.gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                }
+                obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                obs.size = new Vector3(3.2f, 2.0f, 1.4f);
+                obs.center = new Vector3(0f, 1.0f, 0f);
+                obs.enabled = true;
+                obs.carving = true;
+                obs.carveOnlyStationary = false;
+
+                // Cấu hình Component Wall và phục hồi 100% máu
+                if (!t.TryGetComponent(out Unit.Wall w))
+                {
+                    w = t.gameObject.AddComponent<Unit.Wall>();
+                }
+                w.MaxHealth = 900;
+                w.Health = 900;
+                w.FullRestore();
+
+                // Gắn thanh máu chuẩn nằm sát ngay trên đỉnh cọc gỗ
+                w.EnsureHealthBarAttached();
+                if (Utility.HealthBarCanvas.Instance != null)
+                {
+                    var hb = Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(w);
+                    if (hb != null)
                     {
-                        obs.enabled = false;
-                        obs.carving = false;
+                        hb.gameObject.SetActive(true);
+                        hb.SetProgress(1.0f);
                     }
-
-                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
-                    foreach (var r in rends) if (r != null) r.enabled = false;
-
-                    t.gameObject.SetActive(false);
                 }
             }
+        }
 
-            if (Utility.HealthBarCanvas.HasInstance)
-            {
-                Utility.HealthBarCanvas.Instance.ClearOrphaned();
-            }
+        public void RemoveAllVillageFrontBarricades()
+        {
+            // Để hỗ trợ yêu cầu người chơi, hàng rào gỗ trước làng luôn được phục hồi và làm mới 100%
+            RestoreAllVillageBarricades();
         }
 
         /// <summary>
@@ -2272,6 +2309,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
+                // Giữ lại toàn bộ hàng rào gỗ, cọc rào và tường thành trước làng
+                string n = w.gameObject.name;
+                bool isVillageBarricade = n.Contains("Wall_Segment") || n.Contains("Plank_Defenses") ||
+                                          n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
+                                          n.Contains("Barricade") || n.Contains("Palisade") ||
+                                          n.Contains("Gate_Portcullis_Barricade") ||
+                                          n.Contains("Flank_Barricade") || n.Contains("Village_Left_Gap_Wall");
+                if (isVillageBarricade)
+                {
+                    continue;
+                }
+
                 if (Utility.HealthBarCanvas.HasInstance)
                 {
                     Utility.HealthBarCanvas.Instance.Unregister(w);
@@ -2324,12 +2373,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageWatchtowers();
             EnsureScenicBridgeWatchtowers();
 
-            if (isTowerDefense)
-            {
-                // Ở chế độ Thủ Thành: Xóa sạch hàng rào cọc gỗ trước làng và gỡ bỏ thanh máu của công trình cảnh quan
-                RemoveAllVillageFrontBarricades();
-                CleanAllScenicWallHealthBars();
-            }
+            // Phục hồi và làm mới 100% toàn bộ hàng rào gỗ trước làng như mới
+            RestoreAllVillageBarricades();
 
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)

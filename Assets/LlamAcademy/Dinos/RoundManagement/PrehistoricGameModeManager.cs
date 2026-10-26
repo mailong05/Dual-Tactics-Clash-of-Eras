@@ -310,7 +310,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    PrehistoricGameplayManager.Instance.RemoveAllVillageFrontBarricades();
+                    PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
                     PrehistoricGameplayManager.Instance.CleanAllScenicWallHealthBars();
                 }
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
