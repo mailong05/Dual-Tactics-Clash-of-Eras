@@ -37,6 +37,8 @@ namespace LlamAcademy.Dinos.Unit
 
         // GLB Animation Cache & Clips
         private static readonly Dictionary<string, AnimationClip[]> s_ClipsCache = new();
+        private string _IdleClipName;
+
         private string _WalkClipName;
         private string _AttackClipName;
 
@@ -99,7 +101,8 @@ namespace LlamAcademy.Dinos.Unit
         protected Vector3 _BaseModelLocalPos;
         protected Quaternion _BaseModelLocalRot;
         protected bool _HasBaseModelTransform;
-        private bool _IsAttackingAnim;
+        protected bool _IsAttackingAnim;
+        protected bool _IsEngagedInMelee = false;
         private bool _hasReachedBase = false;
         public bool HasReachedBase => _hasReachedBase;
         private static readonly HashSet<PrehistoricDinoBase> s_ActiveDinos = new();
@@ -196,7 +199,13 @@ namespace LlamAcademy.Dinos.Unit
 
             if (Agent.enabled && Agent.isOnNavMesh) return true;
 
-            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, maxDistance, NavMesh.AllAreas))
+            // 1. Thử truy vấn NavMesh theo AgentTypeID của khủng long (ưu tiên AgentType chuẩn của Dino: 1479372276)
+            int preferredAgentType = (Agent.agentTypeID != 0) ? Agent.agentTypeID : 1479372276;
+            NavMeshQueryFilter filter = new NavMeshQueryFilter();
+            filter.agentTypeID = preferredAgentType;
+            filter.areaMask = NavMesh.AllAreas;
+
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, maxDistance, filter))
             {
                 if (Agent.isOnNavMesh)
                 {
@@ -205,27 +214,29 @@ namespace LlamAcademy.Dinos.Unit
                 else
                 {
                     Agent.enabled = false;
+                    Agent.agentTypeID = preferredAgentType;
                     transform.position = hit.position;
                     Physics.SyncTransforms();
-                    Agent.enabled = true;
+                    try { Agent.enabled = true; } catch { }
                 }
                 return Agent.isOnNavMesh;
             }
 
-            if (NavMesh.SamplePosition(transform.position + Vector3.up * 1.5f, out hit, maxDistance * 1.5f, NavMesh.AllAreas))
+            // 2. Fallback: Nếu vị trí chưa có NavMesh cho AgentType hiện tại, quét qua các AgentType hợp lệ của Dino
+            int[] dinoAgentTypes = new int[] { 1479372276, -334000983, -1372625422, 0 };
+            foreach (int at in dinoAgentTypes)
             {
-                if (Agent.isOnNavMesh)
-                {
-                    Agent.Warp(hit.position);
-                }
-                else
+                if (at == preferredAgentType) continue;
+                filter.agentTypeID = at;
+                if (NavMesh.SamplePosition(transform.position, out hit, maxDistance * 1.5f, filter))
                 {
                     Agent.enabled = false;
+                    Agent.agentTypeID = at;
                     transform.position = hit.position;
                     Physics.SyncTransforms();
-                    Agent.enabled = true;
+                    try { Agent.enabled = true; } catch { }
+                    if (Agent.isOnNavMesh) return true;
                 }
-                return Agent.isOnNavMesh;
             }
 
             return false;
@@ -237,31 +248,51 @@ namespace LlamAcademy.Dinos.Unit
             if (Agent == null) return;
 
             Agent.speed = MoveSpeed;
-            Agent.acceleration = 28f;
-            Agent.angularSpeed = 480f;
-            Agent.autoBraking = false;
+            Agent.acceleration = 24f;
+            Agent.angularSpeed = 360f;
+            Agent.autoBraking = true;
             Agent.stoppingDistance = 0.5f;
             Agent.autoRepath = true;
             Agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
-            if (Agent.radius > 0.45f) Agent.radius = 0.45f;
+
+            if (this is BossDino || gameObject.name.ToLower().Contains("trex"))
+            {
+                Agent.radius = 0.95f;
+            }
+            else if (this is SiegeDino || gameObject.name.ToLower().Contains("ankyl"))
+            {
+                Agent.radius = 0.85f;
+            }
+            else
+            {
+                Agent.radius = 0.45f;
+            }
             _DefaultAgentRadius = Agent.radius;
 
-            // Giới hạn BoxCollider của khủng long không quá to để không bị kẹt góc tường hoặc chèn ép nhau
+            // Giới hạn Collider của khủng long không quá to để không bị kẹt góc tường hoặc chèn ép nhau
             if (TryGetComponent(out BoxCollider bc))
             {
                 Vector3 sz = bc.size;
-                if (sz.x > 1.3f || sz.z > 2.6f)
-                {
-                    bc.size = new Vector3(Mathf.Min(sz.x, 1.3f), sz.y, Mathf.Min(sz.z, 2.6f));
-                }
+                bc.size = new Vector3(Mathf.Min(sz.x, 1.6f), sz.y, Mathf.Min(sz.z, 3.2f));
+            }
+            if (TryGetComponent(out CapsuleCollider cc))
+            {
+                cc.radius = Mathf.Min(cc.radius, 1.25f);
             }
         }
 
         protected virtual void OnEnable()
         {
+            // Nếu là bóng mờ xem trước (Ghost Preview), không kích hoạt NavMesh / AI
+            if (GetComponentInParent<PlaceDinoVisualization>() != null || (transform.parent != null && transform.parent.GetComponent<PlaceDinoVisualization>() != null))
+            {
+                if (Agent != null) Agent.enabled = false;
+                return;
+            }
+
             s_ActiveDinos.Add(this);
             ConfigureNavMeshAgent();
-            EnsureOnNavMesh(15f);
+            EnsureOnNavMesh(25f);
             if (NavMeshManager.Instance != null)
             {
                 NavMeshManager.Instance.OnNavMeshUpdated += HandleNavMeshUpdated;
@@ -548,6 +579,28 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
+
+            // Nếu là bóng mờ xem trước đặt quân, tắt NavMeshAgent và dừng khởi tạo AI
+            if (GetComponentInParent<PlaceDinoVisualization>() != null || (transform.parent != null && transform.parent.GetComponent<PlaceDinoVisualization>() != null))
+            {
+                if (Agent != null) Agent.enabled = false;
+                enabled = false;
+                return;
+            }
+
+            // Ensure Kinematic Rigidbody exists to prevent PhysX static collider moving depenetration jitter
+            if (!TryGetComponent(out Rigidbody rb))
+            {
+                rb = gameObject.AddComponent<Rigidbody>();
+            }
+            rb.isKinematic = true;
+            rb.useGravity = false;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+
+            // Gán layer 8 (Dinos) và bật cờ bỏ qua va chạm vật lý giữa khủng long với nhau
+            gameObject.layer = 8;
+            Physics.IgnoreLayerCollision(8, 8, true);
+
             ConfigureNavMeshAgent();
 
             InitializeVisualAndAnimation();
@@ -605,16 +658,38 @@ namespace LlamAcademy.Dinos.Unit
 
             if (ModelAnimator != null)
             {
+                string dinoName = gameObject.name.ToLower();
                 if (ModelAnimator.runtimeAnimatorController == null)
                 {
-                    string dinoName = gameObject.name.ToLower();
                     if (dinoName.Contains("trex") || dinoName.Contains("t-rex") || this is BossDino)
                     {
                         ModelAnimator.runtimeAnimatorController = Resources.Load<RuntimeAnimatorController>("Animations/TRex_Controller");
                     }
+                    else if (dinoName.Contains("ankyl") || this is SiegeDino)
+                    {
+                        // Khung long Thiet Giap Ankylosaurus van hanh he thong dang di 4 chan doc quyen trong SiegeDino
+                        ModelAnimator.runtimeAnimatorController = null;
+                        ModelAnimator.enabled = false;
+                    }
                     else if (dinoName.Contains("velo") || this is RunnerDino)
                     {
                         ModelAnimator.runtimeAnimatorController = Resources.Load<RuntimeAnimatorController>("Animations/Velociraptor_Controller");
+                    }
+                }
+
+                if (ModelLegacyAnimation != null && ModelLegacyAnimation.clip == null)
+                {
+                    if (dinoName.Contains("ankyl") || this is SiegeDino)
+                    {
+                        AnimationClip ankyClip = Resources.Load<AnimationClip>("Animations/Ankylosaurus_Walk");
+                        if (ankyClip != null)
+                        {
+                            ankyClip.legacy = true;
+                            ankyClip.wrapMode = WrapMode.Loop;
+                            ModelLegacyAnimation.clip = ankyClip;
+                            ModelLegacyAnimation.AddClip(ankyClip, "Walk");
+                            ModelLegacyAnimation.Play("Walk");
+                        }
                     }
                 }
 
@@ -932,6 +1007,10 @@ namespace LlamAcademy.Dinos.Unit
                     try
                     {
                         string cn = clip.name.ToLower();
+                        if (_IdleClipName == null && (cn.Contains("idle") || cn.Contains("wait") || cn.Contains("stand")))
+
+                            _IdleClipName = clip.name;
+
                         if (_WalkClipName == null && (cn.Contains("walk") || cn.Contains("run") || cn.Contains("fly") || cn.Contains("anim")))
                             _WalkClipName = clip.name;
                         if (_AttackClipName == null && (cn.Contains("attack") || cn.Contains("bite") || cn.Contains("roar") || cn.Contains("eat")))
@@ -979,7 +1058,12 @@ namespace LlamAcademy.Dinos.Unit
                     SetAnimatorBoolIfExists(ModelAnimator, "IsMoving", true);
                     SetAnimatorBoolIfExists(ModelAnimator, "Walk", true);
                     SetAnimatorFloatIfExists(ModelAnimator, "Speed", MoveSpeed > 0 ? MoveSpeed : 2.5f);
-                    ModelAnimator.Play("Walk", 0, 0f);
+                }
+
+                if (ModelLegacyAnimation != null && ModelLegacyAnimation.enabled)
+                {
+                    if (ModelLegacyAnimation.clip != null) ModelLegacyAnimation.Play();
+                    else if (!string.IsNullOrEmpty(_WalkClipName) && ModelLegacyAnimation[_WalkClipName] != null) ModelLegacyAnimation.Play(_WalkClipName);
                 }
             }
 
@@ -1003,7 +1087,12 @@ namespace LlamAcademy.Dinos.Unit
                     SetAnimatorBoolIfExists(ModelAnimator, "IsMoving", true);
                     SetAnimatorBoolIfExists(ModelAnimator, "Walk", true);
                     SetAnimatorFloatIfExists(ModelAnimator, "Speed", MoveSpeed > 0 ? MoveSpeed : 2.5f);
-                    ModelAnimator.Play("Walk", 0, 0f);
+                }
+
+                if (ModelLegacyAnimation != null && ModelLegacyAnimation.enabled)
+                {
+                    if (ModelLegacyAnimation.clip != null) ModelLegacyAnimation.Play();
+                    else if (!string.IsNullOrEmpty(_WalkClipName) && ModelLegacyAnimation[_WalkClipName] != null) ModelLegacyAnimation.Play(_WalkClipName);
                 }
             }
         }
@@ -1048,13 +1137,19 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
+        private float _NextNavMeshRetryTime = 0f;
+
         protected override void Update()
         {
             base.Update();
 
             if (Agent != null && (!Agent.enabled || !Agent.isOnNavMesh))
             {
-                EnsureOnNavMesh(25.0f);
+                if (Time.time >= _NextNavMeshRetryTime)
+                {
+                    _NextNavMeshRetryTime = Time.time + 0.5f;
+                    EnsureOnNavMesh(30.0f);
+                }
             }
 
             float currentSpeed = (Agent != null && Agent.enabled && Agent.isOnNavMesh) ? Agent.velocity.magnitude : 0f;
@@ -1083,211 +1178,78 @@ namespace LlamAcademy.Dinos.Unit
                 if (TargetBase == null) return;
             }
 
-            // Check if current target is valid
-            bool hasValidTarget = (CurrentTarget != null && CurrentTarget.Health > 0);
+            float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+            float meleeAttackRange = Mathf.Max(AttackRange + agentRadius + 0.6f, 2.6f);
+            float meleeExitRange = meleeAttackRange + 0.85f; // Ngưỡng Hysteresis triệt tiêu 100% rung giật bật/tắt di chuyển 60Hz
 
-            // 1. TACTICAL BREACH EXPLOITATION CHECK:
-            // Nếu đang nhắm một bức tường nhưng có khe hở gần đó (< 26m) hướng về căn cứ và CÒN CHỖ TRỐNG (< 4 con):
-            // Lập tức chuyển sang đi qua khe hở thay vì đập thêm tường!
-            if (!_IsNavigatingBreach && TacticalBreachMemory.HasInstance && TargetBase != null)
+            // 1. Kiểm tra mục tiêu hiện tại còn tồn tại không
+            if (CurrentTarget != null && (CurrentTarget.Health <= 0 || CurrentTarget.Transform == null || !CurrentTarget.Transform.gameObject.activeInHierarchy))
             {
-                if (CurrentTarget is Wall targetWall)
-                {
-                    float distToTarget = Vector3.Distance(transform.position, targetWall.transform.position);
-                    if (distToTarget > AttackRange + 1.5f)
-                    {
-                        var bestBreach = TacticalBreachMemory.Instance.GetBestBreachTowards(transform.position, TargetBase.position, this, 26.0f);
-                        if (bestBreach != null && !_TraversedBreaches.Contains(bestBreach) && bestBreach.TryClaimSlot(this))
-                        {
-                            AssignToBreach(bestBreach);
-                            hasValidTarget = false;
-                        }
-                    }
-                }
+                CurrentTarget = null;
+                _IsEngagedInMelee = false;
             }
 
-            // 2. ACTIVE BREACH NAVIGATION STATE:
-            if (_IsNavigatingBreach && _CurrentBreachPoint != null)
+            // 2. Tìm vật cản trực tiếp trước mặt trên đường tiến nếu chưa có target
+            if (CurrentTarget == null)
             {
-                _BreachTransitTimer += Time.deltaTime;
-                Vector3 targetIngress = _CurrentBreachPoint.GetIngressPointForUnit(this);
-                float distToIngress = Vector3.Distance(transform.position, targetIngress);
-                bool hasPassedPlane = _CurrentBreachPoint.HasPassedPlane(transform.position);
+                CurrentTarget = FindImmediatePathBlocker(meleeAttackRange + 1.2f);
+            }
 
-                // Khủng long đã thực sự vượt qua mặt phẳng tường vào sâu bên trong làng (hoặc an toàn quá 6s):
-                if (hasPassedPlane || distToIngress < 1.2f || _BreachTransitTimer > 6.0f)
+            // 3. Nếu đang có vật cản trước mặt: Tiến đến cự ly cận chiến và phá hủy
+            if (CurrentTarget != null && CurrentTarget.Health > 0)
+            {
+                Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
+                Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
+                Vector3 closestPoint = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : targetCenter;
+
+                Vector3 flatDiff = transform.position - closestPoint;
+                flatDiff.y = 0;
+                float distToClosest = flatDiff.magnitude;
+
+                // State machine với Hysteresis: Vào cự ly thì khóa đánh, chỉ thoát khi mục tiêu rời xa > meleeExitRange
+                if (!_IsEngagedInMelee)
                 {
-                    RestoreOriginalColliderAndAgent();
-
-                    // Đánh dấu đã qua khe hở này để vĩnh viễn không bao giờ quay lại
-                    _TraversedBreaches.Add(_CurrentBreachPoint);
-
-                    if (Agent != null && Agent.isOnNavMesh)
+                    if (distToClosest <= meleeAttackRange)
                     {
-                        Agent.isStopped = false;
-                        Agent.ResetPath();
-                        if (TargetBase != null) Agent.SetDestination(TargetBase.position);
+                        _IsEngagedInMelee = true;
                     }
-                    if (TacticalBreachMemory.HasInstance)
-                    {
-                        TacticalBreachMemory.Instance.OnUnitTraversedBreach(_CurrentBreachPoint, this);
-                    }
-                    _IsNavigatingBreach = false;
-                    _CurrentBreachPoint = null;
                 }
                 else
                 {
-                    // Đang tiến qua làn đột phá:
+                    if (distToClosest > meleeExitRange)
+                    {
+                        _IsEngagedInMelee = false;
+                    }
+                }
+
+                if (_IsEngagedInMelee)
+                {
+                    // Dừng hoàn toàn Agent, triệt tiêu vận tốc quán tính và xóa path để không bị va đập bật ngược bởi PhysX collider
                     if (Agent != null && Agent.isOnNavMesh)
                     {
-                        Agent.radius = 0.20f;
-                        Agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
-                        Agent.isStopped = false;
-                        if (!Agent.hasPath || Vector3.Distance(Agent.destination, targetIngress) > 0.6f)
-                        {
-                            Agent.SetDestination(targetIngress);
-                        }
+                        Agent.isStopped = true;
+                        Agent.updateRotation = false;
+                        Agent.velocity = Vector3.zero;
+                        if (Agent.hasPath) Agent.ResetPath();
                     }
 
-                    // Hỗ trợ lực đẩy tiến xuyên qua khe nếu vướng carving cục bộ
-                    Vector3 breachDir = (targetIngress - transform.position);
-                    breachDir.y = 0;
-                    if (breachDir.sqrMagnitude > 0.04f)
-                    {
-                        breachDir.Normalize();
-                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(breachDir), Time.deltaTime * 8f);
-
-                        // Sử dụng Agent.Move để đồng bộ tuyệt đối với NavMeshAgent, không gây giật lag hoặc kẹt
-                        if (Agent != null && Agent.isOnNavMesh)
-                        {
-                            if (Agent.velocity.sqrMagnitude < 0.35f)
-                            {
-                                Agent.Move(breachDir * (MoveSpeed * 0.85f * Time.deltaTime));
-                            }
-                        }
-                        else
-                        {
-                            transform.position += breachDir * (MoveSpeed * 0.85f * Time.deltaTime);
-                        }
-                    }
-
-                    // Tuyệt đối không tấn công các hàng rào bên cạnh!
-                    CurrentTarget = null;
-                    hasValidTarget = false;
-                    return;
-                }
-            }
-
-            if (hasValidTarget)
-            {
-                Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
-                Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
-                Vector3 closestPoint = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : targetCenter;
-
-                // KIỂM TRA MỤC TIÊU CÓ THỰC SỰ Ở PHÍA SAU LƯNG (ĐÃ ĐI QUA RỒI) HAY KHÔNG:
-                if (TargetBase != null && !(CurrentTarget is PrehistoricVillageBase))
-                {
-                    float myDist = Vector3.Distance(transform.position, TargetBase.position);
-                    float targetDist = Vector3.Distance(closestPoint, TargetBase.position);
-                    Vector3 toTarget = closestPoint - transform.position;
-                    toTarget.y = 0;
-                    Vector3 toBase = TargetBase.position - transform.position;
-                    toBase.y = 0;
-                    float dot = (toBase.sqrMagnitude > 0.01f && toTarget.sqrMagnitude > 0.01f)
-                        ? Vector3.Dot(toBase.normalized, toTarget.normalized)
-                        : 1.0f;
-
-                    // Chỉ hủy bỏ mục tiêu khi nó THỰC SỰ ở phía sau lưng (dot < -0.2f) VÀ ở xa căn cứ hơn ít nhất 1.2m
-                    if (dot < -0.2f && targetDist > myDist + 1.2f)
-                    {
-                        CurrentTarget = null;
-                        hasValidTarget = false;
-                    }
-                }
-            }
-
-            // 0. ANTI-STUCK WATCHDOG: Nếu quái đang di chuyển nhưng bị khựng/kẹt (velocity < 0.15f) quá 0.75s
-            if (Agent != null && Agent.enabled && Agent.isOnNavMesh && Agent.velocity.sqrMagnitude < 0.15f)
-            {
-                _StuckTimer += Time.deltaTime;
-                if (_StuckTimer >= 0.75f)
-                {
-                    IDamageable emergencyBlocker = FindEmergencyWallBlocker(5.8f);
-                    if (emergencyBlocker != null)
-                    {
-                        CurrentTarget = emergencyBlocker;
-                        hasValidTarget = true;
-                    }
-                    else
-                    {
-                        // Kiểm tra nếu ngay trước mặt có vật thể cản trở vật lý
-                        if (Physics.SphereCast(transform.position + Vector3.up * 0.8f, 0.6f, transform.forward, out RaycastHit rHit, 3.2f, TargetLayers))
-                        {
-                            Wall dynamicWall = EnsureDynamicWall(rHit.collider);
-                            if (dynamicWall != null && dynamicWall.Health > 0)
-                            {
-                                CurrentTarget = dynamicWall;
-                                hasValidTarget = true;
-                            }
-                            else
-                            {
-                                // Vật thể tĩnh không thể phá hủy: Nudge nhẹ Agent sang ngang để trượt lướt qua góc
-                                Vector3 sideNudge = Vector3.Cross(Vector3.up, transform.forward).normalized * 0.6f;
-                                Agent.Move(sideNudge * Time.deltaTime * MoveSpeed);
-                            }
-                        }
-
-                        Agent.isStopped = false;
-                        Agent.ResetPath();
-                        if (TargetBase != null) Agent.SetDestination(TargetBase.position);
-                    }
-                    _StuckTimer = 0f;
-                }
-            }
-            else
-            {
-                _StuckTimer = 0f;
-            }
-
-            if (hasValidTarget)
-            {
-                Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
-                Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
-                Vector3 closestPoint = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : targetCenter;
-
-                // TÍNH KHOẢNG CÁCH 2D MẶT PHẲNG ĐỂ LOẠI BỎ SAI SỐ ĐỘ CAO Y / DỐC TERRAIN
-                Vector3 flatDiff = transform.position - closestPoint;
-                flatDiff.y = 0;
-                float distToTarget = flatDiff.magnitude;
-
-                float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-
-                // Kiểm tra mục tiêu là công trình (Tường, Cổng thành, Rào cọc gỗ, Căn cứ Làng, hoặc Tháp canh):
-                bool isStructure = (CurrentTarget is Wall) || 
-                                   (CurrentTarget is PrehistoricVillageBase) || 
-                                   (CurrentTarget is Unit uTarget && !(uTarget is PrehistoricDinoBase));
-
-                // 1. Cự ly tấn công trực diện cho con đi đầu
-                float directAttackRange = isStructure 
-                    ? Mathf.Max(AttackRange + agentRadius + 3.0f, 5.0f) 
-                    : (AttackRange + agentRadius + 0.8f);
-
-                // 2. CỰ LY BẦY ĐÀN (SWARM PACK ATTACK):
-                // Khi 1 bầy khủng long (4-8 con) cùng bu lại cắn công trình, các con đứng hàng 2, hàng 3 theo đội hình cánh cung
-                // Cho phép toàn bộ bầy trong cự ly 8.0m đều được tính vào trạng thái cắn phá và xả sát thương đồng thời!
-                bool isBlockedOrSwarming = isStructure && (distToTarget <= 8.0f) &&
-                    (Agent != null && Agent.isOnNavMesh);
-
-                if (distToTarget <= directAttackRange || isBlockedOrSwarming)
-                {
-                    if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
-
-                    // Face target (giữ ổn định hướng khi đang cắn để không bị giật giật ngang)
-                    Vector3 look = (targetCenter - transform.position);
+                    // Hướng nhìn chuẩn xác: Hướng thẳng vào điểm tiếp xúc thực tế trên bề mặt công trình
+                    Vector3 look = (closestPoint - transform.position);
                     look.y = 0;
-                    if (!_IsAttackingAnim && look.sqrMagnitude > 0.01f)
+                    if (look.sqrMagnitude < 0.2f)
                     {
-                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), Time.deltaTime * 6f);
+                        look = (targetCenter - transform.position);
+                        look.y = 0;
+                    }
+
+                    if (look.sqrMagnitude > 0.01f)
+                    {
+                        Quaternion targetRot = Quaternion.LookRotation(look.normalized);
+                        // Chỉ xoay khi góc lệch > 2.5 độ để triệt tiêu vi rung giật góc quay
+                        if (Quaternion.Angle(transform.rotation, targetRot) > 2.5f)
+                        {
+                            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, 180f * Time.deltaTime);
+                        }
                     }
 
                     if (Time.time >= LastAttackTime + AttackInterval)
@@ -1299,106 +1261,142 @@ namespace LlamAcademy.Dinos.Unit
                 }
                 else
                 {
-                    // Tiến đến gần bề mặt bức tường/mục tiêu để tấn công
                     if (Agent != null && Agent.isOnNavMesh)
                     {
                         Agent.isStopped = false;
-                        Vector3 walkTarget = closestPoint;
-                        if (isStructure)
+                        Agent.updateRotation = true;
+                        if (!Agent.hasPath || Vector3.Distance(Agent.destination, closestPoint) > 1.2f)
                         {
-                            Vector3 dirOut = (transform.position - closestPoint);
-                            dirOut.y = 0;
-                            if (dirOut.sqrMagnitude > 0.001f) dirOut.Normalize();
-                            else dirOut = (transform.position - targetCenter).normalized;
-
-                            // Tản nhẹ đội hình bầy đàn sang 2 bên theo phương tiếp tuyến để quái vây quanh công trình thay vì đè lên đúng 1 điểm
-                            Vector3 tangent = Vector3.Cross(Vector3.up, dirOut).normalized;
-                            int dinoHash = Mathf.Abs(GetHashCode());
-                            float sideOffset = ((dinoHash % 5) - 2) * 1.5f;
-
-                            Vector3 standAttempt = closestPoint + dirOut * 1.4f + tangent * sideOffset;
-                            if (NavMesh.SamplePosition(standAttempt, out NavMeshHit sHit, 3.5f, NavMesh.AllAreas))
-                            {
-                                walkTarget = sHit.position;
-                            }
+                            Agent.SetDestination(closestPoint);
                         }
-                        Agent.SetDestination(walkTarget);
                     }
                     return;
                 }
             }
 
-            // Look for blocking walls or defenders in path
-            CurrentTarget = ScanForBlockers();
+            // 4. Nếu không vướng vật cản: Hành quân thẳng về Nhà chính Làng (TargetBase)
+            _IsEngagedInMelee = false;
+            Collider baseCol = TargetBase.GetComponentInChildren<Collider>();
+            Vector3 baseClosest = baseCol != null ? GetSafeClosestPoint(baseCol, transform.position) : TargetBase.position;
+            Vector3 toBaseFlat = transform.position - baseClosest;
+            toBaseFlat.y = 0;
+            float distToBase = toBaseFlat.magnitude;
 
-            if (CurrentTarget == null)
+            float baseAttackThreshold = Mathf.Max(AttackRange + agentRadius + 0.8f, 3.2f);
+            float baseExitThreshold = baseAttackThreshold + 1.0f;
+
+            if (distToBase <= baseAttackThreshold)
             {
-                // Resume movement to base
                 if (Agent != null && Agent.isOnNavMesh)
                 {
-                    Agent.isStopped = false;
-                    if (!Agent.hasPath || Agent.destination != TargetBase.position)
+                    Agent.isStopped = true;
+                    Agent.updateRotation = false;
+                    Agent.velocity = Vector3.zero;
+                    if (Agent.hasPath) Agent.ResetPath();
+                }
+
+                Vector3 baseDir = (baseClosest - transform.position);
+                baseDir.y = 0;
+                if (baseDir.sqrMagnitude < 0.2f)
+                {
+                    baseDir = (TargetBase.position - transform.position);
+                    baseDir.y = 0;
+                }
+
+                if (baseDir.sqrMagnitude > 0.01f)
+                {
+                    Quaternion baseRot = Quaternion.LookRotation(baseDir.normalized);
+                    if (Quaternion.Angle(transform.rotation, baseRot) > 2.5f)
                     {
-                        Agent.SetDestination(TargetBase.position);
+                        transform.rotation = Quaternion.RotateTowards(transform.rotation, baseRot, 180f * Time.deltaTime);
                     }
                 }
 
-                // Check if reached base (Hỗ trợ bầy đàn cắn phá căn cứ đồng thời)
-                Collider baseCol = TargetBase.GetComponentInChildren<Collider>();
-                Vector3 baseClosest = baseCol != null ? GetSafeClosestPoint(baseCol, transform.position) : TargetBase.position;
-                Vector3 flatBaseDiff = transform.position - baseClosest;
-                flatBaseDiff.y = 0;
-                float distToBase = flatBaseDiff.magnitude;
-
-                float baseAgentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
-                float baseDirectThreshold = Mathf.Max(AttackRange + baseAgentRadius + 3.0f, 5.0f);
-                bool isSwarmingBase = (distToBase <= 8.5f) && (Agent != null && Agent.isOnNavMesh);
-
-                if (distToBase <= baseDirectThreshold || isSwarmingBase)
+                if (Time.time >= LastAttackTime + AttackInterval)
                 {
-                    _hasReachedBase = true;
-
-                    IDamageable baseDamageable = null;
-                    if (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
-                    {
-                        baseDamageable = PrehistoricVillageBase.Instance;
-                    }
-                    else if (TargetBase.TryGetComponent(out IDamageable bDmg) && bDmg.Health > 0)
-                    {
-                        baseDamageable = bDmg;
-                    }
-
+                    LastAttackTime = Time.time;
+                    IDamageable baseDamageable = (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
+                        ? (IDamageable)PrehistoricVillageBase.Instance
+                        : TargetBase.GetComponent<IDamageable>();
                     if (baseDamageable != null)
                     {
-                        CurrentTarget = baseDamageable;
-                        if (Agent != null && Agent.isOnNavMesh) Agent.isStopped = true;
-
-                        // Xoay mặt về hướng căn cứ
-                        Vector3 baseDir = (TargetBase.position - transform.position);
-                        baseDir.y = 0;
-                        if (baseDir.sqrMagnitude > 0.001f)
-                        {
-                            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(baseDir), Time.deltaTime * 8f);
-                        }
-
-                        // Thực hiện cắn phá căn cứ theo chu kỳ tấn công
-                        if (Time.time >= LastAttackTime + AttackInterval)
-                        {
-                            LastAttackTime = Time.time;
-                            PerformAttack(CurrentTarget);
-                        }
-                        return;
+                        PerformAttack(baseDamageable);
+                    }
+                }
+                return;
+            }
+            else
+            {
+                // Chỉ đặt destination khi chưa có path hoặc vị trí đích lệch xa > 2m
+                if (Agent != null && Agent.isOnNavMesh)
+                {
+                    Agent.isStopped = false;
+                    Agent.updateRotation = true;
+                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, TargetBase.position) > 2.0f)
+                    {
+                        Agent.SetDestination(TargetBase.position);
                     }
                 }
             }
         }
 
+        protected virtual IDamageable FindImmediatePathBlocker(float maxDist)
+        {
+            if (TargetBase == null) return null;
+
+            Vector3 myPos = transform.position;
+            Vector3 fwd = transform.forward;
+
+            int hits = Physics.OverlapSphereNonAlloc(myPos, maxDist, ScanBuffer, TargetLayers);
+            IDamageable bestBlocker = null;
+            float bestDist = float.MaxValue;
+
+            for (int i = 0; i < hits; i++)
+            {
+                Collider col = ScanBuffer[i];
+                if (col == null || col.gameObject == gameObject) continue;
+
+                // Kiểm tra Wall
+                Wall wall = col.GetComponentInParent<Wall>();
+                if (wall == null) wall = EnsureDynamicWall(col);
+
+                IDamageable candidate = null;
+                if (wall != null && wall.Health > 0)
+                {
+                    candidate = wall;
+                }
+                else
+                {
+                    Unit unit = col.GetComponentInParent<Unit>();
+                    if (unit != null && !(unit is PrehistoricDinoBase) && unit.Health > 0)
+                    {
+                        candidate = unit;
+                    }
+                }
+
+                if (candidate == null) continue;
+
+                Vector3 closest = GetSafeClosestPoint(col, myPos);
+                Vector3 toCol = closest - myPos;
+                toCol.y = 0;
+                float d = toCol.magnitude;
+
+                // Chỉ tấn công nếu vật thể nằm ở nửa phía trước mặt (dot >= -0.1f)
+                float dot = toCol.sqrMagnitude > 0.01f ? Vector3.Dot(fwd, toCol.normalized) : 1f;
+                if (dot >= -0.1f && d < bestDist)
+                {
+                    bestDist = d;
+                    bestBlocker = candidate;
+                }
+            }
+            return bestBlocker;
+        }
+
         protected virtual void UpdateAnimation(float currentSpeed)
         {
             _CurrentSpeed = currentSpeed;
-            bool isMoving = currentSpeed > 0.15f || (Agent != null && Agent.hasPath && !Agent.isStopped && Agent.remainingDistance > 0.5f);
+            bool isMoving = !_IsEngagedInMelee && !_IsAttackingAnim && (Agent != null && Agent.isOnNavMesh && !Agent.isStopped && (currentSpeed > 0.15f || (Agent.hasPath && Agent.remainingDistance > 0.35f)));
 
-            // Nhịp bước đi tăng tiến mượt mà theo vận tốc di chuyển
             if (isMoving)
             {
                 float strideMultiplier = _IsQuadruped ? 2.5f : 3.2f;
@@ -1406,86 +1404,50 @@ namespace LlamAcademy.Dinos.Unit
                 _GaitTimer += Time.deltaTime * strideRate;
             }
 
+            // 1. Mecanim Animator Parameters: Cấp tốc độ hiệu dụng đảm bảo trigger Walk/Run ngay khi di chuyển
+            if (ModelAnimator != null && ModelAnimator.enabled)
+            {
+                float effectiveSpeed = isMoving ? Mathf.Max(currentSpeed, MoveSpeed > 0 ? MoveSpeed : 3.0f) : 0f;
+                SetAnimatorFloatIfExists(ModelAnimator, "Speed", effectiveSpeed);
+                SetAnimatorFloatIfExists(ModelAnimator, "Forward", effectiveSpeed);
+                SetAnimatorBoolIfExists(ModelAnimator, "IsMoving", isMoving);
+                SetAnimatorBoolIfExists(ModelAnimator, "Walk", isMoving);
+                SetAnimatorBoolIfExists(ModelAnimator, "Run", isMoving && effectiveSpeed > 3.5f);
+            }
+
+            // 2. Legacy Animation
             bool hasRealLegacyAnim = ModelLegacyAnimation != null 
                 && ModelLegacyAnimation.enabled 
                 && ModelLegacyAnimation.GetClipCount() > 0;
 
-            // 1. Mecanim Animator Parameters
-            if (ModelAnimator != null && ModelAnimator.enabled)
+            if (hasRealLegacyAnim && !_IsAttackingAnim)
             {
-                SetAnimatorFloatIfExists(ModelAnimator, "Speed", currentSpeed);
-                SetAnimatorFloatIfExists(ModelAnimator, "Forward", currentSpeed);
-                SetAnimatorBoolIfExists(ModelAnimator, "IsMoving", isMoving);
-                SetAnimatorBoolIfExists(ModelAnimator, "Walk", isMoving);
-                SetAnimatorBoolIfExists(ModelAnimator, "Run", currentSpeed > 3.0f);
-            }
-
-            // 2. Legacy Animation Clip Playback (nếu có sẵn clip thực sự)
-            if (hasRealLegacyAnim)
-            {
-                string activeClip = _WalkClipName;
-                if (string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation.clip != null)
-                {
-                    activeClip = ModelLegacyAnimation.clip.name;
-                }
+                string activeClip = isMoving ? _WalkClipName : _IdleClipName;
+                if (string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation.clip != null) activeClip = ModelLegacyAnimation.clip.name;
 
                 if (!string.IsNullOrEmpty(activeClip) && ModelLegacyAnimation[activeClip] != null)
                 {
-                    if (!_IsAttackingAnim)
+                    if (!ModelLegacyAnimation.IsPlaying(activeClip))
                     {
-                        if (!ModelLegacyAnimation.isPlaying || !ModelLegacyAnimation.IsPlaying(activeClip))
-                        {
-                            ModelLegacyAnimation.CrossFade(activeClip, 0.2f);
-                        }
-
-                        if (isMoving)
-                        {
-                            float speedRatio = currentSpeed / Mathf.Max(MoveSpeed * 0.7f, 1f);
-                            ModelLegacyAnimation[activeClip].speed = Mathf.Clamp(speedRatio, 0.75f, 1.6f);
-                        }
-                        else
-                        {
-                            ModelLegacyAnimation[activeClip].speed = 0.35f;
-                        }
+                        ModelLegacyAnimation.CrossFade(activeClip, 0.2f);
                     }
                 }
             }
 
-            // 3. Dao động trọng tâm thân mình (Root Body Bobbing & Rolling Waddle)
-            // Tuyệt đối KHÔNG can thiệp lắc hông/xoay thân nếu mô hình đã có Mecanim clip thực thụ (tránh lỗi sải chân hoặc chạy ngang)
-            bool hasRealMecanimMotion = ModelAnimator != null 
-                && ModelAnimator.enabled 
-                && ModelAnimator.runtimeAnimatorController != null;
-
-            if (!hasRealMecanimMotion && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
+            // 3. Dao động trọng tâm thân mình chỉ dùng khi KHÔNG có Mecanim animation clip
+            bool hasRealMecanim = ModelAnimator != null && ModelAnimator.enabled && ModelAnimator.runtimeAnimatorController != null;
+            if (!hasRealMecanim && !(this is SiegeDino) && _HasBaseModelTransform && VisualModel != null && !_IsAttackingAnim)
             {
                 if (isMoving)
                 {
-                    if (_IsQuadruped)
-                    {
-                        // Khủng long thiết giáp 4 chân: bước đi lặc lè, chuyển dịch trọng tâm uyển chuyển
-                        float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.05f;
-                        float waddleRoll = Mathf.Sin(_GaitTimer) * 3.5f;
-                        float heavePitch = Mathf.Cos(_GaitTimer * 2f) * 1.2f;
-
-                        VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
-                        VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(heavePitch, 0f, waddleRoll);
-                    }
-                    else
-                    {
-                        // Khủng long 2 chân (T-Rex & Velociraptor): sải chân dài nhịp nhàng, lắc hông & nhấp nhô
-                        float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.08f;
-                        float swayRoll = Mathf.Sin(_GaitTimer) * 2.8f;
-                        float pitch = Mathf.Cos(_GaitTimer * 2f) * 1.8f;
-
-                        VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
-                        VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(pitch, 0f, swayRoll);
-                    }
+                    float bobY = Mathf.Abs(Mathf.Sin(_GaitTimer * 2f)) * 0.06f;
+                    float sway = Mathf.Sin(_GaitTimer) * 2.5f;
+                    VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
+                    VisualModel.localRotation = _BaseModelLocalRot * Quaternion.Euler(0f, 0f, sway);
                 }
                 else
                 {
-                    float breathe = Mathf.Sin(Time.time * 2.0f) * 0.02f;
-                    VisualModel.localPosition = Vector3.Lerp(VisualModel.localPosition, _BaseModelLocalPos + new Vector3(0f, breathe, 0f), Time.deltaTime * 4f);
+                    VisualModel.localPosition = Vector3.Lerp(VisualModel.localPosition, _BaseModelLocalPos, Time.deltaTime * 4f);
                     VisualModel.localRotation = Quaternion.Slerp(VisualModel.localRotation, _BaseModelLocalRot, Time.deltaTime * 4f);
                 }
             }
@@ -1495,17 +1457,21 @@ namespace LlamAcademy.Dinos.Unit
         {
             if (VisualModel == null) return;
 
-            // Kiểm tra xem có Mecanim hoặc Legacy clip thực sự đang phát cử động xương hay không
+            // Nếu Mecanim hoặc Legacy animation đang chạy, nhường 100% quyền cho clip chuyển động, tuyệt đối KHÔNG can thiệp xương
             bool hasRealMecanimMotion = ModelAnimator != null 
                 && ModelAnimator.enabled 
                 && ModelAnimator.runtimeAnimatorController != null;
 
             bool hasRealLegacyAnim = ModelLegacyAnimation != null 
                 && ModelLegacyAnimation.enabled 
-                && ModelLegacyAnimation.isPlaying 
-                && !string.IsNullOrEmpty(_WalkClipName);
+                && ModelLegacyAnimation.isPlaying;
 
-            bool skipLegs = hasRealMecanimMotion || hasRealLegacyAnim;
+            if (hasRealMecanimMotion || hasRealLegacyAnim)
+            {
+                return;
+            }
+
+            bool skipLegs = false;
             bool isMoving = _CurrentSpeed > 0.15f;
 
             if (!skipLegs)
@@ -1604,52 +1570,56 @@ namespace LlamAcademy.Dinos.Unit
                 }
             }
 
-            // =========================================================================
-            // ĐUÔI UỐN LƯỢN / QUẢ CHÙY ĐUÔI LẮC LƯ THEO NHỊP (Multi-Joint Tail Sway)
-            // =========================================================================
-            for (int i = 0; i < _TailBones.Count; i++)
+            if (!skipLegs)
             {
-                if (_TailBones[i] == null) continue;
-                float phase = isMoving ? (_GaitTimer - (i * 0.45f)) : (Time.time * 2.0f - (i * 0.35f));
-                float amp = _IsQuadruped ? (isMoving ? 12.0f : 4.0f) : (isMoving ? 7.5f : 3.0f);
-                float sway = Mathf.Sin(phase) * amp;
-                _TailBones[i].localRotation = _TailBaseRots[i] * Quaternion.Euler(0f, sway, 0f);
-            }
+                // =========================================================================
+                // ĐUÔI UỐN LƯỢN / QUẢ CHÙY ĐUÔI LẮC LƯ THEO NHỊP (Multi-Joint Tail Sway)
+                // Chỉ chạy khi mô hình không có animation Mecanim/Legacy native
+                // =========================================================================
+                for (int i = 0; i < _TailBones.Count; i++)
+                {
+                    if (_TailBones[i] == null) continue;
+                    float phase = isMoving ? (_GaitTimer - (i * 0.45f)) : (Time.time * 2.0f - (i * 0.35f));
+                    float amp = _IsQuadruped ? (isMoving ? 12.0f : 4.0f) : (isMoving ? 7.5f : 3.0f);
+                    float sway = Mathf.Sin(phase) * amp;
+                    _TailBones[i].localRotation = _TailBaseRots[i] * Quaternion.Euler(0f, sway, 0f);
+                }
 
-            // =========================================================================
-            // ĐẦU & CỔ GẬT GÙ THEO NHỊP BƯỚC CHÂN (Head & Neck Rhythm)
-            // =========================================================================
-            if (isMoving)
-            {
-                float headBob = Mathf.Cos(_GaitTimer * 2f) * (_IsQuadruped ? 2.5f : 3.8f);
-                if (_HeadBone != null)
+                // =========================================================================
+                // ĐẦU & CỔ GẬT GÙ THEO NHỊP BƯỚC CHÂN (Head & Neck Rhythm)
+                // =========================================================================
+                if (isMoving)
                 {
-                    _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(headBob, 0f, 0f);
+                    float headBob = Mathf.Cos(_GaitTimer * 2f) * (_IsQuadruped ? 2.5f : 3.8f);
+                    if (_HeadBone != null)
+                    {
+                        _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(headBob, 0f, 0f);
+                    }
+                    if (_NeckBone != null)
+                    {
+                        _NeckBone.localRotation = _NeckBaseRot * Quaternion.Euler(-headBob * 0.45f, 0f, 0f);
+                    }
                 }
-                if (_NeckBone != null)
+                else
                 {
-                    _NeckBone.localRotation = _NeckBaseRot * Quaternion.Euler(-headBob * 0.45f, 0f, 0f);
+                    if (_HeadBone != null) _HeadBone.localRotation = Quaternion.Slerp(_HeadBone.localRotation, _HeadBaseRot, Time.deltaTime * 4f);
+                    if (_NeckBone != null) _NeckBone.localRotation = Quaternion.Slerp(_NeckBone.localRotation, _NeckBaseRot, Time.deltaTime * 4f);
                 }
-            }
-            else
-            {
-                if (_HeadBone != null) _HeadBone.localRotation = Quaternion.Slerp(_HeadBone.localRotation, _HeadBaseRot, Time.deltaTime * 4f);
-                if (_NeckBone != null) _NeckBone.localRotation = Quaternion.Slerp(_NeckBone.localRotation, _NeckBaseRot, Time.deltaTime * 4f);
-            }
 
-            // =========================================================================
-            // HÀM HÁ TO & CẮN MẠNH KHI TẤN CÔNG (Attack Jaw Bite Animation)
-            // =========================================================================
-            if (_AttackAnimProgress >= 0f)
-            {
-                float jawAngle = Mathf.Sin(_AttackAnimProgress * Mathf.PI) * 35f;
-                if (_JawBone != null)
+                // =========================================================================
+                // HÀM HÁ TO & CẮN MẠNH KHI TẤN CÔNG (Attack Jaw Bite Animation)
+                // =========================================================================
+                if (_AttackAnimProgress >= 0f)
                 {
-                    _JawBone.localRotation = _JawBaseRot * Quaternion.Euler(jawAngle, 0f, 0f);
-                }
-                if (_HeadBone != null)
-                {
-                    _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(jawAngle * 0.35f, 0f, 0f);
+                    float jawAngle = Mathf.Sin(_AttackAnimProgress * Mathf.PI) * 35f;
+                    if (_JawBone != null)
+                    {
+                        _JawBone.localRotation = _JawBaseRot * Quaternion.Euler(jawAngle, 0f, 0f);
+                    }
+                    if (_HeadBone != null)
+                    {
+                        _HeadBone.localRotation = _HeadBaseRot * Quaternion.Euler(jawAngle * 0.35f, 0f, 0f);
+                    }
                 }
             }
         }
@@ -1681,7 +1651,7 @@ namespace LlamAcademy.Dinos.Unit
             string n = targetT.gameObject.name.ToLower();
 
             // Tuyệt đối KHÔNG biến container nhóm tổng, cầu sàn đi bộ, mặt đất, terrain, collider phụ vô hình thành tường
-            if (n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
+            if (n.Contains("big tower with platform") || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
                 n == "right_flank_wall" || n == "gate_complex" || n == "gate_entryway" ||
                 n == "world" || n == "props" ||
                 n.Contains("pillar") || n.Contains("deck") || n.Contains("walkway") || n.Contains("helper") ||

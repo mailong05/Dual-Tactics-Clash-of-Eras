@@ -18,8 +18,8 @@ namespace LlamAcademy.Dinos.Unit
 
             if (VisualModel != null)
             {
-                // Căn chỉnh đầu khủng long nhỏ quay chuẩn 100% về phía trước (+Z / hướng căn cứ làng)
-                VisualModel.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                // Mô hình velociraptor.glb tự nhiên hướng chuẩn 100% về phía trước (+Z / hướng căn cứ làng)
+                VisualModel.localRotation = Quaternion.identity;
                 _BaseModelLocalRot = VisualModel.localRotation;
             }
         }

@@ -277,7 +277,13 @@ namespace LlamAcademy.Dinos.AI
             int wallCount = 0;
             for (int w = 0; w < allWalls.Length; w++)
             {
-                if (allWalls[w] != null && allWalls[w].gameObject.activeInHierarchy) wallCount++;
+                if (allWalls[w] != null && allWalls[w].gameObject.activeInHierarchy)
+                {
+                    // Chỉ tính các tường do người chơi xây trong trận (các bản Clone)
+                    // KHÔNG tính các tường/cầu gỗ mặc định của cảnh
+                    string wName = allWalls[w].gameObject.name;
+                    if (wName.Contains("(Clone)")) wallCount++;
+                }
             }
 
             // Layer 1: Linear 12 -> 32 + ReLU
@@ -739,16 +745,31 @@ namespace LlamAcademy.Dinos.AI
                 else if (u is GroundTrap) data.ActiveSpikeTraps++;
             }
 
-            // Walls & Breach Memory
-            var walls = FindObjectsByType<Unit.Wall>(FindObjectsSortMode.None);
-            data.TotalWalls = walls.Length;
+            // Walls & Breach Memory: Chỉ đếm các tường thực sự hợp lệ (loại trừ UI/HealthBar)
+            var walls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            int validWallCount = 0;
+            int breachedWallCount = 0;
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
             foreach (var w in walls)
             {
-                if (w != null && (w.Health <= 0 || !w.gameObject.activeInHierarchy))
+                if (w == null) continue;
+                // Bỏ qua nếu là đối tượng UI hoặc thanh máu
+                if (w.GetComponent<RectTransform>() != null || w.gameObject.layer == 5) continue;
+                string wn = w.gameObject.name;
+                if (wn.Contains("HealthBar") || wn.Contains("Fill") || wn.Contains("UnitNameLabel")) continue;
+
+                // Ở chế độ Thủ Thành (Defense), chỉ tính các tường do người chơi xây đặt trong trận (các bản Clone)
+                if (!isAssault && !wn.Contains("(Clone)")) continue;
+
+                validWallCount++;
+                if (w.Health <= 0 || !w.gameObject.activeInHierarchy)
                 {
-                    data.BreachedWalls++;
+                    breachedWallCount++;
                 }
             }
+            data.TotalWalls = validWallCount;
+            data.BreachedWalls = breachedWallCount;
 
             var breachMem = TacticalBreachMemory.Instance;
             if (breachMem != null)

@@ -85,6 +85,12 @@ namespace LlamAcademy.Dinos.Utility
                 _canvas.sortingOrder = 500; // Đảm bảo luôn vẽ nổi trên địa hình và khủng long
             }
 
+            // Vô hiệu hóa GraphicRaycaster để thanh máu hiển thị không bao giờ chặn click/chạm đặt tháp và thả khủng long
+            if (TryGetComponent(out UnityEngine.UI.GraphicRaycaster raycaster))
+            {
+                Destroy(raycaster);
+            }
+
             // Dọn dẹp triệt để mọi thanh máu mồ côi (orphaned) bị lưu tĩnh trong file Scene
             for (int i = transform.childCount - 1; i >= 0; i--)
             {

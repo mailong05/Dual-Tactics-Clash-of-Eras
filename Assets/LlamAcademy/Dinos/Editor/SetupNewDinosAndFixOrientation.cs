@@ -25,7 +25,7 @@ namespace LlamAcademy.Dinos.Editor
                 Debug.Log("<color=cyan>[Prehistoric TD]</color> Starting Setup of New Dinos & Model Orientations...");
 
                 SetupCatapultAndTotemPrefabs();
-                SetupVelociraptorPrefab();
+                SetupVelociraptorGlbAnimation.ExtractAndSetup();
                 SetupTRexPrefab();
 
                 AssetDatabase.SaveAssets();
@@ -176,11 +176,21 @@ namespace LlamAcademy.Dinos.Editor
                 }
             }
 
-            // Configure Animator
+            // Configure Animator & Avatar
             Animator animator = newModel.GetComponent<Animator>();
             if (animator == null) animator = newModel.AddComponent<Animator>();
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+            var fbxSubAssets = AssetDatabase.LoadAllAssetsAtPath(fbxPath);
+            foreach (var a in fbxSubAssets)
+            {
+                if (a is Avatar av)
+                {
+                    animator.avatar = av;
+                    break;
+                }
+            }
 
             RuntimeAnimatorController trexCtrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
                 "Assets/Resources/Animations/TRex_Controller.controller");

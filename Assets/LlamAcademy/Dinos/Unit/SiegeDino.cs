@@ -66,10 +66,14 @@ namespace LlamAcademy.Dinos.Unit
             // Đánh dấu rõ ràng là khủng long 4 chân
             _IsQuadruped = true;
 
-            // Vô hiệu hóa Animator rỗng để nhường toàn quyền điều khiển xương cho hệ thống bước đi 4 chân chân thực
+            // Tắt ModelAnimator vì mô hình Ankylosaurus dùng hệ thống 4 chân procedural độc quyền
             if (ModelAnimator != null)
             {
                 ModelAnimator.enabled = false;
+            }
+            if (ModelLegacyAnimation != null)
+            {
+                ModelLegacyAnimation.enabled = false;
             }
         }
 
@@ -95,87 +99,86 @@ namespace LlamAcademy.Dinos.Unit
                 if (_boneFrontLegL == null && (n.Contains("frontleg.l") || n.Contains("frontupleg.l")))
                 {
                     _boneFrontLegL = b;
-                    _rotInitFrontLegL = b.localRotation;
+                    _rotInitFrontLegL = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Chân trước phải (Front Leg Right)
                 else if (_boneFrontLegR == null && (n.Contains("frontleg.r") || n.Contains("frontupleg.r")))
                 {
                     _boneFrontLegR = b;
-                    _rotInitFrontLegR = b.localRotation;
+                    _rotInitFrontLegR = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Cẳng chân trước trái
                 else if (_boneFrontLowLegL == null && n.Contains("frontlowleg.l"))
                 {
                     _boneFrontLowLegL = b;
-                    _rotInitFrontLowL = b.localRotation;
+                    _rotInitFrontLowL = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Cẳng chân trước phải
                 else if (_boneFrontLowLegR == null && n.Contains("frontlowleg.r"))
                 {
                     _boneFrontLowLegR = b;
-                    _rotInitFrontLowR = b.localRotation;
+                    _rotInitFrontLowR = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Chân sau trái (Back Leg Left)
                 else if (_boneBackLegL == null && (n.Contains("backleg.l") || n.Contains("backupleg.l")))
                 {
                     _boneBackLegL = b;
-                    _rotInitBackLegL = b.localRotation;
+                    _rotInitBackLegL = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Chân sau phải (Back Leg Right)
                 else if (_boneBackLegR == null && (n.Contains("backleg.r") || n.Contains("backupleg.r")))
                 {
                     _boneBackLegR = b;
-                    _rotInitBackLegR = b.localRotation;
+                    _rotInitBackLegR = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Cẳng chân sau trái
                 else if (_boneBackLowLegL == null && n.Contains("backlowleg.l"))
                 {
                     _boneBackLowLegL = b;
-                    _rotInitBackLowL = b.localRotation;
+                    _rotInitBackLowL = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Cẳng chân sau phải
                 else if (_boneBackLowLegR == null && n.Contains("backlowleg.r"))
                 {
                     _boneBackLowLegR = b;
-                    _rotInitBackLowR = b.localRotation;
+                    _rotInitBackLowR = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Đuôi các đoạn (Tail segments)
                 else if (_boneTail1 == null && n.Contains("tail1"))
                 {
                     _boneTail1 = b;
-                    _rotInitTail1 = b.localRotation;
+                    _rotInitTail1 = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 else if (_boneTail2 == null && (n.Contains("tail2") || n.Contains("tail3")))
                 {
                     _boneTail2 = b;
-                    _rotInitTail2 = b.localRotation;
+                    _rotInitTail2 = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 else if (_boneTail3 == null && (n.Contains("tail4") || n.Contains("tail5")))
                 {
                     _boneTail3 = b;
-                    _rotInitTail3 = b.localRotation;
+                    _rotInitTail3 = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Cổ & Đầu (Neck & Head)
                 else if (_boneNeck == null && n.Contains("neck"))
                 {
                     _boneNeck = b;
-                    _rotInitNeck = b.localRotation;
+                    _rotInitNeck = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 else if (_boneHead == null && n.Contains("head"))
                 {
                     _boneHead = b;
-                    _rotInitHead = b.localRotation;
+                    _rotInitHead = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
                 // Thân mình (Body/Torso)
                 else if (_boneBody == null && (n.Contains("body") || n.Contains("torso") || n.Contains("hips")))
                 {
                     _boneBody = b;
-                    _rotInitBody = b.localRotation;
+                    _rotInitBody = Quaternion.Inverse(transform.rotation) * b.rotation;
                 }
             }
 
             _bonesInitialized = (_boneFrontLegL != null || _boneBackLegL != null);
-            Debug.Log($"<color=cyan>[Ankylosaurus]</color> Bones initialized: FL={_boneFrontLegL != null}, FR={_boneFrontLegR != null}, BL={_boneBackLegL != null}, BR={_boneBackLegR != null}, Tail={_boneTail1 != null}");
         }
 
         protected override IDamageable ScanForBlockers()
@@ -186,8 +189,25 @@ namespace LlamAcademy.Dinos.Unit
 
         protected override void PerformAttack(IDamageable target)
         {
-            base.PerformAttack(target);
-            StartCoroutine(AnkyTailSmashRoutine());
+            if (target == null) return;
+            bool isStructure = (target is Wall) || (target is PrehistoricVillageBase);
+            int damage = isStructure ? Mathf.CeilToInt(AttackDamage * BuildingDamageMultiplier) : AttackDamage;
+            target.TakeDamage(damage);
+
+            if (target is Wall wallTarget)
+            {
+                Enemy.Defender.BroadcastWallThreat(wallTarget.transform.position, this);
+            }
+            else if (target is PrehistoricVillageBase baseTarget)
+            {
+                Enemy.Defender.BroadcastWallThreat(baseTarget.transform.position, this);
+            }
+
+            _IsAttackingAnim = true;
+            if (_attackProgress < 0f)
+            {
+                StartCoroutine(AnkyTailSmashRoutine());
+            }
         }
 
         private System.Collections.IEnumerator AnkyTailSmashRoutine()
@@ -204,6 +224,7 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             _attackProgress = -1f;
+            _IsAttackingAnim = false;
         }
 
         protected override void LateUpdate()
@@ -215,21 +236,21 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             float speed = Agent != null && Agent.isOnNavMesh ? Agent.velocity.magnitude : 0f;
-            bool isMoving = speed > 0.15f;
+            bool isMoving = (Agent != null && Agent.isOnNavMesh && !Agent.isStopped && (speed > 0.12f || (Agent.hasPath && Agent.remainingDistance > 0.35f)));
+            Quaternion rootRot = transform.rotation;
 
             // 1. XỬ LÝ ĐỘNG TÁC TẤN CÔNG ĐẬP ĐUÔI (Tail Smash Attack)
             if (_attackProgress >= 0f)
             {
                 float smashCurve = Mathf.Sin(_attackProgress * Mathf.PI);
-                // Vung đuôi mạnh 50 độ sang trái rồi quất ngược sang phải
                 float tailSwing = smashCurve * 48f;
                 float headRam = -smashCurve * 15f;
 
-                if (_boneTail1 != null) _boneTail1.localRotation = _rotInitTail1 * Quaternion.Euler(0f, tailSwing * 0.4f, 0f);
-                if (_boneTail2 != null) _boneTail2.localRotation = _rotInitTail2 * Quaternion.Euler(0f, tailSwing * 0.7f, 0f);
-                if (_boneTail3 != null) _boneTail3.localRotation = _rotInitTail3 * Quaternion.Euler(0f, tailSwing, 0f);
-                if (_boneHead != null) _boneHead.localRotation = _rotInitHead * Quaternion.Euler(headRam, tailSwing * 0.2f, 0f);
-                if (_boneBody != null) _boneBody.localRotation = _rotInitBody * Quaternion.Euler(0f, -tailSwing * 0.25f, smashCurve * 4f);
+                if (_boneTail1 != null) _boneTail1.rotation = rootRot * Quaternion.AngleAxis(tailSwing * 0.4f, Vector3.up) * _rotInitTail1;
+                if (_boneTail2 != null) _boneTail2.rotation = rootRot * Quaternion.AngleAxis(tailSwing * 0.7f, Vector3.up) * _rotInitTail2;
+                if (_boneTail3 != null) _boneTail3.rotation = rootRot * Quaternion.AngleAxis(tailSwing, Vector3.up) * _rotInitTail3;
+                if (_boneHead != null) _boneHead.rotation = rootRot * Quaternion.AngleAxis(headRam, Vector3.right) * Quaternion.AngleAxis(tailSwing * 0.2f, Vector3.up) * _rotInitHead;
+                if (_boneBody != null) _boneBody.rotation = rootRot * Quaternion.AngleAxis(-tailSwing * 0.25f, Vector3.up) * _rotInitBody;
                 return;
             }
 
@@ -240,10 +261,10 @@ namespace LlamAcademy.Dinos.Unit
                 _walkPhase += Time.deltaTime * gaitSpeed;
                 _tailWagPhase += Time.deltaTime * (gaitSpeed * 0.65f);
 
-                // Góc sải bước chân trước và sau (24 độ swing)
-                float strideAngle = Mathf.Sin(_walkPhase) * 24f;
+                // Góc sải bước chân trước và sau (22 độ swing) quanh trục pitch (Vector3.right)
+                float strideAngle = Mathf.Sin(_walkPhase) * 22f;
 
-                // Độ nhấc chân (knee lift) khi bước tới để chân không bị lết mặt đất
+                // Độ nhấc khớp gối khi chân bước tới (knee lift)
                 float liftFL = Mathf.Max(0f, Mathf.Sin(_walkPhase)) * 16f;
                 float liftFR = Mathf.Max(0f, -Mathf.Sin(_walkPhase)) * 16f;
                 float liftBL = Mathf.Max(0f, -Mathf.Sin(_walkPhase)) * 14f;
@@ -253,91 +274,93 @@ namespace LlamAcademy.Dinos.Unit
                 // Cặp 1: Chân Trước Trái (FL) + Chân Sau Phải (BR) cùng tiến
                 if (_boneFrontLegL != null)
                 {
-                    _boneFrontLegL.localRotation = _rotInitFrontLegL * Quaternion.Euler(strideAngle, 0f, 0f);
+                    _boneFrontLegL.rotation = rootRot * Quaternion.AngleAxis(strideAngle, Vector3.right) * _rotInitFrontLegL;
                 }
                 if (_boneFrontLowLegL != null)
                 {
-                    _boneFrontLowLegL.localRotation = _rotInitFrontLowL * Quaternion.Euler(-liftFL, 0f, 0f);
+                    _boneFrontLowLegL.rotation = rootRot * Quaternion.AngleAxis(strideAngle - liftFL, Vector3.right) * _rotInitFrontLowL;
                 }
 
                 if (_boneBackLegR != null)
                 {
-                    _boneBackLegR.localRotation = _rotInitBackLegR * Quaternion.Euler(strideAngle, 0f, 0f);
+                    _boneBackLegR.rotation = rootRot * Quaternion.AngleAxis(strideAngle, Vector3.right) * _rotInitBackLegR;
                 }
                 if (_boneBackLowLegR != null)
                 {
-                    _boneBackLowLegR.localRotation = _rotInitBackLowR * Quaternion.Euler(liftBR, 0f, 0f);
+                    _boneBackLowLegR.rotation = rootRot * Quaternion.AngleAxis(strideAngle - liftBR, Vector3.right) * _rotInitBackLowR;
                 }
 
                 // Cặp 2: Chân Trước Phải (FR) + Chân Sau Trái (BL) cùng lùi/nghịch pha
                 if (_boneFrontLegR != null)
                 {
-                    _boneFrontLegR.localRotation = _rotInitFrontLegR * Quaternion.Euler(-strideAngle, 0f, 0f);
+                    _boneFrontLegR.rotation = rootRot * Quaternion.AngleAxis(-strideAngle, Vector3.right) * _rotInitFrontLegR;
                 }
                 if (_boneFrontLowLegR != null)
                 {
-                    _boneFrontLowLegR.localRotation = _rotInitFrontLowR * Quaternion.Euler(-liftFR, 0f, 0f);
+                    _boneFrontLowLegR.rotation = rootRot * Quaternion.AngleAxis(-strideAngle - liftFR, Vector3.right) * _rotInitFrontLowR;
                 }
 
                 if (_boneBackLegL != null)
                 {
-                    _boneBackLegL.localRotation = _rotInitBackLegL * Quaternion.Euler(-strideAngle, 0f, 0f);
+                    _boneBackLegL.rotation = rootRot * Quaternion.AngleAxis(-strideAngle, Vector3.right) * _rotInitBackLegL;
                 }
                 if (_boneBackLowLegL != null)
                 {
-                    _boneBackLowLegL.localRotation = _rotInitBackLowL * Quaternion.Euler(liftBL, 0f, 0f);
+                    _boneBackLowLegL.rotation = rootRot * Quaternion.AngleAxis(-strideAngle - liftBL, Vector3.right) * _rotInitBackLowL;
                 }
 
-                // --- Đuôi gai lắc lư uyển chuyển (Tail Sway) ---
-                float tailYaw = Mathf.Sin(_tailWagPhase) * 18f;
-                if (_boneTail1 != null) _boneTail1.localRotation = _rotInitTail1 * Quaternion.Euler(0f, tailYaw * 0.4f, 0f);
-                if (_boneTail2 != null) _boneTail2.localRotation = _rotInitTail2 * Quaternion.Euler(0f, tailYaw * 0.7f, 0f);
-                if (_boneTail3 != null) _boneTail3.localRotation = _rotInitTail3 * Quaternion.Euler(0f, tailYaw, 0f);
+                // --- Đuôi gai lắc lư uyển chuyển quanh trục Y (Up) ---
+                float tailYaw = Mathf.Sin(_tailWagPhase) * 16f;
+                if (_boneTail1 != null) _boneTail1.rotation = rootRot * Quaternion.AngleAxis(tailYaw * 0.4f, Vector3.up) * _rotInitTail1;
+                if (_boneTail2 != null) _boneTail2.rotation = rootRot * Quaternion.AngleAxis(tailYaw * 0.7f, Vector3.up) * _rotInitTail2;
+                if (_boneTail3 != null) _boneTail3.rotation = rootRot * Quaternion.AngleAxis(tailYaw, Vector3.up) * _rotInitTail3;
 
-                // --- Đầu & Cổ gật gù theo nhịp bước (Head & Neck Bobbing) ---
-                float headPitch = Mathf.Sin(_walkPhase * 2f) * 5.5f;
-                float headYaw = Mathf.Cos(_walkPhase) * 4.0f;
-                if (_boneNeck != null) _boneNeck.localRotation = _rotInitNeck * Quaternion.Euler(headPitch * 0.5f, headYaw * 0.5f, 0f);
-                if (_boneHead != null) _boneHead.localRotation = _rotInitHead * Quaternion.Euler(headPitch, headYaw, 0f);
+                // --- Đầu & Cổ gật gù theo nhịp bước ---
+                float headPitch = Mathf.Sin(_walkPhase * 2f) * 4.5f;
+                float headYaw = Mathf.Cos(_walkPhase) * 3.0f;
+                if (_boneNeck != null) _boneNeck.rotation = rootRot * Quaternion.AngleAxis(headPitch * 0.5f, Vector3.right) * Quaternion.AngleAxis(headYaw * 0.5f, Vector3.up) * _rotInitNeck;
+                if (_boneHead != null) _boneHead.rotation = rootRot * Quaternion.AngleAxis(headPitch, Vector3.right) * Quaternion.AngleAxis(headYaw, Vector3.up) * _rotInitHead;
 
-                // --- Thân mình chuyển dịch trọng tâm (Body Waddle & Rolling) ---
-                float bodyRoll = Mathf.Sin(_walkPhase) * 3.8f;
-                float bodyYaw = Mathf.Cos(_walkPhase) * 2.2f;
-                if (_boneBody != null) _boneBody.localRotation = _rotInitBody * Quaternion.Euler(0f, bodyYaw, bodyRoll);
+                // --- Thân mình chuyển dịch trọng tâm ---
+                float bodyRoll = Mathf.Sin(_walkPhase) * 2.8f;
+                if (_boneBody != null) _boneBody.rotation = rootRot * Quaternion.AngleAxis(bodyRoll, Vector3.forward) * _rotInitBody;
 
                 if (VisualModel != null && _HasBaseModelTransform)
                 {
-                    float bobY = Mathf.Abs(Mathf.Sin(_walkPhase * 2f)) * 0.065f;
+                    float bobY = Mathf.Abs(Mathf.Sin(_walkPhase * 2f)) * 0.04f;
                     VisualModel.localPosition = _BaseModelLocalPos + new Vector3(0f, bobY, 0f);
+                    VisualModel.localRotation = _BaseModelLocalRot;
                 }
             }
             else
             {
                 // Khi đứng yên (Idle): hồi phục mượt mà về tư thế tự nhiên chuẩn
                 float lerpSpeed = Time.deltaTime * 6f;
-                if (_boneFrontLegL != null) _boneFrontLegL.localRotation = Quaternion.Slerp(_boneFrontLegL.localRotation, _rotInitFrontLegL, lerpSpeed);
-                if (_boneFrontLowLegL != null) _boneFrontLowLegL.localRotation = Quaternion.Slerp(_boneFrontLowLegL.localRotation, _rotInitFrontLowL, lerpSpeed);
-                if (_boneFrontLegR != null) _boneFrontLegR.localRotation = Quaternion.Slerp(_boneFrontLegR.localRotation, _rotInitFrontLegR, lerpSpeed);
-                if (_boneFrontLowLegR != null) _boneFrontLowLegR.localRotation = Quaternion.Slerp(_boneFrontLowLegR.localRotation, _rotInitFrontLowR, lerpSpeed);
 
-                if (_boneBackLegL != null) _boneBackLegL.localRotation = Quaternion.Slerp(_boneBackLegL.localRotation, _rotInitBackLegL, lerpSpeed);
-                if (_boneBackLowLegL != null) _boneBackLowLegL.localRotation = Quaternion.Slerp(_boneBackLowLegL.localRotation, _rotInitBackLowL, lerpSpeed);
-                if (_boneBackLegR != null) _boneBackLegR.localRotation = Quaternion.Slerp(_boneBackLegR.localRotation, _rotInitBackLegR, lerpSpeed);
-                if (_boneBackLowLegR != null) _boneBackLowLegR.localRotation = Quaternion.Slerp(_boneBackLowLegR.localRotation, _rotInitBackLowR, lerpSpeed);
+                if (_boneFrontLegL != null) _boneFrontLegL.rotation = Quaternion.Slerp(_boneFrontLegL.rotation, rootRot * _rotInitFrontLegL, lerpSpeed);
+                if (_boneFrontLowLegL != null) _boneFrontLowLegL.rotation = Quaternion.Slerp(_boneFrontLowLegL.rotation, rootRot * _rotInitFrontLowL, lerpSpeed);
+                if (_boneFrontLegR != null) _boneFrontLegR.rotation = Quaternion.Slerp(_boneFrontLegR.rotation, rootRot * _rotInitFrontLegR, lerpSpeed);
+                if (_boneFrontLowLegR != null) _boneFrontLowLegR.rotation = Quaternion.Slerp(_boneFrontLowLegR.rotation, rootRot * _rotInitFrontLowR, lerpSpeed);
+
+                if (_boneBackLegL != null) _boneBackLegL.rotation = Quaternion.Slerp(_boneBackLegL.rotation, rootRot * _rotInitBackLegL, lerpSpeed);
+                if (_boneBackLowLegL != null) _boneBackLowLegL.rotation = Quaternion.Slerp(_boneBackLowLegL.rotation, rootRot * _rotInitBackLowL, lerpSpeed);
+                if (_boneBackLegR != null) _boneBackLegR.rotation = Quaternion.Slerp(_boneBackLegR.rotation, rootRot * _rotInitBackLegR, lerpSpeed);
+                if (_boneBackLowLegR != null) _boneBackLowLegR.rotation = Quaternion.Slerp(_boneBackLowLegR.rotation, rootRot * _rotInitBackLowR, lerpSpeed);
 
                 // Đuôi vẫy nhẹ khi nghỉ (Idle tail wag)
-                float idleTail = Mathf.Sin(Time.time * 1.5f) * 6f;
-                if (_boneTail1 != null) _boneTail1.localRotation = Quaternion.Slerp(_boneTail1.localRotation, _rotInitTail1 * Quaternion.Euler(0f, idleTail * 0.4f, 0f), lerpSpeed);
-                if (_boneTail2 != null) _boneTail2.localRotation = Quaternion.Slerp(_boneTail2.localRotation, _rotInitTail2 * Quaternion.Euler(0f, idleTail * 0.7f, 0f), lerpSpeed);
-                if (_boneTail3 != null) _boneTail3.localRotation = Quaternion.Slerp(_boneTail3.localRotation, _rotInitTail3 * Quaternion.Euler(0f, idleTail, 0f), lerpSpeed);
+                float idleTail = Mathf.Sin(Time.time * 1.5f) * 5f;
+                if (_boneTail1 != null) _boneTail1.rotation = Quaternion.Slerp(_boneTail1.rotation, rootRot * Quaternion.AngleAxis(idleTail * 0.4f, Vector3.up) * _rotInitTail1, lerpSpeed);
+                if (_boneTail2 != null) _boneTail2.rotation = Quaternion.Slerp(_boneTail2.rotation, rootRot * Quaternion.AngleAxis(idleTail * 0.7f, Vector3.up) * _rotInitTail2, lerpSpeed);
+                if (_boneTail3 != null) _boneTail3.rotation = Quaternion.Slerp(_boneTail3.rotation, rootRot * Quaternion.AngleAxis(idleTail, Vector3.up) * _rotInitTail3, lerpSpeed);
 
-                if (_boneNeck != null) _boneNeck.localRotation = Quaternion.Slerp(_boneNeck.localRotation, _rotInitNeck, lerpSpeed);
-                if (_boneHead != null) _boneHead.localRotation = Quaternion.Slerp(_boneHead.localRotation, _rotInitHead, lerpSpeed);
-                if (_boneBody != null) _boneBody.localRotation = Quaternion.Slerp(_boneBody.localRotation, _rotInitBody, lerpSpeed);
+                if (_boneNeck != null) _boneNeck.rotation = Quaternion.Slerp(_boneNeck.rotation, rootRot * _rotInitNeck, lerpSpeed);
+                if (_boneHead != null) _boneHead.rotation = Quaternion.Slerp(_boneHead.rotation, rootRot * _rotInitHead, lerpSpeed);
+                if (_boneBody != null) _boneBody.rotation = Quaternion.Slerp(_boneBody.rotation, rootRot * _rotInitBody, lerpSpeed);
 
                 if (VisualModel != null && _HasBaseModelTransform)
                 {
                     VisualModel.localPosition = Vector3.Lerp(VisualModel.localPosition, _BaseModelLocalPos, lerpSpeed);
+                    VisualModel.localRotation = Quaternion.Slerp(VisualModel.localRotation, _BaseModelLocalRot, lerpSpeed);
                 }
             }
         }

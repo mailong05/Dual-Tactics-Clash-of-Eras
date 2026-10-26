@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 3104313133510454315}
   - component: {fileID: 5726622355564904277}
   - component: {fileID: 916822518975240625}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Prefab_Ankylosaurus
   m_TagString: Untagged
   m_Icon: {fileID: 0}

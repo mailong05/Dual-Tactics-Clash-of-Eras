@@ -104,6 +104,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             CleanupInvisibleAndStrayObjects();
             DeactivateDefaultSceneBarricades();
+            // Đảm bảo Smooth Floor không bị bất kỳ NavMeshModifier nào loại trừ khỏi bản đồ
+            var allNavMods = FindObjectsByType<Unity.AI.Navigation.NavMeshModifier>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var mod in allNavMods)
+            {
+                if (mod != null && mod.gameObject.name.Contains("Smooth Floor"))
+                {
+                    mod.ignoreFromBuild = false;
+                }
+            }
+
             EnsureScenicFortressWalkways();
             EnsureVillageBridgesDestructible();
             ConfigureAllCustomBarricades();
@@ -122,6 +132,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                 "Village_Watchtower_Left",
                 "Village_Watchtower_Right"
             };
+
+            // Dọn dẹp triệt để bất kỳ component Wall nào vô tình bị gắn trên Canvas, UI hoặc HealthBar
+            var allStrayWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var sw in allStrayWalls)
+            {
+                if (sw == null) continue;
+                if (sw.GetComponent<RectTransform>() != null || sw.gameObject.layer == 5 ||
+                    sw.name.Contains("HealthBar") || sw.name.Contains("Fill") || sw.name.Contains("UnitNameLabel"))
+                {
+                    Destroy(sw);
+                }
+            }
 
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (Transform t in allTransforms)
@@ -984,6 +1006,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                     Vector3 spawnPos = GetValidSpawnPosition(i % 3);
                     Vector3 targetPos = GetValidBaseTargetPosition();
 
+                    // Đảm bảo spawnPos được định vị chuẩn xác trên NavMesh của Khủng long trước khi Instantiate
+                    NavMeshQueryFilter spawnFilter = new NavMeshQueryFilter { agentTypeID = 1479372276, areaMask = NavMesh.AllAreas };
+                    if (NavMesh.SamplePosition(spawnPos, out NavMeshHit sHit, 25f, spawnFilter))
+                    {
+                        spawnPos = sHit.position;
+                    }
+                    else if (NavMesh.SamplePosition(spawnPos, out sHit, 25f, NavMesh.AllAreas))
+                    {
+                        spawnPos = sHit.position;
+                    }
+
                     Vector3 dir = (targetPos - spawnPos).normalized;
                     dir.y = 0;
                     Quaternion rot = dir != Vector3.zero ? Quaternion.LookRotation(dir) : Quaternion.identity;
@@ -1009,11 +1042,12 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                     if (spawned.TryGetComponent(out Unit.PrehistoricDinoBase dinoBase))
                     {
-                        dinoBase.EnsureOnNavMesh(15f);
+                        dinoBase.EnsureOnNavMesh(25f);
                         dinoBase.ConfigureNavMeshAgent();
                         if (dinoBase.Agent != null && dinoBase.Agent.isOnNavMesh)
                         {
                             dinoBase.Agent.isStopped = false;
+                            dinoBase.Agent.updateRotation = true;
                             dinoBase.Agent.SetDestination(targetPos);
                         }
                     }

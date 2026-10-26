@@ -254,6 +254,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
+                    dinoSpawner.AllowPlacingDinos = true;
                     // Khởi tạo lượng thịt ban đầu dồi dào (250 thịt cơ bản + 75 thịt mỗi cấp màn)
                     int targetMeat = 250 + (AssaultLevel - 1) * 75;
                     if (Application.isPlaying && dinoSpawner.ResourcesToSpend < targetMeat)
@@ -568,7 +569,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             int food = spawner != null ? spawner.ResourcesToSpend : 0;
 
             // 1. Top-Left Food & Command Banner
-            GUILayout.BeginArea(new Rect(20, 20, 360, 130), GUI.skin.box);
+            Rect foodBannerRect = new Rect(20, 20, 360, 130);
+            Mobile.MobileUIHelper.RegisterUIRect(foodBannerRect);
+            GUILayout.BeginArea(foodBannerRect, GUI.skin.box);
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
@@ -621,6 +624,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (d == null) continue;
 
                     bool canAfford = food >= d.Cost;
+                    if (spawner != null && spawner.ActiveDinoSO != SelectedDino)
+                    {
+                        SelectedDino = spawner.ActiveDinoSO;
+                    }
                     bool isSelected = SelectedDino == d;
 
                     string displayName = GetDinoDisplayName(d);
@@ -837,6 +844,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (dino.Agent != null && dino.Agent.isOnNavMesh)
                 {
                     dino.Agent.isStopped = false;
+                    dino.Agent.updateRotation = true;
                     dino.Agent.SetDestination(targetPos);
                 }
                 dino.SetDestination(targetPos);
@@ -1233,6 +1241,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             ClearAllDinos();
             CleanAllAssaultDefenses();
+            DinoSpawner retrySpawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (retrySpawner != null) retrySpawner.AllowPlacingDinos = true;
 
             // 1. Phục hồi toàn bộ tường trong làng
             var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -1289,6 +1299,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
+                spawner.AllowPlacingDinos = true;
                 spawner.ResourcesToSpend = 250;
             }
 
@@ -1325,6 +1336,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
             if (spawner != null)
             {
+                spawner.AllowPlacingDinos = true;
                 spawner.ResourcesToSpend = savedMeat > 0 ? savedMeat : (250 + (AssaultLevel - 1) * 75);
             }
 
@@ -1372,6 +1384,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             AssaultLevel = 1;
             ClearAllDinos();
             CleanAllAssaultDefenses();
+            DinoSpawner restartSpawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
+            if (restartSpawner != null) restartSpawner.AllowPlacingDinos = true;
 
             var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var wall in allWalls)

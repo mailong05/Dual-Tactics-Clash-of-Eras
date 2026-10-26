@@ -8,7 +8,9 @@ namespace LlamAcademy.Dinos.Config
     {
         public override void ApplyEffect(IDamageable target)
         {
-            target.TakeDamage(GetDamage(target.UnitType.ArmorType));
+            if (target == null) return;
+            ArmorTypeSO armor = target.UnitType != null ? target.UnitType.ArmorType : null;
+            target.TakeDamage(GetDamage(armor));
         }
     }
 }

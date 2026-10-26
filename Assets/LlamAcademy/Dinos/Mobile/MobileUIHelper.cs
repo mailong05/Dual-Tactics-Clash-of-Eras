@@ -102,10 +102,26 @@ namespace LlamAcademy.Dinos.Mobile
         /// </summary>
         public static bool IsPointerOverUI(Vector2 screenPosition)
         {
-            // 1. Check uGUI Canvas EventSystem
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            // 1. Check uGUI Canvas EventSystem (chỉ tính Screen Space UI, loại trừ World Space Canvases như thanh máu/label)
+            if (EventSystem.current != null)
             {
-                return true;
+                PointerEventData eventData = new PointerEventData(EventSystem.current)
+                {
+                    position = screenPosition
+                };
+                List<RaycastResult> results = new List<RaycastResult>();
+                EventSystem.current.RaycastAll(eventData, results);
+                for (int i = 0; i < results.Count; i++)
+                {
+                    if (results[i].gameObject != null)
+                    {
+                        Canvas c = results[i].gameObject.GetComponentInParent<Canvas>();
+                        if (c != null && c.renderMode != RenderMode.WorldSpace)
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
 
             // 2. Check IMGUI active control

@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &4258149206776753589
+--- !u!1 &5564908837535396073
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,44 +8,44 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 7004225743192559827}
-  - component: {fileID: 1284010363275298965}
-  - component: {fileID: 1699341250407787252}
-  - component: {fileID: 193721840678332767}
-  m_Layer: 0
+  - component: {fileID: 8135959017111420756}
+  - component: {fileID: 3104313133510454315}
+  - component: {fileID: 5726622355564904277}
+  - component: {fileID: 916822518975240625}
+  m_Layer: 8
   m_Name: Prefab_Ankylosaurus
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &7004225743192559827
+--- !u!4 &8135959017111420756
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4258149206776753589}
+  m_GameObject: {fileID: 5564908837535396073}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 143202491890148946}
+  - {fileID: 5549500062188912593}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!195 &1284010363275298965
+--- !u!195 &3104313133510454315
 NavMeshAgent:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4258149206776753589}
+  m_GameObject: {fileID: 5564908837535396073}
   m_Enabled: 1
   m_AgentTypeID: 1479372276
   m_Radius: 1.1
-  m_Speed: 2.2
+  m_Speed: 3.5
   m_Acceleration: 8
   avoidancePriority: 50
   m_AngularSpeed: 120
@@ -56,41 +56,44 @@ NavMeshAgent:
   m_Height: 2
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
-  m_ObstacleAvoidanceType: 4
---- !u!114 &1699341250407787252
+  m_ObstacleAvoidanceType: 1
+--- !u!114 &5726622355564904277
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4258149206776753589}
+  m_GameObject: {fileID: 5564908837535396073}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 10fbee1a3549c0d4fb8937813d14ba5a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Unit.SiegeDino
-  <MaxHealth>k__BackingField: 0
-  <Health>k__BackingField: 0
+  <MaxHealth>k__BackingField: 1275
+  <Health>k__BackingField: 1275
   <UnitType>k__BackingField: {fileID: 11400000, guid: 9f3baf0bef7eea34d8577da58f13d923, type: 2}
   AttackRadius: {fileID: 0}
   HealthBar: {fileID: 0}
-  MoveSpeed: 3.5
+  MoveSpeed: 2.4
   AttackRange: 2.2
   AttackInterval: 1.2
-  AttackDamage: 18
-  BuildingDamageMultiplier: 1
-  GoldReward: 15
+  AttackDamage: 25
+  BuildingDamageMultiplier: 3.5
+  GoldReward: 40
   TargetLayers:
     serializedVersion: 2
     m_Bits: 0
+  ModelAnimator: {fileID: 7965539707551962065}
+  ModelLegacyAnimation: {fileID: 5620624349791476060}
+  VisualModel: {fileID: 5549500062188912593}
   WallDetectRadius: 4.5
---- !u!65 &193721840678332767
+--- !u!65 &916822518975240625
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4258149206776753589}
+  m_GameObject: {fileID: 5564908837535396073}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -105,13 +108,13 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.2, y: 2, z: 5}
   m_Center: {x: 0, y: 1, z: 0}
---- !u!1001 &8828201847401500316
+--- !u!1001 &3925762017470142239
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 7004225743192559827}
+    m_TransformParent: {fileID: 8135959017111420756}
     m_Modifications:
     - target: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
       propertyPath: m_Name
@@ -172,10 +175,45 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7965539707551962065}
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
---- !u!4 &143202491890148946 stripped
+--- !u!1 &5095206637593225048 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8128668236925612103, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
+  m_PrefabInstance: {fileID: 3925762017470142239}
+  m_PrefabAsset: {fileID: 0}
+--- !u!95 &7965539707551962065
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5095206637593225048}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 2e169f538ac125e4481768e5379857d2, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!4 &5549500062188912593 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8897093224900880590, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
-  m_PrefabInstance: {fileID: 8828201847401500316}
+  m_PrefabInstance: {fileID: 3925762017470142239}
+  m_PrefabAsset: {fileID: 0}
+--- !u!111 &5620624349791476060 stripped
+Animation:
+  m_CorrespondingSourceObject: {fileID: 8681642452852674115, guid: 94e0128a1a4d0f9498d2206dddf340e3, type: 3}
+  m_PrefabInstance: {fileID: 3925762017470142239}
   m_PrefabAsset: {fileID: 0}
