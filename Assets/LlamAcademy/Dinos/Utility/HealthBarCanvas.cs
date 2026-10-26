@@ -338,14 +338,24 @@ namespace LlamAcademy.Dinos.Utility
 
                     keyValuePair.Key.TryGetComponent(out Collider col);
                     string lowerName = keyValuePair.Key.gameObject.name.ToLower();
-                    bool isFence = lowerName.Contains("segment") ||
+                    bool isBridge = lowerName.Contains("bridge") || lowerName.Contains("ramp");
+                    bool isFence = !isBridge && (lowerName.Contains("segment") ||
                                    lowerName.Contains("barricade") ||
                                    lowerName.Contains("palisade") ||
                                    lowerName.Contains("plank_defenses") ||
-                                   (keyValuePair.Key is Unit.Wall && !lowerName.Contains("tower") && !lowerName.Contains("arch") && !lowerName.Contains("hut"));
+                                   (keyValuePair.Key is Unit.Wall && !lowerName.Contains("tower") && !lowerName.Contains("arch") && !lowerName.Contains("hut")));
 
                     Vector3 targetPos;
-                    if (isFence)
+                    if (isBridge)
+                    {
+                        float topY = col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.5f);
+                        targetPos = new Vector3(
+                            col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x,
+                            topY + 0.8f,
+                            col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z
+                        );
+                    }
+                    else if (isFence)
                     {
                         // Đặt thanh máu ngay sát trên mép trên cùng của hàng rào cọc gỗ (+0.15m trên đỉnh cọc):
                         float topY = col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.85f);
