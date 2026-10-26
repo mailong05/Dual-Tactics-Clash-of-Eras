@@ -8,7 +8,7 @@ namespace LlamAcademy.Dinos.Unit
     public class BallistaTower : Unit
     {
         [Header("Ballista Mechanics")]
-        [SerializeField] private float AttackRange = 16.0f;
+        [SerializeField] private float AttackRange = 38.0f;
         [SerializeField] private float FireInterval = 2.2f;
         [SerializeField] private int SpearDamage = 70;
         public void SetDamage(int dmg) => SpearDamage = dmg;
@@ -38,15 +38,19 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
-            // Chế độ Công thành: Tuyệt đối không bắn lao khi người chơi đang dàn trận!
+            // Chế độ Công thành: Kiểm tra đúng pha xuất quân (Combat)
             if (PrehistoricGameModeManager.Instance != null &&
-                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault &&
-                PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                return;
+                if (PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+                {
+                    return;
+                }
             }
-
-            if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            else
+            {
+                if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            }
             if (IsFiring) return;
 
             Collider target = FindPriorityTarget();

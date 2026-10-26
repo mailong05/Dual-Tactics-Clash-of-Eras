@@ -8,7 +8,7 @@ namespace LlamAcademy.Dinos.Unit
     public class ArcherTower : Unit
     {
         [Header("Archer Mechanics")]
-        [SerializeField] private float AttackRange = 16.0f;
+        [SerializeField] private float AttackRange = 30.0f;
         [SerializeField] private float FireInterval = 1.0f;
         [SerializeField] private int ArrowDamage = 28;
         [SerializeField] private float ArrowSpeed = 24.0f;
@@ -38,15 +38,19 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
-            // Chế độ Công thành: Tuyệt đối không bắn tên khi người chơi đang dàn trận!
+            // Chế độ Công thành: Kiểm tra đúng pha xuất quân (Combat)
             if (PrehistoricGameModeManager.Instance != null &&
-                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault &&
-                PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                return;
+                if (PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+                {
+                    return;
+                }
             }
-
-            if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            else
+            {
+                if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            }
 
             Collider target = FindTarget();
             if (target != null)

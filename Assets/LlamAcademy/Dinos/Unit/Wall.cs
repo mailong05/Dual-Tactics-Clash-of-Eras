@@ -122,6 +122,7 @@ namespace LlamAcademy.Dinos.Unit
                 }
             }
 
+            UpdateNavMeshData.RestoreOriginalObstaclePosition(ObstacleSpawnHeight);
             EnsureHealthBarAttached();
             if (HealthBar != null)
             {
@@ -404,16 +405,9 @@ private IEnumerator HandleDeath()
 
                 yield return null;
 
-                if (RebakeSurfacesOnDeath != null)
-                {
-                    foreach (NavMeshSurface surface in RebakeSurfacesOnDeath)
-                    {
-                        if (surface != null)
-                        {
-                            surface.BuildNavMesh();
-                        }
-                    }
-                }
+                // Runtime NavMeshObstacle carving handles passage opening automatically.
+                // Rebuilding surface at runtime during combat throws 'Failed to create agent' in Unity.
+                yield return null;
             }
 
             /// <summary>
@@ -421,16 +415,7 @@ private IEnumerator HandleDeath()
             /// </summary>
             public void RemoveNavMeshData()
             {
-                if (RebakeSurfacesOnDeath != null)
-                {
-                    foreach (NavMeshSurface surface in RebakeSurfacesOnDeath)
-                    {
-                        if (surface != null)
-                        {
-                            surface.RemoveData();
-                        }
-                    }
-                }
+                // Do not remove surface data here as it wipes out the whole level's NavMesh for agents.
 
                 if (EnableObjectsBeforeRebake != null)
                 {
@@ -508,16 +493,7 @@ private IEnumerator HandleDeath()
                     }
                 }
 
-                if (RebakeSurfacesOnDeath != null)
-                {
-                    foreach (NavMeshSurface surface in RebakeSurfacesOnDeath)
-                    {
-                        if (surface != null)
-                        {
-                            surface.RemoveData();
-                        }
-                    }
-                }
+                // Do not remove surface data on obstacle destroy.
             }
         }
 

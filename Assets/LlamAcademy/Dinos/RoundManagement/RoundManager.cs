@@ -292,6 +292,10 @@ namespace LlamAcademy.Dinos.RoundManagement
         private void OnDefenderDeath(Defender defender)
         {
             AliveDefenders.Remove(defender);
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return; // Không cộng dồn thịt vô hạn trong chế độ Công Thành
+            }
             if (State == GameState.Running)
             {
                 DinoSpawner.Instance.ResourcesToSpend += Mathf.FloorToInt(defender.UnitType.Cost / 2f);
@@ -310,6 +314,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void OnWallDeath(Wall wall)
         {
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return; // Không cộng dồn thịt vô hạn trong chế độ Công Thành
+            }
             if (State == GameState.Running)
             {
                 if (DinoSpawner.Instance != null && wall != null && wall.UnitType != null)

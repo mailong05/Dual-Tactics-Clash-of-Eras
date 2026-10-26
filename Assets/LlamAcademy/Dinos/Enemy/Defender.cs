@@ -113,14 +113,14 @@ namespace LlamAcademy.Dinos.Enemy
         {
             if (Role == DefenderRole.Archer)
             {
-                AttackRange = 18.0f;
+                AttackRange = 28.0f;
                 AttackInterval = 1.2f;
                 AttackDamage = 28;
                 ProjectileSpeed = 24.0f;
             }
             else // Spearman
             {
-                AttackRange = 16.0f; // Tầm phóng giáo xa 16m, cận chiến < 2.5m
+                AttackRange = 22.0f; // Tầm phóng giáo xa 16m, cận chiến < 2.5m
                 AttackInterval = 1.6f;
                 AttackDamage = 38;
                 ProjectileSpeed = 26.0f;
@@ -564,11 +564,11 @@ namespace LlamAcademy.Dinos.Enemy
                         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(faceDir), Time.deltaTime * 12f);
                     }
 
-                    // Tầm bắn hiệu dụng cao cho lính phòng vệ căn cứ: Cung thủ 18m, Lính giáo 16m
-                    float effectiveRange = (Role == DefenderRole.Archer) ? 18.0f : 16.0f;
+                    // Tầm bắn hiệu dụng cao bảo vệ căn cứ: Cung thủ 30m, Lính giáo 24m (tối đa 35m)
+                    float effectiveRange = (Role == DefenderRole.Archer) ? 30.0f : 24.0f;
 
-                    // Nếu đã vào tầm đánh
-                    if (distToTarget <= effectiveRange)
+                    // Nếu đã vào tầm đánh hoặc trong cự ly xạ kích bảo vệ căn cứ (lên đến 35m)
+                    if (distToTarget <= effectiveRange || distToTarget <= 35.0f)
                     {
                         if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                         {
@@ -581,6 +581,7 @@ namespace LlamAcademy.Dinos.Enemy
                             Collider col = targetDino.GetComponentInChildren<Collider>();
                             PerformAttack(col, targetPos, distToTarget);
                         }
+                        return;
                     }
                     else
                     {
@@ -599,18 +600,17 @@ namespace LlamAcademy.Dinos.Enemy
                             }
                         }
                     }
-                    return;
                 }
             }
 
             // 2. TÁC CHIẾN BÌNH THƯỜNG / PHÒNG THỦ PHÁO ĐÀI VÀ CĂN CỨ
-            float searchRange = Mathf.Max(AttackRange + 8.0f, 26.0f);
+            float searchRange = 45.0f;
             Collider targetCol = FindNearestHostileMonster(searchRange);
 
             // Nếu không có quái trong bán kính quét cá nhân, nhưng tường/pháo đài làng đang bị tấn công
             if (targetCol == null && Time.time - _LastThreatTime < 8.0f && _ThreatenedWallPos != Vector3.zero)
             {
-                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 18.0f);
+                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 32.0f);
             }
 
             if (targetCol != null)
@@ -631,8 +631,9 @@ namespace LlamAcademy.Dinos.Enemy
                     transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(faceDir), 720f * Time.deltaTime);
                 }
 
-                // Nếu mục tiêu trong tầm đánh
-                if (distToTarget <= AttackRange)
+                // Nếu mục tiêu trong tầm đánh hoặc quái đã lọt vào trong làng (Z <= -15m và cự ly <= 35m)
+                bool isInVillage = (targetPos.z <= -15f && distToTarget <= 35.0f);
+                if (distToTarget <= AttackRange || isInVillage)
                 {
                     if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                     {

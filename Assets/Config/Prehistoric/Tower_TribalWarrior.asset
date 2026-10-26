@@ -22,7 +22,7 @@ MonoBehaviour:
   <DisplayName>k__BackingField: "Chi\u1EBFn Binh Cung Th\u1EE7 (NPC)"
   <Description>k__BackingField: "Cung th\u1EE7 b\u1ED9 l\u1EA1c c\u01A1 \u0111\u1ED9ng, tu\u1EA7n tra b\u1EA3o v\u1EC7 tr\u1EADn \u0111\u1ECBa v\u00E0 x\u1EA1 ti\u1EC5n li\u00EAn t\u1EE5c c\u1EA3n b\u01B0\u1EDBc kh\u1EE7ng long!"
   <Sprite>k__BackingField: {fileID: 0}
-  <Cost>k__BackingField: 45
+  <Cost>k__BackingField: 20
   <Hotkey>k__BackingField: 48
   <IsWall>k__BackingField: 0
   <CanTargetFlying>k__BackingField: 1
