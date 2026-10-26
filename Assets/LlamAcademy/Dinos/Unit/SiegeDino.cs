@@ -57,9 +57,9 @@ namespace LlamAcademy.Dinos.Unit
             MoveSpeed = 3.0f;
             base.Awake();
             ConfigureNavMeshAgent();
-            BuildingDamageMultiplier = 3.5f;
-            AttackDamage = 25;
-            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1912;
+            BuildingDamageMultiplier = 4.5f;
+            AttackDamage = 45;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 3800;
             Health = MaxHealth;
             GoldReward = 40;
 
@@ -75,6 +75,13 @@ namespace LlamAcademy.Dinos.Unit
             {
                 ModelLegacyAnimation.enabled = false;
             }
+        }
+
+        public override void TakeDamage(int damage)
+        {
+            // Lớp giáp xương dày giảm 20% sát thương nhận vào
+            int reducedDamage = Mathf.Max(1, Mathf.RoundToInt(damage * 0.8f));
+            base.TakeDamage(reducedDamage);
         }
 
         protected override void Start()

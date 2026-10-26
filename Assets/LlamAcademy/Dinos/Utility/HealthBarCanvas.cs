@@ -1,443 +1,870 @@
 using System;
+
 using System.Collections.Generic;
+
 using System.Linq;
+
 using LlamAcademy.Dinos.UI;
+
 using LlamAcademy.Dinos.Unit;
+
 using UnityEngine;
 
+
+
 namespace LlamAcademy.Dinos.Utility
+
 {
+
     [RequireComponent(typeof(Canvas))]
+
     public class HealthBarCanvas : MonoBehaviour
+
     {
+
         private static HealthBarCanvas _Instance;
+
         private static bool _IsShuttingDown = false;
+
+
 
         public static bool HasInstance => _Instance != null && !_IsShuttingDown;
 
+
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+
         private static void ResetStatics()
+
         {
+
             _Instance = null;
+
             _IsShuttingDown = false;
+
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+
         }
+
+
 
         private static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+
         {
+
             _IsShuttingDown = false;
+
         }
+
+
 
         public static HealthBarCanvas Instance
+
         {
+
             get
+
             {
+
                 if (_IsShuttingDown) return null;
 
+
+
                 if (!Application.isPlaying)
+
                 {
+
                     if (_Instance == null)
+
                     {
+
                         _Instance = FindFirstObjectByType<HealthBarCanvas>();
+
                     }
+
                     return _Instance;
+
                 }
 
+
+
                 if (_Instance == null)
+
                 {
+
                     _Instance = FindFirstObjectByType<HealthBarCanvas>();
+
                     if (_Instance == null && !_IsShuttingDown)
+
                     {
+
                         GameObject canvasObj = new GameObject("HealthBarCanvas");
+
                         Canvas canvas = canvasObj.AddComponent<Canvas>();
+
                         canvas.renderMode = RenderMode.WorldSpace;
+
                         _Instance = canvasObj.AddComponent<HealthBarCanvas>();
+
                     }
+
                 }
+
                 return _Instance;
+
             }
+
             private set => _Instance = value;
+
         }
+
+
 
         private Dictionary<Unit.Unit, HealthBar> HealthBars = new();
 
+
+
         private Canvas _canvas;
 
+
+
         private void Awake()
+
         {
+
             _IsShuttingDown = false;
 
+
+
             if (_Instance != null && _Instance != this)
+
             {
+
                 Debug.LogWarning($"Duplicate HealthBarCanvas component on ({name})! Removing duplicate component.");
+
                 Destroy(this);
+
                 return;
+
             }
+
+
 
             _Instance = this;
+
             _canvas = GetComponent<Canvas>();
+
             if (_canvas != null)
+
             {
+
                 _canvas.renderMode = RenderMode.WorldSpace;
+
                 _canvas.worldCamera = null; // Trong URP, KHÔNG gán worldCamera để tránh Canvas bounding box bị frustum culling
+
                 _canvas.overrideSorting = true;
+
                 _canvas.sortingOrder = 500; // Đảm bảo luôn vẽ nổi trên địa hình và khủng long
+
             }
+
+
 
             // Vô hiệu hóa GraphicRaycaster để thanh máu hiển thị không bao giờ chặn click/chạm đặt tháp và thả khủng long
+
             if (TryGetComponent(out UnityEngine.UI.GraphicRaycaster raycaster))
+
             {
+
                 Destroy(raycaster);
+
             }
+
+
 
             // Dọn dẹp triệt để mọi thanh máu mồ côi (orphaned) bị lưu tĩnh trong file Scene
+
             for (int i = transform.childCount - 1; i >= 0; i--)
+
             {
+
                 Transform child = transform.GetChild(i);
+
                 if (child != null && child.name.StartsWith("HealthBar_"))
+
                 {
+
                     Destroy(child.gameObject);
+
                 }
+
             }
+
+
 
             if (HealthBarPrefab == null)
+
             {
+
                 GameObject prefabObj = Resources.Load<GameObject>("Health Bar");
+
                 if (prefabObj != null)
+
                 {
+
                     HealthBarPrefab = prefabObj.GetComponent<HealthBar>();
+
                 }
+
 #if UNITY_EDITOR
+
                 if (HealthBarPrefab == null)
+
                 {
+
                     HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/Resources/Health Bar.prefab");
+
                     if (HealthBarPrefab == null)
+
                     {
+
                         HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/LlamAcademy/Dinos/Prefabs/Health Bar.prefab");
+
                     }
+
                 }
+
 #endif
+
             }
+
         }
+
+
 
         private void Start()
+
         {
+
             // Đảm bảo tất cả các tường rào chắn (kể cả Plank_Defenses sườn phải) đều được gắn và đăng ký thanh máu
+
             var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
             foreach (var wall in allWalls)
+
             {
+
                 if (wall != null && wall.gameObject.activeInHierarchy)
+
                 {
+
                     wall.EnsureHealthBarAttached();
+
                 }
+
             }
+
         }
 
+
+
         private void LateUpdate()
+
         {
+
             Camera cam = Camera.main;
+
             Quaternion camRot = cam != null ? cam.transform.rotation : Quaternion.identity;
 
+
+
             bool missedCleaningAUnit = false;
+
             foreach (KeyValuePair<Unit.Unit, HealthBar> keyValuePair in HealthBars)
+
             {
+
                 if (keyValuePair.Key == null || keyValuePair.Value == null)
+
                 {
+
                     missedCleaningAUnit = true;
+
                 }
+
                 else
+
                 {
+
                     // Nếu Unit bị ẩn (inactive) hoặc đã chết: Ẩn thanh máu đi, không để bay lơ lửng trên màn hình
+
                     if (!keyValuePair.Key.gameObject.activeInHierarchy || keyValuePair.Key.Health <= 0)
+
                     {
+
                         if (keyValuePair.Value.gameObject.activeSelf)
+
                         {
+
                             keyValuePair.Value.gameObject.SetActive(false);
+
                         }
+
                         continue;
+
                     }
 
-                    // TỐI ƯU HÓA GIAO DIỆN & SẠCH SẼ MÀN HÌNH:
-                    // Đối với các công trình tĩnh (tường thành, rào cọc gỗ, barricade), CHỈ HIỂN THỊ thanh máu khi đã bị tổn thương (Health < MaxHealth).
-                    // Khi còn nguyên vẹn 100% máu, ẩn thanh máu đi để không làm ngập tràn che kín màn hình với hàng chục thanh máu xanh.
-                    // Căn cứ làng (PrehistoricVillageBase) và các tháp của người chơi vẫn luôn hiển thị bình thường.
-                    bool isWallStructure = (keyValuePair.Key is Unit.Wall) || 
-                        keyValuePair.Key.gameObject.name.ToLower().Contains("wall") ||
-                        keyValuePair.Key.gameObject.name.ToLower().Contains("barricade") ||
-                        keyValuePair.Key.gameObject.name.ToLower().Contains("plank_defenses");
 
-                    if (isWallStructure && !(keyValuePair.Key is Unit.PrehistoricVillageBase) && keyValuePair.Key.Health >= keyValuePair.Key.MaxHealth)
-                    {
-                        if (keyValuePair.Value.gameObject.activeSelf)
-                        {
-                            keyValuePair.Value.gameObject.SetActive(false);
-                        }
-                        continue;
-                    }
 
+                    // Đảm bảo thanh máu của mọi công trình, chòi canh, cầu gỗ, rào cọc luôn hiển thị rõ ràng:
                     if (!keyValuePair.Value.gameObject.activeSelf)
                     {
                         keyValuePair.Value.gameObject.SetActive(true);
                     }
 
+
+
+                    if (!keyValuePair.Value.gameObject.activeSelf)
+
+                    {
+
+                        keyValuePair.Value.gameObject.SetActive(true);
+
+                    }
+
+
+
                     Vector3 targetPos;
+
                     if (keyValuePair.Key.TryGetComponent(out Collider col))
+
                     {
+
                         targetPos = new Vector3(col.bounds.center.x, col.bounds.max.y + 0.6f, col.bounds.center.z);
+
                     }
+
                     else
+
                     {
+
                         targetPos = keyValuePair.Key.Transform.position + keyValuePair.Value.FollowOffset;
+
                     }
+
                     keyValuePair.Value.transform.position = targetPos;
+
                     if (cam != null)
+
                     {
+
                         keyValuePair.Value.transform.rotation = camRot;
+
                     }
+
                     if (keyValuePair.Key.MaxHealth > 0)
+
                     {
+
                         keyValuePair.Value.SetProgress((float)keyValuePair.Key.Health / keyValuePair.Key.MaxHealth);
+
                     }
+
                 }
+
             }
+
+
 
             if (missedCleaningAUnit)
+
             {
+
                 ClearOrphaned();
+
             }
+
         }
+
+
 
         public void ClearAll()
+
         {
+
             foreach (var kvp in HealthBars)
+
             {
+
                 if (kvp.Value != null && kvp.Value.gameObject != null)
+
                 {
+
                     Destroy(kvp.Value.gameObject);
+
                 }
+
             }
+
             HealthBars.Clear();
+
         }
 
+
+
         public void ClearOrphaned()
+
         {
+
             var validPairs = new Dictionary<Unit.Unit, HealthBar>();
+
             foreach (var kvp in HealthBars)
+
             {
+
                 if (kvp.Key == null || kvp.Value == null)
+
                 {
+
                     if (kvp.Value != null && kvp.Value.gameObject != null)
+
                     {
+
                         Destroy(kvp.Value.gameObject);
+
                     }
+
                 }
+
                 else
+
                 {
+
                     validPairs[kvp.Key] = kvp.Value;
+
                 }
+
             }
+
             HealthBars = validPairs;
+
         }
+
+
 
         [SerializeField] private HealthBar HealthBarPrefab;
 
+
+
         public HealthBar CreateHealthBarForUnit(Unit.Unit unit)
+
         {
+
             if (unit == null) return null;
 
+
+
             if (HealthBars.TryGetValue(unit, out HealthBar existingHb) && existingHb != null)
+
             {
+
                 existingHb.gameObject.SetActive(true);
+
                 return existingHb;
+
             }
 
+
+
             if (HealthBarPrefab == null)
+
             {
+
                 GameObject prefabObj = Resources.Load<GameObject>("Health Bar");
+
                 if (prefabObj != null)
+
                 {
+
                     HealthBarPrefab = prefabObj.GetComponent<HealthBar>();
+
                 }
+
 #if UNITY_EDITOR
+
                 if (HealthBarPrefab == null)
+
                 {
+
                     HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/Resources/Health Bar.prefab");
+
                     if (HealthBarPrefab == null)
+
                     {
+
                         HealthBarPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<HealthBar>("Assets/LlamAcademy/Dinos/Prefabs/Health Bar.prefab");
+
                     }
+
                 }
+
 #endif
+
             }
+
+
 
             if (HealthBarPrefab == null) return null;
 
+
+
             HealthBar hb = Instantiate(HealthBarPrefab, transform);
+
             hb.name = $"HealthBar_{unit.gameObject.name}";
+
             hb.gameObject.SetActive(true);
+
             hb.transform.localScale = Vector3.one;
 
+
+
             // Tự động căn độ cao hiển thị thanh máu chuẩn xác theo kích thước từng loài khủng long
+
             float height = 2.2f;
+
             string unitNameLower = unit.gameObject.name.ToLower();
+
             if (unitNameLower.Contains("trex") || unitNameLower.Contains("t-rex"))
+
             {
+
                 height = 5.8f;
+
+            }
+
+            else if (unitNameLower.Contains("big tower") || unitNameLower.Contains("watchtower"))
+            {
+                height = 9.2f;
+            }
+            else if (unitNameLower.Contains("arch entry") || unitNameLower.Contains("overhead_arch") || unitNameLower.Contains("arch"))
+            {
+                height = 6.2f;
+            }
+            else if (unitNameLower.Contains("hut") || unitNameLower.Contains("tent"))
+            {
+                height = 4.2f;
             }
             else if (unitNameLower.Contains("ankyl"))
+
             {
+
                 height = 2.8f;
+
             }
+
             else if (unitNameLower.Contains("ptero"))
+
             {
+
                 height = 3.2f;
+
             }
+
             else if (unitNameLower.Contains("raptor"))
+
             {
+
                 height = 2.0f;
+
             }
+
             else if (unit is PrehistoricVillageBase || unitNameLower.Contains("base") || unitNameLower.Contains("egg"))
+
             {
+
                 height = 3.8f;
+
             }
+
             else if (unit.TryGetComponent(out Collider col))
+
             {
+
                 height = col.bounds.size.y + 0.8f;
+
             }
+
+
 
             hb.FollowOffset = new Vector3(0f, height, 0f);
+
             Register(hb, unit);
+
             hb.SetProgress(1.0f);
+
             return hb;
+
         }
+
+
 
         public void Register(HealthBar healthBar, Unit.Unit unit)
+
         {
+
             if (unit == null || healthBar == null) return;
 
+
+
             if (HealthBars.ContainsKey(unit))
+
             {
+
                 if (HealthBars[unit] != healthBar && HealthBars[unit] != null)
+
                 {
+
                     Destroy(HealthBars[unit].gameObject);
+
                 }
+
                 HealthBars[unit] = healthBar;
+
             }
+
             else
+
             {
+
                 HealthBars.Add(unit, healthBar);
+
             }
+
+
 
             healthBar.gameObject.SetActive(true);
+
             healthBar.transform.SetParent(transform);
+
             healthBar.transform.localScale = Vector3.one;
+
             healthBar.transform.localRotation = Quaternion.identity;
 
+
+
             // Thiết lập tên hiển thị của đối tượng trên thanh máu
+
             string displayName = GetUnitDisplayName(unit);
+
             Collider unitCol = unit.GetComponentInChildren<Collider>();
+
             bool isHostile = unitCol != null && Unit.Unit.IsHostileMonster(unitCol);
+
             Color nameColor = isHostile ? new Color(1f, 0.45f, 0.35f) : new Color(0.45f, 1f, 0.55f);
+
             if (displayName.Contains("T-Rex"))
+
             {
+
                 nameColor = new Color(1f, 0.85f, 0.2f);
+
             }
+
             else if (displayName.Contains("Căn Cứ") || displayName.Contains("Làng"))
+
             {
+
                 nameColor = new Color(1f, 0.85f, 0.2f);
+
             }
+
             healthBar.SetUnitName(displayName, nameColor);
 
+
+
             float initialProgress = unit.MaxHealth > 0 ? (float)unit.Health / unit.MaxHealth : 1.0f;
+
             healthBar.SetProgress(initialProgress);
 
+
+
             unit.OnDeath -= HandleUnitDeath;
+
             unit.OnDeath += HandleUnitDeath;
+
         }
 
+
+
         public static string GetUnitDisplayName(Unit.Unit unit)
+
         {
+
             if (unit == null) return "";
+
+
 
             if (unit is PrehistoricVillageBase) return "🏛️ Căn Cứ Làng Bộ Lạc";
 
+
+
             if (unit.UnitType is Config.TowerSO tower && !string.IsNullOrEmpty(tower.DisplayName))
+
             {
+
                 return tower.DisplayName;
+
             }
+
+
 
             if (unit is Enemy.Defender def)
+
             {
+
                 return def.Role == Enemy.DefenderRole.Archer ? "🏹 Cung Thủ Làng" : "🗡️ Chiến Binh Phóng Giáo";
+
             }
+
+
 
             if (unit is ArcherTower) return "🏹 Chòi Cung Thủ Gỗ";
+
             if (unit is BallistaTower) return "🏹 Tháp Nỏ Khổng Lồ";
+
             if (unit is CatapultTower) return "☄️ Máy Bắn Đá";
+
             if (unit is TeslaTower) return "⚡ Trụ Sấm Sét";
+
             if (unit is FrostTower) return "❄️ Tháp Băng Tiền Sử";
-            if (unit.gameObject.name.ToLower().Contains("plank_defenses") || unit is Wall) return "🪵 Rào Cọc Gỗ Cản Đường";
 
             string lower = unit.gameObject.name.ToLower();
+            if (lower.Contains("big tower") || lower.Contains("watchtower")) return "🛖 Chòi Canh Bộ Lạc";
+            if (lower.Contains("arch entry") || lower.Contains("overhead_arch") || lower.Contains("arch")) return "🪵 Cầu Vòm Gỗ Làng";
+            if (lower.Contains("hut") || lower.Contains("tent")) return "⛺ Lều Dân Làng";
+            if (lower.Contains("plank_defenses") || lower.Contains("barricade") || lower.Contains("palisade") || lower.Contains("wall") || unit is Wall) return "🪵 Hàng Rào Cọc Gỗ";
+
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
+
             if (lower.Contains("ptero")) return "🦅 Thằn Lằn Bay";
+
             if (lower.Contains("ankyl")) return "🛡️ Khủng Long Thiết Giáp";
+
             if (lower.Contains("raptor")) return "🦖 Velociraptor";
+
             if (lower.Contains("mud") || lower.Contains("tar")) return "Vũng Lầy Tiền Sử";
+
             if (lower.Contains("spike")) return "Bẫy Chông Độc";
+
             if (lower.Contains("egg") || lower.Contains("base") || lower.Contains("village")) return "🏛️ Căn Cứ Làng Bộ Lạc";
 
+
+
             if (unit.UnitType != null && !string.IsNullOrEmpty(unit.UnitType.name))
+
             {
+
                 return unit.UnitType.name.Replace("Unit_", "").Replace("Dino_", "").Replace("Tower_", "");
+
             }
+
+
 
             return unit.gameObject.name.Replace("(Clone)", "").Trim();
+
         }
+
+
 
         public void Unregister(Unit.Unit unit)
+
         {
+
             if (unit == null) return;
 
+
+
             unit.OnDeath -= HandleUnitDeath;
+
             if (HealthBars.Remove(unit, out HealthBar healthBar))
+
             {
+
                 if (healthBar != null && healthBar.gameObject != null)
+
                 {
+
                     if (healthBar.OnDeathBehavior == HealthBar.DeathBehavior.Disable)
+
                     {
+
                         healthBar.gameObject.SetActive(false);
+
                     }
+
                     else
+
                     {
+
                         Destroy(healthBar.gameObject);
+
                     }
+
                 }
+
             }
+
         }
+
+
 
         private void HandleUnitDeath(IDamageable diedobject)
+
         {
+
             if (diedobject != null && diedobject.Transform != null)
+
             {
+
                 Unit.Unit unit = diedobject.Transform.GetComponent<Unit.Unit>();
+
                 Unregister(unit);
+
             }
+
         }
+
+
 
         private void OnApplicationQuit()
+
         {
+
             _IsShuttingDown = true;
+
         }
 
+
+
         private void OnDestroy()
+
         {
+
             if (_Instance == this)
+
             {
+
                 _Instance = null;
+
                 _IsShuttingDown = true;
+
             }
+
         }
+
     }
+
 }
+

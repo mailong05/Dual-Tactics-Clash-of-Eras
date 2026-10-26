@@ -6,13 +6,19 @@ namespace LlamAcademy.Dinos.Unit
     {
         protected override void Awake()
         {
-            MoveSpeed = 5.5f;
+            MoveSpeed = 8.5f;
             base.Awake();
             ConfigureNavMeshAgent();
-            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 420;
+            if (Agent != null)
+            {
+                Agent.speed = 8.5f;
+                Agent.acceleration = 36f;
+                Agent.angularSpeed = 480f;
+            }
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 450;
             Health = MaxHealth;
-            AttackDamage = 16;
-            AttackInterval = 0.9f;
+            AttackDamage = 22;
+            AttackInterval = 0.5f;
             BuildingDamageMultiplier = 2.5f;
             GoldReward = 12;
 

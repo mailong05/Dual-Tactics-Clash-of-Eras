@@ -257,152 +257,191 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void DeactivateDefaultSceneBarricades()
         {
-            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            foreach (Transform t in allTransforms)
+            int lvl = 1;
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                if (t == null) continue;
-                string n = t.gameObject.name;
-
-                // 1. Không bao giờ can thiệp vào tường/tháp do người chơi đặt (Clone)
-                if (n.Contains("(Clone)")) continue;
-
-                // 2. Giữ nguyên 3 chòi canh và 2 cầu gỗ cảnh quan phía trước
-                if (n.Contains("Big Tower with Platform") || n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch"))
-                {
-                    continue;
-                }
-
-                // 3. Không bao giờ tắt cầu sông, căn cứ trứng, NPC bảo vệ, Player, Camera, Light, Lều làng
-                if (n.IndexOf("bridge", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    n.Contains("Base") || n.Contains("Egg") || n.Contains("Defender") || n.Contains("Warrior") ||
-                    n.Contains("Player") || n.Contains("Camera") || n.Contains("Light") || n.Contains("Hut_Tribal"))
-                {
-                    continue;
-                }
-
-                // 4. Nhận diện các bức tường pháo đài mặc định của cảnh cần xóa bỏ triệt để (để quái vật không đi xuyên tường)
-                bool isSceneWall = n.Contains("Plank_Defenses") ||
-                                   n.Contains("standardSurface1") ||
-                                   n.Contains("Village_Fortress_Wall") ||
-                                   n.Contains("Right_Wing_Wall") || n.Contains("Left_Wing_Wall") || n.Contains("Right_Flank_Wall") ||
-                                   n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
-                                   n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
-                                   n.Contains("Barricade") || n.Contains("Palisade") ||
-                                   n.Contains("Gate_Complex") || n.Contains("Gate_Portcullis_Barricade") ||
-                                   n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
-                                   n.Contains("Village_Left_Gap_Wall");
-
-                if (isSceneWall)
-                {
-                    if (t.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
-                    {
-                        HealthBarCanvas.Instance.Unregister(u);
-                    }
-                    if (t.TryGetComponent(out Unit.Wall w))
-                    {
-                        Destroy(w);
-                    }
-                    foreach (var obs in t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true))
-                    {
-                        obs.enabled = false;
-                        obs.carving = false;
-                        Destroy(obs);
-                    }
-                    foreach (var col in t.GetComponentsInChildren<Collider>(true))
-                    {
-                        col.enabled = false;
-                    }
-                    t.gameObject.SetActive(false);
-                }
+                lvl = PrehistoricGameModeManager.Instance.AssaultLevel;
             }
+            ConfigureAllVillageFortifications(lvl);
+        }
 
-            // Đảm bảo 3 chòi canh và 2 cầu gỗ cảnh quan luôn hiển thị đẹp mắt, không cản trở di chuyển
-            EnsureScenicFortressWalkways();
-            EnsureVillageBridgesDestructible();
+        public void EnsureScenicFortressWalkways()
+        {
+            int lvl = 1;
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                lvl = PrehistoricGameModeManager.Instance.AssaultLevel;
+            }
+            ConfigureAllVillageFortifications(lvl);
         }
 
         /// <summary>
-        /// Đồng nhất 100% toàn bộ hệ thống 3 chòi canh và 2 cầu gỗ nối liền phía trước:
-        /// - 3 chòi canh bộ lạc phía trước (Big Tower with Platform: Trái, Giữa, Phải).
-        /// - 2 cầu gỗ cảnh quan kiên cố nối liền 3 chòi lại với nhau (Arch Entry Wall: nối Trái-Giữa và Giữa-Phải).
-        /// Đảm bảo luôn hiển thị đồng nhất, đẹp mắt ở cả 3 bản đồ và cả 2 chế độ (Thủ Thành & Công Thành),
-        /// không bị che khuất hay tắt nhầm, vòm cổng bên dưới thông thoáng cho khủng long di chuyển.
+        /// Cấu hình và kích hoạt toàn bộ hệ thống công trình phòng thủ làng:
+        /// - 3 Chòi canh phía trước (Big Tower with Platform: Trái, Giữa, Phải).
+        /// - 2 Cầu vòm gỗ bắc ngang nối liền 3 chòi (Arch Entry Wall / Overhead_Arch).
+        /// - Toàn bộ hàng rào cọc gỗ và tường thành (Plank_Defenses, Barricade, Palisade, Village_Fortress_Wall, Gate_Complex, Wall_Segment, Wing_Wall).
+        /// - Các lều nhà dân trong làng (Hut_Tribal, Tribal_Tent).
+        /// Đảm bảo tất cả đều CÓ MÁU, CÓ THANH MÁU HIỂN THỊ, CÓ COLLIDER VẬT LÝ để khủng long không thể đi xuyên qua,
+        /// mà phải tấn công phá hủy từng lớp phòng tuyến để tiến vào căn cứ làng!
         /// </summary>
-        public void EnsureScenicFortressWalkways()
+        public void ConfigureAllVillageFortifications(int level = 1)
         {
+            float hpMult = 1.0f + Mathf.Max(0, level - 1) * 0.15f;
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
             foreach (Transform t in allTransforms)
             {
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                // 1. BA CHÒI CANH PHÍA TRƯỚC (Big Tower with Platform: Trái, Giữa, Phải)
-                if (n.Contains("Big Tower with Platform"))
+                // 1. Không can thiệp vào tường do người chơi đặt (Clone)
+                if (n.Contains("(Clone)")) continue;
+
+                // 2. Không can thiệp vào cầu sông (Bridge_Tribal, Ramp_Tribal) để khủng long bước lên mặt cầu qua sông
+                if (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.Contains("Smooth Floor") || n.Contains("Walkway_Deck"))
                 {
-                    t.gameObject.SetActive(true);
-                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
-                    foreach (var r in rends) if (r != null) r.enabled = true;
-
-                    // Gỡ bỏ Wall component và thanh máu lơ lửng nếu có
-                    if (t.TryGetComponent(out Unit.Wall w)) Destroy(w);
-                    if (t.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance) HealthBarCanvas.Instance.Unregister(u);
-                    for (int c = t.childCount - 1; c >= 0; c--)
-                    {
-                        Transform child = t.GetChild(c);
-                        if (child != null && child.name.Contains("HealthBar")) Destroy(child.gameObject);
-                    }
-
-                    // Tắt carving trên NavMeshObstacle để không tạo lỗ thủng NavMesh
-                    UnityEngine.AI.NavMeshObstacle[] obstacles = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
-                    foreach (var obs in obstacles) if (obs != null) obs.carving = false;
+                    continue;
                 }
 
-                // 2. HAI CẦU GỖ NỐI LIỀN 3 CHÒI CANH (Arch Entry Wall: Trái <-> Giữa, Giữa <-> Phải)
-                else if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch"))
+                // 3. Không can thiệp vào Player, Camera, Light, Canvas, Projectile, Căn cứ chính
+                if (n.Contains("Camera") || n.Contains("Light") || n.Contains("Canvas") ||
+                    n.Contains("Player") || n.Contains("Dino") || n.Contains("Base") || n.Contains("Egg"))
                 {
-                    t.gameObject.SetActive(true);
-                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
-                    foreach (var r in rends) if (r != null) r.enabled = true;
+                    continue;
+                }
 
-                    // Tắt MeshCollider dạng Convex đang bịt kín khoảng trống
-                    MeshCollider[] meshCols = t.GetComponentsInChildren<MeshCollider>(true);
-                    foreach (var mc in meshCols) if (mc != null) mc.enabled = false;
+                bool isTower = n.Contains("Big Tower with Platform") || n.Contains("Watchtower") || n.Contains("Bastion_Tower");
+                bool isArch = n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch") || n.Contains("Arch_Entry");
+                bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
+                bool isFence = n.Contains("Plank_Defenses") ||
+                               n.Contains("Village_Fortress_Wall") ||
+                               n.Contains("Right_Wing_Wall") || n.Contains("Left_Wing_Wall") || n.Contains("Right_Flank_Wall") ||
+                               n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
+                               n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
+                               n.Contains("Barricade") || n.Contains("Palisade") ||
+                               n.Contains("Gate_Complex") || n.Contains("Gate_Portcullis_Barricade") ||
+                               n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
+                               n.Contains("Village_Left_Gap_Wall");
 
-                    // Thêm BoxCollider ở 2 bên cột trụ để định hình vật lý
-                    Transform leftPillar = t.Find("Collider_Pillar_Left");
-                    if (leftPillar == null)
-                    {
-                        GameObject lp = new GameObject("Collider_Pillar_Left");
-                        lp.layer = 2; // Ignore Raycast
-                        lp.transform.SetParent(t, false);
-                        lp.transform.localPosition = new Vector3(-3.8f, 2.2f, 0f);
-                        BoxCollider bcL = lp.AddComponent<BoxCollider>();
-                        bcL.size = new Vector3(2.2f, 4.4f, 3.2f);
-                    }
-                    Transform rightPillar = t.Find("Collider_Pillar_Right");
-                    if (rightPillar == null)
-                    {
-                        GameObject rp = new GameObject("Collider_Pillar_Right");
-                        rp.layer = 2; // Ignore Raycast
-                        rp.transform.SetParent(t, false);
-                        rp.transform.localPosition = new Vector3(3.8f, 2.2f, 0f);
-                        BoxCollider bcR = rp.AddComponent<BoxCollider>();
-                        bcR.size = new Vector3(2.2f, 4.4f, 3.2f);
-                    }
+                if (!isTower && !isArch && !isHut && !isFence) continue;
 
-                    // Mặt sàn cầu đi bộ phía trên nối giữa 2 chòi
-                    Transform floorDeck = t.Find("Collider_Walkway_Deck");
-                    if (floorDeck == null)
+                // Nếu là node con bên trong một Wall khác, không gắn trùng lặp
+                Unit.Wall parentWall = t.parent != null ? t.parent.GetComponentInParent<Unit.Wall>(true) : null;
+                if (parentWall != null && parentWall.gameObject != t.gameObject)
+                {
+                    continue;
+                }
+
+                // Kích hoạt GameObject và Renderers
+                t.gameObject.SetActive(true);
+                Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in rends) if (r != null) r.enabled = true;
+
+                // Cấu hình Collider & HP tùy theo loại công trình
+                int targetHp = 650;
+                Vector3 colSize = Vector3.zero;
+                Vector3 colCenter = Vector3.zero;
+
+                if (isTower)
+                {
+                    targetHp = Mathf.RoundToInt(950 * hpMult);
+                    colSize = new Vector3(8.5f, 9.0f, 8.5f);
+                    colCenter = new Vector3(0f, 4.5f, 0f);
+                }
+                else if (isArch)
+                {
+                    targetHp = Mathf.RoundToInt(750 * hpMult);
+                    colSize = new Vector3(9.0f, 6.0f, 2.5f);
+                    colCenter = new Vector3(0f, 3.0f, 0f);
+                }
+                else if (isHut)
+                {
+                    targetHp = Mathf.RoundToInt(800 * hpMult);
+                    colSize = new Vector3(6.0f, 5.0f, 6.0f);
+                    colCenter = new Vector3(0f, 2.5f, 0f);
+                }
+                else if (isFence)
+                {
+                    targetHp = Mathf.RoundToInt(650 * hpMult);
+                }
+
+                // Cấu hình BoxCollider
+                BoxCollider bc = t.GetComponent<BoxCollider>();
+                if (bc == null)
+                {
+                    if (colSize != Vector3.zero)
                     {
-                        GameObject fd = new GameObject("Collider_Walkway_Deck");
-                        fd.layer = 2; // Ignore Raycast
-                        fd.transform.SetParent(t, false);
-                        fd.transform.localPosition = new Vector3(0f, 4.2f, 0f);
-                        BoxCollider bcF = fd.AddComponent<BoxCollider>();
-                        bcF.size = new Vector3(10.0f, 0.4f, 3.2f);
+                        bc = t.gameObject.AddComponent<BoxCollider>();
+                        bc.size = colSize;
+                        bc.center = colCenter;
                     }
+                    else
+                    {
+                        // Tính toán kích thước từ Renderers nếu chưa có size chuẩn
+                        Bounds b = new Bounds();
+                        bool hasB = false;
+                        foreach (var r in rends)
+                        {
+                            if (r != null && r.enabled && !(r is ParticleSystemRenderer))
+                            {
+                                if (!hasB) { b = r.bounds; hasB = true; }
+                                else b.Encapsulate(r.bounds);
+                            }
+                        }
+                        if (hasB)
+                        {
+                            bc = t.gameObject.AddComponent<BoxCollider>();
+                            bc.center = t.InverseTransformPoint(b.center);
+                            Vector3 ws = b.size;
+                            Vector3 ls = t.lossyScale;
+                            float sx = Mathf.Abs(ls.x) > 0.001f ? ws.x / Mathf.Abs(ls.x) : 2f;
+                            float sy = Mathf.Abs(ls.y) > 0.001f ? ws.y / Mathf.Abs(ls.y) : 2f;
+                            float sz = Mathf.Abs(ls.z) > 0.001f ? ws.z / Mathf.Abs(ls.z) : 1.2f;
+                            if (sx < 1.0f) sx = 1.0f;
+                            if (sz < 1.0f) sz = 1.0f;
+                            bc.size = new Vector3(sx, sy, sz);
+                        }
+                    }
+                }
+                if (bc != null) bc.enabled = true;
+
+                // Cấu hình NavMeshObstacle Carving
+                UnityEngine.AI.NavMeshObstacle obs = t.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+                if (obs == null) obs = t.gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                obs.enabled = true;
+                obs.carving = true;
+                obs.carveOnlyStationary = false;
+                if (bc != null)
+                {
+                    obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                    obs.size = bc.size;
+                    obs.center = bc.center;
+                }
+
+                // Cấu hình Component Wall và Máu
+                if (!t.TryGetComponent(out Unit.Wall w))
+                {
+                    w = t.gameObject.AddComponent<Unit.Wall>();
+                    w.MaxHealth = targetHp;
+                    w.Health = targetHp;
+                }
+                else
+                {
+                    w.MaxHealth = targetHp;
+                    w.Health = targetHp;
+                }
+
+                // Tạo và gắn Thanh máu hiển thị trên màn hình
+                w.EnsureHealthBarAttached();
+                if (Utility.HealthBarCanvas.Instance != null)
+                {
+                    Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(w);
                 }
             }
+
+            EnsureVillageBridgesDestructible();
         }
 
         public void EnsureScenicBridgeWatchtowers()
@@ -445,19 +484,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                bool isWalkwayOrArch = n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                                       n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                                       n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) ||
-                                       n.Contains("Overhead_Arch") ||
-                                       n.Contains("Big Tower with Platform");
+                // Chỉ xử lý các cầu sông (Bridge_Tribal, Ramp_Tribal) để khủng long băng qua sông thông suốt:
+                bool isRiverBridge = n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                     n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase);
 
-                if (!isWalkwayOrArch) continue;
+                if (!isRiverBridge) continue;
 
                 t.gameObject.SetActive(true);
                 Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
                 foreach (var r in rends) if (r != null) r.enabled = true;
 
-                // 1. TRIỆT TIÊU 100% NavMeshObstacle trên cầu, vòm cổng và sàn đi bộ để không bao giờ khoét lỗ NavMesh
+                // Triệt tiêu NavMeshObstacle và Wall trên cầu sông bắc qua nước để khủng long bước lên mặt cầu
                 NavMeshObstacle[] allObs = t.GetComponentsInChildren<NavMeshObstacle>(true);
                 foreach (var obs in allObs)
                 {
@@ -469,25 +506,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                 }
 
-                // 2. GỠ BỎ COMPONENT WALL VÀ THANH MÁU LƠ LỬNG TRÊN CẦU / CỔNG VÒM
                 if (t.TryGetComponent(out Unit.Wall w)) Destroy(w);
                 if (t.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance) HealthBarCanvas.Instance.Unregister(u);
-                for (int c = t.childCount - 1; c >= 0; c--)
-                {
-                    Transform child = t.GetChild(c);
-                    if (child != null && child.name.Contains("HealthBar")) Destroy(child.gameObject);
-                }
-
-                // 3. XÓA BỎ BOXCOLLIDER TRÊN ROOT CỦA ARCH ENTRY WALL / OVERHEAD ARCH
-                // Chỉ giữ lại 2 cột trụ bên trái/phải và mặt sàn tầng trên đã được tạo trong EnsureScenicFortressWalkways()
-                if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch"))
-                {
-                    BoxCollider directBc = t.GetComponent<BoxCollider>();
-                    if (directBc != null) Destroy(directBc);
-
-                    MeshCollider[] mcs = t.GetComponentsInChildren<MeshCollider>(true);
-                    foreach (var mc in mcs) if (mc != null) mc.enabled = false;
-                }
             }
         }
 

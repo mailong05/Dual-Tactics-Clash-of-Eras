@@ -294,7 +294,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 PrehistoricGameplayManager.Instance.DeactivateDefaultSceneBarricades();
                 PrehistoricGameplayManager.Instance.ConfigureAllCustomBarricades();
-                PrehistoricGameplayManager.Instance.EnsureScenicFortressWalkways();
+                PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(AssaultLevel);
+                PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
             }
 
             if (mode == PrehistoricGameMode.TowerDefense)
@@ -1091,6 +1092,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // 2. Khởi tạo/Hồi phục máu Căn cứ làng theo cấp độ màn chơi (1000 HP + 350 HP mỗi màn)
             EnsureVillageBase();
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(level);
+                PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
+            }
             if (VillageBase != null)
             {
                 int baseHp = 1000 + (level - 1) * 350;
