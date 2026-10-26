@@ -12,6 +12,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private float AttackRange = 9.0f;
         [SerializeField] private float AttackInterval = 1.2f;
         [SerializeField] private int DamagePerHit = 25;
+        public void SetDamage(int dmg) => DamagePerHit = dmg;
         [SerializeField] private int MaxChains = 4;
         [SerializeField] private float ChainRadius = 6.0f;
         [SerializeField] private LayerMask EnemyLayers;
@@ -31,6 +32,14 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Update()
         {
             base.Update();
+
+            // Chế độ Công thành: Tuyệt đối không giật sét khi người chơi đang dàn trận!
+            if (PrehistoricGameModeManager.Instance != null &&
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault &&
+                PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+            {
+                return;
+            }
 
             if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
 

@@ -70,11 +70,11 @@ NavMeshObstacle:
   m_Enabled: 1
   serializedVersion: 3
   m_Shape: 1
-  m_Extents: {x: 1.5, y: 0.7, z: 0.4}
+  m_Extents: {x: 3, y: 0.9, z: 0.5}
   m_MoveThreshold: 0.1
   m_Carve: 1
   m_CarveOnlyStationary: 1
-  m_Center: {x: 0, y: 0.7, z: 0}
+  m_Center: {x: 0, y: 0.9, z: 0}
   m_TimeToStationary: 0.5
 --- !u!65 &7425183317538572979
 BoxCollider:
@@ -95,8 +95,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 3, y: 1.4, z: 0.8}
-  m_Center: {x: 0, y: 0.7, z: 0}
+  m_Size: {x: 6, y: 1.8, z: 1}
+  m_Center: {x: 0, y: 0.9, z: 0}
 --- !u!1001 &2999006431966766656
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -131,27 +131,27 @@ PrefabInstance:
       objectReference: {fileID: 2100000, guid: a1b2c3d4e5f60718293a4b5c6d7e8f90, type: 2}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalScale.x
-      value: 2.5000005
+      value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalScale.y
-      value: 2.5000005
+      value: 3.2
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalScale.z
-      value: 2.5000005
+      value: 3.2
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -9.646789
+      value: -19.293578
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.2032907
+      value: 1.5402
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -0.016932044
+      value: -0.02167
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: d045d74badfbd764098b3e234189259a, type: 3}
       propertyPath: m_LocalRotation.w

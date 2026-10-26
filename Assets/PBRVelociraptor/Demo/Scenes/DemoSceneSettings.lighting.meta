@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3a33597addad7be498edee335822f47d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4890085278179872738
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 165201
+  packageName: PBR Velociraptors
+  packageVersion: 1.2
+  assetPath: Assets/PBRVelociraptor/Demo/Scenes/DemoSceneSettings.lighting
+  uploadId: 522318

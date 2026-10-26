@@ -8,6 +8,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/LlamAcademy/Dinos/Scenes/Dinos.unity
     guid: 0ad2811197f45ab4e862fe90636de494
+  - enabled: 1
+    path: Assets/LlamAcademy/Dinos/Scenes/Dinos_VolcanicGorge.unity
+    guid: 9c3d60460c474beaa6d83ba125cc093f
+  - enabled: 1
+    path: Assets/LlamAcademy/Dinos/Scenes/Dinos_GlacialTundra.unity
+    guid: a358573f71744fbcb36a2e14558a7eae
   - enabled: 0
     path: Assets/test.unity
     guid: 38755a1399936fd4c9720cfd8477e3d6

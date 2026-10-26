@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7fcc506fb1e200740b659b3bf2c6656c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 165201
+  packageName: PBR Velociraptors
+  packageVersion: 1.2
+  assetPath: Assets/PBRVelociraptor/Animators/DemoAnimatorSleep.controller
+  uploadId: 522318

@@ -38,7 +38,22 @@
 
 ---
 
-### 3. 🧠 Trí Tuệ Nhân Tạo Bầy Đàn & Điều Hướng Thích Ứng (Swarm & Tactical AI)
+### 3. 🧠 Trí Tuệ Nhân Tạo & Deep Learning Thích Ứng (AI & Deep Learning Director)
+* **Mạng Nơ-ron Đa Nhiệm Chạy On-Device (`PrehistoricNeuralDirector.cs`):**
+  * Tích hợp trực tiếp mô hình Deep Learning **PrehistoricTacticsNet** vào Unity C#, suy luận thời gian thực (On-Device Inference) trên CPU/GPU mà không cần phụ thuộc server bên ngoài. Hoạt động 100% offline mượt mà trên cả máy tính và điện thoại Android (độ trễ siêu thấp `< 0.05 ms`).
+  * **Kiến trúc mạng (Multi-Task MLP):**
+    * **12 Đầu vào (Telemetry Features):** Đo lường vàng, máu căn cứ, tiến trình màn, mật độ tháp đơn mục tiêu, pháo diện rộng, tháp sấm sét, tháp băng, bẫy chông, tường rào, mật độ DPS và chỉ số kỹ năng.
+    * **2 Hidden Layers (32 neurons + ReLU):** Trích xuất đặc trưng và liên kết chiến thuật.
+    * **4 Đầu ra Đa Nhiệm (Multi-Task Heads):**
+      1. *Softmax Archetypes (4 classes):* Tỷ lệ phối hợp quân lực (Runner, Flyer, Tank, Boss).
+      2. *Softmax Spatial Route Bias (3 routes):* Định hướng mũi tiến công không gian (Cổng Bắc, Cánh Đông, Sườn Tây).
+      3. *Sigmoid Vulnerability:* Đánh giá chỉ số sơ hở của phòng tuyến người chơi.
+      4. *Sigmoid Aggression & DDA:* Hệ số thích ứng độ khó thời gian thực.
+* **Bảng Giám Sát Trí Tuệ Nhân Tạo XAI (`PrehistoricNeuralMonitorUI.cs`):**
+  * Bảng điều khiển Explainable AI (XAI) trực quan hóa hoạt động của mạng nơ-ron bằng phím tắt **`F1`** hoặc nút bấm **`🧠 AI Director`** trên HUD.
+  * Hiển thị thanh tiến trình 12 cảm biến trận đấu, đồ thị thanh xác suất Softmax, hướng đánh không gian, hệ số DDA và lời giải thích chiến thuật bằng ngôn ngữ tự nhiên (*Natural Language Tactical Rationale*).
+* **Cơ Chế Cân Bằng Độ Khó Động (Dynamic Difficulty Adjustment - DDA):**
+  * Tự động đo lường chuỗi thắng, tỷ lệ bảo toàn máu căn cứ và tốc độ diệt quái để phân cấp trình độ người chơi, từ đó điều chỉnh độ hung hãn của bầy quái một cách thông minh và kịch tính.
 * **Thuật toán Đột Phá Khe Hẹp (`TacticalBreachMemory`):** Giới hạn tối đa 4 quái vật vượt qua một lối đi cùng lúc, ngăn chặn triệt để tình trạng quái vật dồn cục, kẹt mesh tại các nút thắt cổ chai.
 * **Cơ chế Tản Đội Hình Đa Điểm (Flank & Spread Attack):** Khủng long tự động phân tán góc tiếp cận khi bao vây tấn công công trình. Mỗi cá thể cắn đều tính sát thương độc lập trong thời gian thực.
 * **Cơ chế Tự Dọn Dẹp Scene Sạch Sẽ (`CleanAllGameplayGarbage`):** Tự động vô hiệu hóa Collider ngay khi quái vật ngã chết để tránh xác làm vật cản tàng hình; tự hủy đạn bay lơ lửng và dọn dẹp các thanh máu mồ côi sau mỗi đợt chơi.

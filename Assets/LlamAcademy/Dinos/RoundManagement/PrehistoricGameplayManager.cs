@@ -54,7 +54,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         [SerializeField] private GameObject TRexBossPrefab;
 
         [Header("=== Economy & Rewards ===")]
-        [SerializeField] private int StartingGold = 500;
+        [SerializeField] private int StartingGold = 700;
         [SerializeField] private int WaveCompletionBaseGold = 100;
 
         [Header("=== State & Tracking ===")]
@@ -103,10 +103,24 @@ namespace LlamAcademy.Dinos.RoundManagement
             _CurrentBaseHealth = _MaxBaseHealth;
 
             CleanupInvisibleAndStrayObjects();
-            EnsureVillageFortressWallActive();
+            DeactivateDefaultSceneBarricades();
+            // Đảm bảo Smooth Floor không bị bất kỳ NavMeshModifier nào loại trừ khỏi bản đồ
+            var allNavMods = FindObjectsByType<Unity.AI.Navigation.NavMeshModifier>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var mod in allNavMods)
+            {
+                if (mod != null && mod.gameObject.name.Contains("Smooth Floor"))
+                {
+                    mod.ignoreFromBuild = false;
+                }
+            }
+
+            EnsureScenicFortressWalkways();
+            EnsureVillageBridgesDestructible();
             ConfigureAllCustomBarricades();
-            EnsureVillageInteriorDefenses();
             EnsureAudioManagerAndSettingsMenu();
+            LocateBaseTarget();
+            EnsureSpawnPoints();
+            LoadDinoPrefabsIfNull();
         }
 
         public void CleanupInvisibleAndStrayObjects()
@@ -118,6 +132,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                 "Village_Watchtower_Left",
                 "Village_Watchtower_Right"
             };
+
+            // Dọn dẹp triệt để bất kỳ component Wall nào vô tình bị gắn trên Canvas, UI hoặc HealthBar
+            var allStrayWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var sw in allStrayWalls)
+            {
+                if (sw == null) continue;
+                if (sw.GetComponent<RectTransform>() != null || sw.gameObject.layer == 5 ||
+                    sw.name.Contains("HealthBar") || sw.name.Contains("Fill") || sw.name.Contains("UnitNameLabel"))
+                {
+                    Destroy(sw);
+                }
+            }
 
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (Transform t in allTransforms)
@@ -146,6 +172,15 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         Destroy(t.gameObject);
                     }
+                }
+
+                // 2.1. Xóa triệt để các thanh máu tĩnh mồ côi được lưu sẵn trong Scene của các tường đã bị vô hiệu hóa
+                if (n.StartsWith("HealthBar_Left_Wall_") || n.StartsWith("HealthBar_Right_Wall_") ||
+                    n.StartsWith("HealthBar_Right_Flank_") || n.StartsWith("HealthBar_Gate_") ||
+                    n.StartsWith("HealthBar_Village_Left_Gap_") || n.StartsWith("HealthBar_Village_Watchtower_"))
+                {
+                    Destroy(t.gameObject);
+                    continue;
                 }
 
                 // 3. ĐẢM BẢO CÁC CHÒI GỖ (Big Tower) VÀ CỔNG VÒM (Arch Entry Wall) LUÔN HIỂN THỊ ĐẦY ĐỦ VÀ KHÔNG KẸT ĐƯỜNG
@@ -215,6 +250,409 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        /// <summary>
+        /// Trong chế độ Tower Defense: Vô hiệu hóa toàn bộ tường chắn mặc định có sẵn của cảnh
+        /// để người chơi có 100% quyền tự do chiến thuật (Căn cứ mở vs Mê cung - Mazing).
+        /// Mạng Nơ-ron Deep Learning và Q-Learning sẽ tự động phản ứng theo quyết định của người chơi.
+        /// </summary>
+        public void DeactivateDefaultSceneBarricades()
+        {
+            bool isAssault = PrehistoricGameModeManager.Instance != null &&
+                             PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
+            if (isAssault)
+            {
+                int lvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
+                ConfigureAllVillageFortifications(lvl);
+            }
+            else
+            {
+                // CHẾ ĐỘ THỦ THÀNH (TOWER DEFENSE):
+                // XÓA BỎ / TẮT TOÀN BỘ hàng rào gỗ phía trước làng để người chơi tự do xây mê cung và tháp,
+                // không bị hàng rào cản đường hoặc sinh thanh máu làm phiền.
+                RemoveAllVillageFrontBarricades();
+            }
+        }
+
+        public void EnsureScenicFortressWalkways()
+        {
+            bool isAssault = PrehistoricGameModeManager.Instance != null &&
+                             PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
+            if (isAssault)
+            {
+                int lvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
+                ConfigureAllVillageFortifications(lvl);
+            }
+            else
+            {
+                RemoveAllVillageFrontBarricades();
+            }
+        }
+
+        /// <summary>
+        /// Trong chế độ Thủ Thành (Tower Defense): Vô hiệu hóa và xóa bỏ toàn bộ hàng rào cọc gỗ
+        /// và tường thành mặc định phía trước làng để giải phóng 100% không gian cho người chơi xây tháp,
+        /// tạo mê cung mazing theo ý muốn mà không bị cản trở bởi hàng rào hay thanh máu ma.
+        /// </summary>
+        public void RemoveAllVillageFrontBarricades()
+        {
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // Tuyệt đối không can thiệp vào tường do người chơi xây
+                if (n.Contains("(Clone)")) continue;
+
+                // Bỏ qua cầu qua sông, dốc bộ, sàn deck
+                if (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.Contains("Smooth Floor") || n.Contains("Walkway_Deck"))
+                {
+                    continue;
+                }
+
+                // Bỏ qua Player, Camera, Light, Canvas, Projectile, Căn cứ chính
+                if (n.Contains("Camera") || n.Contains("Light") || n.Contains("Canvas") ||
+                    n.Contains("Player") || n.Contains("Dino") || n.Contains("Base") || n.Contains("Egg"))
+                {
+                    continue;
+                }
+
+                // Kiểm tra các container cha của hàng rào
+                bool isContainerGroup = n == "Village_Fortress_Wall" ||
+                                        n == "Left_Wing_Wall" ||
+                                        n == "Right_Wing_Wall" ||
+                                        n == "Right_Flank_Wall" ||
+                                        n == "Gate_Complex";
+
+                // Kiểm tra các hàng rào cọc gỗ phía trước làng
+                bool isFrontFence = n.Contains("Plank_Defenses") ||
+                                    n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
+                                    n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
+                                    n.Contains("Barricade") || n.Contains("Palisade") ||
+                                    n.Contains("Gate_Portcullis_Barricade") ||
+                                    n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
+                                    n.Contains("Village_Left_Gap_Wall");
+
+                if (isContainerGroup || isFrontFence)
+                {
+                    if (t.TryGetComponent(out Unit.Wall w))
+                    {
+                        if (Utility.HealthBarCanvas.HasInstance)
+                        {
+                            Utility.HealthBarCanvas.Instance.Unregister(w);
+                        }
+                        Destroy(w);
+                    }
+                    if (t.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+
+                    if (t.TryGetComponent(out Collider c)) c.enabled = false;
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                    {
+                        obs.enabled = false;
+                        obs.carving = false;
+                    }
+
+                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends) if (r != null) r.enabled = false;
+
+                    t.gameObject.SetActive(false);
+                }
+            }
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+        }
+
+        /// <summary>
+        /// Cấu hình và kích hoạt toàn bộ hệ thống công trình phòng thủ làng:
+        /// - 3 Chòi canh phía trước (Big Tower with Platform: Trái, Giữa, Phải).
+        /// - 2 Cầu vòm gỗ bắc ngang nối liền 3 chòi (Arch Entry Wall / Overhead_Arch).
+        /// - Toàn bộ hàng rào cọc gỗ và tường thành (Plank_Defenses, Barricade, Palisade, Village_Fortress_Wall, Gate_Complex, Wall_Segment, Wing_Wall).
+        /// - Các lều nhà dân trong làng (Hut_Tribal, Tribal_Tent).
+        /// Đảm bảo tất cả đều CÓ MÁU, CÓ THANH MÁU HIỂN THỊ, CÓ COLLIDER VẬT LÝ để khủng long không thể đi xuyên qua,
+        /// mà phải tấn công phá hủy từng lớp phòng tuyến để tiến vào căn cứ làng!
+        /// </summary>
+        public void ConfigureAllVillageFortifications(int level = 1)
+        {
+            float hpMult = 1.0f + Mathf.Max(0, level - 1) * 0.15f;
+            if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
+            {
+                hpMult *= 1.35f;
+            }
+
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            // BƯỚC 1: Dọn dẹp triệt để mọi Wall, Collider, NavMeshObstacle trên các CONTAINER CHA RỖNG
+            // (Village_Fortress_Wall, Left_Wing_Wall, Right_Wing_Wall, Right_Flank_Wall, Gate_Complex)
+            // để triệt tiêu 100% hiện tượng sinh thanh máu ma lơ lửng giữa đường làng!
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                bool isContainerGroup = n == "Village_Fortress_Wall" ||
+                                        n == "Left_Wing_Wall" ||
+                                        n == "Right_Wing_Wall" ||
+                                        n == "Right_Flank_Wall" ||
+                                        n == "Gate_Complex" ||
+                                        n == "Fortress_Root" ||
+                                        n == "Village Props";
+
+                if (isContainerGroup)
+                {
+                    t.gameObject.SetActive(true);
+                    if (t.TryGetComponent(out Unit.Wall cw)) Destroy(cw);
+                    if (t.TryGetComponent(out BoxCollider cbc)) Destroy(cbc);
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle cobs)) Destroy(cobs);
+                    if (t.TryGetComponent(out Unit.Unit cu) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(cu);
+                    }
+                }
+            }
+
+            // BƯỚC 2: Cấu hình và kích hoạt các công trình vật lý thực sự (chòi canh, vòm cổng, các cọc gỗ đơn lẻ, lều làng)
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // 1. Không can thiệp vào tường do người chơi đặt (Clone)
+                if (n.Contains("(Clone)")) continue;
+
+                // 2. Không can thiệp vào cầu sông (Bridge_Tribal, Ramp_Tribal) để khủng long bước lên mặt cầu qua sông
+                if (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.Contains("Smooth Floor") || n.Contains("Walkway_Deck"))
+                {
+                    continue;
+                }
+
+                // 3. Không can thiệp vào Player, Camera, Light, Canvas, Projectile, Căn cứ chính
+                if (n.Contains("Camera") || n.Contains("Light") || n.Contains("Canvas") ||
+                    n.Contains("Player") || n.Contains("Dino") || n.Contains("Base") || n.Contains("Egg"))
+                {
+                    continue;
+                }
+
+                // 4. Bỏ qua các container cha
+                if (n == "Village_Fortress_Wall" || n == "Left_Wing_Wall" || n == "Right_Wing_Wall" || 
+                    n == "Right_Flank_Wall" || n == "Gate_Complex" || n == "Fortress_Root" || n == "Village Props")
+                {
+                    continue;
+                }
+
+                bool isTower = n.Contains("Big Tower with Platform") || n.Contains("Watchtower") || n.Contains("Bastion_Tower");
+                bool isArch = n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch") || n.Contains("Arch_Entry");
+                bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
+                bool isFence = n.Contains("Plank_Defenses") ||
+                               n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
+                               n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
+                               n.Contains("Barricade") || n.Contains("Palisade") ||
+                               n.Contains("Gate_Portcullis_Barricade") ||
+                               n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
+                               n.Contains("Village_Left_Gap_Wall");
+
+                if (!isTower && !isArch && !isHut && !isFence) continue;
+
+                // Nếu là node con bên trong một Wall khác, không gắn trùng lặp
+                Unit.Wall parentWall = t.parent != null ? t.parent.GetComponentInParent<Unit.Wall>(true) : null;
+                if (parentWall != null && parentWall.gameObject != t.gameObject)
+                {
+                    continue;
+                }
+
+                // Kích hoạt GameObject và phục hồi toàn bộ Renderers (bảo đảm không bị tàng hình khi reset màn)
+                t.gameObject.SetActive(true);
+                Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in rends) if (r != null) r.enabled = true;
+
+                // Cấu hình Collider & HP tùy theo loại công trình
+                int targetHp = 650;
+                Vector3 colSize = Vector3.zero;
+                Vector3 colCenter = Vector3.zero;
+
+                if (isTower)
+                {
+                    targetHp = Mathf.RoundToInt(950 * hpMult);
+                    colSize = new Vector3(8.5f, 9.0f, 8.5f);
+                    colCenter = new Vector3(0f, 4.5f, 0f);
+                }
+                else if (isArch)
+                {
+                    targetHp = Mathf.RoundToInt(750 * hpMult);
+                    colSize = new Vector3(9.0f, 6.0f, 2.5f);
+                    colCenter = new Vector3(0f, 3.0f, 0f);
+                }
+                else if (isHut)
+                {
+                    targetHp = Mathf.RoundToInt(800 * hpMult);
+                    colSize = new Vector3(6.0f, 5.0f, 6.0f);
+                    colCenter = new Vector3(0f, 2.5f, 0f);
+                }
+                else if (isFence)
+                {
+                    targetHp = Mathf.RoundToInt(650 * hpMult);
+                    colSize = new Vector3(6.0f, 1.8f, 1.0f);
+                    colCenter = new Vector3(0f, 0.9f, 0f);
+                }
+
+                // Cấu hình BoxCollider
+                BoxCollider bc = t.GetComponent<BoxCollider>();
+                if (bc == null)
+                {
+                    bc = t.gameObject.AddComponent<BoxCollider>();
+                }
+                if (colSize != Vector3.zero)
+                {
+                    bc.size = colSize;
+                    bc.center = colCenter;
+                }
+                else
+                {
+                    Bounds b = new Bounds();
+                    bool hasB = false;
+                    foreach (var r in rends)
+                    {
+                        if (r != null && r.enabled && !(r is ParticleSystemRenderer))
+                        {
+                            if (!hasB) { b = r.bounds; hasB = true; }
+                            else b.Encapsulate(r.bounds);
+                        }
+                    }
+                    if (hasB)
+                    {
+                        bc.center = t.InverseTransformPoint(b.center);
+                        Vector3 ws = b.size;
+                        Vector3 ls = t.lossyScale;
+                        float sx = Mathf.Abs(ls.x) > 0.001f ? ws.x / Mathf.Abs(ls.x) : 2.5f;
+                        float sy = Mathf.Abs(ls.y) > 0.001f ? ws.y / Mathf.Abs(ls.y) : 1.8f;
+                        float sz = Mathf.Abs(ls.z) > 0.001f ? ws.z / Mathf.Abs(ls.z) : 1.2f;
+                        if (sx < 1.0f) sx = 1.0f;
+                        if (sz < 1.0f) sz = 1.0f;
+                        bc.size = new Vector3(sx, sy, sz);
+                    }
+                }
+                bc.enabled = true;
+
+                // Phục hồi và kích hoạt toàn bộ Collider con
+                Collider[] allCols = t.GetComponentsInChildren<Collider>(true);
+                foreach (var c in allCols) if (c != null) c.enabled = true;
+
+                // Cấu hình NavMeshObstacle Carving
+                UnityEngine.AI.NavMeshObstacle obs = t.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+                if (obs == null) obs = t.gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                obs.enabled = true;
+                obs.carving = true;
+                obs.carveOnlyStationary = false;
+                if (bc != null)
+                {
+                    obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                    obs.size = bc.size;
+                    obs.center = bc.center;
+                }
+
+                // Cấu hình Component Wall và Máu
+                if (!t.TryGetComponent(out Unit.Wall w))
+                {
+                    w = t.gameObject.AddComponent<Unit.Wall>();
+                }
+                w.MaxHealth = targetHp;
+                w.Health = targetHp;
+
+                // Tạo và gắn Thanh máu hiển thị trên màn hình
+                w.EnsureHealthBarAttached();
+                if (Utility.HealthBarCanvas.Instance != null)
+                {
+                    var hb = Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(w);
+                    if (hb != null)
+                    {
+                        hb.gameObject.SetActive(true);
+                        hb.SetProgress(1.0f);
+                    }
+                }
+            }
+
+            EnsureVillageBridgesDestructible();
+        }
+
+        public void EnsureScenicBridgeWatchtowers()
+        {
+            EnsureScenicFortressWalkways();
+            EnsureVillageBridgesDestructible();
+        }
+
+        /// <summary>
+        /// Đảm bảo tất cả các cầu gỗ, dốc gỗ, cổng vòm và hành lang kết nối làng
+        /// (Bridge_Tribal, Ramp_Tribal, Arch Entry Wall, Overhead_Arch, Big Tower with Platform)
+        /// TUYỆT ĐỐI THÔNG THOÁNG, không bị gắn NavMeshObstacle cản đường, không bị BoxCollider tàng hình bịt kín,
+        /// giúp toàn bộ các loài khủng long (kể cả T-Rex) tiến công mượt mà vào căn cứ làng mà không bị kẹt.
+        /// </summary>
+        public void EnsureVillageBridgesDestructible()
+        {
+            // Phục hồi lại Smooth Floor và các sàn gỗ kết nối
+            var allFloors = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var fl in allFloors)
+            {
+                if (fl == null) continue;
+                string fn = fl.gameObject.name;
+                if (fn.Contains("Smooth Floor") || fn.Contains("Walkway_Deck") || fn.Contains("Collider_Walkway_Deck"))
+                {
+                    fl.gameObject.SetActive(true);
+                    foreach (var r in fl.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+                    foreach (var c in fl.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+                    // Đảm bảo sàn không bao giờ có NavMeshObstacle
+                    foreach (var obs in fl.GetComponentsInChildren<NavMeshObstacle>(true))
+                    {
+                        obs.enabled = false;
+                        Destroy(obs);
+                    }
+                }
+            }
+
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // Chỉ xử lý các cầu sông (Bridge_Tribal, Ramp_Tribal) để khủng long băng qua sông thông suốt:
+                bool isRiverBridge = n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                     n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase);
+
+                if (!isRiverBridge) continue;
+
+                t.gameObject.SetActive(true);
+                Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in rends) if (r != null) r.enabled = true;
+
+                // Triệt tiêu NavMeshObstacle và Wall trên cầu sông bắc qua nước để khủng long bước lên mặt cầu
+                NavMeshObstacle[] allObs = t.GetComponentsInChildren<NavMeshObstacle>(true);
+                foreach (var obs in allObs)
+                {
+                    if (obs != null)
+                    {
+                        obs.enabled = false;
+                        obs.carving = false;
+                        Destroy(obs);
+                    }
+                }
+
+                if (t.TryGetComponent(out Unit.Wall w)) Destroy(w);
+                if (t.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance) HealthBarCanvas.Instance.Unregister(u);
+            }
+        }
+
+
         private void EnsureAudioManagerAndSettingsMenu()
         {
             if (Audio.PrehistoricAudioManager.Instance == null)
@@ -278,14 +716,14 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Sync with RoundManager if present
             SyncWithLegacyRoundManager();
 
-            // Kích hoạt AdaptiveWaveManager làm Deep Learning AI Director phân tích chiến thuật
-            AdaptiveWaveManager waveMgr = FindFirstObjectByType<AdaptiveWaveManager>();
-            if (waveMgr != null)
-            {
-                waveMgr.enabled = true;
-            }
+            // 1. Vô hiệu hóa toàn bộ tường chắn/chòi mặc định của cảnh cho chế độ TD tự do mazing TRƯỚC TIÊN
+            DeactivateDefaultSceneBarricades();
+            EnsureScenicBridgeWatchtowers();
 
-            // Kích hoạt NPC chiến binh bộ lạc xuất hiện cùng phòng thủ làng
+            // 2. Cấu hình va chạm và AI nhận diện chướng ngại vật cho toàn bộ tường do người chơi đặt (Clone)
+            ConfigureAllCustomBarricades();
+
+            // 3. Kích hoạt NPC chiến binh bộ lạc xuất hiện cùng phòng thủ làng
             EnsureVillageDefendersActive();
 
             foreach (var r in Resources.FindObjectsOfTypeAll<MeshRenderer>())
@@ -298,8 +736,23 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // Cấu hình va chạm và AI nhận diện chướng ngại vật cho toàn bộ tường trên map (tôn trọng 100% chỉnh sửa của người chơi)
-            ConfigureAllCustomBarricades();
+            // 4. Kích hoạt AdaptiveWaveManager làm Deep Learning AI Director phân tích chiến thuật
+            AdaptiveWaveManager waveMgr = FindFirstObjectByType<AdaptiveWaveManager>();
+            if (waveMgr != null)
+            {
+                waveMgr.enabled = true;
+            }
+
+            // 5. Kích hoạt On-Device Deep Learning Neural Director & XAI Monitor HUD (sau khi đã dọn sạch tường mặc định)
+            if (AI.PrehistoricNeuralDirector.Instance != null)
+            {
+                AI.PrehistoricNeuralDirector.Instance.EnableOnDeviceInference = true;
+                AI.PrehistoricNeuralDirector.Instance.Predict(_CurrentWave);
+            }
+            if (UI.PrehistoricNeuralMonitorUI.Instance != null)
+            {
+                // Sẵn sàng hiển thị XAI Monitor HUD
+            }
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
@@ -421,6 +874,18 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void LocateBaseTarget()
         {
+            try
+            {
+                if (BaseTarget != null && BaseTarget.gameObject != null)
+                {
+                    return;
+                }
+            }
+            catch
+            {
+                BaseTarget = null;
+            }
+
             GameObject eggSpawn = GameObject.Find("Dino Egg Spawn");
             if (eggSpawn != null)
             {
@@ -459,9 +924,46 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
-        private void EnsureSpawnPoints()
+        public Vector3 GetValidBaseTargetPosition()
         {
-            if (SpawnPoints != null && SpawnPoints.Length >= 3 && SpawnPoints[0] != null) return;
+            LocateBaseTarget();
+            if (BaseTarget != null)
+            {
+                try
+                {
+                    if (BaseTarget.gameObject != null)
+                    {
+                        return BaseTarget.position;
+                    }
+                }
+                catch { }
+            }
+            return new Vector3(-2.23f, 0f, -38.26f);
+        }
+
+        public void EnsureSpawnPoints()
+        {
+            bool allValid = SpawnPoints != null && SpawnPoints.Length >= 3;
+            if (allValid)
+            {
+                for (int i = 0; i < SpawnPoints.Length; i++)
+                {
+                    try
+                    {
+                        if (SpawnPoints[i] == null || SpawnPoints[i].gameObject == null)
+                        {
+                            allValid = false;
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        allValid = false;
+                        break;
+                    }
+                }
+            }
+            if (allValid) return;
 
             GameObject spRoot = GameObject.Find("Prehistoric_SpawnPoints");
             if (spRoot == null)
@@ -470,19 +972,102 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             Transform sp1 = spRoot.transform.Find("Spawn_North");
-            if (sp1 == null) { GameObject g = new GameObject("Spawn_North"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(-2.2f, 0f, 35f); sp1 = g.transform; }
+            if (sp1 == null)
+            {
+                GameObject g = new GameObject("Spawn_North");
+                g.transform.SetParent(spRoot.transform);
+                g.transform.position = new Vector3(-2.2f, 0f, 35f);
+                sp1 = g.transform;
+            }
 
             Transform sp2 = spRoot.transform.Find("Spawn_East");
-            if (sp2 == null) { GameObject g = new GameObject("Spawn_East"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(25f, 0f, 20f); sp2 = g.transform; }
+            if (sp2 == null)
+            {
+                GameObject g = new GameObject("Spawn_East");
+                g.transform.SetParent(spRoot.transform);
+                g.transform.position = new Vector3(25f, 0f, 20f);
+                sp2 = g.transform;
+            }
 
             Transform sp3 = spRoot.transform.Find("Spawn_West");
-            if (sp3 == null) { GameObject g = new GameObject("Spawn_West"); g.transform.SetParent(spRoot.transform); g.transform.position = new Vector3(-30f, 0f, 15f); sp3 = g.transform; }
+            if (sp3 == null)
+            {
+                GameObject g = new GameObject("Spawn_West");
+                g.transform.SetParent(spRoot.transform);
+                g.transform.position = new Vector3(-30f, 0f, 15f);
+                sp3 = g.transform;
+            }
 
             SpawnPoints = new Transform[] { sp1, sp2, sp3 };
         }
 
+        public Vector3 GetValidSpawnPosition(int routeIndex = -1)
+        {
+            EnsureSpawnPoints();
+
+            Transform chosenSpawn = null;
+            if (AI.PrehistoricNeuralDirector.Instance != null && SpawnPoints != null && SpawnPoints.Length > 0)
+            {
+                try
+                {
+                    chosenSpawn = AI.PrehistoricNeuralDirector.Instance.SelectSpawnGateByQLearning(SpawnPoints);
+                }
+                catch { }
+            }
+
+            if (chosenSpawn == null)
+            {
+                if (SpawnPoints != null)
+                {
+                    for (int i = 0; i < SpawnPoints.Length; i++)
+                    {
+                        try
+                        {
+                            if (SpawnPoints[i] != null && SpawnPoints[i].gameObject != null)
+                            {
+                                chosenSpawn = SpawnPoints[i];
+                                break;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            Vector3 basePos;
+            if (chosenSpawn != null)
+            {
+                try
+                {
+                    basePos = chosenSpawn.position;
+                }
+                catch
+                {
+                    basePos = new Vector3(-2.2f, 0f, 35f);
+                }
+            }
+            else
+            {
+                Vector3[] fallbackGates = new Vector3[]
+                {
+                    new Vector3(-2.2f, 0f, 35f),
+                    new Vector3(25f, 0f, 20f),
+                    new Vector3(-30f, 0f, 15f)
+                };
+                int idx = routeIndex >= 0 ? (routeIndex % fallbackGates.Length) : UnityEngine.Random.Range(0, fallbackGates.Length);
+                basePos = fallbackGates[idx];
+            }
+
+            return basePos + new Vector3(UnityEngine.Random.Range(-2.5f, 2.5f), 0f, UnityEngine.Random.Range(-2.5f, 2.5f));
+        }
+
         private void LoadDinoPrefabsIfNull()
         {
+            if (RaptorPrefab == null) RaptorPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Velociraptor");
+            if (PterodactylPrefab == null) PterodactylPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Pterodactyl");
+            if (AnkylosaurusPrefab == null) AnkylosaurusPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Ankylosaurus");
+            if (TRexBossPrefab == null) TRexBossPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TRexBoss");
+
 #if UNITY_EDITOR
             if (RaptorPrefab == null) RaptorPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Prehistoric/Prefab_Velociraptor.prefab");
             if (PterodactylPrefab == null) PterodactylPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Prehistoric/Prefab_Pterodactyl.prefab");
@@ -495,6 +1080,10 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault) return;
             if (_CurrentPhase != PrehistoricWavePhase.BuildingPhase) return;
+
+            LocateBaseTarget();
+            EnsureSpawnPoints();
+            LoadDinoPrefabsIfNull();
 
             // Xóa sạch toàn bộ rác và quái vật còn sót lại từ đợt cũ trước khi bắt đầu đợt mới
             CleanAllGameplayGarbage();
@@ -513,6 +1102,11 @@ namespace LlamAcademy.Dinos.RoundManagement
         private IEnumerator SpawnWaveRoutine(int waveIndex)
         {
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault) yield break;
+
+            LocateBaseTarget();
+            EnsureSpawnPoints();
+            LoadDinoPrefabsIfNull();
+
             ActiveMonsters.Clear();
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
             {
@@ -552,14 +1146,29 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject dinoPrefab = spawnQueue[i];
                 if (dinoPrefab != null)
                 {
-                    Transform spawnPoint = SpawnPoints[UnityEngine.Random.Range(0, SpawnPoints.Length)];
-                    Vector3 spawnPos = spawnPoint.position + new Vector3(UnityEngine.Random.Range(-2.5f, 2.5f), 0f, UnityEngine.Random.Range(-2.5f, 2.5f));
+                    Vector3 spawnPos = GetValidSpawnPosition(i % 3);
+                    Vector3 targetPos = GetValidBaseTargetPosition();
 
-                    Vector3 dir = BaseTarget != null ? (BaseTarget.position - spawnPos).normalized : Vector3.back;
+                    // Đảm bảo spawnPos được định vị chuẩn xác trên NavMesh của Khủng long trước khi Instantiate
+                    NavMeshQueryFilter spawnFilter = new NavMeshQueryFilter { agentTypeID = 1479372276, areaMask = NavMesh.AllAreas };
+                    if (NavMesh.SamplePosition(spawnPos, out NavMeshHit sHit, 25f, spawnFilter))
+                    {
+                        spawnPos = sHit.position;
+                    }
+                    else if (NavMesh.SamplePosition(spawnPos, out sHit, 25f, NavMesh.AllAreas))
+                    {
+                        spawnPos = sHit.position;
+                    }
+
+                    Vector3 dir = (targetPos - spawnPos).normalized;
                     dir.y = 0;
                     Quaternion rot = dir != Vector3.zero ? Quaternion.LookRotation(dir) : Quaternion.identity;
 
                     GameObject spawned = Instantiate(dinoPrefab, spawnPos, rot);
+                    if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
+                    {
+                        Environment.PrehistoricVolcanicMutant.ApplyMutation(spawned);
+                    }
                     if (spawned.TryGetComponent(out Unit.Unit unitComp))
                     {
                         ActiveMonsters.Add(unitComp);
@@ -576,17 +1185,25 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                     if (spawned.TryGetComponent(out Unit.PrehistoricDinoBase dinoBase))
                     {
-                        dinoBase.EnsureOnNavMesh(15f);
+                        dinoBase.EnsureOnNavMesh(25f);
                         dinoBase.ConfigureNavMeshAgent();
                         if (dinoBase.Agent != null && dinoBase.Agent.isOnNavMesh)
                         {
                             dinoBase.Agent.isStopped = false;
-                            if (BaseTarget != null) dinoBase.Agent.SetDestination(BaseTarget.position);
+                            dinoBase.Agent.updateRotation = true;
+                            dinoBase.Agent.SetDestination(targetPos);
                         }
                     }
                     else if (spawned.TryGetComponent(out Unit.FlyingUnit flyComp))
                     {
-                        if (BaseTarget != null) flyComp.SetTargetBase(BaseTarget);
+                        if (BaseTarget != null)
+                        {
+                            try
+                            {
+                                if (BaseTarget.gameObject != null) flyComp.SetTargetBase(BaseTarget);
+                            }
+                            catch { }
+                        }
                     }
                 }
 
@@ -622,6 +1239,17 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private List<GameObject> GenerateWaveComposition(int waveIndex)
         {
+            // 1. ƯU TIÊN SỐ 1: Deep Learning Neural Director trực tiếp điều phối đội hình quái vật theo thời gian thực
+            if (AI.PrehistoricNeuralDirector.Instance != null)
+            {
+                var neuralQueue = BuildAdaptiveWaveFromNeuralPrediction(waveIndex);
+                if (neuralQueue != null && neuralQueue.Count > 0)
+                {
+                    return neuralQueue;
+                }
+            }
+
+            // 2. Dự phòng: AdaptiveWaveManager nếu có
             if (AdaptiveWaveManager.Instance != null)
             {
                 string rationale;
@@ -719,6 +1347,111 @@ namespace LlamAcademy.Dinos.RoundManagement
             return queue;
         }
 
+        /// <summary>
+        /// Sinh đội hình quái vật trực tiếp từ Mạng Nơ-ron Sâu Đa Nhiệm On-Device (PrehistoricTacticsNet)
+        /// kết hợp Hệ số Thích ứng Độ khó (Dynamic Difficulty Adjustment - DDA).
+        /// Đảm bảo tính thích ứng thực chiến 100%:
+        /// - Căn cứ mở (0 tường): Tập trung bầy Velociraptor Swarm Rush càn quét tốc độ cao.
+        /// - Căn cứ mê cung (Có tường): Lập tức triển khai Quái bay Pterodactyl vượt tường & Thiết giáp Ankylosaurus phá tường (kể cả từ Wave 1 hoặc 2).
+        /// </summary>
+        private List<GameObject> BuildAdaptiveWaveFromNeuralPrediction(int waveIndex)
+        {
+            List<GameObject> queue = new();
+            var director = AI.PrehistoricNeuralDirector.Instance;
+            if (director == null) return queue;
+
+            // 1. Thực hiện suy luận Mạng Nơ-ron Đa Nhiệm On-Device (PrehistoricTacticsNet)
+            var pred = director.Predict(waveIndex);
+            string rationale = pred.TacticalRationale;
+            Debug.Log($"<color=#00FFAA><b>[AI Director Deep Learning]</b></color> Đợt {waveIndex} | Tường: {pred.WallCount} | {rationale}");
+            ShowAnnouncement($"<b><color=#00FFAA>[AI TÁC CHIẾN]</color></b> ĐỢT {waveIndex}:\n{rationale}", 4.5f);
+
+            // 2. Tính quy mô đợt theo Dynamic Difficulty Adjustment (DDA)
+            int totalMonsters = pred.RecommendedWaveSize;
+            int minTotal = 13 + (waveIndex - 1) * 3;
+            totalMonsters = Mathf.Max(totalMonsters, minTotal);
+
+            // Boss T-Rex xuất hiện ở màn 8, 9 (1 con) và màn 10 (2 con)
+            int bossCount = (waveIndex == 8 || waveIndex == 9) ? 1 : (waveIndex >= 10 ? 2 : 0);
+            int normalCount = Mathf.Max(6, totalMonsters - bossCount);
+
+            // 3. Phân bổ xác suất Softmax từng loài khủng long
+            float runnerProb = pred.ArchetypeDistribution != null && pred.ArchetypeDistribution.Length > 0 ? pred.ArchetypeDistribution[0] : 0.50f;
+            float flyerProb = pred.ArchetypeDistribution != null && pred.ArchetypeDistribution.Length > 1 ? pred.ArchetypeDistribution[1] : 0.25f;
+            float tankProb = pred.ArchetypeDistribution != null && pred.ArchetypeDistribution.Length > 2 ? pred.ArchetypeDistribution[2] : 0.25f;
+
+            int raptorCount;
+            int pteroCount;
+            int ankylCount;
+
+            if (pred.WallCount == 0)
+            {
+                // CĂN CỨ MỞ (0 TƯỜNG):
+                // Tập trung bầy Velociraptor chạy thẳng
+                if (waveIndex == 1)
+                {
+                    raptorCount = normalCount;
+                    pteroCount = 0;
+                    ankylCount = 0;
+                }
+                else if (waveIndex == 2)
+                {
+                    pteroCount = Mathf.RoundToInt(normalCount * Mathf.Min(flyerProb, 0.25f));
+                    ankylCount = 0;
+                    raptorCount = normalCount - pteroCount;
+                }
+                else
+                {
+                    float sum = runnerProb + flyerProb + tankProb;
+                    if (sum > 0f) { runnerProb /= sum; flyerProb /= sum; tankProb /= sum; }
+                    pteroCount = Mathf.RoundToInt(normalCount * flyerProb);
+                    ankylCount = Mathf.RoundToInt(normalCount * tankProb);
+                    raptorCount = normalCount - (pteroCount + ankylCount);
+                    if (raptorCount < 4) raptorCount = 4;
+                }
+            }
+            else
+            {
+                // CĂN CỨ MÊ CUNG (NGƯỜI CHƠI XÂY TƯỜNG):
+                // Deep Learning kích hoạt NGAY LẬP TỨC chiến thuật khắc chế:
+                // Tăng quái bay (vượt tường) và thiết giáp (phá tường), giảm runner
+                float sum = runnerProb + flyerProb + tankProb;
+                if (sum > 0f) { runnerProb /= sum; flyerProb /= sum; tankProb /= sum; }
+                pteroCount = Mathf.Max(2, Mathf.RoundToInt(normalCount * flyerProb));
+                ankylCount = Mathf.Max(1, Mathf.RoundToInt(normalCount * tankProb));
+                raptorCount = Mathf.Max(3, normalCount - (pteroCount + ankylCount));
+            }
+
+            // Đảm bảo tổng số lượng bù đắp nếu làm tròn bị thiếu
+            int sumAlloc = raptorCount + pteroCount + ankylCount;
+            if (sumAlloc < normalCount)
+            {
+                raptorCount += (normalCount - sumAlloc);
+            }
+
+            // Nạp vào hàng đợi xuất trận
+            if (RaptorPrefab != null) for (int i = 0; i < raptorCount; i++) queue.Add(RaptorPrefab);
+            if (PterodactylPrefab != null) for (int i = 0; i < pteroCount; i++) queue.Add(PterodactylPrefab);
+            if (AnkylosaurusPrefab != null) for (int i = 0; i < ankylCount; i++) queue.Add(AnkylosaurusPrefab);
+            if (TRexBossPrefab != null)
+            {
+                for (int b = 0; b < bossCount; b++)
+                {
+                    queue.Add(TRexBossPrefab);
+                }
+            }
+
+            // Xáo trộn thứ tự xuất trận ngẫu nhiên tự nhiên (đảm bảo boss không đi đầu)
+            for (int i = 0; i < queue.Count - 2; i++)
+            {
+                int r = UnityEngine.Random.Range(i, queue.Count);
+                if (queue[r] == TRexBossPrefab && i < queue.Count / 3) continue;
+                (queue[i], queue[r]) = (queue[r], queue[i]);
+            }
+
+            return queue;
+        }
+
         private void AddMultiple(List<GameObject> list, GameObject prefab, int count)
         {
             if (prefab == null) return;
@@ -766,6 +1499,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 DeadlinessHeatmap.Instance.RecordDeath(deadMonster.transform.position, _CurrentWave, deadMonster.GetType().Name);
             }
+
+            // Reinforcement Learning Q-Learning Route feedback (phạt điểm tử vong trên cổng di chuyển)
+            if (AI.PrehistoricNeuralDirector.Instance != null && deadMonster != null)
+            {
+                AI.PrehistoricNeuralDirector.Instance.RecordDinoDeath(deadMonster.transform.position);
+            }
         }
 
         public void HandleMonsterDeath(Unit.Unit deadMonster)
@@ -794,6 +1533,13 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Unit.PrehistoricVillageBase.Instance.Health = _CurrentBaseHealth;
             }
             OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
+
+            // Reinforcement Learning: Thưởng điểm cho lộ trình đột kích thành công vào căn cứ (+30 reward)
+            if (AI.PrehistoricNeuralDirector.Instance != null)
+            {
+                Vector3 hitPos = attackingDino != null ? attackingDino.transform.position : (BaseTarget != null ? BaseTarget.position : Vector3.zero);
+                AI.PrehistoricNeuralDirector.Instance.RecordBaseHit(hitPos);
+            }
 
             string attackerName = attackingDino != null ? attackingDino.GetType().Name : "Khủng long";
             if (Time.time - _LastBaseAnnouncementTime > 2.0f)
@@ -833,6 +1579,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
+            // Cập nhật hệ số thích ứng độ khó DDA của AI Director
+            AI.PrehistoricNeuralDirector.Instance?.RecordWaveOutcome(true, (float)_CurrentBaseHealth / _MaxBaseHealth, 45f);
+
             // Mở khóa chuột để người chơi tương tác chọn menu
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -846,7 +1595,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             _CurrentWave++;
 
             // Phục hồi làng cho đợt mới và giữ lại các tháp người chơi đã đặt
-            ResetEntireVillage(keepPlayerTowers: true);
+            ResetEntireVillage(keepPlayerTowers: false);
+            TowerPlacer.Instance?.ClearAllPlacedTowers();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ResetPlayerAndCameraPosition();
@@ -866,7 +1616,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             _CurrentWave++;
 
             // Reset và phục hồi toàn bộ ngôi làng (tường, căn cứ, NPC chiến binh) cho bàn/đợt mới
-            ResetEntireVillage(keepPlayerTowers: true);
+            ResetEntireVillage(keepPlayerTowers: false);
+            TowerPlacer.Instance?.ClearAllPlacedTowers();
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ShowAnnouncement($"ĐỢT {_CurrentWave}: HÃY ĐẶT THÊM THÁP VÀ BẤM 'BẮT ĐẦU ĐỢT' (SPACE)!", 4.0f);
@@ -885,6 +1636,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             ShowAnnouncement("☠ THẤT THỦ! NGÔI LÀNG TIỀN SỬ ĐÃ BỊ PHÁ HỦY! ☠", 10.0f);
             Debug.LogWarning("<color=red>[Prehistoric TD]</color> GAME OVER! The village was destroyed by dinosaurs!");
+            AI.PrehistoricNeuralDirector.Instance?.RecordWaveOutcome(false, 0f, 60f);
             OnGameOver?.Invoke();
         }
 
@@ -893,6 +1645,17 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.Victory);
             StopAllCoroutines();
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
+
+            // Mở khóa bản đồ kế tiếp khi chiến thắng đợt 10
+            if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.AncientValley)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge);
+            }
+            else if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra);
+            }
+
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: false);
 
             // Mở khóa con trỏ chuột
@@ -901,6 +1664,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             ShowAnnouncement("🏆 CHIẾN THẮNG KHẢI HOÀN! BẠN ĐÃ BẢO VỆ NGÔI LÀNG THÀNH CÔNG! 🏆", 15.0f);
             Debug.Log("<color=green>[Prehistoric TD]</color> VICTORY! Boss T-Rex defeated!");
+            AI.PrehistoricNeuralDirector.Instance?.RecordWaveOutcome(true, (float)_CurrentBaseHealth / _MaxBaseHealth, 60f);
             OnVictory?.Invoke();
         }
 
@@ -1076,20 +1840,30 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void EnsureVillageDefendersActive()
         {
-            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            if (PrehistoricGameModeManager.Instance == null || PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.TowerDefense)
             {
+                // Ở chế độ Thủ Thành: Tuyệt đối không tự động sinh lính tự do trên cầu gỗ và sân làng!
+                // Người chơi tự tay mua lính từ toolbar phím 5 nếu cần. Cầu gỗ phải hoàn toàn thông thoáng!
+                var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+                    ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
+                    : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
+                if (ai != null)
+                {
+                    ai.ClearAllDefenders(includePlayerPlaced: false);
+                }
                 return;
             }
 
-            var ai = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
+            // Ở chế độ Công Thành (Dino Assault): Làng AI cần lính phòng thủ theo cấp độ màn
+            var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
                 ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
                 : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
-            if (ai != null)
+            if (enemyAI != null)
             {
-                ai.enabled = true;
-                int targetCount = GetTargetDefendersForWave(_CurrentWave);
-                // Luôn reset chính xác số lượng NPC theo quy định màn, không thừa không thiếu
-                ai.ResetDefendersToExactCount(targetCount);
+                enemyAI.enabled = true;
+                int assaultLvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : _CurrentWave;
+                int targetCount = GetTargetDefendersForWave(assaultLvl);
+                enemyAI.ResetDefendersToExactCount(targetCount);
             }
         }
 
@@ -1165,290 +1939,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void EnsureVillageFortressWallActive()
         {
             CleanupVillageWatchtowers();
-            return;
-            GameObject existing = GameObject.Find("Village_Fortress_Wall");
-            {
-                // Kiểm tra xem đã có đủ 2 chòi cung thủ tiền tiêu và số đoạn tường mới chưa
-                Transform wtLeft = existing.transform.Find("Village_Watchtower_Left");
-                Transform wtRight = existing.transform.Find("Village_Watchtower_Right");
-                Transform leftWing = existing.transform.Find("Left_Wing_Wall");
-                Transform rightWing = existing.transform.Find("Right_Wing_Wall");
-                Transform customGapWall = existing.transform.Find("Village_Left_Gap_Wall_128_neg152");
-
-                Transform rightFlank = existing.transform.Find("Right_Flank_Wall");
-
-                bool hasWatchtowers = wtLeft != null && wtRight != null;
-                bool hasFullWings = leftWing != null && leftWing.childCount >= 14 && rightWing != null && rightWing.childCount >= 18 && rightFlank != null;
-                bool hasCustomGap = customGapWall != null;
-
-                if (hasWatchtowers && hasFullWings && hasCustomGap)
-                {
-                    return; // Đã là tường thành khép kín hoàn chỉnh chuẩn 100%
-                }
-
-                Destroy(existing);
-            }
-
-            // Xóa mọi chòi cung thủ cũ/ẩn hoặc lạc đàn và cổng cũ bị trùng
-            GameObject oldWaypoints = GameObject.Find("Archer Waypoints");
-            if (oldWaypoints != null) Destroy(oldWaypoints);
-            GameObject oldStarter = GameObject.Find("Starter_Defenses");
-            if (oldStarter != null) Destroy(oldStarter);
-            GameObject strayWtL = GameObject.Find("Village_Watchtower_Left");
-            if (strayWtL != null) Destroy(strayWtL);
-            GameObject strayWtR = GameObject.Find("Village_Watchtower_Right");
-            if (strayWtR != null) Destroy(strayWtR);
-            GameObject strayGate = GameObject.Find("Gate_Complex");
-            if (strayGate != null && strayGate.transform.parent == null) Destroy(strayGate);
-            GameObject strayGateBar = GameObject.Find("Gate_Portcullis_Barricade");
-            if (strayGateBar != null && strayGateBar.transform.parent == null) Destroy(strayGateBar);
-
-            GameObject fortressRoot = new GameObject("Village_Fortress_Wall");
-
-            GameObject towerPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Fortress_Tower");
-            GameObject archPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Fortress_Arch");
-            GameObject torchPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Fortress_Torch");
-            GameObject barricadePrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Barricade");
-            GameObject watchtowerPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Watchtower");
-            Config.TowerSO barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
-            if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
-            Config.TowerSO watchtowerSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Watchtower");
-            if (watchtowerSO == null) watchtowerSO = Resources.Load<Config.TowerSO>("Tower_Watchtower");
-
-            const float wallZ = -2.5f;
-
-            // 1. CỔNG THÀNH TRUNG TÂM KHÉP KÍN (Gate Complex: X = -5.0f đến X = +0.6f)
-            GameObject gateGroup = new GameObject("Gate_Complex");
-            gateGroup.transform.SetParent(fortressRoot.transform);
-
-            // Tháp Canh Cổng Trái
-            if (towerPrefab != null)
-            {
-                GameObject lt = Instantiate(towerPrefab, new Vector3(-5.8f, 0f, wallZ), Quaternion.Euler(0f, 15f, 0f), gateGroup.transform);
-                lt.name = "Gate_Tower_Left";
-                lt.transform.localScale = Vector3.one * 0.65f;
-                EnsureBoxCollider(lt, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-                EnsureNavMeshObstacle(lt, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-            }
-
-            // Tháp Canh Cổng Phải
-            if (towerPrefab != null)
-            {
-                GameObject rt = Instantiate(towerPrefab, new Vector3(1.4f, 0f, wallZ), Quaternion.Euler(0f, -15f, 0f), gateGroup.transform);
-                rt.name = "Gate_Tower_Right";
-                rt.transform.localScale = Vector3.one * 0.65f;
-                EnsureBoxCollider(rt, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-                EnsureNavMeshObstacle(rt, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-            }
-
-            // Tạo nhóm Gate_Entryway đại diện cho TOÀN BỘ CỔNG (Khung cổng vòm gỗ + Đuốc + Cánh cổng chắn)
-            GameObject gateEntryway = new GameObject("Gate_Entryway");
-            gateEntryway.transform.SetParent(gateGroup.transform);
-
-            // Mái Vòm Cổng Thành Tiền Sử (Archway - Cổng gỗ 3 cột trong Ảnh 3)
-            GameObject arch = null;
-            if (archPrefab != null)
-            {
-                arch = Instantiate(archPrefab, new Vector3(-2.2f, 0.2f, wallZ), Quaternion.identity, gateEntryway.transform);
-                arch.name = "Gate_Overhead_Arch";
-                arch.transform.localScale = new Vector3(0.74f, 0.75f, 0.7f);
-                MeshCollider[] archMeshCols = arch.GetComponentsInChildren<MeshCollider>(true);
-                foreach (var mc in archMeshCols) if (mc != null) mc.enabled = false;
-            }
-
-            // Đuốc Lửa Cổng Thành
-            GameObject tl = null;
-            GameObject tr = null;
-            if (torchPrefab != null)
-            {
-                tl = Instantiate(torchPrefab, new Vector3(-4.5f, 0f, wallZ + 1.6f), Quaternion.identity, gateEntryway.transform);
-                tl.name = "Gate_Torch_Left";
-                tl.transform.localScale = Vector3.one * 1.3f;
-
-                tr = Instantiate(torchPrefab, new Vector3(0.1f, 0f, wallZ + 1.6f), Quaternion.identity, gateEntryway.transform);
-                tr.name = "Gate_Torch_Right";
-                tr.transform.localScale = Vector3.one * 1.3f;
-            }
-
-            // Cánh Cổng Gỗ Kiên Cố Chắn Khủng Long (1500 HP - gấp 1.5 lần 1000 HP)
-            if (barricadePrefab != null)
-            {
-                GameObject gateBar = Instantiate(barricadePrefab, new Vector3(-2.2f, 0f, wallZ), Quaternion.identity, gateEntryway.transform);
-                gateBar.name = "Gate_Portcullis_Barricade";
-                gateBar.transform.localScale = new Vector3(1.8f, 1.4f, 1.0f);
-                if (gateBar.TryGetComponent(out Unit.Wall ugb))
-                {
-                    if (barricadeSO != null) ugb.UnitType = barricadeSO;
-                    ugb.Health = 1500;
-                    ugb.MaxHealth = 1500;
-                    ugb.EnsureHealthBarAttached();
-                    // Khi cánh cổng hết máu, làm biến mất TOÀN BỘ CỔNG (Gate_Entryway gồm Khung cổng vòm, Đuốc, và Cánh cổng)
-                    ugb.Root = gateEntryway;
-                    ugb.OnDeath += (deadUnit) => {
-                        if (gateEntryway != null) gateEntryway.SetActive(false);
-                        if (arch != null) arch.SetActive(false);
-                        if (tl != null) tl.SetActive(false);
-                        if (tr != null) tr.SetActive(false);
-                    };
-                }
-                EnsureNavMeshObstacle(gateBar, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
-            }
-
-            // 2. TƯỜNG THÀNH CÁNH TRÁI KHÉP KÍN 100% (Left Wing Wall: X = -5.0f đến X = -31.0f)
-            GameObject leftWallGroup = new GameObject("Left_Wing_Wall");
-            leftWallGroup.transform.SetParent(fortressRoot.transform);
-
-            float[] leftPositionsX = new float[] {
-                -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f,
-                -33.6f, -36.2f, -38.8f, -41.4f
-            };
-            for (int i = 0; i < leftPositionsX.Length; i++)
-            {
-                if (barricadePrefab != null)
-                {
-                    GameObject seg = Instantiate(barricadePrefab, new Vector3(leftPositionsX[i], 0f, wallZ), Quaternion.identity, leftWallGroup.transform);
-                    seg.name = $"Left_Wall_Segment_{i + 1}";
-                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
-                    if (seg.TryGetComponent(out Unit.Unit uw))
-                    {
-                        if (barricadeSO != null) uw.UnitType = barricadeSO;
-                        uw.Health = 900;
-                        uw.MaxHealth = 900;
-                        uw.EnsureHealthBarAttached();
-                    }
-                    EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
-                }
-            }
-
-            // Pháo Đài Góc Trái sát vách núi (X = -44.0f)
-            if (towerPrefab != null)
-            {
-                GameObject leftBastion = Instantiate(towerPrefab, new Vector3(-44.0f, 0f, wallZ), Quaternion.Euler(0f, 30f, 0f), leftWallGroup.transform);
-                leftBastion.name = "Left_Bastion_Tower";
-                leftBastion.transform.localScale = Vector3.one * 0.7f;
-                EnsureBoxCollider(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-                EnsureNavMeshObstacle(leftBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-            }
-
-            // 3. TƯỜNG THÀNH CÁNH PHẢI KHÉP KÍN 100% (Right Wing Wall: X = +0.6f đến X = +42.2f nối liền vào vách núi phía Đông)
-            GameObject rightWallGroup = new GameObject("Right_Wing_Wall");
-            rightWallGroup.transform.SetParent(fortressRoot.transform);
-
-            // 17 đoạn tường gối chồng lên nhau 1.15m (mỗi đoạn rộng 3.75m, khoảng cách tâm 2.6m -> Tuyệt đối không có kẽ hở từ X = +0.6f đến X = +42.2f)
-            float[] rightPositionsX = new float[] {
-                0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f, 26.6f,
-                29.2f, 31.8f, 34.4f, 37.0f, 39.6f, 42.2f
-            };
-            for (int i = 0; i < rightPositionsX.Length; i++)
-            {
-                if (barricadePrefab != null)
-                {
-                    GameObject seg = Instantiate(barricadePrefab, new Vector3(rightPositionsX[i], 0f, wallZ), Quaternion.identity, rightWallGroup.transform);
-                    seg.name = $"Right_Wall_Segment_{i + 1}";
-                    seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
-                    if (seg.TryGetComponent(out Unit.Unit uw))
-                    {
-                        if (barricadeSO != null) uw.UnitType = barricadeSO;
-                        uw.Health = 900;
-                        uw.MaxHealth = 900;
-                        uw.EnsureHealthBarAttached();
-                    }
-                    EnsureNavMeshObstacle(seg, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
-                }
-            }
-
-            // Pháo Đài Góc Phải sát vách núi (X = 44.5f cắm sâu vào vách núi phía Đông)
-            if (towerPrefab != null)
-            {
-                GameObject rightBastion = Instantiate(towerPrefab, new Vector3(44.5f, 0f, wallZ), Quaternion.Euler(0f, -30f, 0f), rightWallGroup.transform);
-                rightBastion.name = "Right_Bastion_Tower";
-                rightBastion.transform.localScale = Vector3.one * 0.7f;
-                EnsureBoxCollider(rightBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-                EnsureNavMeshObstacle(rightBastion, new Vector3(5f, 8.5f, 5f), new Vector3(0f, 4.25f, 0f));
-            }
-
-            // 4. BỔ SUNG TƯỜNG SƯỜN PHẢI (Right Flank Barricade Wall) ĐỐI XỨNG HOÀN TOÀN VỚI TƯỜNG SƯỜN TRÁI CỦA LÀNG
-            GameObject rightFlankGroup = new GameObject("Right_Flank_Wall");
-            rightFlankGroup.transform.SetParent(fortressRoot.transform);
-
-            Vector3[] rightFlankPositions = new Vector3[] {
-                // Tuyến rào chắn sườn núi phía Đông (đối xứng hoàn toàn với 5 rào chắn sườn Tây)
-                new Vector3(28.92f, 1.91f, 4.91f),
-                new Vector3(28.97f, 1.86f, 2.22f),
-                new Vector3(28.95f, 1.91f, -0.29f),
-                new Vector3(29.02f, 1.91f, -3.28f),
-                new Vector3(34.81f, 1.91f, -10.39f),
-                // Rào chắn kết nối từ chòi bộ lạc phía Đông ra sườn rào
-                new Vector3(14.5f, 0.2f, 0.85f),
-                new Vector3(17.5f, 0.2f, 0.85f),
-                new Vector3(20.5f, 0.2f, 0.85f),
-                new Vector3(23.5f, 0.2f, 0.85f),
-                new Vector3(26.5f, 0.2f, 0.85f)
-            };
-            for (int i = 0; i < rightFlankPositions.Length; i++)
-            {
-                if (barricadePrefab != null)
-                {
-                    GameObject rf = Instantiate(barricadePrefab, rightFlankPositions[i], Quaternion.Euler(0f, i < 5 ? 90f : 0f, 0f), rightFlankGroup.transform);
-                    rf.name = $"Right_Flank_Barricade_{i + 1}";
-                    rf.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
-                    if (rf.TryGetComponent(out Unit.Unit uwf))
-                    {
-                        if (barricadeSO != null) uwf.UnitType = barricadeSO;
-                        uwf.Health = 900;
-                        uwf.MaxHealth = 900;
-                        uwf.EnsureHealthBarAttached();
-                    }
-                    EnsureNavMeshObstacle(rf, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
-                }
-            }
-
-            // 4. THÊM 2 CHÒI CUNG THỦ TIỀN TIÊU Ở 2 BÊN PHÍA TRƯỚC LÀNG (Front Flanking Archer Watchtowers - 1200 HP)
-            if (watchtowerPrefab != null)
-            {
-                // Chòi Cung Thủ Bên Trái
-                GameObject wtLeft = Instantiate(watchtowerPrefab, new Vector3(-6.0f, 0f, -5.5f), Quaternion.Euler(0f, 15f, 0f), fortressRoot.transform);
-                wtLeft.name = "Village_Watchtower_Left";
-                if (wtLeft.TryGetComponent(out Unit.Unit uwl))
-                {
-                    if (watchtowerSO != null) uwl.UnitType = watchtowerSO;
-                    uwl.MaxHealth = 1200;
-                    uwl.Health = 1200;
-                    uwl.EnsureHealthBarAttached();
-                }
-                EnsureNavMeshObstacle(wtLeft, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
-
-                // Chòi Cung Thủ Bên Phải
-                GameObject wtRight = Instantiate(watchtowerPrefab, new Vector3(1.6f, 0f, -5.5f), Quaternion.Euler(0f, -15f, 0f), fortressRoot.transform);
-                wtRight.name = "Village_Watchtower_Right";
-                if (wtRight.TryGetComponent(out Unit.Unit uwr))
-                {
-                    if (watchtowerSO != null) uwr.UnitType = watchtowerSO;
-                    uwr.MaxHealth = 1200;
-                    uwr.Health = 1200;
-                    uwr.EnsureHealthBarAttached();
-                }
-                EnsureNavMeshObstacle(wtRight, new Vector3(2.6f, 5.8f, 2.6f), new Vector3(0f, 2.9f, 0f));
-            }
-
-            // 5. BỔ SUNG BỨC TƯỜNG Ở TỌA ĐỘ (128, 0, -152) THEO YÊU CẦU NGƯỜI CHƠI ĐỂ LẮP CHỖ TRỐNG BÊN TRÁI
-            if (barricadePrefab != null)
-            {
-                GameObject customGapWall = Instantiate(barricadePrefab, new Vector3(128f, 0f, -152f), Quaternion.identity, fortressRoot.transform);
-                customGapWall.name = "Village_Left_Gap_Wall_128_neg152";
-                customGapWall.transform.localScale = Vector3.one;
-                if (customGapWall.TryGetComponent(out Unit.Unit ucg))
-                {
-                    if (barricadeSO != null) ucg.UnitType = barricadeSO;
-                    ucg.Health = 900;
-                    ucg.MaxHealth = 900;
-                    ucg.EnsureHealthBarAttached();
-                }
-                EnsureBoxCollider(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
-                EnsureNavMeshObstacle(customGapWall, new Vector3(3.2f, 2.0f, 1.4f), new Vector3(0f, 1.0f, 0f));
-            }
-
-            Debug.Log("<color=green>[Prehistoric TD]</color> Khởi tạo thành công Tường Thành Có Cổng khép kín 100%, 2 Chòi Cung Thủ tiền tiêu và Bức tường lắp chỗ trống bên trái (128, 0, -152)!");
+            DeactivateDefaultSceneBarricades();
         }
 
         /// <summary>
@@ -1531,6 +2022,13 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (!isWallCandidate) continue;
 
                 GameObject go = t.gameObject;
+
+                // Chỉ cấu hình cho các tường do người chơi xây đặt trong trận (các bản Clone)
+                // Các tường mặc định của cảnh đã bị xóa/tắt để quái không đi xuyên tường
+                if (!go.name.Contains("(Clone)"))
+                {
+                    continue;
+                }
 
                 // 4. Tính toán bounds chính xác từ Renderer / Collider của go và các con cháu của nó
                 Bounds combinedBounds = new Bounds();
@@ -1689,144 +2187,9 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void EnsureVillageInteriorDefenses()
         {
-            // Bỏ qua va chạm vật lý giữa khủng long và khủng long (Layer 8)
             Physics.IgnoreLayerCollision(8, 8, true);
-
-            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            foreach (Transform t in allTransforms)
-            {
-                if (t == null) continue;
-                string n = t.gameObject.name;
-
-                // 1. CỔNG VÒM VÀ CẦU GỖ TUYẾN 2 (Arch Entry Wall) hoặc Khung vòm cổng chính (Gate_Overhead_Arch)
-                if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch") || n.Contains("Bridge_Tribal"))
-                {
-                    // Bật lại Renderer
-                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
-                    foreach (var r in rends) if (r != null) r.enabled = true;
-
-                    // Tắt MeshCollider dạng Convex đang bịt kín khoảng trống vòm cổng
-                    MeshCollider[] meshCols = t.GetComponentsInChildren<MeshCollider>(true);
-                    foreach (var mc in meshCols)
-                    {
-                        if (mc != null) mc.enabled = false;
-                    }
-
-                    // Tắt carving trên NavMeshObstacle của cầu để đường đi NavMesh luôn thông suốt
-                    UnityEngine.AI.NavMeshObstacle[] obstacles = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
-                    foreach (var obs in obstacles)
-                    {
-                        if (obs != null) obs.carving = false;
-                    }
-
-                    // Thêm 2 BoxCollider ở 2 bên chân cột trụ của vòm cổng (để giữa vòm cổng rộng 5.4m hoàn toàn thông suốt)
-                    Transform leftPillar = t.Find("Collider_Pillar_Left");
-                    if (leftPillar == null)
-                    {
-                        GameObject lp = new GameObject("Collider_Pillar_Left");
-                        lp.layer = 2; // Ignore Raycast để không bị quái chọn làm mục tiêu cắn
-                        lp.transform.SetParent(t, false);
-                        lp.transform.localPosition = new Vector3(-3.8f, 2.2f, 0f);
-                        BoxCollider bcL = lp.AddComponent<BoxCollider>();
-                        bcL.size = new Vector3(2.2f, 4.4f, 3.2f);
-                    }
-                    else
-                    {
-                        leftPillar.gameObject.layer = 2;
-                        if (leftPillar.TryGetComponent(out BoxCollider bcL)) bcL.enabled = true;
-                    }
-
-                    Transform rightPillar = t.Find("Collider_Pillar_Right");
-                    if (rightPillar == null)
-                    {
-                        GameObject rp = new GameObject("Collider_Pillar_Right");
-                        rp.layer = 2; // Ignore Raycast để không bị quái chọn làm mục tiêu cắn
-                        rp.transform.SetParent(t, false);
-                        rp.transform.localPosition = new Vector3(3.8f, 2.2f, 0f);
-                        BoxCollider bcR = rp.AddComponent<BoxCollider>();
-                        bcR.size = new Vector3(2.2f, 4.4f, 3.2f);
-                    }
-                    else
-                    {
-                        rightPillar.gameObject.layer = 2;
-                        if (rightPillar.TryGetComponent(out BoxCollider bcR)) bcR.enabled = true;
-                    }
-
-                    // Mặt sàn phía trên cho Cung Thủ Làng đứng
-                    Transform floorDeck = t.Find("Collider_Walkway_Deck");
-                    if (floorDeck == null)
-                    {
-                        GameObject fd = new GameObject("Collider_Walkway_Deck");
-                        fd.layer = 2; // Ignore Raycast để không bị quái chọn làm mục tiêu cắn
-                        fd.transform.SetParent(t, false);
-                        fd.transform.localPosition = new Vector3(0f, 4.2f, 0f);
-                        BoxCollider bcF = fd.AddComponent<BoxCollider>();
-                        bcF.size = new Vector3(10.0f, 0.4f, 3.2f);
-                    }
-                    else
-                    {
-                        floorDeck.gameObject.layer = 2;
-                        if (floorDeck.TryGetComponent(out BoxCollider bcF)) bcF.enabled = true;
-                    }
-
-                    // Gán Wall component (600 HP - gấp 1.5 lần 400 HP) cho cổng vòm
-                    if (!t.TryGetComponent(out Unit.Wall wArch))
-                    {
-                        wArch = t.gameObject.AddComponent<Unit.Wall>();
-                        wArch.MaxHealth = 600;
-                        wArch.Health = 600;
-                        wArch.Root = t.gameObject;
-                        wArch.EnsureHealthBarAttached();
-                    }
-                    else
-                    {
-                        if (wArch.MaxHealth <= 0 || wArch.MaxHealth == 400) wArch.MaxHealth = 600;
-                        if (wArch.Health <= 0 || wArch.Health == 400) wArch.Health = wArch.MaxHealth;
-                        wArch.Root = t.gameObject;
-                        wArch.EnsureHealthBarAttached();
-                    }
-                }
-                // 2. CHÒI BỘ LẠC TRUNG TÂM (Big Tower with Platform - 900 HP)
-                else if (n.StartsWith("Big Tower with Platform", StringComparison.OrdinalIgnoreCase))
-                {
-                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
-                    foreach (var r in rends) if (r != null) r.enabled = true;
-
-                    // Tắt carving trên NavMeshObstacle
-                    UnityEngine.AI.NavMeshObstacle[] obstacles = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
-                    foreach (var obs in obstacles)
-                    {
-                        if (obs != null) obs.carving = false;
-                    }
-
-                    // Tắt MeshCollider dạng convex nếu có
-                    MeshCollider[] meshCols = t.GetComponentsInChildren<MeshCollider>(true);
-                    foreach (var mc in meshCols)
-                    {
-                        if (mc != null) mc.enabled = false;
-                    }
-
-                    // Đảm bảo có BoxCollider bao quanh thân chòi/sàn tròn
-                    EnsureBoxCollider(t.gameObject, new Vector3(7.5f, 4.5f, 7.5f), new Vector3(0f, 2.25f, 0f));
-
-                    // Gán Wall component (900 HP - gấp 1.5 lần 600 HP) cho chòi
-                    if (!t.TryGetComponent(out Unit.Wall wTower))
-                    {
-                        wTower = t.gameObject.AddComponent<Unit.Wall>();
-                        wTower.MaxHealth = 900;
-                        wTower.Health = 900;
-                        wTower.Root = t.gameObject;
-                        wTower.EnsureHealthBarAttached();
-                    }
-                    else
-                    {
-                        if (wTower.MaxHealth <= 0 || wTower.MaxHealth == 600) wTower.MaxHealth = 900;
-                        if (wTower.Health <= 0 || wTower.Health == 600) wTower.Health = wTower.MaxHealth;
-                        wTower.Root = t.gameObject;
-                        wTower.EnsureHealthBarAttached();
-                    }
-                }
-            }
+            EnsureScenicFortressWalkways();
+            EnsureVillageBridgesDestructible();
         }
 
         private static BoxCollider EnsureBoxCollider(GameObject go, Vector3 size, Vector3 center)
@@ -1885,26 +2248,88 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// - Nếu keepPlayerTowers = false: dọn tháp đã đặt và reset vàng về 500
         /// - Nếu keepPlayerTowers = true: hồi đầy 100% máu cho các tháp phòng thủ hiện có
         /// </summary>
+        /// <summary>
+        /// Dọn sạch thanh máu của tất cả các công trình cảnh quan map (chòi, lều, cọc rào cảnh) trong chế độ Thủ Thành,
+        /// để tránh thanh máu ma xuất hiện lơ lửng trên màn hình (đặc biệt là góc trên bên phải dưới Mini-map).
+        /// </summary>
+        public void CleanAllScenicWallHealthBars()
+        {
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < allWalls.Length; i++)
+            {
+                var w = allWalls[i];
+                if (w == null) continue;
+
+                // Giữ lại công trình do người chơi đặt (có PlayerPlacedTowerMarker hoặc chứa "(Clone)")
+                if (w.GetComponent<PlayerPlacedTowerMarker>() != null || w.gameObject.name.Contains("(Clone)"))
+                {
+                    continue;
+                }
+
+                // Giữ lại Căn Cứ Làng chính
+                if (w is Unit.PrehistoricVillageBase)
+                {
+                    continue;
+                }
+
+                if (Utility.HealthBarCanvas.HasInstance)
+                {
+                    Utility.HealthBarCanvas.Instance.Unregister(w);
+                }
+
+                // Gỡ bỏ component Wall trên các công trình cảnh quan tĩnh trong chế độ Thủ thành
+                Destroy(w);
+            }
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+        }
+
         public void ResetEntireVillage(bool keepPlayerTowers = true)
         {
-            CleanupInvisibleAndStrayObjects();
+            LocateBaseTarget();
+            EnsureSpawnPoints();
+            LoadDinoPrefabsIfNull();
 
-            // 1. Phục hồi 100% tất cả tường thành và rào chắn (kể cả những tường đã bị phá hủy / SetActive(false))
-            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            foreach (var wall in allWalls)
+            CleanupInvisibleAndStrayObjects();
+            DeactivateDefaultSceneBarricades();
+
+            bool isTowerDefense = (PrehistoricGameModeManager.Instance == null || 
+                                   PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.TowerDefense);
+
+            // 1. Phục hồi 100% tất cả tường do người chơi đặt (Clone) nếu giữ lại
+            if (keepPlayerTowers)
             {
-                if (wall != null)
+                var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                foreach (var wall in allWalls)
                 {
-                    wall.FullRestore();
+                    if (wall != null && wall.gameObject.name.Contains("(Clone)"))
+                    {
+                        wall.FullRestore();
+                    }
                 }
             }
 
-            // Đảm bảo cấu hình va chạm và chướng ngại vật
+            // Đảm bảo vô hiệu hóa triệt để tường mặc định của cảnh (để quái không đi xuyên tường)
+            DeactivateDefaultSceneBarricades();
+
+            // Đảm bảo cấu hình va chạm và chướng ngại vật cho tường người chơi đặt
             ConfigureAllCustomBarricades();
-            EnsureVillageInteriorDefenses();
+            EnsureScenicFortressWalkways();
+            EnsureVillageBridgesDestructible();
 
             // Phục hồi và đảm bảo 2 chòi canh trên bờ tường thành (Village_Watchtower_Left & Right)
             EnsureVillageWatchtowers();
+            EnsureScenicBridgeWatchtowers();
+
+            if (isTowerDefense)
+            {
+                // Ở chế độ Thủ Thành: Xóa sạch hàng rào cọc gỗ trước làng và gỡ bỏ thanh máu của công trình cảnh quan
+                RemoveAllVillageFrontBarricades();
+                CleanAllScenicWallHealthBars();
+            }
 
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
@@ -1956,16 +2381,31 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 6. Làm mới và hồi sinh toàn bộ NPC Dân Làng / Chiến binh bảo vệ (Defenders) theo màn hiện tại
+            // 6. Xử lý NPC Chiến binh phòng thủ làng:
             var enemyAI = LlamAcademy.Dinos.Enemy.EnemyAIController.Instance != null 
                 ? LlamAcademy.Dinos.Enemy.EnemyAIController.Instance 
                 : FindFirstObjectByType<LlamAcademy.Dinos.Enemy.EnemyAIController>();
-            if (enemyAI != null)
+
+            if (isTowerDefense)
             {
-                enemyAI.enabled = true;
-                int defenderCount = GetTargetDefendersForWave(_CurrentWave);
-                // Luôn luôn reset chính xác 100% số lượng NPC theo quy định của màn
-                enemyAI.ResetDefendersToExactCount(defenderCount);
+                // Ở chế độ Thủ Thành: DỌN SẠCH TOÀN BỘ NPC CHIẾN BINH TỰ DO!
+                // Tuyệt đối không sinh lính tự động dồn cục trên cầu gỗ!
+                // Người chơi tự mua lính phòng thủ (Tribal Warrior 45g) từ Toolbar nếu muốn!
+                if (enemyAI != null)
+                {
+                    enemyAI.ClearAllDefenders(includePlayerPlaced: keepPlayerTowers);
+                }
+            }
+            else
+            {
+                // Ở chế độ Công Thành (Dino Assault): Làng AI sinh số lượng lính phòng thủ theo cấp độ màn
+                if (enemyAI != null)
+                {
+                    enemyAI.enabled = true;
+                    int assaultLvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : _CurrentWave;
+                    int defenderCount = GetTargetDefendersForWave(assaultLvl);
+                    enemyAI.ResetDefendersToExactCount(defenderCount);
+                }
             }
 
             // 7. Dọn sạch các thanh máu rác/mồ côi nếu có trên màn hình
@@ -1974,7 +2414,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
 
-            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% ngôi làng cho Màn {_CurrentWave}: Tường thành, 2 Chòi Canh Làng, Căn cứ ({_CurrentBaseHealth} HP), NPC chiến binh, và bộ nhớ AI!");
+            Debug.Log($"<color=green>[Prehistoric TD]</color> Đã thiết lập lại (Reset) 100% ngôi làng cho Màn {_CurrentWave}: Mode={(isTowerDefense ? "Thủ Thành" : "Công Thành")}, Căn cứ ({_CurrentBaseHealth} HP)!");
         }
 
         public void FullResetGame()
@@ -2000,9 +2440,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.ResetRoundToStart();
+                RoundManager.Instance.State = GameState.Setup;
             }
 
-            // 5. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, 4 NPC)
+            // 5. Chơi lại từ đầu: Reset toàn bộ và chơi từ màn 1 (xóa vật thể người chơi đặt, 500 vàng, không lính rác)
             ResetEntireVillage(keepPlayerTowers: false);
 
             // 6. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
@@ -2010,6 +2451,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
             ResetPlayerAndCameraPosition();
+            if (CameraControl.Instance != null)
+            {
+                CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
+                CameraControl.Instance.ResetToCenter();
+            }
 
             ShowAnnouncement("⚔ CHƠI LẠI TỪ ĐẦU (MÀN 1)! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN! ⚔", 4.0f);
         }
@@ -2032,15 +2478,23 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (RoundManager.Instance != null)
             {
                 RoundManager.Instance.SetCurrentRound(_CurrentWave);
+                RoundManager.Instance.State = GameState.Setup;
             }
 
-            // Chơi lại màn X: Reset theo màn (tất cả mọi thứ NPC, vật thể, xóa bỏ tất cả các vật thể người chơi đã đặt)
+            // Chơi lại màn X: Reset hoàn toàn theo màn (xóa quái, xóa tháp cũ, xóa lính rác, reset vàng chuẩn cho màn X)
             ResetEntireVillage(keepPlayerTowers: false);
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
 
             ResetPlayerAndCameraPosition();
-            ShowAnnouncement($"🔄 CHƠI LẠI MÀN {_CurrentWave}! PHÒNG TUYẾN ĐÃ ĐƯỢC RESET! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
+            if (CameraControl.Instance != null)
+            {
+                CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
+                CameraControl.Instance.ResetToCenter();
+            }
+
+            int waveGold = StartingGold + (_CurrentWave - 1) * 200;
+            ShowAnnouncement($"🔄 ĐÃ RESET HOÀN TOÀN MÀN {_CurrentWave}! BẠN CÓ {waveGold}g ĐỂ DÀN TRẬN MỚI! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
         }
 
         public void RestartGame()
@@ -2054,6 +2508,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
             }
+
+            LocateBaseTarget();
+            EnsureSpawnPoints();
+            LoadDinoPrefabsIfNull();
 
             FullResetGame();
 
@@ -2080,6 +2538,10 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 PrehistoricGameModeManager.Instance.SetGameMode(PrehistoricGameMode.TowerDefense);
             }
+
+            LocateBaseTarget();
+            EnsureSpawnPoints();
+            LoadDinoPrefabsIfNull();
 
             Time.timeScale = 1.0f;
             if (WaveSpawnRoutine != null)
@@ -2453,20 +2915,22 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawWaveActionControl()
         {
+            // Bố trí thanh điều khiển góc phải thông minh (Dưới Minimap Radar, hoàn toàn không bị chồng lấn)
+            float dockWidth = 165f;
+            float x = Mobile.MobileUIHelper.ScreenWidth - dockWidth - 16f;
+            float currentY = 208f;
+
+            // 1. Nút Hành Động Chính: Bắt đầu đợt / Trạng thái chiến đấu
             if (_CurrentPhase == PrehistoricWavePhase.BuildingPhase)
             {
-                float btnWidth = 260f;
-                float btnHeight = 60f;
-                float x = Mobile.MobileUIHelper.ScreenWidth - btnWidth - 25f;
-                float y = 25f;
-
-                Rect waveRect = new Rect(x, y, btnWidth, btnHeight);
+                float btnHeight = 46f;
+                Rect waveRect = new Rect(x, currentY, dockWidth, btnHeight);
                 Mobile.MobileUIHelper.RegisterUIRect(waveRect);
 
-                GUI.backgroundColor = new Color(0.1f, 0.8f, 0.2f, 1f);
+                GUI.backgroundColor = new Color(0.12f, 0.85f, 0.35f, 1f);
                 string btnLabel = Mobile.MobileUIHelper.IsMobile 
-                    ? $"<b><size=16>▶ BẮT ĐẦU ĐỢT {_CurrentWave}\n(CHẠM ĐỂ XUẤT TRẬN)</size></b>"
-                    : $"<b><size=16>▶ BẮT ĐẦU ĐỢT {_CurrentWave}\n(PHÍM SPACE / BẤM VÀO ĐÂY)</size></b>";
+                    ? $"<b><size=14>▶ BẮT ĐẦU ĐỢT {_CurrentWave}\n(CHẠM XUẤT TRẬN)</size></b>"
+                    : $"<b><size=14>▶ BẮT ĐẦU ĐỢT {_CurrentWave}\n(PHÍM SPACE / BẤM)</size></b>";
 
                 if (GUI.Button(waveRect, btnLabel))
                 {
@@ -2474,37 +2938,64 @@ namespace LlamAcademy.Dinos.RoundManagement
                     Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
                 }
                 GUI.backgroundColor = Color.white;
+                currentY += btnHeight + 6f;
             }
             else if (_CurrentPhase == PrehistoricWavePhase.CombatPhase)
             {
-                float boxWidth = 240f;
-                float boxHeight = 50f;
-                float x = Mobile.MobileUIHelper.ScreenWidth - boxWidth - 25f;
-                float y = 25f;
-
-                Rect combatRect = new Rect(x, y, boxWidth, boxHeight);
+                float boxHeight = 40f;
+                Rect combatRect = new Rect(x, currentY, dockWidth, boxHeight);
                 Mobile.MobileUIHelper.RegisterUIRect(combatRect);
 
-                GUI.backgroundColor = new Color(0.8f, 0.2f, 0.1f, 0.9f);
-                GUI.Box(combatRect, $"<b><size=15><color=white>⚔ ĐANG CHIẾN ĐẤU ⚔\nQuái còn lại: {MonstersAliveCount}</color></size></b>");
+                GUI.backgroundColor = new Color(0.85f, 0.22f, 0.15f, 0.92f);
+                GUI.Box(combatRect, $"<b><size=13><color=white>⚔ ĐANG CHIẾN ĐẤU ⚔\nQuái còn: {MonstersAliveCount}</color></size></b>");
                 GUI.backgroundColor = Color.white;
+                currentY += boxHeight + 6f;
             }
 
-            // Nút chuyển đổi Toàn Màn Hình nhanh [F11] cho PC
+            // 2. Nút Bật/Tắt AI Director (Explainable AI Monitor)
+            float btnH = 28f;
+            Rect aiRect = new Rect(x, currentY, dockWidth, btnH);
+            Mobile.MobileUIHelper.RegisterUIRect(aiRect);
+
+            bool isAiOpen = UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen;
+            GUI.backgroundColor = isAiOpen ? new Color(0.2f, 0.9f, 0.6f, 0.95f) : new Color(0.12f, 0.28f, 0.36f, 0.88f);
+
+            string aiLabel = isAiOpen ? "<b>🧠 AI Monitor: [BẬT]</b>" : "<b>🧠 AI Director [F1]</b>";
+            if (GUI.Button(aiRect, aiLabel))
+            {
+                UI.PrehistoricNeuralMonitorUI.Instance?.ToggleWindow();
+            }
+            currentY += btnH + 6f;
+
+            // 3. Nút Chuyển Đổi Chế Độ AR Tabletop
+            Rect arRect = new Rect(x, currentY, dockWidth, btnH);
+            Mobile.MobileUIHelper.RegisterUIRect(arRect);
+
+            bool isArActive = AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
+            GUI.backgroundColor = isArActive ? new Color(0.9f, 0.4f, 0.2f, 0.95f) : new Color(0.15f, 0.35f, 0.75f, 0.88f);
+
+            string arLabel = isArActive ? "<b>🔙 THOÁT AR (3D)</b>" : "<b>📱 CHẾ ĐỘ AR</b>";
+            if (GUI.Button(arRect, arLabel))
+            {
+                AR.ARTabletopController.Instance?.ToggleARMode();
+            }
+            currentY += btnH + 6f;
+
+            // 4. Nút Toàn Màn Hình [F11] (Chỉ hiển thị trên PC, tự động ẩn trên Mobile)
             if (!Mobile.MobileUIHelper.IsMobile)
             {
-                float fsBtnW = 160f;
-                float fsBtnH = 32f;
-                float fsX = Mobile.MobileUIHelper.ScreenWidth - fsBtnW - 25f;
-                float fsY = (_CurrentPhase == PrehistoricWavePhase.BuildingPhase) ? 92f : 82f;
-                GUI.backgroundColor = Screen.fullScreen ? new Color(0.2f, 0.7f, 0.9f, 0.85f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+                Rect fsRect = new Rect(x, currentY, dockWidth, btnH);
+                Mobile.MobileUIHelper.RegisterUIRect(fsRect);
+
+                GUI.backgroundColor = Screen.fullScreen ? new Color(0.2f, 0.7f, 0.9f, 0.85f) : new Color(0.22f, 0.24f, 0.28f, 0.88f);
                 string fsLabel = Screen.fullScreen ? "<b>⛶ CỬA SỔ [F11]</b>" : "<b>⛶ FULLSCREEN [F11]</b>";
-                if (GUI.Button(new Rect(fsX, fsY, fsBtnW, fsBtnH), fsLabel))
+                if (GUI.Button(fsRect, fsLabel))
                 {
                     ToggleFullscreen();
                 }
-                GUI.backgroundColor = Color.white;
             }
+
+            GUI.backgroundColor = Color.white;
         }
 
         private void DrawScreenAnnouncement()
@@ -2576,7 +3067,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.Label("<b><size=22><color=#FF4444>☠ THẤT THỦ! LÀNG TIỀN SỬ ĐÃ BỊ PHÁ HỦY ☠</color></size></b>", GUILayout.ExpandWidth(true));
             GUILayout.Space(8);
             GUILayout.Label($"<size=16>Bầy khủng long hung hãn đã tràn qua tuyến phòng thủ ở <b>Đợt {_CurrentWave} / {_MaxWaves}</b>!</size>");
-            GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ làng (Tường, Căn cứ, NPC) sẵn sàng phục hồi lại toàn bộ 100%.</color></size>");
+            GUILayout.Label("<size=14><color=#E0E0E0>Hệ thống phòng thủ làng (Căn cứ, Tháp) sẵn sàng thiết lập lại toàn bộ cho màn mới.</color></size>");
             GUILayout.Space(18);
 
             // 4 nút lựa chọn rõ ràng: Thử lại đợt này / Lưu game chọn khe / Chơi từ Wave 1 / Về Menu
@@ -2652,9 +3143,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label($"<size=14><b><color=#55FF55>📊 THÔNG SỐ ĐỘ KHÓ ĐỢT TIẾP THEO (ĐỢT {nextWave} / {_MaxWaves}):</color></b></size>");
             GUILayout.Label($"• <b>Bầy khủng long tấn công</b>: {nextMonsters} con (Độ hung hãn và tốc độ gia tăng)\n" +
-                            $"• <b>Chiến binh phòng thủ Làng (NPC)</b>: {nextDefenders} quân phòng thủ tiếp viện\n" +
-                            $"• <b>Phòng tuyến Làng</b>: Tự động phục hồi toàn bộ tường gỗ, cổng thành và căn cứ 100% HP\n" +
-                            $"• <b>Chiến lược</b>: Sử dụng vàng vừa nhận để đặt thêm tháp, sẵn sàng cho đợt công kích mới!");
+                            $"• <b>Phòng tuyến Làng</b>: Căn cứ phục hồi 100% HP\n" +
+                            $"• <b>Chiến lược</b>: Sử dụng vàng vừa nhận để xây thêm tháp, đặt bẫy và chiêu mộ chiến binh!");
             GUILayout.EndVertical();
 
             GUILayout.Space(14);
@@ -2725,8 +3215,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label("<size=16><b>🎉 Chúc mừng bạn đã phá đảo Màn 10 và hoàn thành xuất sắc trò chơi!</b></size>");
             GUILayout.Space(4);
-            GUILayout.Label("<size=14><color=#00FFAA><b>✨ Bạn đã hoàn thành trò chơi và chúng tôi sẽ tiếp tục phát triển phần chơi mới!</b></color></size>");
-            GUILayout.Label("<size=12><color=#E0FFE8>Cảm ơn bạn đã đồng hành và chỉ huy bảo vệ bộ lạc tiền sử vượt qua 10 đợt tiến công khốc liệt của bầy khủng long bạo chúa.</color></size>");
+            if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.AncientValley)
+            {
+                GUILayout.Label("<size=14><color=#FF9900><b>🔥 ĐÃ MỞ KHÓA BẢN ĐỒ MỚI: NÚI DUNG NHAM (VOLCANIC GORGE)!</b></color></size>");
+                GUILayout.Label("<size=12><color=#FFE0B2>Khủng long tại Núi Dung Nham đã biến dị thành quái vật dung nham rực lửa (Magma Explosion, Obsidian Armor, Shockwave)!</color></size>");
+            }
+            else
+            {
+                GUILayout.Label("<size=14><color=#00FFAA><b>✨ Bạn đã hoàn thành trò chơi và chiến thắng tại vùng đất hiểm trở!</b></color></size>");
+                GUILayout.Label("<size=12><color=#E0FFE8>Cảm ơn bạn đã đồng hành và chỉ huy bảo vệ bộ lạc tiền sử vượt qua các đợt tiến công khốc liệt.</color></size>");
+            }
             GUILayout.Space(4);
             GUILayout.Label($"<size=13>Ngôi làng tiền sử được bảo vệ kiên cố với <b>{_CurrentBaseHealth} / {_MaxBaseHealth} HP</b> còn lại!</size>");
             GUILayout.EndVertical();
@@ -2758,11 +3256,26 @@ namespace LlamAcademy.Dinos.RoundManagement
                 ReturnToMainMenu();
             }
 
-            GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
-            if (GUILayout.Button("<b><size=14>🚪 THOÁT\nGAME</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
+            if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.AncientValley)
             {
-                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
-                QuitGame();
+                GUI.backgroundColor = new Color(0.95f, 0.40f, 0.12f, 1f);
+                if (GUILayout.Button("<b><size=14>🌋 NÚI DUNG NHAM\n(BẢN ĐỒ MỚI)</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
+                {
+                    Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    Environment.PrehistoricMapManager.LoadMap(Environment.PrehistoricMapType.VolcanicGorge, () =>
+                    {
+                        FullResetGame();
+                    });
+                }
+            }
+            else
+            {
+                GUI.backgroundColor = new Color(0.85f, 0.25f, 0.25f, 1f);
+                if (GUILayout.Button("<b><size=14>🚪 THOÁT\nGAME</size></b>", GUILayout.Height(62), GUILayout.Width(btnW)))
+                {
+                    Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    QuitGame();
+                }
             }
 
             GUI.backgroundColor = Color.white;

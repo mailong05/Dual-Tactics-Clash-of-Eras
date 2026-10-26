@@ -37,6 +37,7 @@ namespace LlamAcademy.Dinos.UI
             if (NameLabel != null)
             {
                 NameLabel.text = unitName;
+                NameLabel.gameObject.SetActive(!string.IsNullOrEmpty(unitName));
                 if (customColor.HasValue)
                 {
                     NameLabel.color = customColor.Value;

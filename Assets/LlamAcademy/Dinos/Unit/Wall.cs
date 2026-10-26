@@ -99,6 +99,12 @@ namespace LlamAcademy.Dinos.Unit
                 if (c != null) c.enabled = true;
             }
 
+            Renderer[] rends = GetComponentsInChildren<Renderer>(true);
+            foreach (var r in rends)
+            {
+                if (r != null) r.enabled = true;
+            }
+
             NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>(true);
             foreach (var obs in obstacles)
             {
@@ -176,12 +182,18 @@ namespace LlamAcademy.Dinos.Unit
             // 0. Xử lý các chiến binh NPC đang đứng trên công trình này sụp đổ và hy sinh
             EliminateDefendersOnCollapsingStructure();
 
-            // 1. Lập tức vô hiệu hóa Collider và NavMeshObstacle ngay trong frame này
+            // 1. Lập tức vô hiệu hóa Collider, NavMeshObstacle và Renderer ngay trong frame này
             // để Unity NavMesh lập tức un-carve giải phóng lối đi và vật lý không chặn quái
-            Collider[] cols = GetComponentsInChildren<Collider>();
+            Collider[] cols = GetComponentsInChildren<Collider>(true);
             foreach (var c in cols) if (c != null) c.enabled = false;
-            NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>();
+            NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>(true);
             foreach (var obs in obstacles) if (obs != null) obs.enabled = false;
+            Renderer[] rends = GetComponentsInChildren<Renderer>(true);
+            foreach (var r in rends) if (r != null) r.enabled = false;
+
+            // 1b. Nếu công trình bị phá hủy là cầu gỗ/dốc/cổng, lập tức làm biến mất toàn bộ mặt sàn cầu
+            // (Smooth Floor, Walkway_Deck, ván gỗ plank) xung quanh để không để lại sàn ma trôi nổi
+            DeactivateAssociatedBridgeFloors();
 
             // 2. Tự động sụp đổ đoạn tường liền kề để tạo khoảng trống đột phá rộng 5m thênh thang
             WidenBreachOpening(transform.position, 2.8f);
@@ -225,7 +237,44 @@ namespace LlamAcademy.Dinos.Unit
             }
         }
 
-                private void EliminateDefendersOnCollapsingStructure()
+                
+        /// <summary>
+        /// Tự động dò tìm và vô hiệu hóa toàn bộ mặt sàn gỗ (Smooth Floor, Walkway_Deck, ván gỗ)
+        /// liên kết với cầu/dốc khi cầu bị khủng long phá hủy, xóa bỏ hoàn toàn hiện tượng sàn ma trôi nổi.
+        /// </summary>
+        private void DeactivateAssociatedBridgeFloors()
+        {
+            string n = gameObject.name.ToLower();
+            bool isBridge = n.Contains("bridge") || n.Contains("arch") || n.Contains("ramp") || n.Contains("gate");
+            if (!isBridge) return;
+
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (var t in allTransforms)
+            {
+                if (t == null || t == transform || (Root != null && t == Root.transform)) continue;
+                string tn = t.gameObject.name;
+                bool isFloor = tn.Contains("Smooth Floor") || 
+                               tn.Contains("Walkway_Deck") || 
+                               tn.Contains("Collider_Walkway_Deck") || 
+                               tn.Contains("FloorDeck") ||
+                               tn.Contains("Plank_Defenses");
+
+                if (isFloor)
+                {
+                    float dist = Vector3.Distance(new Vector3(t.position.x, 0, t.position.z), new Vector3(transform.position.x, 0, transform.position.z));
+                    if (dist < 35f)
+                    {
+                        Renderer[] rList = t.GetComponentsInChildren<Renderer>(true);
+                        foreach (var r in rList) if (r != null) r.enabled = false;
+                        Collider[] cList = t.GetComponentsInChildren<Collider>(true);
+                        foreach (var c in cList) if (c != null) c.enabled = false;
+                        t.gameObject.SetActive(false);
+                    }
+                }
+            }
+        }
+
+private void EliminateDefendersOnCollapsingStructure()
         {
             Bounds b = new Bounds(transform.position, Vector3.one * 2f);
             Collider mainCol = GetComponent<Collider>();

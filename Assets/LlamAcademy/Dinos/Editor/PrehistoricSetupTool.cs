@@ -752,7 +752,7 @@ namespace LlamAcademy.Dinos.Editor
                     EnsureBoxCollider(go, new Vector3(2.2f, 2.0f, 2.5f), new Vector3(0, 1.0f, 0));
                 });
 
-            // 3. Máy Bắn Đá Lửa (Catapult - Max Extent 3.2m, Upright -90 deg X)
+            // 3. Máy Bắn Đá Lửa (Catapult - Max Extent 3.2m, Upright on 4 wheels Vector3.zero)
             createdPrefabs["Catapult"] = CreateOrUpdatePrefab(
                 "Assets/free__catapult.glb",
                 $"{PREFAB_DIR}/Prefab_Catapult.prefab",
@@ -769,9 +769,10 @@ namespace LlamAcademy.Dinos.Editor
                     if (lavaBoulder != null) so.FindProperty("BoulderPrefab").objectReferenceValue = lavaBoulder;
                     if (explosionVFX != null) so.FindProperty("ImpactExplosionVFX").objectReferenceValue = explosionVFX.GetComponent<ParticleSystem>();
                     so.ApplyModifiedPropertiesWithoutUndo();
-                });
+                },
+                customRotation: new Vector3(0f, 180f, 0f));
 
-            // 4. Cột Vật Tổ Sét (Shaman Totem - Height 4.2m, Upright -90 deg X)
+            // 4. Cột Vật Tổ Sét (Shaman Totem - Height 4.2m, Upright Tauren Pillar Vector3.zero)
             createdPrefabs["ShamanTotem"] = CreateOrUpdatePrefab(
                 "Assets/highmountain_tauren_shaman_totem.glb",
                 $"{PREFAB_DIR}/Prefab_ShamanTotem.prefab",
@@ -790,7 +791,8 @@ namespace LlamAcademy.Dinos.Editor
                         fp = fpGO.transform;
                     }
                     fp.localPosition = new Vector3(0, 3.9f, 0);
-                });
+                },
+                customRotation: Vector3.zero);
 
             // 5. Vũng Hắc Ín (Tar Pit Trap - Procedural)
             createdPrefabs["TarPit"] = CreateOrUpdateTarPitPrefab($"{PREFAB_DIR}/Prefab_TarPit.prefab");
@@ -808,11 +810,11 @@ namespace LlamAcademy.Dinos.Editor
                     if (!go.TryGetComponent(out GroundTrap _)) go.AddComponent<GroundTrap>();
                 });
 
-            // 7. Rào Cọc Gỗ Cản Đường (Barricade - Width across road 3.0m along X, Upright -90 deg X, 0 deg Y)
+            // 7. Rào Cọc Gỗ Cản Đường (Barricade - Reinforced Width 6.0m along X, Upright -90 deg X, 0 deg Y)
             createdPrefabs["Barricade"] = CreateOrUpdatePrefab(
                 "Assets/wooden__barricade_low.glb",
                 $"{PREFAB_DIR}/Prefab_Barricade.prefab",
-                3.0f,
+                6.0f,
                 DimensionMode.HorizontalWidth,
                 go =>
                 {
@@ -822,9 +824,9 @@ namespace LlamAcademy.Dinos.Editor
                         obs = go.AddComponent<NavMeshObstacle>();
                     }
                     obs.carving = true;
-                    obs.size = new Vector3(3.0f, 1.4f, 0.8f);
-                    obs.center = new Vector3(0, 0.7f, 0);
-                    EnsureBoxCollider(go, new Vector3(3.0f, 1.4f, 0.8f), new Vector3(0, 0.7f, 0));
+                    obs.size = new Vector3(6.0f, 2.0f, 1.0f);
+                    obs.center = new Vector3(0, 1.0f, 0);
+                    EnsureBoxCollider(go, new Vector3(6.0f, 2.0f, 1.0f), new Vector3(0, 1.0f, 0));
 
                     Material woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Prehistoric_Wood.mat");
                     if (woodMat != null)
@@ -853,19 +855,34 @@ namespace LlamAcademy.Dinos.Editor
                 },
                 GetDinoRotation("Assets/pterodactyl_1.glb"));
 
-            // 9. Khủng Long Chạy Nhanh Velociraptor (Pack Runner: Length 1.6m, Height ~0.85m, nimble swarm)
+            // 9. Khủng Long Chạy Nhanh Velociraptor (Pack Runner: Length 1.6m, Height ~1.6m, nimble swarm)
             createdPrefabs["Velociraptor"] = CreateOrUpdatePrefab(
-                "Assets/velociraptor.glb",
+                "Assets/PBRVelociraptor/Prefabs/PBR/15K/PBR_Velociraptor_Green.prefab",
                 $"{PREFAB_DIR}/Prefab_Velociraptor.prefab",
                 1.6f,
                 DimensionMode.MaxExtent,
                 go =>
                 {
-                    if (!go.TryGetComponent(out RunnerDino _)) go.AddComponent<RunnerDino>();
-                    EnsureCapsuleCollider(go, 0.4f, 1.0f);
-                    EnsureNavMeshAgent(go, 5.5f, 0.4f, 1.0f);
+                    if (!go.TryGetComponent(out RunnerDino runner)) runner = go.AddComponent<RunnerDino>();
+                    EnsureCapsuleCollider(go, 0.45f, 1.6f);
+                    EnsureNavMeshAgent(go, 5.5f, 0.45f, 1.6f);
+
+                    Animator anim = go.GetComponentInChildren<Animator>(true);
+                    if (anim != null)
+                    {
+                        anim.applyRootMotion = false;
+                        anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                        var ctrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Resources/Animations/Velociraptor_Controller.controller");
+                        if (ctrl != null) anim.runtimeAnimatorController = ctrl;
+
+                        var so = new SerializedObject(runner);
+                        so.FindProperty("ModelAnimator").objectReferenceValue = anim;
+                        Transform visual = go.transform.Find("Model");
+                        if (visual != null) so.FindProperty("VisualModel").objectReferenceValue = visual;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                    }
                 },
-                GetDinoRotation("Assets/velociraptor.glb"));
+                Vector3.zero);
 
             // 10. Khủng Long Công Thành Ankylosaurus (Siege Tank: Length 5.0m, Width ~2.1m, Height ~2.0m)
             createdPrefabs["Ankylosaurus"] = CreateOrUpdatePrefab(
@@ -883,17 +900,41 @@ namespace LlamAcademy.Dinos.Editor
 
             // 11. Boss T-Rex Khổng Lồ (Apex Boss: Towering Height 5.5m, Length ~11.5m, Width ~3.1m)
             createdPrefabs["TRexBoss"] = CreateOrUpdatePrefab(
-                "Assets/animated_t-rex_dinosaur_biting_attack_loop.glb",
+                "Assets/Animations/Dino/T-rex/T-Rex.fbx",
                 $"{PREFAB_DIR}/Prefab_TRexBoss.prefab",
                 5.5f,
                 DimensionMode.Height,
                 go =>
                 {
-                    if (!go.TryGetComponent(out BossDino _)) go.AddComponent<BossDino>();
+                    if (!go.TryGetComponent(out BossDino boss)) boss = go.AddComponent<BossDino>();
                     EnsureCapsuleCollider(go, 1.8f, 5.5f);
                     EnsureNavMeshAgent(go, 2.4f, 1.8f, 5.5f);
+
+                    Material trexMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Animations/Dino/T-rex/M_TRex.mat");
+                    if (trexMat != null)
+                    {
+                        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                        {
+                            r.sharedMaterial = trexMat;
+                        }
+                    }
+
+                    Animator anim = go.GetComponentInChildren<Animator>(true);
+                    if (anim != null)
+                    {
+                        anim.applyRootMotion = false;
+                        anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                        var ctrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Resources/Animations/TRex_Controller.controller");
+                        if (ctrl != null) anim.runtimeAnimatorController = ctrl;
+
+                        var so = new SerializedObject(boss);
+                        so.FindProperty("ModelAnimator").objectReferenceValue = anim;
+                        Transform visual = go.transform.Find("Model");
+                        if (visual != null) so.FindProperty("VisualModel").objectReferenceValue = visual;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                    }
                 },
-                GetDinoRotation("Assets/animated_t-rex_dinosaur_biting_attack_loop.glb"));
+                Vector3.zero);
 
             return createdPrefabs;
         }
@@ -1025,6 +1066,19 @@ namespace LlamAcademy.Dinos.Editor
 
             GameObject savedPrefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             DestroyImmediate(root);
+
+            try
+            {
+                string resDir = "Assets/Resources/Prefabs/Prehistoric";
+                if (!Directory.Exists(resDir)) Directory.CreateDirectory(resDir);
+                string resPrefabPath = Path.Combine(resDir, Path.GetFileName(prefabPath));
+                File.Copy(prefabPath, resPrefabPath, true);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[Prehistoric TD] Could not sync prefab to Resources: {ex.Message}");
+            }
+
             return savedPrefab;
         }
 
@@ -1273,7 +1327,7 @@ namespace LlamAcademy.Dinos.Editor
             list.Add(GetOrCreateTowerSO("Tower_ShamanTotem", "Cột Vật Tổ Sét", 120, UnityEngine.InputSystem.Key.Digit4, prefabs["ShamanTotem"], false, 1.4f, 975));
             list.Add(GetOrCreateTowerSO("Tower_TarPit", "Vũng Hắc Ín (Chậm 50%)", 50, UnityEngine.InputSystem.Key.Digit5, prefabs["TarPit"], false, 1.8f, 600));
             list.Add(GetOrCreateTowerSO("Tower_SpikeTrap", "Hố Chông Gai Gỗ", 30, UnityEngine.InputSystem.Key.Digit6, prefabs["SpikeTrap"], false, 1.2f, 525));
-            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 20, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 500));
+            list.Add(GetOrCreateTowerSO("Tower_Barricade", "Rào Cọc Gỗ Cản Đường", 5, UnityEngine.InputSystem.Key.Digit7, prefabs["Barricade"], true, 1.6f, 500));
 
             return list;
         }

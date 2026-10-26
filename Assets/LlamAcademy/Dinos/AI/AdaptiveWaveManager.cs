@@ -245,10 +245,7 @@ namespace LlamAcademy.Dinos.AI
                 if (unit is Wall)
                 {
                     // Chỉ tính các tường / rào cọc phụ do người chơi đặt thêm (không tính các đoạn rào gốc của làng)
-                    if (!uName.Contains("Left_Wall_Segment") && !uName.Contains("Right_Wall_Segment") && 
-                        !uName.Contains("Right_Flank") && !uName.Contains("Village_Fortress") && 
-                        !uName.Contains("Gate_Portcullis") && !uName.Contains("Arch Entry") && 
-                        !uName.Contains("Big Tower") && !uName.Contains("Village_Left_Gap_Wall"))
+                    if (uName.Contains("(Clone)"))
                     {
                         audit.WallCount++;
                     }
@@ -330,101 +327,69 @@ namespace LlamAcademy.Dinos.AI
         public List<GameObject> GenerateAdaptiveWave(int waveIndex, GameObject raptorPrefab, GameObject pteroPrefab, GameObject ankylPrefab, GameObject bossPrefab, out string tacticalRationale)
         {
             List<GameObject> queue = new();
-            DefenseAudit audit = AuditPlayerDefenses();
 
-            // Cơ số quái vật cơ bản theo màn được giảm xuống để cân bằng hoàn hảo
-            int raptorCount;
-            int pteroCount = 0;
-            int ankylCount = 0;
+            // 1. Thực hiện suy luận Mạng Nơ-ron Đa Nhiệm On-Device (PrehistoricTacticsNet)
+            PrehistoricNeuralDirector.NeuralPredictionResult pred = PrehistoricNeuralDirector.Instance.Predict(waveIndex);
+            tacticalRationale = pred.TacticalRationale;
 
-            switch (waveIndex)
-            {
-                case 1:
-                    raptorCount = 13; // +3 con
-                    break;
-                case 2:
-                    raptorCount = 12;
-                    pteroCount = 5; // Tổng: 17 con (+3)
-                    break;
-                case 3:
-                    raptorCount = 13;
-                    pteroCount = 6;
-                    ankylCount = 4; // Tổng: 23 con (+3)
-                    break;
-                case 4:
-                    raptorCount = 15;
-                    pteroCount = 7;
-                    ankylCount = 5; // Tổng: 27 con (+3)
-                    break;
-                case 5:
-                    raptorCount = 17;
-                    pteroCount = 8;
-                    ankylCount = 6; // Tổng: 31 con (+3)
-                    break;
-                case 6:
-                    raptorCount = 19;
-                    pteroCount = 9;
-                    ankylCount = 7; // Tổng: 35 con (+3)
-                    break;
-                case 7:
-                    raptorCount = 21;
-                    pteroCount = 10;
-                    ankylCount = 8; // Tổng: 39 con (+3)
-                    break;
-                case 8:
-                    raptorCount = 22;
-                    pteroCount = 11;
-                    ankylCount = 9; // Tổng: 42 + 1 T-Rex = 43 con
-                    break;
-                case 9:
-                    raptorCount = 24;
-                    pteroCount = 12;
-                    ankylCount = 10; // Tổng: 46 + 1 T-Rex = 47 con
-                    break;
-                case 10:
-                default:
-                    raptorCount = 20;
-                    pteroCount = 10;
-                    ankylCount = 5; // Tổng: 35 + 2 T-Rex = 37 con
-                    break;
-            }
-
+            // 2. Tính toán quy mô đợt theo hệ số thích ứng độ khó DDA
+            int totalMonsters = pred.RecommendedWaveSize;
             int bossSpawnCount = (waveIndex == 8 || waveIndex == 9) ? 1 : (waveIndex >= 10 ? 2 : 0);
 
-            string rationale = "";
+            // 3. Phân bổ số lượng từng loài theo phân phối xác suất Softmax
+            float runnerProb = pred.ArchetypeDistribution != null && pred.ArchetypeDistribution.Length > 0 ? pred.ArchetypeDistribution[0] : 0.45f;
+            float flyerProb = pred.ArchetypeDistribution != null && pred.ArchetypeDistribution.Length > 1 ? pred.ArchetypeDistribution[1] : 0.25f;
+            float tankProb = pred.ArchetypeDistribution != null && pred.ArchetypeDistribution.Length > 2 ? pred.ArchetypeDistribution[2] : 0.30f;
 
-            // 1. Nếu người chơi xây thêm nhiều rào chắn mới ngoài rào có sẵn của làng (WallCount > 2)
-            if (audit.WallCount > 2 && waveIndex >= 3)
+            int normalCount = Mathf.Max(6, totalMonsters - bossSpawnCount);
+            int raptorCount;
+            int pteroCount;
+            int ankylCount;
+
+            if (pred.WallCount == 0)
             {
-                int bonusSiege = Mathf.Clamp(audit.WallCount / 3, 1, 2);
-                int bonusFlyers = Mathf.Clamp(audit.WallCount / 4, 1, 2);
-                ankylCount += bonusSiege;
-                pteroCount += bonusFlyers;
-                rationale += $"[Phát hiện xây thêm {audit.WallCount} rào chắn -> AI Director điều động thêm +{bonusSiege} Khủng Long Phá Tường & +{bonusFlyers} Quái Bay] ";
+                // CĂN CỨ MỞ (0 TƯỜNG):
+                // Màn 1: 100% bầy Velociraptor chạy thẳng
+                if (waveIndex == 1)
+                {
+                    raptorCount = normalCount;
+                    pteroCount = 0;
+                    ankylCount = 0;
+                }
+                else if (waveIndex == 2)
+                {
+                    pteroCount = Mathf.RoundToInt(normalCount * Mathf.Min(flyerProb, 0.25f));
+                    ankylCount = 0;
+                    raptorCount = normalCount - pteroCount;
+                }
+                else
+                {
+                    float sum = runnerProb + flyerProb + tankProb;
+                    if (sum > 0f) { runnerProb /= sum; flyerProb /= sum; tankProb /= sum; }
+                    pteroCount = Mathf.RoundToInt(normalCount * flyerProb);
+                    ankylCount = Mathf.RoundToInt(normalCount * tankProb);
+                    raptorCount = normalCount - (pteroCount + ankylCount);
+                    if (raptorCount < 4) raptorCount = 4;
+                }
+            }
+            else
+            {
+                // CĂN CỨ MÊ CUNG (CÓ TƯỜNG):
+                // Deep Learning kích hoạt NGAY LẬP TỨC đội hình khắc chế:
+                // Tăng quái bay Pterodactyl và thiết giáp Ankylosaurus phá tường (kể cả từ Wave 1 hoặc 2)
+                float sum = runnerProb + flyerProb + tankProb;
+                if (sum > 0f) { runnerProb /= sum; flyerProb /= sum; tankProb /= sum; }
+                pteroCount = Mathf.Max(2, Mathf.RoundToInt(normalCount * flyerProb));
+                ankylCount = Mathf.Max(1, Mathf.RoundToInt(normalCount * tankProb));
+                raptorCount = Mathf.Max(3, normalCount - (pteroCount + ankylCount));
             }
 
-            // 2. Nếu người chơi xây nhiều tháp tỉa đơn (Archer, Ballista)
-            if (audit.SingleTargetTowers > audit.SplashTowers + 2)
+            // Đảm bảo tổng số lượng quái tối thiểu hợp lý cho mỗi màn
+            int minTotal = 13 + (waveIndex - 1) * 3;
+            if (raptorCount + pteroCount + ankylCount < minTotal)
             {
-                int bonusSwarm = Mathf.Clamp(audit.SingleTargetTowers - audit.SplashTowers, 1, 3);
-                raptorCount += bonusSwarm;
-                rationale += $"[Phát hiện {audit.SingleTargetTowers} tháp tỉa đơn -> AI Director tăng viện +{bonusSwarm} Velociraptor bầy đàn] ";
+                raptorCount += (minTotal - (raptorCount + pteroCount + ankylCount));
             }
-
-            // 3. Nếu người chơi xây nhiều tháp diện rộng/bẫy (Catapult/Traps)
-            if (audit.SplashTowers >= 2 && waveIndex >= 3)
-            {
-                int bonusTanks = Mathf.Clamp(audit.SplashTowers / 2, 1, 2);
-                ankylCount += bonusTanks;
-                rationale += $"[Phát hiện {audit.SplashTowers} pháo cối diện rộng -> AI Director tăng viện +{bonusTanks} Khủng Long Bọc Thép] ";
-            }
-
-            if (string.IsNullOrEmpty(rationale))
-            {
-                rationale = $"Bố trí căn cứ chuẩn ({audit.SingleTargetTowers} tháp tỉa, {audit.SplashTowers} pháo cối, {audit.WallCount} rào thêm). Đội hình cân bằng.";
-            }
-
-            tacticalRationale = rationale;
 
             if (raptorPrefab != null) for (int i = 0; i < raptorCount; i++) queue.Add(raptorPrefab);
             if (pteroPrefab != null) for (int i = 0; i < pteroCount; i++) queue.Add(pteroPrefab);

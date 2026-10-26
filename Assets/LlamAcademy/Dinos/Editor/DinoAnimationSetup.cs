@@ -8,15 +8,15 @@ using UnityEngine;
 
 namespace LlamAcademy.Dinos.Editor
 {
-    [InitializeOnLoad]
+    // [InitializeOnLoad] disabled to prevent clobbering controllers and prefabs on reload. Use Menu item if needed.
     public static class DinoAnimationSetup
     {
         private const string ANIM_DIR = "Assets/Resources/Animations";
 
-        static DinoAnimationSetup()
-        {
-            EditorApplication.delayCall += ExecuteSetup;
-        }
+        // static DinoAnimationSetup()
+        // {
+        //     EditorApplication.delayCall += ExecuteSetup;
+        // }
 
         [MenuItem("Tools/Prehistoric TD/Setup All Dino Animations")]
         public static void ExecuteSetup()
@@ -59,32 +59,35 @@ namespace LlamAcademy.Dinos.Editor
 
         private static void SetupAnkylosaurus()
         {
-            string glbPath = "Assets/ankylosaurus_updated.glb";
+            string animPath = $"{ANIM_DIR}/Ankylosaurus_Walk.anim";
             string controllerPath = $"{ANIM_DIR}/Ankylosaurus_Controller.controller";
             string prefabPath = "Assets/Prefabs/Prehistoric/Prefab_Ankylosaurus.prefab";
 
-            var clips = LoadClipsFromAsset(glbPath);
-            AnimationClip moveClip = clips.FirstOrDefault();
-            SetClipLooping(moveClip, true);
+            AnimationClip moveClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(animPath);
+            if (moveClip != null) SetClipLooping(moveClip, true);
 
             AnimatorController controller = GetOrCreateController(controllerPath);
-            SetupSingleStateController(controller, "Walk", moveClip);
+            if (moveClip != null) SetupSingleStateController(controller, "Walk", moveClip);
 
             AssignControllerToPrefab(prefabPath, controller);
         }
 
         private static void SetupTRex()
         {
-            string glbPath = "Assets/animated_t-rex_dinosaur_biting_attack_loop.glb";
+            string fbxPath = "Assets/Animations/Dino/T-rex/T-Rex.fbx";
             string controllerPath = $"{ANIM_DIR}/TRex_Controller.controller";
             string prefabPath = "Assets/Prefabs/Prehistoric/Prefab_TRexBoss.prefab";
 
-            var clips = LoadClipsFromAsset(glbPath);
-            AnimationClip attackRunClip = clips.FirstOrDefault();
-            SetClipLooping(attackRunClip, true);
+            var clips = LoadClipsFromAsset(fbxPath);
+            AnimationClip walkClip = FindClip(clips, "Walk") ?? clips.FirstOrDefault();
+            AnimationClip runClip = FindClip(clips, "Run") ?? walkClip;
+            AnimationClip attackClip = FindClip(clips, "Attack") ?? walkClip;
+
+            SetClipLooping(walkClip, true);
+            SetClipLooping(runClip, true);
 
             AnimatorController controller = GetOrCreateController(controllerPath);
-            SetupSingleStateController(controller, "AttackRun", attackRunClip);
+            SetupControllerStates(controller, walkClip, runClip, attackClip);
 
             AssignControllerToPrefab(prefabPath, controller);
         }
@@ -273,6 +276,13 @@ namespace LlamAcademy.Dinos.Editor
                 anim.applyRootMotion = false;
                 anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
                 anim.enabled = true;
+
+                if (prefabPath.ToLower().Contains("trex"))
+                {
+                    var assets = AssetDatabase.LoadAllAssetsAtPath("Assets/Animations/Dino/T-rex/T-Rex.fbx");
+                    Avatar avatar = assets.OfType<Avatar>().FirstOrDefault();
+                    if (avatar != null) anim.avatar = avatar;
+                }
 
                 // Cập nhật field ModelAnimator trên PrehistoricDinoBase
                 PrehistoricDinoBase dinoBase = instance.GetComponent<PrehistoricDinoBase>();

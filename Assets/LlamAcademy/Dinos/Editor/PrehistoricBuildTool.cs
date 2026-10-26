@@ -169,7 +169,7 @@ namespace LlamAcademy.Dinos.Editor
                 return false;
             }
 
-            // Đảm bảo cấu hình EditorBuildSettings có scene Dinos.unity ở vị trí đầu tiên
+            // Đảm bảo cấu hình EditorBuildSettings có đầy đủ các scene bản đồ
             EnsureBuildScenes(scenePath);
 
             // Cấu hình PlayerSettings chuẩn cho game đồ họa đẹp
@@ -178,9 +178,19 @@ namespace LlamAcademy.Dinos.Editor
             string outputDir = Path.GetDirectoryName(outputPath);
             if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
 
+            string[] buildScenePaths = EditorBuildSettings.scenes
+                .Where(s => s.enabled && !string.IsNullOrEmpty(s.path) && File.Exists(s.path))
+                .Select(s => s.path)
+                .ToArray();
+
+            if (buildScenePaths == null || buildScenePaths.Length == 0)
+            {
+                buildScenePaths = new[] { scenePath };
+            }
+
             BuildPlayerOptions buildOptions = new BuildPlayerOptions
             {
-                scenes = new[] { scenePath },
+                scenes = buildScenePaths,
                 locationPathName = outputPath,
                 target = BuildTarget.StandaloneWindows64,
                 options = isDevBuild 
@@ -257,21 +267,38 @@ namespace LlamAcademy.Dinos.Editor
         private static void EnsureBuildScenes(string mainScenePath)
         {
             var scenes = EditorBuildSettings.scenes.ToList();
-            int existingIdx = scenes.FindIndex(s => s.path == mainScenePath);
-            if (existingIdx >= 0)
+            string[] allTargetScenes = new[]
             {
-                scenes[existingIdx].enabled = true;
-                if (existingIdx != 0)
+                mainScenePath,
+                "Assets/LlamAcademy/Dinos/Scenes/Dinos_VolcanicGorge.unity",
+                "Assets/LlamAcademy/Dinos/Scenes/Dinos_GlacialTundra.unity"
+            };
+
+            foreach (var sPath in allTargetScenes)
+            {
+                if (File.Exists(sPath))
                 {
-                    var scene = scenes[existingIdx];
-                    scenes.RemoveAt(existingIdx);
-                    scenes.Insert(0, scene);
+                    int existingIdx = scenes.FindIndex(s => s.path == sPath);
+                    if (existingIdx >= 0)
+                    {
+                        scenes[existingIdx].enabled = true;
+                    }
+                    else
+                    {
+                        scenes.Add(new EditorBuildSettingsScene(sPath, true));
+                    }
                 }
             }
-            else
+
+            // Đảm bảo scene gameplay chính luôn đứng đầu danh sách (Index 0)
+            int mainIdx = scenes.FindIndex(s => s.path == mainScenePath);
+            if (mainIdx > 0)
             {
-                scenes.Insert(0, new EditorBuildSettingsScene(mainScenePath, true));
+                var s = scenes[mainIdx];
+                scenes.RemoveAt(mainIdx);
+                scenes.Insert(0, s);
             }
+
             EditorBuildSettings.scenes = scenes.ToArray();
         }
 
@@ -297,7 +324,7 @@ namespace LlamAcademy.Dinos.Editor
         public static void CommandLineBuild()
         {
             string outputPath = GetDefaultOutputPath();
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "-outputPath" && i + 1 < args.Length)

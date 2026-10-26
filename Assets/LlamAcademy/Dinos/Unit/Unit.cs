@@ -162,7 +162,8 @@ namespace LlamAcademy.Dinos.Unit
             if (col.GetComponentInParent<GroundTrap>() != null || col.GetComponent<GroundTrap>() != null) return false;
 
             // Loại trừ Người chơi và Căn cứ/Trứng
-            if (col.CompareTag("Player") || col.name.Contains("Egg") || col.name.Contains("Base")) return false;
+            if (col.CompareTag("Player") || col.name.Contains("Egg")) return false;
+            if (col.GetComponentInParent<PrehistoricVillageBase>() != null || col.GetComponent<PrehistoricVillageBase>() != null) return false;
 
             // Kiểm tra IDamageable còn máu
             IDamageable d = col.GetComponent<IDamageable>() ?? col.GetComponentInParent<IDamageable>();

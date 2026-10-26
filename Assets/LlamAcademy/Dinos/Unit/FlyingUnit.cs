@@ -9,9 +9,9 @@ namespace LlamAcademy.Dinos.Unit
     {
         [Header("Flight Settings")]
         [SerializeField] private float FlightHeight = 5.0f;
-        [SerializeField] private float FlightSpeed = 4.5f;
+        [SerializeField] private float FlightSpeed = 7.0f;
         [SerializeField] private float TurnSpeed = 5.0f;
-        [SerializeField] private int DamageToBase = 20;
+        [SerializeField] private int DamageToBase = 65;
 
         public bool IsAerial => true;
 
@@ -27,7 +27,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
-            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 540;
+            MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1450;
             Health = MaxHealth;
             if (GetComponent<Collider>() == null && GetComponentInChildren<Collider>() == null)
             {
@@ -224,7 +224,7 @@ namespace LlamAcademy.Dinos.Unit
                 transform.position = Vector3.Lerp(transform.position, targetDestination + Vector3.up * 2.8f, Time.deltaTime * 2.5f);
 
                 // Tấn công căn cứ theo chu kỳ
-                if (Time.time >= _LastAttackTime + 1.5f)
+                if (Time.time >= _LastAttackTime + 1.0f)
                 {
                     _LastAttackTime = Time.time;
                     if (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)

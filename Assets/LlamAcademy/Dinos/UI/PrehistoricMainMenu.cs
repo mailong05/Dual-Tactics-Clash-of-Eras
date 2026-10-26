@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using LlamAcademy.Dinos.Audio;
+using LlamAcademy.Dinos.Environment;
 using LlamAcademy.Dinos.Mobile;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.Save;
@@ -28,6 +29,10 @@ namespace LlamAcademy.Dinos.UI
         public bool IsOpen = true;
         public bool Use2DBackground = true;
         public PrehistoricGameMode SelectedMode = PrehistoricGameMode.TowerDefense;
+        public PrehistoricMapType SelectedMap = PrehistoricMapType.AncientValley;
+
+        private string _lockNoticeMessage = "";
+        private float _lockNoticeTimer = 0f;
 
         private Texture2D _coverTexture;
         private Texture2D _logoTexture;
@@ -50,6 +55,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void Start()
         {
+            SelectedMap = PrehistoricMapManager.CurrentMap;
             if (IsOpen && PrehistoricAudioManager.Instance != null)
             {
                 PrehistoricAudioManager.Instance.PlayOpeningBgm();
@@ -232,7 +238,7 @@ namespace LlamAcademy.Dinos.UI
                 float cardW = Mathf.Clamp(screenW * 0.44f, 520f, 720f * scale);
                 cardW = Mathf.Min(cardW, screenW - 24f);
 
-                float cardH = Mathf.Clamp(520f * scale, 450f, screenH - 100f);
+                float cardH = Mathf.Clamp(590f * scale, 520f, screenH - 60f);
 
                 // Căn giữa toàn bộ cụm Logo + Phụ đề + Card Menu theo chiều dọc màn hình
                 float subH = 28f * scale;
@@ -322,7 +328,98 @@ namespace LlamAcademy.Dinos.UI
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(8f * scale);
+                GUILayout.Space(6f * scale);
+
+                // ------------------------------------------
+                // TAB CHỌN BẢN ĐỒ CHIẾN TRƯỜNG (MAP SELECTION)
+                // ------------------------------------------
+                GUILayout.Label($"<size={Mathf.RoundToInt(13 * scale)}><b><color=#FFD700>🗺️ LỰA CHỌN BẢN ĐỒ CHIẾN TRƯỜNG:</color></b></size>", GUI.skin.label);
+                GUILayout.BeginHorizontal();
+
+                bool isValley = (SelectedMap == PrehistoricMapType.AncientValley);
+                bool isVolcanic = (SelectedMap == PrehistoricMapType.VolcanicGorge);
+                bool isGlacial = (SelectedMap == PrehistoricMapType.GlacialTundra);
+                float mapBtnH = Mathf.Round(44f * scale);
+
+                bool isVolcanicUnlocked = Save.PrehistoricSaveManager.Instance == null || Save.PrehistoricSaveManager.Instance.IsMapUnlocked(PrehistoricMapType.VolcanicGorge);
+                bool isGlacialUnlocked = Save.PrehistoricSaveManager.Instance == null || Save.PrehistoricSaveManager.Instance.IsMapUnlocked(PrehistoricMapType.GlacialTundra);
+
+                // MAP 1: THUNG LŨNG CỔ ĐẠI (Luôn mở)
+                GUI.backgroundColor = isValley ? new Color(0.18f, 0.75f, 0.45f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
+                string valleyLabel = isValley
+                    ? $"<b><size={Mathf.RoundToInt(12 * scale)}>🏞️ THUNG LŨNG</size></b>\n<size={Mathf.RoundToInt(9 * scale)}>(Đang chọn)</size>"
+                    : $"<size={Mathf.RoundToInt(12 * scale)}>🏞️ THUNG LŨNG</size>\n<size={Mathf.RoundToInt(9 * scale)}>(Rừng đá cổ)</size>";
+                if (GUILayout.Button(valleyLabel, GUILayout.Height(mapBtnH)))
+                {
+                    SelectedMap = PrehistoricMapType.AncientValley;
+                    PrehistoricMapManager.ApplyMapTheme(PrehistoricMapType.AncientValley);
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+
+                // MAP 2: NÚI DUNG NHAM (Mở khóa khi vượt Đợt 10)
+                if (!isVolcanicUnlocked)
+                {
+                    GUI.backgroundColor = new Color(0.18f, 0.18f, 0.22f, 0.65f);
+                    string volcanicLabel = $"<size={Mathf.RoundToInt(12 * scale)}>🔒 NÚI DUNG NHAM</size>\n<size={Mathf.RoundToInt(9 * scale)}>(Vượt Đợt 10 để mở)</size>";
+                    if (GUILayout.Button(volcanicLabel, GUILayout.Height(mapBtnH)))
+                    {
+                        _lockNoticeMessage = "🔒 BẢN ĐỒ NÚI DUNG NHAM ĐANG KHÓA!\nHãy vượt qua Đợt 10 (Boss T-Rex) của Thung Lũng Cổ Đại để mở khóa!";
+                        _lockNoticeTimer = 4.0f;
+                        PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    }
+                }
+                else
+                {
+                    GUI.backgroundColor = isVolcanic ? new Color(0.95f, 0.40f, 0.12f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
+                    string volcanicLabel = isVolcanic
+                        ? $"<b><size={Mathf.RoundToInt(12 * scale)}>🌋 NÚI DUNG NHAM</size></b>\n<size={Mathf.RoundToInt(9 * scale)}>(Đang chọn)</size>"
+                        : $"<size={Mathf.RoundToInt(12 * scale)}>🌋 NÚI DUNG NHAM</size>\n<size={Mathf.RoundToInt(9 * scale)}>(Hẻm núi lửa)</size>";
+                    if (GUILayout.Button(volcanicLabel, GUILayout.Height(mapBtnH)))
+                    {
+                        SelectedMap = PrehistoricMapType.VolcanicGorge;
+                        PrehistoricMapManager.ApplyMapTheme(PrehistoricMapType.VolcanicGorge);
+                        PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    }
+                }
+
+                // MAP 3: NÚI BĂNG TUYẾT (Mở khóa khi vượt Đợt 20)
+                if (!isGlacialUnlocked)
+                {
+                    GUI.backgroundColor = new Color(0.18f, 0.18f, 0.22f, 0.65f);
+                    string glacialLabel = $"<size={Mathf.RoundToInt(12 * scale)}>🔒 NÚI BĂNG TUYẾT</size>\n<size={Mathf.RoundToInt(9 * scale)}>(Vượt Đợt 20 để mở)</size>";
+                    if (GUILayout.Button(glacialLabel, GUILayout.Height(mapBtnH)))
+                    {
+                        _lockNoticeMessage = "🔒 BẢN ĐỒ NÚI BĂNG TUYẾT ĐANG KHÓA!\nHãy vượt qua Đợt 20 ở Núi Dung Nham để mở khóa!";
+                        _lockNoticeTimer = 4.0f;
+                        PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    }
+                }
+                else
+                {
+                    GUI.backgroundColor = isGlacial ? new Color(0.35f, 0.75f, 1.0f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
+                    string glacialLabel = isGlacial
+                        ? $"<b><size={Mathf.RoundToInt(12 * scale)}>❄️ NÚI BĂNG TUYẾT</size></b>\n<size={Mathf.RoundToInt(9 * scale)}>(Đang chọn)</size>"
+                        : $"<size={Mathf.RoundToInt(12 * scale)}>❄️ NÚI BĂNG TUYẾT</size>\n<size={Mathf.RoundToInt(9 * scale)}>(Băng hà vĩnh cửu)</size>";
+                    if (GUILayout.Button(glacialLabel, GUILayout.Height(mapBtnH)))
+                    {
+                        SelectedMap = PrehistoricMapType.GlacialTundra;
+                        PrehistoricMapManager.ApplyMapTheme(PrehistoricMapType.GlacialTundra);
+                        PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    }
+                }
+
+                GUI.backgroundColor = Color.white;
+                GUILayout.EndHorizontal();
+
+                if (_lockNoticeTimer > 0f)
+                {
+                    _lockNoticeTimer -= Time.deltaTime;
+                    GUI.backgroundColor = new Color(0.85f, 0.2f, 0.15f, 0.95f);
+                    GUILayout.Box($"<b><color=#FFFFFF>{_lockNoticeMessage}</color></b>");
+                    GUI.backgroundColor = Color.white;
+                }
+
+                GUILayout.Space(6f * scale);
 
                 // Thông tin tiến trình của chế độ đang chọn
                 bool hasActiveSave = false;
@@ -496,43 +593,55 @@ namespace LlamAcademy.Dinos.UI
         private void OnNewGameClicked()
         {
             IsOpen = false;
-            if (SelectedMode == PrehistoricGameMode.TowerDefense)
+            PrehistoricMapManager.LoadMap(SelectedMap, () =>
             {
-                var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
-                if (mgr != null)
+                if (SelectedMode == PrehistoricGameMode.TowerDefense)
                 {
-                    mgr.StartNewDefenseGameFromMenu();
+                    var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
+                    gmm?.SetGameMode(PrehistoricGameMode.TowerDefense);
+
+                    var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
+                    if (mgr != null)
+                    {
+                        mgr.StartNewDefenseGameFromMenu();
+                    }
                 }
-            }
-            else
-            {
-                var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
-                if (gmm != null)
+                else
                 {
-                    gmm.StartNewAssaultFromMenu();
+                    var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
+                    if (gmm != null)
+                    {
+                        gmm.StartNewAssaultFromMenu();
+                    }
                 }
-            }
+            });
         }
 
         private void OnContinueClicked()
         {
             IsOpen = false;
-            if (SelectedMode == PrehistoricGameMode.TowerDefense)
+            PrehistoricMapManager.LoadMap(SelectedMap, () =>
             {
-                var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
-                if (mgr != null)
+                if (SelectedMode == PrehistoricGameMode.TowerDefense)
                 {
-                    mgr.ContinueDefenseFromMenu();
+                    var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
+                    gmm?.SetGameMode(PrehistoricGameMode.TowerDefense);
+
+                    var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : FindFirstObjectByType<PrehistoricGameplayManager>();
+                    if (mgr != null)
+                    {
+                        mgr.ContinueDefenseFromMenu();
+                    }
                 }
-            }
-            else
-            {
-                var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
-                if (gmm != null)
+                else
                 {
-                    gmm.ContinueAssaultFromMenu();
+                    var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : FindFirstObjectByType<PrehistoricGameModeManager>();
+                    if (gmm != null)
+                    {
+                        gmm.ContinueAssaultFromMenu();
+                    }
                 }
-            }
+            });
         }
 
         private void OnSettingsClicked()

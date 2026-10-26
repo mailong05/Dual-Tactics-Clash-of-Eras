@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using LlamAcademy.Dinos.Audio;
 using LlamAcademy.Dinos.Cloud;
+using LlamAcademy.Dinos.Environment;
 using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.Unit;
@@ -19,6 +20,7 @@ namespace LlamAcademy.Dinos.Save
         public int MaxBaseHealth = 1000;
         public int TotalMonstersKilled = 0;
         public int TotalScore = 0;
+        public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
         public bool HasActiveRun = false;
         public string LastSavedTimestamp = "";
     }
@@ -28,9 +30,10 @@ namespace LlamAcademy.Dinos.Save
     {
         public int AssaultLevel = 1;
         public int HighestLevelReached = 1;
-        public int Meat = 250;
+        public int Meat = 500;
         public int BaseHealth = 1000;
         public int MaxBaseHealth = 1000;
+        public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
         public bool HasActiveRun = false;
         public string LastSavedTimestamp = "";
     }
@@ -53,6 +56,7 @@ namespace LlamAcademy.Dinos.Save
         public int MaxBaseHealth = 1000;
         public int TotalMonstersKilled = 0;
         public int TotalScore = 0;
+        public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
         public bool HasActiveRun = true;
 
         // Metadata
@@ -70,6 +74,9 @@ namespace LlamAcademy.Dinos.Save
 
         public PrehistoricGameMode LastPlayedMode = PrehistoricGameMode.TowerDefense;
         public string PlayerChiefName = "Tù Trưởng Tiền Sử";
+
+        // Tiến trình mở khóa bản đồ: 0 = Thung Lũng Cổ Đại, 1 = Núi Dung Nham (Vượt Đợt 10), 2 = Núi Băng Tuyết (Vượt Đợt 20)
+        public int UnlockedMapMax = 0;
 
         // Backwards compatibility shortcuts cho code cũ
         public int CurrentWave
@@ -249,8 +256,58 @@ namespace LlamAcademy.Dinos.Save
 
         private void EnsureProfilesInitialized()
         {
+            if (CurrentData == null) CurrentData = new PrehistoricSaveData();
             if (CurrentData.DefenseProfile == null) CurrentData.DefenseProfile = new DefenseSaveProfile();
             if (CurrentData.AssaultProfile == null) CurrentData.AssaultProfile = new AssaultSaveProfile();
+
+            // Tự động kiểm tra nếu người chơi đã từng vượt qua đợt 10 ở bản lưu cũ
+            if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+            {
+                CurrentData.UnlockedMapMax = 1;
+            }
+            if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+            {
+                CurrentData.UnlockedMapMax = 2;
+            }
+        }
+
+        public bool IsMapUnlocked(PrehistoricMapType map)
+        {
+            if (map == PrehistoricMapType.AncientValley) return true;
+            EnsureProfilesInitialized();
+            if (CurrentData == null) return false;
+
+            if (map == PrehistoricMapType.VolcanicGorge)
+            {
+                return CurrentData.UnlockedMapMax >= 1 || 
+                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 10);
+            }
+            if (map == PrehistoricMapType.GlacialTundra)
+            {
+                return CurrentData.UnlockedMapMax >= 2 || 
+                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 20);
+            }
+            return true;
+        }
+
+        public void UnlockMap(PrehistoricMapType map)
+        {
+            EnsureProfilesInitialized();
+            if (CurrentData == null) return;
+
+            int required = map switch
+            {
+                PrehistoricMapType.VolcanicGorge => 1,
+                PrehistoricMapType.GlacialTundra => 2,
+                _ => 0
+            };
+
+            if (CurrentData.UnlockedMapMax < required)
+            {
+                CurrentData.UnlockedMapMax = required;
+                SaveDataToDisk();
+                Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Chúc mừng! Đã mở khóa bản đồ mới: <b>{map}</b>!");
+            }
         }
 
         private void MigrateInitialSlotsIfMissing()
@@ -353,15 +410,25 @@ namespace LlamAcademy.Dinos.Save
                 slot.MaxBaseHealth = maxHp;
                 slot.TotalMonstersKilled = killed;
                 slot.TotalScore = score;
-                slot.CustomTitle = isAutoSave ? $"Tự động lưu - Đợt {wave}" : $"Thủ Thành - Đợt {wave}";
+                slot.MapIndex = (int)PrehistoricMapManager.CurrentMap;
+                slot.CustomTitle = isAutoSave ? $"Tự động lưu - Đợt {wave} ({PrehistoricMapManager.GetMapDisplayName(PrehistoricMapManager.CurrentMap)})" : $"Thủ Thành - Đợt {wave} ({PrehistoricMapManager.GetMapDisplayName(PrehistoricMapManager.CurrentMap)})";
 
                 // Đồng bộ cập nhật vào hồ sơ bộ nhớ
                 CurrentData.DefenseProfile.CurrentWave = wave;
                 CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, wave);
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+                {
+                    CurrentData.UnlockedMapMax = 1;
+                }
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+                {
+                    CurrentData.UnlockedMapMax = 2;
+                }
                 CurrentData.DefenseProfile.BaseHealth = baseHp;
                 CurrentData.DefenseProfile.MaxBaseHealth = maxHp;
                 CurrentData.DefenseProfile.Gold = gold;
                 CurrentData.DefenseProfile.TotalScore = score;
+                CurrentData.DefenseProfile.MapIndex = (int)PrehistoricMapManager.CurrentMap;
                 CurrentData.DefenseProfile.HasActiveRun = true;
                 CurrentData.DefenseProfile.LastSavedTimestamp = slot.SavedTimestamp;
             }
@@ -399,7 +466,8 @@ namespace LlamAcademy.Dinos.Save
                 slot.Resources = meat;
                 slot.BaseHealth = baseHp;
                 slot.MaxBaseHealth = maxHp;
-                slot.CustomTitle = isAutoSave ? $"Tự động lưu - Màn {level}" : $"Công Thành - Màn {level}";
+                slot.MapIndex = (int)PrehistoricMapManager.CurrentMap;
+                slot.CustomTitle = isAutoSave ? $"Tự động lưu - Màn {level} ({PrehistoricMapManager.GetMapDisplayName(PrehistoricMapManager.CurrentMap)})" : $"Công Thành - Màn {level} ({PrehistoricMapManager.GetMapDisplayName(PrehistoricMapManager.CurrentMap)})";
 
                 // Đồng bộ cập nhật vào hồ sơ bộ nhớ
                 CurrentData.AssaultProfile.AssaultLevel = level;
@@ -407,6 +475,7 @@ namespace LlamAcademy.Dinos.Save
                 CurrentData.AssaultProfile.Meat = meat;
                 CurrentData.AssaultProfile.BaseHealth = baseHp;
                 CurrentData.AssaultProfile.MaxBaseHealth = maxHp;
+                CurrentData.AssaultProfile.MapIndex = (int)PrehistoricMapManager.CurrentMap;
                 CurrentData.AssaultProfile.HasActiveRun = true;
                 CurrentData.AssaultProfile.LastSavedTimestamp = slot.SavedTimestamp;
             }
@@ -452,40 +521,48 @@ namespace LlamAcademy.Dinos.Save
         {
             if (slot == null) return;
 
-            if (slot.Mode == PrehistoricGameMode.TowerDefense)
+            PrehistoricMapType targetMap = (PrehistoricMapType)slot.MapIndex;
+            PrehistoricMapManager.LoadMap(targetMap, () =>
             {
-                CurrentData.DefenseProfile.CurrentWave = slot.WaveOrLevel;
-                CurrentData.DefenseProfile.Gold = slot.Resources;
-                CurrentData.DefenseProfile.BaseHealth = slot.BaseHealth;
-                CurrentData.DefenseProfile.MaxBaseHealth = slot.MaxBaseHealth;
-                CurrentData.DefenseProfile.TotalMonstersKilled = slot.TotalMonstersKilled;
-                CurrentData.DefenseProfile.TotalScore = slot.TotalScore;
-                CurrentData.DefenseProfile.HasActiveRun = true;
-                CurrentData.LastPlayedMode = PrehistoricGameMode.TowerDefense;
-
-                SaveDataToDisk();
-
-                if (PrehistoricGameplayManager.Instance != null)
+                if (slot.Mode == PrehistoricGameMode.TowerDefense)
                 {
-                    PrehistoricGameplayManager.Instance.LoadDefenseWave(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                    CurrentData.DefenseProfile.CurrentWave = slot.WaveOrLevel;
+                    CurrentData.DefenseProfile.Gold = slot.Resources;
+                    CurrentData.DefenseProfile.BaseHealth = slot.BaseHealth;
+                    CurrentData.DefenseProfile.MaxBaseHealth = slot.MaxBaseHealth;
+                    CurrentData.DefenseProfile.TotalMonstersKilled = slot.TotalMonstersKilled;
+                    CurrentData.DefenseProfile.TotalScore = slot.TotalScore;
+                    CurrentData.DefenseProfile.MapIndex = slot.MapIndex;
+                    CurrentData.DefenseProfile.HasActiveRun = true;
+                    CurrentData.LastPlayedMode = PrehistoricGameMode.TowerDefense;
+
+                    SaveDataToDisk();
+
+                    var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : UnityEngine.Object.FindFirstObjectByType<PrehistoricGameplayManager>();
+                    if (mgr != null)
+                    {
+                        mgr.LoadDefenseWave(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                    }
                 }
-            }
-            else
-            {
-                CurrentData.AssaultProfile.AssaultLevel = slot.WaveOrLevel;
-                CurrentData.AssaultProfile.Meat = slot.Resources;
-                CurrentData.AssaultProfile.BaseHealth = slot.BaseHealth;
-                CurrentData.AssaultProfile.MaxBaseHealth = slot.MaxBaseHealth;
-                CurrentData.AssaultProfile.HasActiveRun = true;
-                CurrentData.LastPlayedMode = PrehistoricGameMode.DinoAssault;
-
-                SaveDataToDisk();
-
-                if (PrehistoricGameModeManager.Instance != null)
+                else
                 {
-                    PrehistoricGameModeManager.Instance.LoadAssaultLevel(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                    CurrentData.AssaultProfile.AssaultLevel = slot.WaveOrLevel;
+                    CurrentData.AssaultProfile.Meat = slot.Resources;
+                    CurrentData.AssaultProfile.BaseHealth = slot.BaseHealth;
+                    CurrentData.AssaultProfile.MaxBaseHealth = slot.MaxBaseHealth;
+                    CurrentData.AssaultProfile.MapIndex = slot.MapIndex;
+                    CurrentData.AssaultProfile.HasActiveRun = true;
+                    CurrentData.LastPlayedMode = PrehistoricGameMode.DinoAssault;
+
+                    SaveDataToDisk();
+
+                    var gmm = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance : UnityEngine.Object.FindFirstObjectByType<PrehistoricGameModeManager>();
+                    if (gmm != null)
+                    {
+                        gmm.LoadAssaultLevel(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                    }
                 }
-            }
+            });
         }
 
         // =========================================================
@@ -531,6 +608,14 @@ namespace LlamAcademy.Dinos.Save
 
                 CurrentData.DefenseProfile.CurrentWave = wave;
                 CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, wave);
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+                {
+                    CurrentData.UnlockedMapMax = 1;
+                }
+                if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+                {
+                    CurrentData.UnlockedMapMax = 2;
+                }
                 CurrentData.DefenseProfile.BaseHealth = baseHp;
                 CurrentData.DefenseProfile.MaxBaseHealth = maxHp;
                 CurrentData.DefenseProfile.Gold = gold;
@@ -556,9 +641,9 @@ namespace LlamAcademy.Dinos.Save
                     level = level + 1;
                 }
 
-                int meat = 250;
+                int meat = 500;
                 DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
-                if (spawner != null) meat = spawner.ResourcesToSpend;
+                if (spawner != null) meat = Mathf.Max(500, spawner.ResourcesToSpend);
 
                 int baseHp = 1000;
                 int maxHp = 1000;

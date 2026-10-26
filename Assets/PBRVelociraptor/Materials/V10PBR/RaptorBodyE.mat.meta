@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ee022dab46a4b2c47acaebf6af334421
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 165201
+  packageName: PBR Velociraptors
+  packageVersion: 1.2
+  assetPath: Assets/PBRVelociraptor/Materials/V10PBR/RaptorBodyE.mat
+  uploadId: 522318

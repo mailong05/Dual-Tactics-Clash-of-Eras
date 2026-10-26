@@ -17,7 +17,17 @@ namespace LlamAcademy.Dinos.Config
 
         public int GetDamage(ArmorTypeSO armorType)
         {
-            int damage = 0;
+            if (DamagePerType == null || DamagePerType.Length == 0)
+            {
+                return 5; // Sát thương mặc định nếu chưa cấu hình bảng sát thương
+            }
+
+            if (armorType == null)
+            {
+                // Nếu không có ArmorType (ví dụ cầu gỗ chưa gán ArmorType), dùng entry đầu tiên
+                return DamagePerType[0] != null ? DamagePerType[0].Damage : 5;
+            }
+
             ArmorTypeDamage armorTypeDamage = DamagePerType.FirstOrDefault((type) => type.ArmorType == armorType);
 
             if (armorTypeDamage != null)
@@ -25,8 +35,13 @@ namespace LlamAcademy.Dinos.Config
                 return armorTypeDamage.Damage;
             }
 
-            Debug.LogWarning($"{name} is missing an Armor Type Damage Config for {armorType.name}. Using 0 damage");
-            return damage;
+            // Fallback: dùng entry đầu tiên nếu không tìm thấy loại giáp phù hợp
+            if (DamagePerType.Length > 0 && DamagePerType[0] != null)
+            {
+                return DamagePerType[0].Damage;
+            }
+
+            return 5;
         }
 
         public float GetMinAttackRange(IDamageable damageable)

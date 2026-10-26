@@ -15,15 +15,15 @@ MonoBehaviour:
   <Type>k__BackingField: 0
   <ArmorType>k__BackingField: {fileID: 0}
   <Prefab>k__BackingField: {fileID: 5330161297433272286, guid: 7bd67067e793d7f4082df8ec83c4fff3, type: 3}
-  <Health>k__BackingField: 500
+  <Health>k__BackingField: 800
   <HealthToCostRatio>k__BackingField: 0.2
   <AttackConfig>k__BackingField: {fileID: 0}
   <Upgrade>k__BackingField: {fileID: 0}
   <DisplayName>k__BackingField: "R\xE0o C\u1ECDc G\u1ED7 C\u1EA3n \u0110\u01B0\u1EDDng"
   <Description>k__BackingField: 
   <Sprite>k__BackingField: {fileID: 0}
-  <Cost>k__BackingField: 20
+  <Cost>k__BackingField: 5
   <Hotkey>k__BackingField: 47
   <IsWall>k__BackingField: 1
   <CanTargetFlying>k__BackingField: 1
-  <PlacementRadius>k__BackingField: 1.6
+  <PlacementRadius>k__BackingField: 2.8

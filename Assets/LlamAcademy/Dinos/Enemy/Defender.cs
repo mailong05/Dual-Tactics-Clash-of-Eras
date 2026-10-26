@@ -43,7 +43,7 @@ namespace LlamAcademy.Dinos.Enemy
         private float _LastAttackTime;
         private GameObject _HeldWeapon;
         private Transform _HandBone;
-        private Collider[] _ScanBuffer = new Collider[24];
+        private Collider[] _ScanBuffer = new Collider[256];
         private static int _SpawnCounter = 0;
         private bool _IsThrusting = false;
         private Vector3 _OriginalWeaponLocalPos;
@@ -489,6 +489,29 @@ namespace LlamAcademy.Dinos.Enemy
             base.Update();
 
             if (Health <= 0) return;
+
+            // Chế độ Công thành: Tuyệt đối không tấn công/bắn khi người chơi đang dàn trận, chỉ bắt đầu khi bấm "Xuất quân"!
+            if (PrehistoricGameModeManager.Instance != null &&
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault &&
+                PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+            {
+                if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                {
+                    Agent.isStopped = true;
+                }
+                return;
+            }
+
+            // Chế độ Thủ thành: Khi đang ở Pha chuẩn bị (BuildingPhase), NPC đứng yên tại vị trí gác, không đi tuần lung tung!
+            if (PrehistoricGameplayManager.Instance != null &&
+                PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.BuildingPhase)
+            {
+                if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
+                {
+                    Agent.isStopped = true;
+                }
+                return;
+            }
 
             if (!_HasRecordedDefaultPost)
             {
@@ -971,12 +994,44 @@ namespace LlamAcademy.Dinos.Enemy
 
         private Collider FindNearestHostileMonster(float searchRange)
         {
-            int count = Physics.OverlapSphereNonAlloc(transform.position, searchRange, _ScanBuffer);
             Collider best = null;
             float bestPriorityScore = float.MinValue;
-
             Vector3 basePos = GetBasePosition();
 
+            // 1. Quét trực tiếp danh sách ActiveDinos (bảo đảm 100% không bao giờ bị bỏ sót do giới hạn bộ đệm PhysX)
+            if (PrehistoricDinoBase.ActiveDinos != null)
+            {
+                foreach (var dino in PrehistoricDinoBase.ActiveDinos)
+                {
+                    if (dino == null || dino.Health <= 0 || !dino.gameObject.activeInHierarchy) continue;
+                    Vector3 targetPos = dino.transform.position;
+                    float dist = Vector3.Distance(transform.position, targetPos);
+                    if (dist > searchRange) continue;
+
+                    Collider col = dino.GetComponent<Collider>() ?? dino.GetComponentInChildren<Collider>();
+                    if (col != null && !IsHostileMonster(col)) continue;
+
+                    float score = 100f - dist;
+                    if (dino.HasReachedBase || dino.TargetDamageable is PrehistoricVillageBase) score += 650f;
+                    else if (dino.TargetDamageable is Wall) score += 380f;
+
+                    bool isInvading = Vector3.Distance(targetPos, basePos) <= 25.0f || targetPos.z <= -20.0f || dino.HasReachedBase;
+                    if (isInvading) score += 500f;
+
+                    string n = dino.gameObject.name.ToLower();
+                    if (n.Contains("raptor") || n.Contains("runner")) score += 50f;
+                    if (n.Contains("trex") || n.Contains("t-rex") || n.Contains("boss")) score += 60f;
+
+                    if (score > bestPriorityScore)
+                    {
+                        bestPriorityScore = score;
+                        best = col;
+                    }
+                }
+            }
+
+            // 2. Quét mở rộng qua Physics OverlapSphere cho các quái khác (quái bay, creep khác)
+            int count = Physics.OverlapSphereNonAlloc(transform.position, searchRange, _ScanBuffer);
             for (int i = 0; i < count; i++)
             {
                 Collider col = _ScanBuffer[i];

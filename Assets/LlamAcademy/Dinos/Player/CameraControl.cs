@@ -64,7 +64,7 @@ namespace LlamAcademy.Dinos.Player
         [SerializeField] private Vector2 FallbackMax = new Vector2(55f, 28f);
 
         [Header("UI Controls Overlay")]
-        [SerializeField] private bool ShowControlsHint = true;
+        [SerializeField] private bool ShowControlsHint = false;
 
         [SerializeField]
         private AnimationCurve SpeedRamp = new() { keys = new Keyframe[] { new Keyframe(0, 0), new Keyframe(0, 1) } };
@@ -525,15 +525,30 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            if (!ShowControlsHint) return;
+            if (!ShowControlsHint)
+            {
+                // Mini toggle pill at bottom left above toolbar
+                float pillW = 140f;
+                float pillH = 24f;
+                float pillX = 20f;
+                float pillY = Screen.height - pillH - 85f;
+                Color oldC = GUI.backgroundColor;
+                GUI.backgroundColor = new Color(0.15f, 0.20f, 0.28f, 0.85f);
+                if (GUI.Button(new Rect(pillX, pillY, pillW, pillH), "<size=11><b>🎥 Phím Tắt [H]</b></size>"))
+                {
+                    ShowControlsHint = true;
+                }
+                GUI.backgroundColor = oldC;
+                return;
+            }
 
-            // Compact floating hint bar at bottom-left cho bản PC
+            // Compact floating hint bar at bottom-left, safely placed ABOVE the toolbar
             float panelWidth = 330f;
             float panelHeight = 85f;
-            float x = 15f;
-            float y = Screen.height - panelHeight - 15f;
+            float x = 20f;
+            float y = Screen.height - panelHeight - 88f;
 
-            GUI.color = new Color(0.1f, 0.12f, 0.15f, 0.85f);
+            GUI.color = new Color(0.1f, 0.12f, 0.15f, 0.90f);
             GUI.Box(new Rect(x, y, panelWidth, panelHeight), GUIContent.none);
             GUI.color = Color.white;
 
