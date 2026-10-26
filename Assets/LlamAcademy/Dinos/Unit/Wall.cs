@@ -99,6 +99,12 @@ namespace LlamAcademy.Dinos.Unit
                 if (c != null) c.enabled = true;
             }
 
+            Renderer[] rends = GetComponentsInChildren<Renderer>(true);
+            foreach (var r in rends)
+            {
+                if (r != null) r.enabled = true;
+            }
+
             NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>(true);
             foreach (var obs in obstacles)
             {

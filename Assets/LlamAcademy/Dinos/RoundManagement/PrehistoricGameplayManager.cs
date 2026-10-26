@@ -287,8 +287,42 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void ConfigureAllVillageFortifications(int level = 1)
         {
             float hpMult = 1.0f + Mathf.Max(0, level - 1) * 0.15f;
+            if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
+            {
+                hpMult *= 1.35f;
+            }
+
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
+            // BƯỚC 1: Dọn dẹp triệt để mọi Wall, Collider, NavMeshObstacle trên các CONTAINER CHA RỖNG
+            // (Village_Fortress_Wall, Left_Wing_Wall, Right_Wing_Wall, Right_Flank_Wall, Gate_Complex)
+            // để triệt tiêu 100% hiện tượng sinh thanh máu ma lơ lửng giữa đường làng!
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                bool isContainerGroup = n == "Village_Fortress_Wall" ||
+                                        n == "Left_Wing_Wall" ||
+                                        n == "Right_Wing_Wall" ||
+                                        n == "Right_Flank_Wall" ||
+                                        n == "Gate_Complex" ||
+                                        n == "Fortress_Root" ||
+                                        n == "Village Props";
+
+                if (isContainerGroup)
+                {
+                    if (t.TryGetComponent(out Unit.Wall cw)) Destroy(cw);
+                    if (t.TryGetComponent(out BoxCollider cbc)) Destroy(cbc);
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle cobs)) Destroy(cobs);
+                    if (t.TryGetComponent(out Unit.Unit cu) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(cu);
+                    }
+                }
+            }
+
+            // BƯỚC 2: Cấu hình và kích hoạt các công trình vật lý thực sự (chòi canh, vòm cổng, các cọc gỗ đơn lẻ, lều làng)
             foreach (Transform t in allTransforms)
             {
                 if (t == null) continue;
@@ -312,16 +346,21 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
+                // 4. Bỏ qua các container cha
+                if (n == "Village_Fortress_Wall" || n == "Left_Wing_Wall" || n == "Right_Wing_Wall" || 
+                    n == "Right_Flank_Wall" || n == "Gate_Complex" || n == "Fortress_Root" || n == "Village Props")
+                {
+                    continue;
+                }
+
                 bool isTower = n.Contains("Big Tower with Platform") || n.Contains("Watchtower") || n.Contains("Bastion_Tower");
                 bool isArch = n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch") || n.Contains("Arch_Entry");
                 bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
                 bool isFence = n.Contains("Plank_Defenses") ||
-                               n.Contains("Village_Fortress_Wall") ||
-                               n.Contains("Right_Wing_Wall") || n.Contains("Left_Wing_Wall") || n.Contains("Right_Flank_Wall") ||
                                n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
                                n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
                                n.Contains("Barricade") || n.Contains("Palisade") ||
-                               n.Contains("Gate_Complex") || n.Contains("Gate_Portcullis_Barricade") ||
+                               n.Contains("Gate_Portcullis_Barricade") ||
                                n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
                                n.Contains("Village_Left_Gap_Wall");
 
@@ -334,7 +373,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
-                // Kích hoạt GameObject và Renderers
+                // Kích hoạt GameObject và phục hồi toàn bộ Renderers (bảo đảm không bị tàng hình khi reset màn)
                 t.gameObject.SetActive(true);
                 Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
                 foreach (var r in rends) if (r != null) r.enabled = true;
@@ -379,7 +418,6 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     else
                     {
-                        // Tính toán kích thước từ Renderers nếu chưa có size chuẩn
                         Bounds b = new Bounds();
                         bool hasB = false;
                         foreach (var r in rends)
@@ -396,8 +434,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                             bc.center = t.InverseTransformPoint(b.center);
                             Vector3 ws = b.size;
                             Vector3 ls = t.lossyScale;
-                            float sx = Mathf.Abs(ls.x) > 0.001f ? ws.x / Mathf.Abs(ls.x) : 2f;
-                            float sy = Mathf.Abs(ls.y) > 0.001f ? ws.y / Mathf.Abs(ls.y) : 2f;
+                            float sx = Mathf.Abs(ls.x) > 0.001f ? ws.x / Mathf.Abs(ls.x) : 2.5f;
+                            float sy = Mathf.Abs(ls.y) > 0.001f ? ws.y / Mathf.Abs(ls.y) : 1.8f;
                             float sz = Mathf.Abs(ls.z) > 0.001f ? ws.z / Mathf.Abs(ls.z) : 1.2f;
                             if (sx < 1.0f) sx = 1.0f;
                             if (sz < 1.0f) sz = 1.0f;
@@ -406,6 +444,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                 }
                 if (bc != null) bc.enabled = true;
+
+                // Phục hồi và kích hoạt toàn bộ Collider con
+                Collider[] allCols = t.GetComponentsInChildren<Collider>(true);
+                foreach (var c in allCols) if (c != null) c.enabled = true;
 
                 // Cấu hình NavMeshObstacle Carving
                 UnityEngine.AI.NavMeshObstacle obs = t.GetComponent<UnityEngine.AI.NavMeshObstacle>();
@@ -424,14 +466,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (!t.TryGetComponent(out Unit.Wall w))
                 {
                     w = t.gameObject.AddComponent<Unit.Wall>();
-                    w.MaxHealth = targetHp;
-                    w.Health = targetHp;
                 }
-                else
-                {
-                    w.MaxHealth = targetHp;
-                    w.Health = targetHp;
-                }
+                w.MaxHealth = targetHp;
+                w.Health = targetHp;
 
                 // Tạo và gắn Thanh máu hiển thị trên màn hình
                 w.EnsureHealthBarAttached();

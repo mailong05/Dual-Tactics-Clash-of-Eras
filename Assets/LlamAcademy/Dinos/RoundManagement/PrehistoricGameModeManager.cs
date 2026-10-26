@@ -1018,12 +1018,11 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void CleanAllAssaultDefenses()
         {
-            // 1. Dọn dẹp triệt để container Assault_Village_Defenses nếu có
+            // 1. Xóa container Assault_Village_Defenses chứa toàn bộ vũ khí động sinh ra cho màn chơi
             GameObject container = GameObject.Find("Assault_Village_Defenses");
             if (container != null)
             {
-                var units = container.GetComponentsInChildren<Unit.Unit>(true);
-                foreach (var u in units)
+                foreach (var u in container.GetComponentsInChildren<Unit.Unit>(true))
                 {
                     if (u != null && Utility.HealthBarCanvas.Instance != null)
                     {
@@ -1033,42 +1032,21 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Destroy(container);
             }
 
-            // 2. Tìm và xóa mọi clone của công trình phòng thủ công thành còn sót lại trong Scene
-            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            foreach (var u in allUnits)
-            {
-                if (u == null) continue;
-                string n = u.gameObject.name;
-                bool isAssaultStructure = n.Contains("Prefab_Catapult") ||
-                                          n.Contains("Prefab_ShamanTotem") ||
-                                          n.Contains("Prefab_SpikeTrap") ||
-                                          n.Contains("Prefab_Ballista") ||
-                                          n.Contains("Prefab_Barricade") ||
-                                          n.Contains("Assault_Wall") ||
-                                          u.GetComponent<AssaultDefenseMarker>() != null;
-
-                // Lưu ý an toàn: KHÔNG xóa tháp do người chơi tự đặt trong Tower Defense (có PlayerPlacedTowerMarker)
-                if (isAssaultStructure && u.GetComponent<PlayerPlacedTowerMarker>() == null)
-                {
-                    if (Utility.HealthBarCanvas.Instance != null)
-                    {
-                        Utility.HealthBarCanvas.Instance.Unregister(u);
-                    }
-                    Destroy(u.gameObject);
-                }
-            }
-
-            // 3. Dọn dẹp mọi marker đối tượng phụ
+            // 2. Chỉ xóa các vũ khí có gắn AssaultDefenseMarker (TUYỆT ĐỐI không xóa hàng rào, chòi, cầu mặc định của scene)
             var markers = FindObjectsByType<AssaultDefenseMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var m in markers)
             {
                 if (m != null && m.gameObject != null)
                 {
+                    if (m.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.Instance != null)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
                     Destroy(m.gameObject);
                 }
             }
 
-            // 4. Xóa sạch bộ nhớ đột phá chiến thuật
+            // 3. Xóa sạch bộ nhớ đột phá chiến thuật
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
             {
                 LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();

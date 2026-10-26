@@ -336,24 +336,33 @@ namespace LlamAcademy.Dinos.Utility
 
 
 
+                    keyValuePair.Key.TryGetComponent(out Collider col);
+                    string lowerName = keyValuePair.Key.gameObject.name.ToLower();
+                    bool isFence = lowerName.Contains("segment") ||
+                                   lowerName.Contains("barricade") ||
+                                   lowerName.Contains("palisade") ||
+                                   lowerName.Contains("plank_defenses") ||
+                                   (keyValuePair.Key is Unit.Wall && !lowerName.Contains("tower") && !lowerName.Contains("arch") && !lowerName.Contains("hut"));
+
                     Vector3 targetPos;
-
-                    if (keyValuePair.Key.TryGetComponent(out Collider col))
-
+                    if (isFence)
                     {
-
+                        // Hạ thanh máu xuống ngay sát trên đỉnh của hàng rào cọc gỗ (+1.15m tính từ chân đất):
+                        float groundY = keyValuePair.Key.Transform.position.y;
+                        targetPos = new Vector3(
+                            col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x,
+                            groundY + 1.15f,
+                            col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z
+                        );
+                    }
+                    else if (col != null)
+                    {
                         targetPos = new Vector3(col.bounds.center.x, col.bounds.max.y + 0.6f, col.bounds.center.z);
-
                     }
-
                     else
-
                     {
-
                         targetPos = keyValuePair.Key.Transform.position + keyValuePair.Value.FollowOffset;
-
                     }
-
                     keyValuePair.Value.transform.position = targetPos;
 
                     if (cam != null)
@@ -555,6 +564,10 @@ namespace LlamAcademy.Dinos.Utility
             else if (unitNameLower.Contains("hut") || unitNameLower.Contains("tent"))
             {
                 height = 4.2f;
+            }
+            else if (unitNameLower.Contains("segment") || unitNameLower.Contains("barricade") || unitNameLower.Contains("palisade") || unitNameLower.Contains("plank_defenses"))
+            {
+                height = 1.15f;
             }
             else if (unitNameLower.Contains("ankyl"))
 
