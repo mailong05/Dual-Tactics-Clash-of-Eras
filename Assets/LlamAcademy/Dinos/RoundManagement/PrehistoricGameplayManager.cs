@@ -302,12 +302,13 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         Destroy(w);
                     }
-                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                    foreach (var obs in t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true))
                     {
                         obs.enabled = false;
+                        obs.carving = false;
                         Destroy(obs);
                     }
-                    if (t.TryGetComponent(out Collider col))
+                    foreach (var col in t.GetComponentsInChildren<Collider>(true))
                     {
                         col.enabled = false;
                     }
@@ -411,15 +412,14 @@ namespace LlamAcademy.Dinos.RoundManagement
         }
 
         /// <summary>
-        /// Đảm bảo tất cả các cầu gỗ và dốc gỗ kết nối làng/chòi (Bridge_Tribal, Ramp_Tribal, Arch Entry Wall, Overhead_Arch)
-        /// đều có Component Wall, thanh máu chuẩn, BoxCollider và cho phép khủng long tấn công phá hủy như các công trình khác.
+        /// Đảm bảo tất cả các cầu gỗ, dốc gỗ, cổng vòm và hành lang kết nối làng
+        /// (Bridge_Tribal, Ramp_Tribal, Arch Entry Wall, Overhead_Arch, Big Tower with Platform)
+        /// TUYỆT ĐỐI THÔNG THOÁNG, không bị gắn NavMeshObstacle cản đường, không bị BoxCollider tàng hình bịt kín,
+        /// giúp toàn bộ các loài khủng long (kể cả T-Rex) tiến công mượt mà vào căn cứ làng mà không bị kẹt.
         /// </summary>
         public void EnsureVillageBridgesDestructible()
         {
-            var barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
-            if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
-
-            // Phục hồi lại Smooth Floor và các sàn gỗ kết nối nếu đã bị vô hiệu hóa khi reset làng
+            // Phục hồi lại Smooth Floor và các sàn gỗ kết nối
             var allFloors = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var fl in allFloors)
             {
@@ -430,6 +430,12 @@ namespace LlamAcademy.Dinos.RoundManagement
                     fl.gameObject.SetActive(true);
                     foreach (var r in fl.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
                     foreach (var c in fl.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+                    // Đảm bảo sàn không bao giờ có NavMeshObstacle
+                    foreach (var obs in fl.GetComponentsInChildren<NavMeshObstacle>(true))
+                    {
+                        obs.enabled = false;
+                        Destroy(obs);
+                    }
                 }
             }
 
@@ -439,78 +445,49 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (t == null) continue;
                 string n = t.gameObject.name;
 
-                bool isBridgeOrRamp = n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                                      n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                                      n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) ||
-                                      n.Contains("Overhead_Arch");
+                bool isWalkwayOrArch = n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                       n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                       n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) ||
+                                       n.Contains("Overhead_Arch") ||
+                                       n.Contains("Big Tower with Platform");
 
-                if (!isBridgeOrRamp) continue;
-
-                // Bỏ qua nếu là child transform bên trong một bridge/ramp cha
-                if (t.parent != null && (t.parent.name.StartsWith("Bridge_Tribal") || t.parent.name.StartsWith("Ramp_Tribal") || t.parent.name.StartsWith("Arch Entry")))
-                {
-                    continue;
-                }
+                if (!isWalkwayOrArch) continue;
 
                 t.gameObject.SetActive(true);
                 Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
                 foreach (var r in rends) if (r != null) r.enabled = true;
 
-                // Gắn BoxCollider để khủng long có thể raycast & tấn công phá hủy
-                if (!t.TryGetComponent(out BoxCollider bc))
+                // 1. TRIỆT TIÊU 100% NavMeshObstacle trên cầu, vòm cổng và sàn đi bộ để không bao giờ khoét lỗ NavMesh
+                NavMeshObstacle[] allObs = t.GetComponentsInChildren<NavMeshObstacle>(true);
+                foreach (var obs in allObs)
                 {
-                    bc = t.gameObject.AddComponent<BoxCollider>();
-                    Bounds b = new Bounds(Vector3.zero, Vector3.zero);
-                    bool hasBounds = false;
-                    foreach (var mf in t.GetComponentsInChildren<MeshFilter>(true))
+                    if (obs != null)
                     {
-                        if (mf != null && mf.sharedMesh != null)
-                        {
-                            if (!hasBounds) { b = mf.sharedMesh.bounds; hasBounds = true; }
-                            else b.Encapsulate(mf.sharedMesh.bounds);
-                        }
-                    }
-                    if (hasBounds)
-                    {
-                        bc.size = b.size;
-                        bc.center = b.center;
-                    }
-                    else
-                    {
-                        bc.size = new Vector3(3.5f, 2.5f, 7.0f);
-                        bc.center = new Vector3(0f, 1.25f, 0f);
+                        obs.enabled = false;
+                        obs.carving = false;
+                        Destroy(obs);
                     }
                 }
-                bc.enabled = true;
 
-                // Gắn NavMeshObstacle có carving để cản đường khi còn nguyên, tự động un-carve mở đường khi bị phá hủy
-                if (!t.TryGetComponent(out NavMeshObstacle obs))
+                // 2. GỠ BỎ COMPONENT WALL VÀ THANH MÁU LƠ LỬNG TRÊN CẦU / CỔNG VÒM
+                if (t.TryGetComponent(out Unit.Wall w)) Destroy(w);
+                if (t.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance) HealthBarCanvas.Instance.Unregister(u);
+                for (int c = t.childCount - 1; c >= 0; c--)
                 {
-                    obs = t.gameObject.AddComponent<NavMeshObstacle>();
+                    Transform child = t.GetChild(c);
+                    if (child != null && child.name.Contains("HealthBar")) Destroy(child.gameObject);
                 }
-                obs.shape = NavMeshObstacleShape.Box;
-                obs.size = bc.size;
-                obs.center = bc.center;
-                obs.carving = true;
-                obs.carveOnlyStationary = true;
-                obs.enabled = true;
 
-                // Gắn Wall component với thanh máu chuẩn
-                if (!t.TryGetComponent(out Unit.Wall wall))
+                // 3. XÓA BỎ BOXCOLLIDER TRÊN ROOT CỦA ARCH ENTRY WALL / OVERHEAD ARCH
+                // Chỉ giữ lại 2 cột trụ bên trái/phải và mặt sàn tầng trên đã được tạo trong EnsureScenicFortressWalkways()
+                if (n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch"))
                 {
-                    wall = t.gameObject.AddComponent<Unit.Wall>();
+                    BoxCollider directBc = t.GetComponent<BoxCollider>();
+                    if (directBc != null) Destroy(directBc);
+
+                    MeshCollider[] mcs = t.GetComponentsInChildren<MeshCollider>(true);
+                    foreach (var mc in mcs) if (mc != null) mc.enabled = false;
                 }
-                wall.enabled = true;
-                if (wall.MaxHealth <= 0 || wall.MaxHealth == 450 || wall.MaxHealth == 250)
-                {
-                    wall.MaxHealth = 1200;
-                    wall.Health = 1200;
-                }
-                if (barricadeSO != null && wall.UnitType == null)
-                {
-                    wall.UnitType = barricadeSO;
-                }
-                wall.EnsureHealthBarAttached();
             }
         }
 

@@ -21,8 +21,9 @@ namespace LlamAcademy.Dinos.Unit
                 // Nâng mô hình velociraptor.glb lên +12.987m để triệt tiêu độ lệch trục -1.1m từ Blender (10.9x scale),
                 // đưa toàn bộ 100% thân, chân và mắt khủng long trồi lên mặt đất chính xác, tuyệt đối không bị chìm dưới lòng đất!
                 VisualModel.localPosition = new Vector3(0f, 12.987f, 0f);
+                VisualModel.localRotation = Quaternion.identity; // Căn chuẩn 100% đầu và thân hướng thẳng phía trước về phía căn cứ đối phương
                 _BaseModelLocalPos = VisualModel.localPosition;
-                _BaseModelLocalRot = VisualModel.localRotation;
+                _BaseModelLocalRot = Quaternion.identity;
 
                 // Mở rộng localBounds của toàn bộ SkinnedMeshRenderer để Unity URP không bao giờ cull/tàng hình
                 foreach (var smr in VisualModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))

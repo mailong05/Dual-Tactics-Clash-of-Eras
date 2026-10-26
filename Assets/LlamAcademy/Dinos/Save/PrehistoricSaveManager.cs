@@ -30,7 +30,7 @@ namespace LlamAcademy.Dinos.Save
     {
         public int AssaultLevel = 1;
         public int HighestLevelReached = 1;
-        public int Meat = 250;
+        public int Meat = 500;
         public int BaseHealth = 1000;
         public int MaxBaseHealth = 1000;
         public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
@@ -641,9 +641,9 @@ namespace LlamAcademy.Dinos.Save
                     level = level + 1;
                 }
 
-                int meat = 250;
+                int meat = 500;
                 DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
-                if (spawner != null) meat = spawner.ResourcesToSpend;
+                if (spawner != null) meat = Mathf.Max(500, spawner.ResourcesToSpend);
 
                 int baseHp = 1000;
                 int maxHp = 1000;

@@ -1147,6 +1147,11 @@ namespace LlamAcademy.Dinos.Unit
                         }
                         ModelLegacyAnimation.playAutomatically = true;
                         if (!string.IsNullOrEmpty(_WalkClipName)) ModelLegacyAnimation.Play(_WalkClipName);
+                        if (VisualModel != null)
+                        {
+                            VisualModel.localRotation = Quaternion.identity;
+                            _BaseModelLocalRot = Quaternion.identity;
+                        }
                         if (ModelAnimator != null)
                         {
                             ModelAnimator.runtimeAnimatorController = null;
@@ -3119,46 +3124,31 @@ namespace LlamAcademy.Dinos.Unit
 
             // Tuyệt đối KHÔNG biến container nhóm tổng, cầu sàn đi bộ, mặt đất, terrain, collider phụ vô hình thành tường
 
-            if (n.Contains("big tower with platform") || n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
-
+            if (n.Contains("big tower") || n.Contains("arch entry") || n.Contains("overhead_arch") ||
+                n.Contains("bridge") || n.Contains("ramp") || n.Contains("smooth floor") ||
+                n == "village_fortress_wall" || n == "left_wing_wall" || n == "right_wing_wall" ||
                 n == "right_flank_wall" || n == "gate_complex" || n == "gate_entryway" ||
-
                 n == "world" || n == "props" ||
-
-                n.Contains("pillar") || n.Contains("deck") || n.Contains("walkway") || n.Contains("helper") ||
-
-                n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain"))
-
+                n.Contains("pillar") || n.Contains("deck") || n.Contains("walkway") || n.Contains("catwalk") || n.Contains("helper") ||
+                n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain") ||
+                n.Contains("base") || n.Contains("egg") || n.Contains("hut"))
             {
-
                 return null;
-
             }
 
             // Đối tượng bắt buộc phải có Renderer hiển thị (tránh chọn trúng collider tàng hình)
-
             if (targetT.GetComponentInChildren<Renderer>() == null && targetT.GetComponentInParent<Renderer>() == null)
-
             {
-
                 return null;
-
             }
 
             bool hasWallTag = false;
-
             try { hasWallTag = col.CompareTag("Wall") || col.CompareTag("Obstacle"); } catch {}
 
             if (n.Contains("wall") || n.Contains("barricade") ||
-
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
-
-                n.Contains("plank_defenses") || n.Contains("big tower") || n.Contains("arch entry") ||
-
-                n.Contains("tower") || n.Contains("platform") ||
-
+                n.Contains("plank_defenses") ||
                 hasWallTag)
-
             {
 
                 GameObject go = targetT.gameObject;

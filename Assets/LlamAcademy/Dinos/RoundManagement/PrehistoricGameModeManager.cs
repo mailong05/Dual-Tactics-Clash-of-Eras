@@ -256,7 +256,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 {
                     dinoSpawner.AllowPlacingDinos = true;
                     // Khởi tạo lượng thịt ban đầu dồi dào (250 thịt cơ bản + 75 thịt mỗi cấp màn)
-                    int targetMeat = 250 + (AssaultLevel - 1) * 75;
+                    int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
                     if (Application.isPlaying && dinoSpawner.ResourcesToSpend < targetMeat)
                     {
                         dinoSpawner.ResourcesToSpend = targetMeat;
@@ -575,9 +575,13 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
-            if (GUILayout.Button("+100 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
+            if (GUILayout.Button("+300 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
             {
-                if (spawner != null) spawner.ResourcesToSpend += 100;
+                if (spawner != null) spawner.ResourcesToSpend += 300;
+            }
+            if (GUILayout.Button("Đầy 500", GUILayout.Width(70), GUILayout.Height(26)))
+            {
+                if (spawner != null) spawner.ResourcesToSpend = Mathf.Max(500, spawner.ResourcesToSpend);
             }
             GUILayout.EndHorizontal();
 
@@ -1221,7 +1225,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetupVillageDefensesForLevel(AssaultLevel);
 
             // Cung cấp thịt dồi dào theo màn mới để người chơi dàn trận
-            int targetMeat = 250 + (AssaultLevel - 1) * 75;
+            int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
@@ -1263,7 +1267,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetupVillageDefensesForLevel(AssaultLevel);
 
             // 4. Cấp lại đúng số lượng thịt cố định của màn và mở lại quyền đặt quân
-            int targetMeat = 250 + (AssaultLevel - 1) * 75;
+            int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
@@ -1300,7 +1304,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                spawner.ResourcesToSpend = 250;
+                spawner.ResourcesToSpend = 500;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1315,7 +1319,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     prof.AssaultLevel = 1;
-                    prof.Meat = 250;
+                    prof.Meat = 500;
                     prof.HasActiveRun = true;
                 }
                 Save.PrehistoricSaveManager.Instance.AutoSaveAssaultRun(true);
@@ -1337,7 +1341,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                spawner.ResourcesToSpend = savedMeat > 0 ? savedMeat : (250 + (AssaultLevel - 1) * 75);
+                int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
+                spawner.ResourcesToSpend = (savedMeat >= 200) ? savedMeat : targetMeat;
             }
 
             if (Unit.PrehistoricVillageBase.Instance != null && savedHp > 0)
@@ -1363,7 +1368,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void ContinueAssaultFromMenu()
         {
             int targetLevel = 1;
-            int savedMeat = 250;
+            int savedMeat = 500;
 
             if (Save.PrehistoricSaveManager.Instance != null)
             {
@@ -1372,7 +1377,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     targetLevel = Mathf.Max(1, prof.AssaultLevel);
-                    if (prof.Meat > 0) savedMeat = prof.Meat;
+                    if (prof.Meat >= 200) savedMeat = prof.Meat;
+                    else savedMeat = Mathf.Max(500, 350 + (targetLevel - 1) * 100);
                 }
             }
 
@@ -1404,7 +1410,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = 250;
+                spawner.ResourcesToSpend = 500;
                 spawner.AllowPlacingDinos = true;
                 spawner.ChangeActiveDino(null);
             }

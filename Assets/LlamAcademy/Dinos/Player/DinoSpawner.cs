@@ -34,6 +34,18 @@ namespace LlamAcademy.Dinos.Player
         public bool AllowPlacingDinos { get; set; } = true;
         public DinoSO ActiveDinoSO => SpawnDino;
 
+        // Khung cho phép đặt khủng long trong Chế độ Công Thành (Vùng Rừng: Z từ -1.5m đến +42m, X từ -32m đến +32m)
+        public const float MIN_DEPLOY_X = -32.0f;
+        public const float MAX_DEPLOY_X = 32.0f;
+        public const float MIN_DEPLOY_Z = -1.5f;
+        public const float MAX_DEPLOY_Z = 42.0f;
+
+        public static bool IsInDeploymentZone(Vector3 pos)
+        {
+            return pos.x >= MIN_DEPLOY_X && pos.x <= MAX_DEPLOY_X &&
+                   pos.z >= MIN_DEPLOY_Z && pos.z <= MAX_DEPLOY_Z;
+        }
+
         public delegate void SpawnDinoEvent(Unit.Unit spawnedDino);
         public event SpawnDinoEvent OnSpawnDino;
 
@@ -245,15 +257,25 @@ namespace LlamAcademy.Dinos.Player
                 }
 
                 // Cập nhật vị trí bóng mờ xem trước (Ghost Preview) và báo hợp lệ
+                bool inZone = IsInDeploymentZone(placePos);
+                bool canAfford = ResourcesToSpend >= (SpawnDino != null ? SpawnDino.Cost : 0);
                 if (Visualization != null)
                 {
                     Visualization.transform.position = placePos;
-                    Visualization.SetPlacementValidity(ResourcesToSpend >= (SpawnDino != null ? SpawnDino.Cost : 0), foundNavMesh);
+                    Visualization.SetPlacementValidity(canAfford, foundNavMesh, inZone);
                 }
 
                 // 3. Thực hiện đặt quân khi người chơi click/chạm hợp lệ
                 if (isClickAction && SpawnDino != null && targetPrefab != null)
                 {
+                    if (!inZone)
+                    {
+                        PrehistoricGameplayManager.Instance?.ShowAnnouncement(
+                            "<color=#FFCC00>⚠ NGOÀI KHUNG THẢ QUÂN!</color> Vui lòng thả khủng long trong Vùng Rừng Chiến Thuật (Z: 0 → 40m).", 1.8f);
+                        Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
+                        return;
+                    }
+
                     if (!foundNavMesh)
                     {
                         // Thử mở rộng quét lần cuối trước khi từ chối
@@ -340,10 +362,11 @@ namespace LlamAcademy.Dinos.Player
                         Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(SpawnDino);
                         Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
 
-                        // Nếu không còn đủ thịt cho một con nữa, hủy chọn
+                        // Giữ lựa chọn khủng long để người chơi tiện theo dõi hoặc nạp thêm thịt
                         if (ResourcesToSpend < SpawnDino.Cost)
                         {
-                            ChangeActiveDino(null);
+                            PrehistoricGameplayManager.Instance?.ShowAnnouncement(
+                                $"<color=#88FF88>✓ Đã triệu hồi {SpawnDino.name}!</color> Bấm [+300 Thịt] ở góc trái để triệu hồi thêm.", 2.0f);
                         }
                     }
                     else
