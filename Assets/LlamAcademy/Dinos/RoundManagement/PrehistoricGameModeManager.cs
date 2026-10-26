@@ -255,8 +255,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 else
                 {
                     dinoSpawner.AllowPlacingDinos = true;
-                    // Khởi tạo lượng thịt ban đầu dồi dào (250 thịt cơ bản + 75 thịt mỗi cấp màn)
-                    int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
+                    // Khởi tạo lượng thịt ban đầu hợp lý (200 thịt cơ bản + 40 thịt mỗi cấp màn)
+                    int targetMeat = 200 + (AssaultLevel - 1) * 40;
                     if (Application.isPlaying && dinoSpawner.ResourcesToSpend < targetMeat)
                     {
                         dinoSpawner.ResourcesToSpend = targetMeat;
@@ -303,6 +303,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 // Dọn sạch triệt để mọi công trình, tháp, bẫy từ chế độ Công Thành để sân chơi Thủ Thành hoàn toàn tinh khôi
                 CleanAllAssaultDefenses();
                 ClearAllDinos();
+                if (PrehistoricGameplayManager.Instance != null)
+                {
+                    PrehistoricGameplayManager.Instance.DeactivateDefaultSceneBarricades();
+                }
             }
             else if (mode == PrehistoricGameMode.DinoAssault)
             {
@@ -580,9 +584,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 if (spawner != null) spawner.ResourcesToSpend += 300;
             }
-            if (GUILayout.Button("Đầy 500", GUILayout.Width(70), GUILayout.Height(26)))
+            if (GUILayout.Button("Đầy 250", GUILayout.Width(70), GUILayout.Height(26)))
             {
-                if (spawner != null) spawner.ResourcesToSpend = Mathf.Max(500, spawner.ResourcesToSpend);
+                if (spawner != null) spawner.ResourcesToSpend = Mathf.Max(250, spawner.ResourcesToSpend);
             }
             GUILayout.EndHorizontal();
 
@@ -1208,12 +1212,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Khôi phục và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Cung cấp thịt dồi dào theo màn mới để người chơi dàn trận
-            int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
+            // Cung cấp thịt hợp lý theo màn mới (giảm bớt để tăng độ thử thách và chiến thuật)
+            int baseLevelMeat = 200 + (AssaultLevel - 1) * 40;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = Mathf.Max(spawner.ResourcesToSpend + 120, targetMeat);
+                spawner.ResourcesToSpend = Mathf.Max(spawner.ResourcesToSpend + 45, baseLevelMeat);
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1251,7 +1255,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetupVillageDefensesForLevel(AssaultLevel);
 
             // 4. Cấp lại đúng số lượng thịt cố định của màn và mở lại quyền đặt quân
-            int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
+            int targetMeat = 200 + (AssaultLevel - 1) * 40;
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
@@ -1288,7 +1292,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                spawner.ResourcesToSpend = 500;
+                spawner.ResourcesToSpend = 200;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1303,7 +1307,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     prof.AssaultLevel = 1;
-                    prof.Meat = 500;
+                    prof.Meat = 200;
                     prof.HasActiveRun = true;
                 }
                 Save.PrehistoricSaveManager.Instance.AutoSaveAssaultRun(true);
@@ -1325,8 +1329,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                int targetMeat = Mathf.Max(500, 350 + (AssaultLevel - 1) * 100);
-                spawner.ResourcesToSpend = (savedMeat >= 200) ? savedMeat : targetMeat;
+                int targetMeat = 200 + (AssaultLevel - 1) * 40;
+                spawner.ResourcesToSpend = (savedMeat >= 100) ? savedMeat : targetMeat;
             }
 
             if (Unit.PrehistoricVillageBase.Instance != null && savedHp > 0)
@@ -1352,7 +1356,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void ContinueAssaultFromMenu()
         {
             int targetLevel = 1;
-            int savedMeat = 500;
+            int savedMeat = 200;
 
             if (Save.PrehistoricSaveManager.Instance != null)
             {
@@ -1361,8 +1365,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     targetLevel = Mathf.Max(1, prof.AssaultLevel);
-                    if (prof.Meat >= 200) savedMeat = prof.Meat;
-                    else savedMeat = Mathf.Max(500, 350 + (targetLevel - 1) * 100);
+                    if (prof.Meat >= 100) savedMeat = prof.Meat;
+                    else savedMeat = 200 + (targetLevel - 1) * 40;
                 }
             }
 
@@ -1394,7 +1398,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = 500;
+                spawner.ResourcesToSpend = 200;
                 spawner.AllowPlacingDinos = true;
                 spawner.ChangeActiveDino(null);
             }

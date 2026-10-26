@@ -347,11 +347,11 @@ namespace LlamAcademy.Dinos.Utility
                     Vector3 targetPos;
                     if (isFence)
                     {
-                        // Hạ thanh máu xuống ngay sát trên đỉnh của hàng rào cọc gỗ (+1.15m tính từ chân đất):
-                        float groundY = keyValuePair.Key.Transform.position.y;
+                        // Đặt thanh máu ngay sát trên mép trên cùng của hàng rào cọc gỗ (+0.15m trên đỉnh cọc):
+                        float topY = col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.85f);
                         targetPos = new Vector3(
                             col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x,
-                            groundY + 1.15f,
+                            topY + 0.15f,
                             col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z
                         );
                     }
@@ -567,7 +567,7 @@ namespace LlamAcademy.Dinos.Utility
             }
             else if (unitNameLower.Contains("segment") || unitNameLower.Contains("barricade") || unitNameLower.Contains("palisade") || unitNameLower.Contains("plank_defenses"))
             {
-                height = 1.15f;
+                height = 1.95f;
             }
             else if (unitNameLower.Contains("ankyl"))
 
@@ -757,7 +757,7 @@ namespace LlamAcademy.Dinos.Utility
             if (lower.Contains("big tower") || lower.Contains("watchtower")) return "🛖 Chòi Canh Bộ Lạc";
             if (lower.Contains("arch entry") || lower.Contains("overhead_arch") || lower.Contains("arch")) return "🪵 Cầu Vòm Gỗ Làng";
             if (lower.Contains("hut") || lower.Contains("tent")) return "⛺ Lều Dân Làng";
-            if (lower.Contains("plank_defenses") || lower.Contains("barricade") || lower.Contains("palisade") || lower.Contains("wall") || unit is Wall) return "🪵 Hàng Rào Cọc Gỗ";
+            if (lower.Contains("plank_defenses") || lower.Contains("barricade") || lower.Contains("palisade") || lower.Contains("segment") || lower.Contains("wall") || unit is Wall) return "";
 
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
 

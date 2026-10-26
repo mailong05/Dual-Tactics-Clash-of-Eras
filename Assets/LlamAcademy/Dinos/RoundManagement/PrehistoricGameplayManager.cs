@@ -257,22 +257,119 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void DeactivateDefaultSceneBarricades()
         {
-            int lvl = 1;
-            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            bool isAssault = PrehistoricGameModeManager.Instance != null &&
+                             PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
+            if (isAssault)
             {
-                lvl = PrehistoricGameModeManager.Instance.AssaultLevel;
+                int lvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
+                ConfigureAllVillageFortifications(lvl);
             }
-            ConfigureAllVillageFortifications(lvl);
+            else
+            {
+                // CHẾ ĐỘ THỦ THÀNH (TOWER DEFENSE):
+                // XÓA BỎ / TẮT TOÀN BỘ hàng rào gỗ phía trước làng để người chơi tự do xây mê cung và tháp,
+                // không bị hàng rào cản đường hoặc sinh thanh máu làm phiền.
+                RemoveAllVillageFrontBarricades();
+            }
         }
 
         public void EnsureScenicFortressWalkways()
         {
-            int lvl = 1;
-            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            bool isAssault = PrehistoricGameModeManager.Instance != null &&
+                             PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
+            if (isAssault)
             {
-                lvl = PrehistoricGameModeManager.Instance.AssaultLevel;
+                int lvl = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
+                ConfigureAllVillageFortifications(lvl);
             }
-            ConfigureAllVillageFortifications(lvl);
+            else
+            {
+                RemoveAllVillageFrontBarricades();
+            }
+        }
+
+        /// <summary>
+        /// Trong chế độ Thủ Thành (Tower Defense): Vô hiệu hóa và xóa bỏ toàn bộ hàng rào cọc gỗ
+        /// và tường thành mặc định phía trước làng để giải phóng 100% không gian cho người chơi xây tháp,
+        /// tạo mê cung mazing theo ý muốn mà không bị cản trở bởi hàng rào hay thanh máu ma.
+        /// </summary>
+        public void RemoveAllVillageFrontBarricades()
+        {
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (Transform t in allTransforms)
+            {
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                // Tuyệt đối không can thiệp vào tường do người chơi xây
+                if (n.Contains("(Clone)")) continue;
+
+                // Bỏ qua cầu qua sông, dốc bộ, sàn deck
+                if (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                    n.Contains("Smooth Floor") || n.Contains("Walkway_Deck"))
+                {
+                    continue;
+                }
+
+                // Bỏ qua Player, Camera, Light, Canvas, Projectile, Căn cứ chính
+                if (n.Contains("Camera") || n.Contains("Light") || n.Contains("Canvas") ||
+                    n.Contains("Player") || n.Contains("Dino") || n.Contains("Base") || n.Contains("Egg"))
+                {
+                    continue;
+                }
+
+                // Kiểm tra các container cha của hàng rào
+                bool isContainerGroup = n == "Village_Fortress_Wall" ||
+                                        n == "Left_Wing_Wall" ||
+                                        n == "Right_Wing_Wall" ||
+                                        n == "Right_Flank_Wall" ||
+                                        n == "Gate_Complex";
+
+                // Kiểm tra các hàng rào cọc gỗ phía trước làng
+                bool isFrontFence = n.Contains("Plank_Defenses") ||
+                                    n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
+                                    n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
+                                    n.Contains("Barricade") || n.Contains("Palisade") ||
+                                    n.Contains("Gate_Portcullis_Barricade") ||
+                                    n.Contains("Left_Wall_Segment") || n.Contains("Right_Wall_Segment") ||
+                                    n.Contains("Village_Left_Gap_Wall");
+
+                if (isContainerGroup || isFrontFence)
+                {
+                    if (t.TryGetComponent(out Unit.Wall w))
+                    {
+                        if (Utility.HealthBarCanvas.HasInstance)
+                        {
+                            Utility.HealthBarCanvas.Instance.Unregister(w);
+                        }
+                        Destroy(w);
+                    }
+                    if (t.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+
+                    if (t.TryGetComponent(out Collider c)) c.enabled = false;
+                    if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle obs))
+                    {
+                        obs.enabled = false;
+                        obs.carving = false;
+                    }
+
+                    Renderer[] rends = t.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends) if (r != null) r.enabled = false;
+
+                    t.gameObject.SetActive(false);
+                }
+            }
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
         }
 
         /// <summary>
@@ -312,6 +409,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                 if (isContainerGroup)
                 {
+                    t.gameObject.SetActive(true);
                     if (t.TryGetComponent(out Unit.Wall cw)) Destroy(cw);
                     if (t.TryGetComponent(out BoxCollider cbc)) Destroy(cbc);
                     if (t.TryGetComponent(out UnityEngine.AI.NavMeshObstacle cobs)) Destroy(cobs);
@@ -404,46 +502,47 @@ namespace LlamAcademy.Dinos.RoundManagement
                 else if (isFence)
                 {
                     targetHp = Mathf.RoundToInt(650 * hpMult);
+                    colSize = new Vector3(6.0f, 1.8f, 1.0f);
+                    colCenter = new Vector3(0f, 0.9f, 0f);
                 }
 
                 // Cấu hình BoxCollider
                 BoxCollider bc = t.GetComponent<BoxCollider>();
                 if (bc == null)
                 {
-                    if (colSize != Vector3.zero)
+                    bc = t.gameObject.AddComponent<BoxCollider>();
+                }
+                if (colSize != Vector3.zero)
+                {
+                    bc.size = colSize;
+                    bc.center = colCenter;
+                }
+                else
+                {
+                    Bounds b = new Bounds();
+                    bool hasB = false;
+                    foreach (var r in rends)
                     {
-                        bc = t.gameObject.AddComponent<BoxCollider>();
-                        bc.size = colSize;
-                        bc.center = colCenter;
+                        if (r != null && r.enabled && !(r is ParticleSystemRenderer))
+                        {
+                            if (!hasB) { b = r.bounds; hasB = true; }
+                            else b.Encapsulate(r.bounds);
+                        }
                     }
-                    else
+                    if (hasB)
                     {
-                        Bounds b = new Bounds();
-                        bool hasB = false;
-                        foreach (var r in rends)
-                        {
-                            if (r != null && r.enabled && !(r is ParticleSystemRenderer))
-                            {
-                                if (!hasB) { b = r.bounds; hasB = true; }
-                                else b.Encapsulate(r.bounds);
-                            }
-                        }
-                        if (hasB)
-                        {
-                            bc = t.gameObject.AddComponent<BoxCollider>();
-                            bc.center = t.InverseTransformPoint(b.center);
-                            Vector3 ws = b.size;
-                            Vector3 ls = t.lossyScale;
-                            float sx = Mathf.Abs(ls.x) > 0.001f ? ws.x / Mathf.Abs(ls.x) : 2.5f;
-                            float sy = Mathf.Abs(ls.y) > 0.001f ? ws.y / Mathf.Abs(ls.y) : 1.8f;
-                            float sz = Mathf.Abs(ls.z) > 0.001f ? ws.z / Mathf.Abs(ls.z) : 1.2f;
-                            if (sx < 1.0f) sx = 1.0f;
-                            if (sz < 1.0f) sz = 1.0f;
-                            bc.size = new Vector3(sx, sy, sz);
-                        }
+                        bc.center = t.InverseTransformPoint(b.center);
+                        Vector3 ws = b.size;
+                        Vector3 ls = t.lossyScale;
+                        float sx = Mathf.Abs(ls.x) > 0.001f ? ws.x / Mathf.Abs(ls.x) : 2.5f;
+                        float sy = Mathf.Abs(ls.y) > 0.001f ? ws.y / Mathf.Abs(ls.y) : 1.8f;
+                        float sz = Mathf.Abs(ls.z) > 0.001f ? ws.z / Mathf.Abs(ls.z) : 1.2f;
+                        if (sx < 1.0f) sx = 1.0f;
+                        if (sz < 1.0f) sz = 1.0f;
+                        bc.size = new Vector3(sx, sy, sz);
                     }
                 }
-                if (bc != null) bc.enabled = true;
+                bc.enabled = true;
 
                 // Phục hồi và kích hoạt toàn bộ Collider con
                 Collider[] allCols = t.GetComponentsInChildren<Collider>(true);
@@ -474,7 +573,12 @@ namespace LlamAcademy.Dinos.RoundManagement
                 w.EnsureHealthBarAttached();
                 if (Utility.HealthBarCanvas.Instance != null)
                 {
-                    Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(w);
+                    var hb = Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(w);
+                    if (hb != null)
+                    {
+                        hb.gameObject.SetActive(true);
+                        hb.SetProgress(1.0f);
+                    }
                 }
             }
 
