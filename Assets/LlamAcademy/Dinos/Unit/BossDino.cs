@@ -63,6 +63,16 @@ namespace LlamAcademy.Dinos.Unit
                     StartCoroutine(StunTowerRoutine(towerUnit));
                 }
             }
+
+            // PRIMAL FRENZY AURA: Tiếp sức mạnh cho toàn bộ bầy khủng long đồng minh xung quanh!
+            Collider[] nearbyAllies = Physics.OverlapSphere(transform.position, RoarRadius);
+            foreach (Collider col in nearbyAllies)
+            {
+                if (col.TryGetComponent(out PrehistoricDinoBase allyDino) && allyDino != this)
+                {
+                    allyDino.ApplyPrimalFrenzy(5.0f, 1.30f);
+                }
+            }
         }
 
         private IEnumerator StunTowerRoutine(Unit tower)

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using LlamAcademy.Dinos.Config;
 using LlamAcademy.Dinos.Unit;
@@ -66,23 +66,39 @@ namespace LlamAcademy.Dinos.Utility
         {
             AttackTypeSO.MoveToTargetConfig config = attack.AttackParticleMoveConfig;
             float time = 0;
-            float durationMultiplier = 1 / config.MoveToTargetTime;
-            Vector3 initialPosition = particleSystem.transform.position;
+            float durationMultiplier = 1 / Mathf.Max(0.001f, config.MoveToTargetTime);
+            Vector3 initialPosition = particleSystem != null ? particleSystem.transform.position : Vector3.zero;
+            Vector3 lastKnownTargetPos = target != null ? target.position : initialPosition;
             yield return new WaitForSeconds(config.MoveToTargetDelay);
+
             while (time <= config.MoveToTargetTime)
             {
-                particleSystem.transform.position = Vector3.Lerp(initialPosition, target.position, time);
-                particleSystem.transform.forward = (target.position - initialPosition).normalized;
+                if (particleSystem == null) yield break;
+
+                if (target != null)
+                {
+                    lastKnownTargetPos = target.position;
+                }
+
+                particleSystem.transform.position = Vector3.Lerp(initialPosition, lastKnownTargetPos, time);
+                Vector3 toTarget = lastKnownTargetPos - initialPosition;
+                if (toTarget.sqrMagnitude > 0.001f)
+                {
+                    particleSystem.transform.forward = toTarget.normalized;
+                }
                 time += Time.deltaTime * durationMultiplier;
                 yield return null;
             }
 
-            if (target.TryGetComponent(out IDamageable damageable))
+            if (particleSystem != null)
+            {
+                particleSystem.transform.position = lastKnownTargetPos;
+            }
+
+            if (target != null && target.TryGetComponent(out IDamageable damageable))
             {
                 attack.ApplyEffect(damageable);
             }
-
-            particleSystem.transform.position = target.position;
         }
 
         public void ReAddSystemToPoolOnDisable(ObjectPool<ParticleSystem> pool, ParticleSystem system)

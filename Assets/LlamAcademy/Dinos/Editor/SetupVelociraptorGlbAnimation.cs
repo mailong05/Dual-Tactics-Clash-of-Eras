@@ -21,14 +21,7 @@ namespace LlamAcademy.Dinos.Editor
 
         static SetupVelociraptorGlbAnimation()
         {
-            EditorApplication.delayCall += () =>
-            {
-                if (!SessionState.GetBool("VelociraptorGlbExtracted_V2", false))
-                {
-                    SessionState.SetBool("VelociraptorGlbExtracted_V2", true);
-                    ExtractAndSetup();
-                }
-            };
+            // Migrated to ConvertVelociraptorToNative to ensure standalone player build visibility
         }
 
         [MenuItem("Tools/Prehistoric TD/Setup Velociraptor from GLB (File User Gui)")]

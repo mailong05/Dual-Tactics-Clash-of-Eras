@@ -369,8 +369,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             Mobile.MobileUIHelper.BeginScaling();
             try
             {
-                // 1. Top Bar: Mode Indicator & Switch Button
-                DrawTopModeBanner();
+                // 1. Top Bar: Mode Indicator & Switch Button đã được xóa bỏ trong lúc chơi theo yêu cầu người dùng
+                // DrawTopModeBanner();
 
                 // 2. Mode Select Modal (when opened)
                 if (ShowModeSelectModal)
@@ -1620,7 +1620,6 @@ namespace LlamAcademy.Dinos.RoundManagement
         }
     }
 }
-
 
     /// <summary>
     /// Đánh dấu các công trình phòng thủ sinh ra trong chế độ Công Thành (Assault),

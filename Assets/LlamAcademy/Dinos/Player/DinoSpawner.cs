@@ -18,11 +18,16 @@ namespace LlamAcademy.Dinos.Player
     public class DinoSpawner : MonoBehaviour
     {
         [SerializeField] private ResourceSO FoodResource;
+        private int _FallbackMeat = 350;
 
         public int ResourcesToSpend
         {
-            get => FoodResource != null ? FoodResource.Amount : 0;
-            set { if (FoodResource != null) FoodResource.Amount = value; }
+            get => FoodResource != null ? FoodResource.Amount : _FallbackMeat;
+            set 
+            { 
+                if (FoodResource != null) FoodResource.Amount = value; 
+                _FallbackMeat = value;
+            }
         }
 
         public static DinoSpawner Instance { get; private set; }
@@ -50,8 +55,8 @@ namespace LlamAcademy.Dinos.Player
             }
             Instance = this;
 
-            // Quét toàn bộ bề mặt vật lý hợp lệ (loại trừ UI, Ignore Raycast và các vòng trigger phạm vi đánh)
-            GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dino Attack Radius", "Enemy Attack Radius");
+            // Quét toàn bộ bề mặt vật lý hợp lệ (loại trừ UI, Ignore Raycast, quái vật, collider phụ và Block Dino Spawn)
+            GroundLayer = ~LayerMask.GetMask("Ignore Raycast", "UI", "Dinos", "Enemies", "Dino Attack Radius", "Enemy Attack Radius", "Block Dino Spawn");
         }
 
         private void Start()
@@ -141,7 +146,10 @@ namespace LlamAcademy.Dinos.Player
                 hasPointer = true;
                 if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended)
                 {
-                    isClickAction = true;
+                    if (!Mobile.MobileUIHelper.IsPointerOverUI(pointerPos))
+                    {
+                        isClickAction = true;
+                    }
                 }
             }
             else if (Mouse.current != null)
@@ -150,7 +158,10 @@ namespace LlamAcademy.Dinos.Player
                 hasPointer = true;
                 if (Mouse.current.leftButton.wasReleasedThisFrame)
                 {
-                    isClickAction = true;
+                    if (!Mobile.MobileUIHelper.IsPointerOverUI(pointerPos))
+                    {
+                        isClickAction = true;
+                    }
                 }
                 if (Mouse.current.rightButton.wasReleasedThisFrame)
                 {
@@ -163,7 +174,10 @@ namespace LlamAcademy.Dinos.Player
                 hasPointer = true;
                 if (Input.GetMouseButtonUp(0))
                 {
-                    isClickAction = true;
+                    if (!Mobile.MobileUIHelper.IsPointerOverUI(pointerPos))
+                    {
+                        isClickAction = true;
+                    }
                 }
                 if (Input.GetMouseButtonUp(1))
                 {
@@ -175,37 +189,88 @@ namespace LlamAcademy.Dinos.Player
 
             // 2. Bắn tia Raycast xuống chiến trường
             Ray ray = Camera.ScreenPointToRay(pointerPos);
-            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, GroundLayer, QueryTriggerInteraction.Ignore))
+            bool foundGround = false;
+            RaycastHit hit = default;
+
+            if (Physics.Raycast(ray, out hit, 1000f, GroundLayer, QueryTriggerInteraction.Ignore))
             {
-                // Căn chuẩn vị trí trên mặt phẳng NavMesh theo đúng AgentType của Dino
+                foundGround = true;
+            }
+            else
+            {
+                RaycastHit[] allHits = Physics.RaycastAll(ray, 1000f, GroundLayer, QueryTriggerInteraction.Ignore);
+                if (allHits != null && allHits.Length > 0)
+                {
+                    System.Array.Sort(allHits, (a, b) => a.distance.CompareTo(b.distance));
+                    hit = allHits[0];
+                    foundGround = true;
+                }
+            }
+
+            if (foundGround)
+            {
+                // Căn chuẩn vị trí: Bám sát chính xác tọa độ click chuột của người chơi, nắn nhẹ cao độ theo NavMesh
                 Vector3 placePos = hit.point;
-                int targetAgentType = 1479372276;
-                if (SpawnDino != null && SpawnDino.Prefab != null && SpawnDino.Prefab.TryGetComponent(out NavMeshAgent pa))
-                {
-                    targetAgentType = pa.agentTypeID != 0 ? pa.agentTypeID : 1479372276;
-                }
+                bool foundNavMesh = false;
 
-                NavMeshQueryFilter navFilter = new NavMeshQueryFilter { agentTypeID = targetAgentType, areaMask = NavMesh.AllAreas };
-                if (NavMesh.SamplePosition(hit.point, out NavMeshHit navHit, 30.0f, navFilter))
+                if (NavMesh.SamplePosition(hit.point, out NavMeshHit navHit, 3.5f, NavMesh.AllAreas))
+                {
+                    // Nếu click gần NavMesh (<= 1.8m), đặt vào vị trí NavMesh; nếu ở ngoài một chút, giữ tọa độ XZ click và căn chỉnh độ cao Y
+                    if (Vector3.Distance(hit.point, navHit.position) <= 1.8f)
+                    {
+                        placePos = navHit.position;
+                    }
+                    else
+                    {
+                        placePos = new Vector3(hit.point.x, navHit.position.y, hit.point.z);
+                    }
+                    foundNavMesh = true;
+                }
+                else if (NavMesh.SamplePosition(hit.point, out navHit, 8.0f, NavMesh.AllAreas))
                 {
                     placePos = navHit.position;
-                }
-                else if (NavMesh.SamplePosition(hit.point, out navHit, 30.0f, new NavMeshQueryFilter { agentTypeID = 1479372276, areaMask = NavMesh.AllAreas }))
-                {
-                    placePos = navHit.position;
+                    foundNavMesh = true;
                 }
 
-                // Cập nhật vị trí bóng mờ xem trước (Ghost Preview)
+                Unit.Unit targetPrefab = SpawnDino != null ? SpawnDino.Prefab : null;
+                if (targetPrefab == null && SpawnDino != null)
+                {
+                    string soName = SpawnDino.name.ToLower();
+                    GameObject resGo = null;
+                    if (soName.Contains("velo") || soName.Contains("raptor")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Velociraptor");
+                    else if (soName.Contains("ankyl")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Ankylosaurus");
+                    else if (soName.Contains("ptero")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Pterodactyl");
+                    else if (soName.Contains("trex") || soName.Contains("t-rex")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TRexBoss");
+                    if (resGo != null) targetPrefab = resGo.GetComponent<Unit.Unit>();
+                }
+
+                // Cập nhật vị trí bóng mờ xem trước (Ghost Preview) và báo hợp lệ
                 if (Visualization != null)
                 {
                     Visualization.transform.position = placePos;
+                    Visualization.SetPlacementValidity(ResourcesToSpend >= (SpawnDino != null ? SpawnDino.Cost : 0), foundNavMesh);
                 }
 
                 // 3. Thực hiện đặt quân khi người chơi click/chạm hợp lệ
-                bool isPointerOverUI = Mobile.MobileUIHelper.IsPointerOverUI(pointerPos);
-
-                if (isClickAction && !isPointerOverUI && SpawnDino != null && SpawnDino.Prefab != null)
+                if (isClickAction && SpawnDino != null && targetPrefab != null)
                 {
+                    if (!foundNavMesh)
+                    {
+                        // Thử mở rộng quét lần cuối trước khi từ chối
+                        if (NavMesh.SamplePosition(hit.point, out navHit, 12f, NavMesh.AllAreas))
+                        {
+                            placePos = navHit.position;
+                            foundNavMesh = true;
+                        }
+                    }
+
+                    if (!foundNavMesh)
+                    {
+                        PrehistoricGameplayManager.Instance?.ShowAnnouncement(
+                            "<color=#FFCC00>⚠ VỊ TRÍ KHÔNG THỂ ĐẶT KHỦNG LONG!</color> Hãy đặt lên mặt đất/đường đi hợp lệ.", 1.5f);
+                        return;
+                    }
+
                     if (ResourcesToSpend >= SpawnDino.Cost)
                     {
                         // Khấu trừ tài nguyên thịt
@@ -225,13 +290,13 @@ namespace LlamAcademy.Dinos.Player
                         }
 
                         // Triệu hồi khủng long vào chiến trường tại vị trí đã căn chuẩn NavMesh
-                        Unit.Unit spawnedDino = Instantiate(SpawnDino.Prefab, placePos, spawnRot);
+                        Unit.Unit spawnedDino = Instantiate(targetPrefab, placePos, spawnRot);
                         if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
                         {
                             Environment.PrehistoricVolcanicMutant.ApplyMutation(spawnedDino.gameObject);
                         }
 
-                        spawnedDino.transform.localScale = SpawnDino.Prefab.transform.localScale;
+                        spawnedDino.transform.localScale = targetPrefab.transform.localScale;
                         spawnedDino.UnitType = SpawnDino;
 
                         int assaultLvl = (PrehistoricGameModeManager.Instance != null) ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
@@ -252,7 +317,7 @@ namespace LlamAcademy.Dinos.Player
                         NavMeshAgent agent = spawnedDino.GetComponent<NavMeshAgent>();
                         if (spawnedDino is Unit.PrehistoricDinoBase pDino)
                         {
-                            pDino.EnsureOnNavMesh(30.0f);
+                            pDino.EnsureOnNavMesh(15.0f);
                             pDino.ConfigureNavMeshAgent();
                             if (pDino.Agent != null && pDino.Agent.isOnNavMesh)
                             {

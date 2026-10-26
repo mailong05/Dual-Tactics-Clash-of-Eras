@@ -117,6 +117,24 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
+            Unit.Unit prefab = dinoSO.Prefab;
+            if (prefab == null)
+            {
+                string soName = dinoSO.name.ToLower();
+                GameObject resGo = null;
+                if (soName.Contains("velo") || soName.Contains("raptor")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Velociraptor");
+                else if (soName.Contains("ankyl")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Ankylosaurus");
+                else if (soName.Contains("ptero")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Pterodactyl");
+                else if (soName.Contains("trex") || soName.Contains("t-rex")) resGo = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TRexBoss");
+                if (resGo != null) prefab = resGo.GetComponent<Unit.Unit>();
+            }
+
+            if (prefab == null)
+            {
+                if (SafeZone != null && SafeZone.activeSelf) SafeZone.SetActive(false);
+                return;
+            }
+
             if (SafeZone != null && SafeZone.activeSelf) SafeZone.SetActive(false);
 
             for (int i = 0; i < Count; i++)
@@ -126,27 +144,51 @@ namespace LlamAcademy.Dinos.Player
                 {
                     rot = Quaternion.LookRotation((RoundManager.Instance.DinoTarget.position - transform.position).normalized);
                 }
-                Unit.Unit dino = Instantiate(dinoSO.Prefab, transform.position, rot);
-                dino.transform.SetParent(transform, true);
-                dino.enabled = false; // Vô hiệu hóa để không bị coi là unit chiến đấu thật
 
-                foreach (Collider collider in dino.GetComponentsInChildren<Collider>())
+                Transform modelSource = prefab.transform.Find("Model");
+                GameObject ghostGo = null;
+                if (modelSource != null)
                 {
-                    collider.enabled = false;
+                    ghostGo = Instantiate(modelSource.gameObject, transform.position, rot, transform);
+                    ghostGo.transform.localScale = modelSource.localScale;
                 }
-                if (dino.TryGetComponent(out NavMeshAgent agent))
+                else
                 {
-                    agent.enabled = false;
+                    ghostGo = Instantiate(prefab.gameObject, transform.position, rot, transform);
+                    ghostGo.transform.localScale = prefab.transform.localScale;
                 }
-                dino.transform.localPosition = Vector3.zero;
-                Visualizations.Add(dino.gameObject);
-                Renderer renderer = dino.GetComponentInChildren<Renderer>();
-                if (renderer != null)
+
+                ghostGo.name = "GhostVisual_" + prefab.name;
+                ghostGo.transform.localPosition = Vector3.zero;
+
+                // Triệt tiêu 100% toàn bộ component logic, AI, NavMeshAgent, Collider để không bao giờ can thiệp vào game
+                foreach (var nav in ghostGo.GetComponentsInChildren<NavMeshAgent>(true)) DestroyImmediate(nav);
+                foreach (var u in ghostGo.GetComponentsInChildren<Unit.Unit>(true)) DestroyImmediate(u);
+                foreach (var collider in ghostGo.GetComponentsInChildren<Collider>(true)) DestroyImmediate(collider);
+                foreach (var rb in ghostGo.GetComponentsInChildren<Rigidbody>(true)) DestroyImmediate(rb);
+                foreach (var a in ghostGo.GetComponentsInChildren<AudioSource>(true)) DestroyImmediate(a);
+                foreach (var anim in ghostGo.GetComponentsInChildren<Animator>(true)) anim.enabled = false;
+
+                Visualizations.Add(ghostGo);
+
+                Renderer[] renderers = ghostGo.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers)
                 {
-                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    Renderers.Add(renderer);
+                    if (r != null)
+                    {
+                        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                        Renderers.Add(r);
+                    }
                 }
             }
+        }
+
+        private bool _IsOnNavMesh = true;
+
+        public void SetPlacementValidity(bool canAfford, bool onNavMesh)
+        {
+            _IsOnNavMesh = onNavMesh;
+            IsValidPlacementLocation = canAfford && onNavMesh;
         }
 
         private void Update()
@@ -162,25 +204,26 @@ namespace LlamAcademy.Dinos.Player
                 if (Visualizations[i] == null)
                 {
                     Visualizations.RemoveAt(i);
-                    if (i < Renderers.Count) Renderers.RemoveAt(i);
                     continue;
                 }
+            }
 
-                bool canAfford = DinoSpawner.Instance != null && DinoSpawner.Instance.ResourcesToSpend >= Dino.Cost;
-                
-                // Cho phép triệu hồi linh hoạt trên mọi vị trí địa hình khi đủ tài nguyên thịt
-                bool isValid = canAfford;
-                IsValidPlacementLocation = isValid;
+            bool canAfford = DinoSpawner.Instance != null && DinoSpawner.Instance.ResourcesToSpend >= Dino.Cost;
+            bool isValid = canAfford && _IsOnNavMesh;
+            IsValidPlacementLocation = isValid;
 
-                if (i < Renderers.Count && Renderers[i] != null)
+            Color targetColor = isValid ? new Color(0.2f, 1f, 0.35f, 0.75f) : new Color(1f, 0.25f, 0.25f, 0.75f);
+            for (int r = 0; r < Renderers.Count; r++)
+            {
+                Renderer rend = Renderers[r];
+                if (rend == null) continue;
+                foreach (var mat in rend.materials)
                 {
-                    Color targetColor = isValid ? Color.cyan : Color.red;
-                    Material mat = Renderers[i].material;
-                    if (mat != null)
-                    {
-                        if (mat.HasProperty(TINT)) mat.SetColor(TINT, targetColor);
-                        if (mat.HasProperty(FRESNEL_COLOR)) mat.SetColor(FRESNEL_COLOR, targetColor);
-                    }
+                    if (mat == null) continue;
+                    if (mat.HasProperty(TINT)) mat.SetColor(TINT, targetColor);
+                    if (mat.HasProperty(FRESNEL_COLOR)) mat.SetColor(FRESNEL_COLOR, targetColor);
+                    if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", targetColor);
+                    if (mat.HasProperty("_Color")) mat.SetColor("_Color", targetColor);
                 }
             }
         }

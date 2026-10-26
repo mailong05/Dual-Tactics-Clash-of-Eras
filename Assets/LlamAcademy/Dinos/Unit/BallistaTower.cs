@@ -38,6 +38,14 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
+            // Chế độ Công thành: Tuyệt đối không bắn lao khi người chơi đang dàn trận!
+            if (PrehistoricGameModeManager.Instance != null &&
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault &&
+                PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+            {
+                return;
+            }
+
             if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
             if (IsFiring) return;
 

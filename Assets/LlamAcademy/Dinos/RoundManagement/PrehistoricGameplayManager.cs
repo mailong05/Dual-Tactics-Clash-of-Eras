@@ -925,6 +925,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void LoadDinoPrefabsIfNull()
         {
+            if (RaptorPrefab == null) RaptorPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Velociraptor");
+            if (PterodactylPrefab == null) PterodactylPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Pterodactyl");
+            if (AnkylosaurusPrefab == null) AnkylosaurusPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Ankylosaurus");
+            if (TRexBossPrefab == null) TRexBossPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_TRexBoss");
+
 #if UNITY_EDITOR
             if (RaptorPrefab == null) RaptorPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Prehistoric/Prefab_Velociraptor.prefab");
             if (PterodactylPrefab == null) PterodactylPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Prehistoric/Prefab_Pterodactyl.prefab");
