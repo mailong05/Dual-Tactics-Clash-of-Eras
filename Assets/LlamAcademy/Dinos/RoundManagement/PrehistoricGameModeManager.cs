@@ -310,8 +310,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    PrehistoricGameplayManager.Instance.RemoveAllVillageFrontBarricades();
-                    PrehistoricGameplayManager.Instance.CleanAllScenicWallHealthBars();
+                    PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
                 }
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
             }
@@ -598,14 +597,6 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
-            if (GUILayout.Button("+300 Thịt", GUILayout.Width(80), GUILayout.Height(26)))
-            {
-                if (spawner != null) spawner.ResourcesToSpend += 300;
-            }
-            if (GUILayout.Button("Đầy 250", GUILayout.Width(70), GUILayout.Height(26)))
-            {
-                if (spawner != null) spawner.ResourcesToSpend = Mathf.Max(250, spawner.ResourcesToSpend);
-            }
             GUILayout.EndHorizontal();
 
             if (SelectedDino != null)
@@ -978,6 +969,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// Quy định số lượng công trình phòng thủ làng tương ứng với từng cấp màn (Level 1..10+),
         /// tương tự cơ chế thiết lập số lượng NPC phòng thủ theo màn.
         /// </summary>
+                /// <summary>
+        /// Quy định lượng thịt cố định theo cấp màn trong chế độ Công Thành (Dino Assault).
+        /// Màn 1: 150 thịt (vừa đủ chiến thuật) | Mỗi màn tiếp theo tăng 30 thịt cố định.
+        /// </summary>
+        public static int GetFixedMeatForLevel(int level)
+        {
+            return 150 + Mathf.Max(0, level - 1) * 30;
+        }
+
         public static int GetTargetDefenseCountForLevel(int level)
         {
             // Level 1: 3 vũ khí | Level 2: 5 vũ khí | Level 3: 7 vũ khí | Level 4: 9 vũ khí | Level 5: 11 vũ khí
@@ -1209,7 +1209,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 4. Cập nhật NavMesh sau khi đặt công trình mới
             if (NavMeshManager.Instance != null)
             {
-                NavMeshManager.Instance.RecalculateTriangulation(true);
+                NavMeshManager.Instance.NavMeshUpdatedByObstacles();
+                NavMeshManager.Instance.RecalculateTriangulation(false);
             }
 
             // 5. Làm mới và hồi phục toàn bộ NPC Thợ săn / Cung thủ phòng thủ làng theo quy định nghiêm ngặt của màn
@@ -1230,12 +1231,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Khôi phục và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
             SetupVillageDefensesForLevel(AssaultLevel);
 
-            // Cung cấp thịt hợp lý theo màn mới (giảm bớt để tăng độ thử thách và chiến thuật)
-            int baseLevelMeat = 200 + (AssaultLevel - 1) * 40;
+            // Cung cấp đúng lượng thịt cố định của màn mới
+            int nextMeat = GetFixedMeatForLevel(AssaultLevel);
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = Mathf.Max(spawner.ResourcesToSpend + 45, baseLevelMeat);
+                spawner.ResourcesToSpend = nextMeat;
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1273,7 +1274,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetupVillageDefensesForLevel(AssaultLevel);
 
             // 4. Cấp lại đúng số lượng thịt cố định của màn và mở lại quyền đặt quân
-            int targetMeat = 200 + (AssaultLevel - 1) * 40;
+            int targetMeat = GetFixedMeatForLevel(AssaultLevel);
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
@@ -1310,7 +1311,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                spawner.ResourcesToSpend = 200;
+                spawner.ResourcesToSpend = GetFixedMeatForLevel(1);
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1325,7 +1326,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     prof.AssaultLevel = 1;
-                    prof.Meat = 200;
+                    prof.Meat = GetFixedMeatForLevel(1);
                     prof.HasActiveRun = true;
                 }
                 Save.PrehistoricSaveManager.Instance.AutoSaveAssaultRun(true);
@@ -1347,8 +1348,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                int targetMeat = 200 + (AssaultLevel - 1) * 40;
-                spawner.ResourcesToSpend = (savedMeat >= 100) ? savedMeat : targetMeat;
+                int targetMeat = GetFixedMeatForLevel(AssaultLevel);
+                spawner.ResourcesToSpend = targetMeat;
             }
 
             if (Unit.PrehistoricVillageBase.Instance != null && savedHp > 0)
@@ -1383,8 +1384,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     targetLevel = Mathf.Max(1, prof.AssaultLevel);
-                    if (prof.Meat >= 100) savedMeat = prof.Meat;
-                    else savedMeat = 200 + (targetLevel - 1) * 40;
+                    savedMeat = GetFixedMeatForLevel(targetLevel);
                 }
             }
 
@@ -1416,7 +1416,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
-                spawner.ResourcesToSpend = 200;
+                spawner.ResourcesToSpend = GetFixedMeatForLevel(1);
                 spawner.AllowPlacingDinos = true;
                 spawner.ChangeActiveDino(null);
             }

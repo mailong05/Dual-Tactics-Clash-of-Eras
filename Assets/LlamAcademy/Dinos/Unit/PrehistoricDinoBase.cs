@@ -3418,6 +3418,13 @@ namespace LlamAcademy.Dinos.Unit
 
                 {
 
+                    // Cầu gỗ là đường đi qua sông để tiến vào làng, không coi là tường chắn đứng chặn đường
+                    string wallName = wall.gameObject.name.ToLower();
+                    if (wallName.Contains("bridge") || wallName.Contains("ramp"))
+                    {
+                        continue;
+                    }
+
                     // Nếu khủng long đang tích cực di chuyển qua khe hở (đã có slot), bỏ qua các bức tường bên mép
 
                     if (_IsNavigatingBreach && TacticalBreachMemory.HasInstance && TacticalBreachMemory.Instance.IsWallNearActiveBreach(wall.transform.position, 3.5f))

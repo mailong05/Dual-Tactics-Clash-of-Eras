@@ -7,7 +7,7 @@ namespace LlamAcademy.Dinos.Unit
     public class CatapultTower : Unit
     {
         [Header("Catapult Mechanics")]
-        [SerializeField] private float AttackRange = 14.0f;
+        [SerializeField] private float AttackRange = 40.0f;
         [SerializeField] private float MinRange = 3.5f;
         [SerializeField] private float FireInterval = 3.0f;
         [SerializeField] private int ExplosionDamage = 50;
@@ -40,15 +40,19 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
-            // Chế độ Công thành: Tuyệt đối không bắn đá khi người chơi đang dàn trận!
+            // Chế độ Công thành: Kiểm tra đúng pha xuất quân (Combat)
             if (PrehistoricGameModeManager.Instance != null &&
-                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault &&
-                PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                return;
+                if (PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
+                {
+                    return;
+                }
             }
-
-            if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            else
+            {
+                if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            }
             if (IsLaunching) return;
 
             Collider target = FindBestTarget();

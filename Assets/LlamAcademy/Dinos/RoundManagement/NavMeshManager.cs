@@ -76,6 +76,18 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (rebuildEnemySurface)
             {
+                // Tạm thời vô hiệu hóa tất cả NavMeshAgent đang active trong Scene để tránh Unity ném lỗi "Failed to create agent because it is not close enough to the NavMesh"
+                NavMeshAgent[] allAgents = FindObjectsByType<NavMeshAgent>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                System.Collections.Generic.List<NavMeshAgent> activeAgents = new System.Collections.Generic.List<NavMeshAgent>();
+                foreach (var a in allAgents)
+                {
+                    if (a != null && a.enabled && a.gameObject != null && a.gameObject.activeInHierarchy)
+                    {
+                        a.enabled = false;
+                        activeAgents.Add(a);
+                    }
+                }
+
                 try
                 {
                     if (EnemySurface != null)
@@ -98,21 +110,37 @@ namespace LlamAcademy.Dinos.RoundManagement
                 {
                     Debug.LogWarning($"[NavMeshManager] Note on rebuilding surfaces: {ex.Message}");
                 }
+                finally
+                {
+                    foreach (var a in activeAgents)
+                    {
+                        if (a != null && a.gameObject != null && a.gameObject.activeInHierarchy)
+                        {
+                            if (NavMesh.SamplePosition(a.transform.position, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
+                            {
+                                a.Warp(hit.position);
+                            }
+                            a.enabled = true;
+                        }
+                    }
+                }
             }
             else
             {
-                NavMesh.RemoveAllNavMeshData();
-                if (EnemySurface != null && EnemySurface.navMeshData != null)
+                // Tuyệt đối KHÔNG gọi NavMesh.RemoveAllNavMeshData() vì sẽ làm mất NavMesh của agent và quăng exception.
+                // Runtime carving của NavMeshObstacle tự động cập nhật vào NavMesh.
+                // Chỉ nạp NavMeshData nếu bề mặt chưa được add vào NavMesh:
+                if (EnemySurface != null)
                 {
-                    NavMesh.AddNavMeshData(EnemySurface.navMeshData);
+                    EnemySurface.AddData();
                 }
                 if (DinoSurfaces != null)
                 {
                     foreach (NavMeshSurface surface in DinoSurfaces)
                     {
-                        if (surface != null && surface.navMeshData != null)
+                        if (surface != null)
                         {
-                            NavMesh.AddNavMeshData(surface.navMeshData);
+                            surface.AddData();
                         }
                     }
                 }
