@@ -89,12 +89,12 @@ namespace LlamAcademy.Dinos.AI
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
+            if (_instance != null && _instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
-            Instance = this;
+            _instance = this;
             InitializeGrid();
         }
 
@@ -105,7 +105,7 @@ namespace LlamAcademy.Dinos.AI
 
         public void InitializeGrid()
         {
-            if (_isGridInitialized) return;
+            if (_grid != null && _isGridInitialized) return;
 
             _grid = new ThreatGridNode[GridWidth, GridHeight];
             for (int x = 0; x < GridWidth; x++)
@@ -117,7 +117,11 @@ namespace LlamAcademy.Dinos.AI
                         0f,
                         GridOrigin.z + (z + 0.5f) * CellSize
                     );
-                    _grid[x, z] = new ThreatGridNode(x, z, worldPos);
+                    var node = new ThreatGridNode(x, z, worldPos);
+                    // Khảo sát khả dụng trên NavMesh để loại trừ vách núi đá / vực sâu
+                    bool onNav = UnityEngine.AI.NavMesh.SamplePosition(worldPos, out UnityEngine.AI.NavMeshHit hit, CellSize * 0.75f, UnityEngine.AI.NavMesh.AllAreas);
+                    node.IsWalkable = onNav;
+                    _grid[x, z] = node;
                 }
             }
             _isGridInitialized = true;
@@ -129,7 +133,8 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public void RecalculateThreatField()
         {
-            if (!_isGridInitialized) InitializeGrid();
+            if (_grid == null || !_isGridInitialized) InitializeGrid();
+            if (_grid == null) return;
 
             // 1. Reset all cells
             for (int x = 0; x < GridWidth; x++)
@@ -137,11 +142,13 @@ namespace LlamAcademy.Dinos.AI
                 for (int z = 0; z < GridHeight; z++)
                 {
                     var node = _grid[x, z];
+                    if (node == null) continue;
                     node.ThreatScore = 0f;
                     node.WallPenalty = 0f;
                     node.HasWall = false;
                     node.WallRef = null;
-                    node.IsWalkable = true;
+                    bool onNav = UnityEngine.AI.NavMesh.SamplePosition(node.WorldPos, out UnityEngine.AI.NavMeshHit hit, CellSize * 0.75f, UnityEngine.AI.NavMesh.AllAreas);
+                    node.IsWalkable = onNav;
                 }
             }
 
@@ -252,7 +259,8 @@ namespace LlamAcademy.Dinos.AI
 
         public ThreatGridNode GetNodeFromWorldPos(Vector3 worldPos)
         {
-            if (!_isGridInitialized) InitializeGrid();
+            if (_grid == null || !_isGridInitialized) InitializeGrid();
+            if (_grid == null) return null;
             int x = Mathf.Clamp(Mathf.FloorToInt((worldPos.x - GridOrigin.x) / CellSize), 0, GridWidth - 1);
             int z = Mathf.Clamp(Mathf.FloorToInt((worldPos.z - GridOrigin.z) / CellSize), 0, GridHeight - 1);
             return _grid[x, z];
@@ -260,7 +268,8 @@ namespace LlamAcademy.Dinos.AI
 
         public ThreatGridNode GetNode(int x, int z)
         {
-            if (!_isGridInitialized) InitializeGrid();
+            if (_grid == null || !_isGridInitialized) InitializeGrid();
+            if (_grid == null) return null;
             if (x < 0 || x >= GridWidth || z < 0 || z >= GridHeight) return null;
             return _grid[x, z];
         }
@@ -272,7 +281,8 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public List<Vector3> FindThreatAwarePath(Vector3 startPos, Vector3 targetPos, DinoAISpeciesType species)
         {
-            if (!_isGridInitialized) InitializeGrid();
+            if (_grid == null || !_isGridInitialized) InitializeGrid();
+            if (_grid == null) return new List<Vector3> { targetPos };
 
             // Species-specific behavioral weights:
             // - Velociraptor (Flanker): wThreat = 4.0 (strictly avoids tower fire, seeks blind spots), wWall = 3.0
@@ -370,6 +380,8 @@ namespace LlamAcademy.Dinos.AI
 
                         ThreatGridNode neighbor = GetNode(nx, nz);
                         if (neighbor == null || closedSet.Contains(neighbor)) continue;
+                        // Vách đá, núi cao ngoài rìa NavMesh và không phải tường phòng thủ -> Không đi xuyên qua
+                        if (!neighbor.IsWalkable && !neighbor.HasWall) continue;
 
                         // Step distance: 1.0 for orthogonal, 1.414 for diagonal
                         float stepDist = (dx != 0 && dz != 0) ? 1.414f * CellSize : CellSize;
@@ -437,7 +449,7 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public float GetMaxThreatScore()
         {
-            if (!_isGridInitialized) return 1f;
+            if (_grid == null || !_isGridInitialized) return 1f;
             float max = 0.01f;
             for (int x = 0; x < GridWidth; x++)
             {

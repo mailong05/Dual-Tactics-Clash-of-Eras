@@ -20,12 +20,16 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private Transform FirePoint;
 
         private float LastAttackTime;
-        private Collider[] OverlapBuffer = new Collider[20];
+        private Collider[] OverlapBuffer = new Collider[64];
 
         protected override void Start()
         {
             base.Start();
-            if (EnemyLayers.value == 0) EnemyLayers = ~LayerMask.GetMask("Ignore Raycast");
+            AttackRange = Mathf.Max(AttackRange, 22.0f);
+            if (EnemyLayers.value == 0)
+            {
+                EnemyLayers = (1 << 8) | (1 << 7) | LayerMask.GetMask("Dinos", "Default");
+            }
             if (FirePoint == null) FirePoint = transform;
         }
 
@@ -33,19 +37,7 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
-            // Chế độ Công thành: Kiểm tra đúng pha xuất quân (Combat)
-            if (PrehistoricGameModeManager.Instance != null &&
-                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
-            {
-                if (PrehistoricGameModeManager.Instance.AssaultPhase != PrehistoricAssaultPhase.Combat)
-                {
-                    return;
-                }
-            }
-            else
-            {
-                if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
-            }
+            if (!IsCombatActive()) return;
 
             if (Time.time >= LastAttackTime + AttackInterval)
             {
@@ -55,21 +47,74 @@ namespace LlamAcademy.Dinos.Unit
 
         private void TryDischargeLightning()
         {
-            int count = Physics.OverlapSphereNonAlloc(transform.position, AttackRange, OverlapBuffer, EnemyLayers);
-            if (count == 0) return;
+            Vector3 basePos = PrehistoricVillageBase.Instance != null 
+                ? PrehistoricVillageBase.Instance.transform.position 
+                : new Vector3(-2.23f, 0f, -38.26f);
 
-            // Find closest enemy
             Collider primaryTarget = null;
-            float closestDist = float.MaxValue;
-            for (int i = 0; i < count; i++)
+            float bestScore = float.MinValue;
+
+            // 1. Quét ActiveDinos (ưu tiên giật sét quái gần nhà chính)
+            if (PrehistoricDinoBase.ActiveDinos != null)
             {
-                if (OverlapBuffer[i] == null) continue;
-                if (!IsHostileMonster(OverlapBuffer[i])) continue; // BẢO VỆ ĐỒNG MINH (Defenders, Wall, Player, Base)
-                float d = (OverlapBuffer[i].transform.position - transform.position).sqrMagnitude;
-                if (d < closestDist)
+                foreach (var dino in PrehistoricDinoBase.ActiveDinos)
                 {
-                    closestDist = d;
-                    primaryTarget = OverlapBuffer[i];
+                    if (dino == null || dino.Health <= 0 || !dino.gameObject.activeInHierarchy) continue;
+                    float distToTower = Vector3.Distance(transform.position, dino.transform.position);
+                    if (distToTower > AttackRange) continue;
+
+                    Collider col = dino.GetComponent<Collider>() ?? dino.GetComponentInChildren<Collider>();
+                    if (col == null || !IsHostileMonster(col)) continue;
+
+                    float distToBase = Vector3.Distance(dino.transform.position, basePos);
+                    float score = 1500f - (distToBase * 10f) - distToTower;
+                    if (dino.HasReachedBase) score += 500f;
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        primaryTarget = col;
+                    }
+                }
+            }
+
+            // 2. Quét FlyingUnit
+            if (FlyingUnit.ActiveFlyers != null)
+            {
+                foreach (var fu in FlyingUnit.ActiveFlyers)
+                {
+                    if (fu == null || fu.Health <= 0 || !fu.gameObject.activeInHierarchy) continue;
+                    float distToTower = Vector3.Distance(transform.position, fu.transform.position);
+                    if (distToTower > AttackRange) continue;
+
+                    Collider col = fu.GetComponent<Collider>() ?? fu.GetComponentInChildren<Collider>();
+                    if (col == null || !IsHostileMonster(col)) continue;
+
+                    float distToBase = Vector3.Distance(fu.transform.position, basePos);
+                    float score = 1600f - (distToBase * 10f) - distToTower;
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        primaryTarget = col;
+                    }
+                }
+            }
+
+            if (primaryTarget == null)
+            {
+                int count = Physics.OverlapSphereNonAlloc(transform.position, AttackRange, OverlapBuffer, EnemyLayers);
+                for (int i = 0; i < count; i++)
+                {
+                    if (OverlapBuffer[i] == null) continue;
+                    if (!IsHostileMonster(OverlapBuffer[i])) continue;
+                    float distToTower = Vector3.Distance(transform.position, OverlapBuffer[i].transform.position);
+                    float distToBase = Vector3.Distance(OverlapBuffer[i].transform.position, basePos);
+                    float score = 1000f - (distToBase * 10f) - distToTower;
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        primaryTarget = OverlapBuffer[i];
+                    }
                 }
             }
 

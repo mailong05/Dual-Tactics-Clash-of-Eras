@@ -210,18 +210,41 @@ namespace LlamAcademy.Dinos.Unit
             UpdateNavMeshData.MoveObstacles();
 
             // 3. Đăng ký vị trí khe hở vào TacticalBreachMemory để điều phối quái và quân cố thủ
-            Vector3 toBase = Vector3.forward;
-            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            Vector3 basePos = new Vector3(-2.23f, 0f, -38.26f);
+            if (PrehistoricVillageBase.Instance != null)
             {
-                toBase = (RoundManager.Instance.DinoTarget.position - transform.position).normalized;
+                basePos = PrehistoricVillageBase.Instance.transform.position;
+            }
+            else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.BaseTarget != null)
+            {
+                basePos = PrehistoricGameplayManager.Instance.BaseTarget.position;
             }
             else if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
             {
-                toBase = (PrehistoricGameModeManager.Instance.VillageBase.transform.position - transform.position).normalized;
+                basePos = PrehistoricGameModeManager.Instance.VillageBase.transform.position;
             }
+            else if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            {
+                basePos = RoundManager.Instance.DinoTarget.position;
+            }
+
+            Vector3 toBase = (basePos - transform.position);
             toBase.y = 0;
-            if (toBase == Vector3.zero) toBase = transform.forward;
-            LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase, 5.0f);
+            if (toBase.sqrMagnitude > 0.01f) toBase.Normalize();
+            else toBase = new Vector3(0, 0, -1f);
+
+            // Bảo đảm toBase luôn hướng về phía nam (Z âm - vào sâu trong làng)
+            if (toBase.z > -0.1f)
+            {
+                toBase = new Vector3(toBase.x, 0, -1f).normalized;
+            }
+
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase, 5.0f);
+            }
+
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
 
             PrehistoricDinoBase.OnWallBreached(this);
             if (gameObject.activeInHierarchy)
@@ -364,6 +387,7 @@ private IEnumerator HandleDeath()
             {
                 NavMeshManager.Instance.NavMeshUpdatedByObstacles();
             }
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
             PrehistoricDinoBase.OnWallBreached(this);
         }
 

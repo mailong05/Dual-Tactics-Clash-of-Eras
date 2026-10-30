@@ -886,12 +886,9 @@ namespace LlamAcademy.Dinos.Unit
 
                     float dot = Vector3.Dot(toBaseDir, toWall.normalized);
 
-                    if (dot < 0.2f || wallDistToBase > myDistToBase + 1.0f)
-
+                    if (dot < 0.2f || wallDistToBase > myDistToBase + 1.0f || closest.z > myPos.z + 0.5f || Mathf.Abs(closest.x) > 25.0f)
                     {
-
-                        continue; // Tường nằm ở sau lưng -> BỎ QUA!
-
+                        continue; // Tường nằm ở sau lưng hoặc góc núi ngoài rìa -> BỎ QUA!
                     }
 
                     Vector3 lateralDir = Vector3.Cross(Vector3.up, toBaseDir).normalized;
@@ -2222,59 +2219,36 @@ namespace LlamAcademy.Dinos.Unit
         }
 
         protected virtual void FindTargetBase()
-
         {
-
-            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
-
+            if (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
             {
-
-                TargetBase = RoundManager.Instance.DinoTarget;
-
+                TargetBase = PrehistoricVillageBase.Instance.transform;
                 return;
-
             }
 
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.BaseTarget != null)
-
             {
-
                 TargetBase = PrehistoricGameplayManager.Instance.BaseTarget;
-
                 return;
-
-            }
-
-            if (PrehistoricVillageBase.Instance != null)
-
-            {
-
-                TargetBase = PrehistoricVillageBase.Instance.transform;
-
-                return;
-
             }
 
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
-
             {
-
                 TargetBase = PrehistoricGameModeManager.Instance.VillageBase.transform;
-
                 return;
+            }
 
+            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            {
+                TargetBase = RoundManager.Instance.DinoTarget;
+                return;
             }
 
             GameObject eggObj = GameObject.Find("Dino Egg Spawn");
-
             if (eggObj != null)
-
             {
-
                 TargetBase = eggObj.transform;
-
                 return;
-
             }
 
             GameObject eggTag = GameObject.FindWithTag("Finish");
@@ -2325,14 +2299,52 @@ namespace LlamAcademy.Dinos.Unit
 
             }
 
-            if (TargetBase == null)
-
+                        if (TargetBase == null)
             {
-
                 FindTargetBase();
-
                 if (TargetBase == null) return;
+            }
 
+            // 0. Kiểm tra hoàn thành vượt qua khe hở tường (Breach Transit)
+            if (_IsNavigatingBreach)
+            {
+                _BreachTransitTimer += Time.deltaTime;
+                bool reachedIngress = false;
+                if (_CurrentBreachPoint != null)
+                {
+                    Vector3 myFlat = new Vector3(transform.position.x, 0, transform.position.z);
+                    Vector3 ingressFlat = new Vector3(_CurrentBreachPoint.IngressPoint.x, 0, _CurrentBreachPoint.IngressPoint.z);
+                    if (Vector3.Distance(myFlat, ingressFlat) < 2.5f || _CurrentBreachPoint.HasPassedPlane(transform.position))
+                    {
+                        reachedIngress = true;
+                    }
+                }
+                // Timeout an toàn 3.5s để không bao giờ bị kẹt lại khe hở
+                if (_BreachTransitTimer > 3.5f)
+                {
+                    reachedIngress = true;
+                }
+
+                if (reachedIngress)
+                {
+                    if (_CurrentBreachPoint != null)
+                    {
+                        _CurrentBreachPoint.ReleaseSlot(this);
+                        TacticalBreachMemory.Instance?.DispatchNextDinosToBreach(_CurrentBreachPoint);
+                        _CurrentBreachPoint = null;
+                    }
+                    RestoreOriginalColliderAndAgent();
+                    _IsNavigatingBreach = false;
+                    _BreachTransitTimer = 0f;
+
+                    // Tiếp tục tiến quân thẳng về Căn cứ làng
+                    if (Agent != null && Agent.enabled && Agent.isOnNavMesh && TargetBase != null)
+                    {
+                        Agent.isStopped = false;
+                        Agent.ResetPath();
+                        Agent.SetDestination(TargetBase.position);
+                    }
+                }
             }
 
             float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
@@ -2369,7 +2381,7 @@ namespace LlamAcademy.Dinos.Unit
 
             {
 
-                CurrentTarget = FindImmediatePathBlocker(Mathf.Max(WallScanRadius, 15.0f));
+                CurrentTarget = FindImmediatePathBlocker(Mathf.Min(WallScanRadius, 3.0f));
 
             }
 
@@ -2390,6 +2402,13 @@ namespace LlamAcademy.Dinos.Unit
                 flatDiff.y = 0;
 
                 float distToClosest = flatDiff.magnitude;
+
+                // Nếu mục tiêu phụ không phải Nhà chính và cự ly > 3.5m: Bỏ mục tiêu phụ, xông thẳng về Nhà chính
+                if (CurrentTarget != null && !(CurrentTarget is PrehistoricVillageBase) && distToClosest > 3.5f)
+                {
+                    CurrentTarget = null;
+                    _IsEngagedInMelee = false;
+                }
 
                 // State machine với Hysteresis: Vào cự ly thì khóa đánh, chỉ thoát khi mục tiêu rời xa > meleeExitRange
                 if (!_IsEngagedInMelee && (distToClosest <= meleeAttackRange || (Agent != null && Agent.isOnNavMesh && Agent.remainingDistance <= Agent.stoppingDistance + 0.35f && distToClosest <= meleeExitRange)))
@@ -2571,8 +2590,17 @@ namespace LlamAcademy.Dinos.Unit
                         _LastPathCalcTime = Time.time;
                         if (ThreatAwarePathfinding.Instance != null && TargetBase != null)
                         {
-                            _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
-                            _CurrentWaypointIndex = 0;
+                            try
+                            {
+                                _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
+                                _CurrentWaypointIndex = 0;
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Debug.LogWarning($"[Dino Pathfinding] An toan: {ex.Message}");
+                                _TacticalWaypoints = new List<Vector3> { TargetBase.position };
+                                _CurrentWaypointIndex = 0;
+                            }
                         }
                     }
 
@@ -2676,7 +2704,11 @@ namespace LlamAcademy.Dinos.Unit
                 float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, toCol));
 
                 // 1. Nếu đã ở cự ly áp sát cận chiến: Luôn ưu tiên đánh tối đa!
-                bool isTouching = d <= (AttackRange + 1.8f);
+                bool isSiegeDino = this is SiegeDino;
+                float maxScanRange = isSiegeDino ? 4.2f : (AttackRange + 0.8f);
+                if (d > maxScanRange) continue;
+                if (dotFwd < 0.35f || lateralOffset > 1.8f) continue;
+                bool isTouching = true;
 
                 // 2. Nếu ở xa hơn: Chỉ chọn mục tiêu nằm ở nửa phía trước hướng tiến về căn cứ và nằm trong hành lang tiến quân
                 if (!isTouching)
@@ -2692,13 +2724,13 @@ namespace LlamAcademy.Dinos.Unit
                 // - Càng thẳng hướng tiến về căn cứ (dotToBase * 30) và hướng mặt (dotFwd * 20) càng ưu tiên
                 // - Càng gần càng ưu tiên (-d * 5)
                 float threatBonus = 0f;
-                if (candidate is PrehistoricVillageBase) threatBonus = 120f;
+                if (candidate is PrehistoricVillageBase) threatBonus = 2000f;
                 else if (candidate is CatapultTower || candidate is BallistaTower || candidate is TeslaTower || candidate is ArcherTower) threatBonus = 60f;
                 else if (candidate is Wall) threatBonus = 40f;
                 else if (candidate is Enemy.Defender) threatBonus = -100f; // Luôn ưu tiên công trình và căn cứ hơn NPC
 
                 float touchBonus = isTouching ? 300f : 0f;
-                float score = touchBonus + threatBonus + (dotToBase * 30f) + (dotFwd * 20f) - (d * 5f);
+                float score = threatBonus + (dotFwd * 50f) - (d * 20f);
 
                 if (score > bestScore)
                 {
@@ -3180,7 +3212,8 @@ namespace LlamAcademy.Dinos.Unit
             if (n.Contains("bridge") || n.Contains("ramp") || n.Contains("smooth floor") ||
                 n == "world" || n == "props" ||
                 n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain") ||
-                n.Contains("base") || n.Contains("egg"))
+                n.Contains("base") || n.Contains("egg") ||
+                n.Contains("mountain") || n.Contains("rock") || n.Contains("cliff") || n.Contains("stone") || n.Contains("boulder"))
             {
                 return null;
             }

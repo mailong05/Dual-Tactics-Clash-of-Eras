@@ -18,7 +18,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private ParticleSystem FrostPulseVFX;
 
         private float LastPulseTime;
-        private Collider[] OverlapBuffer = new Collider[30];
+        private Collider[] OverlapBuffer = new Collider[64];
 
         protected override void Awake()
         {
@@ -32,6 +32,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
+            FrostRadius = Mathf.Max(FrostRadius, 14.0f);
 
             Renderer rend = GetComponent<Renderer>();
             if (rend != null)
@@ -48,7 +49,7 @@ namespace LlamAcademy.Dinos.Unit
         {
             base.Update();
 
-            if (RoundManager.Instance != null && RoundManager.Instance.State != GameState.Running) return;
+            if (!IsCombatActive()) return;
 
             if (Time.time >= LastPulseTime + PulseInterval)
             {
@@ -65,6 +66,26 @@ namespace LlamAcademy.Dinos.Unit
                 FrostPulseVFX.Play();
             }
 
+            var affectedAgents = new HashSet<NavMeshAgent>();
+
+            // 1. Quét ActiveDinos trực tiếp trong phạm vi hố băng/nhựa đường
+            if (PrehistoricDinoBase.ActiveDinos != null)
+            {
+                foreach (var dino in PrehistoricDinoBase.ActiveDinos)
+                {
+                    if (dino == null || dino.Health <= 0 || !dino.gameObject.activeInHierarchy) continue;
+                    if (Vector3.Distance(transform.position, dino.transform.position) <= FrostRadius)
+                    {
+                        dino.TakeDamage(PulseDamage);
+                        if (dino.Agent != null && dino.Agent.enabled && !affectedAgents.Contains(dino.Agent))
+                        {
+                            affectedAgents.Add(dino.Agent);
+                            StartCoroutine(ApplySlowDebuff(dino.Agent));
+                        }
+                    }
+                }
+            }
+
             int count = Physics.OverlapSphereNonAlloc(transform.position, FrostRadius, OverlapBuffer, EnemyLayers);
             for (int i = 0; i < count; i++)
             {
@@ -78,7 +99,11 @@ namespace LlamAcademy.Dinos.Unit
 
                 if (OverlapBuffer[i].TryGetComponent(out NavMeshAgent agent))
                 {
-                    StartCoroutine(ApplySlowDebuff(agent));
+                    if (!affectedAgents.Contains(agent))
+                    {
+                        affectedAgents.Add(agent);
+                        StartCoroutine(ApplySlowDebuff(agent));
+                    }
                 }
             }
         }

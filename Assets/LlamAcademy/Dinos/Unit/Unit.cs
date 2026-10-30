@@ -143,6 +143,33 @@ namespace LlamAcademy.Dinos.Unit
         protected void RaiseDeathEvent() => OnDeath?.Invoke(this);
 
         /// <summary>
+        /// Kiểm tra chuẩn xác 100% trạng thái giao tranh (Combat) đang diễn ra ở cả 2 chế độ:
+        /// - Chế độ Công thành (Dino Assault): Phải ở AssaultPhase == Combat (đã bấm Xuất quân).
+        /// - Chế độ Thủ thành (Tower Defense): Phải ở CombatPhase (quái đang tấn công làng) hoặc RoundManager State == Running.
+        /// </summary>
+        public static bool IsCombatActive()
+        {
+            if (PrehistoricGameModeManager.Instance != null &&
+                PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                return PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat;
+            }
+
+            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled &&
+                PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase)
+            {
+                return true;
+            }
+
+            if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Bộ lọc mục tiêu chuẩn xác 100% giúp các tháp và bẫy KHÔNG BAO GIỜ bắn nhầm đồng minh (Friendly Fire).
         /// Loại trừ: Defender (lính NPC làng), Wall, Mọi loại tháp, Căn cứ/Trứng, Player.
         /// Chỉ chấp nhận: Khủng long / Quái vật thù địch còn sống.
@@ -152,8 +179,8 @@ namespace LlamAcademy.Dinos.Unit
             if (col == null || !col.gameObject.activeInHierarchy) return false;
 
             // 1. LOẠI TRỪ 100% CÁC ĐỒNG MINH VÀ CÔNG TRÌNH PHE PHÒNG THỦ:
-            if (col.GetComponentInParent<Defender>() != null || col.GetComponent<Defender>() != null) return false;
-            if (col.GetComponentInParent<Wall>() != null || col.GetComponent<Wall>() != null) return false;
+            if (col.GetComponentInParent<Defender>() != null || col.GetComponent<Defender>() != null || col.GetComponentInChildren<Defender>() != null) return false;
+            if (col.GetComponentInParent<Wall>() != null || col.GetComponent<Wall>() != null || col.GetComponentInChildren<Wall>() != null) return false;
             if (col.GetComponentInParent<ArcherTower>() != null || col.GetComponent<ArcherTower>() != null) return false;
             if (col.GetComponentInParent<BallistaTower>() != null || col.GetComponent<BallistaTower>() != null) return false;
             if (col.GetComponentInParent<CatapultTower>() != null || col.GetComponent<CatapultTower>() != null) return false;
@@ -166,14 +193,14 @@ namespace LlamAcademy.Dinos.Unit
             if (col.GetComponentInParent<PrehistoricVillageBase>() != null || col.GetComponent<PrehistoricVillageBase>() != null) return false;
 
             // Kiểm tra IDamageable còn máu
-            IDamageable d = col.GetComponent<IDamageable>() ?? col.GetComponentInParent<IDamageable>();
+            IDamageable d = col.GetComponent<IDamageable>() ?? col.GetComponentInParent<IDamageable>() ?? col.GetComponentInChildren<IDamageable>();
             if (d == null || d.Health <= 0) return false;
 
             // 2. XÁC NHẬN MỤC TIÊU LÀ KHỦNG LONG / QUÁI VẬT:
-            if (col.GetComponentInParent<PrehistoricDinoBase>() != null || col.GetComponent<PrehistoricDinoBase>() != null) return true;
+            if (col.GetComponentInParent<PrehistoricDinoBase>() != null || col.GetComponent<PrehistoricDinoBase>() != null || col.GetComponentInChildren<PrehistoricDinoBase>() != null) return true;
             if (col.GetComponentInParent<Dino>() != null || col.GetComponent<Dino>() != null) return true;
             if (col.GetComponentInParent<RunnerDino>() != null || col.GetComponent<RunnerDino>() != null) return true;
-            if (col.GetComponentInParent<FlyingUnit>() != null || col.GetComponent<FlyingUnit>() != null) return true;
+            if (col.GetComponentInParent<FlyingUnit>() != null || col.GetComponent<FlyingUnit>() != null || col.GetComponentInChildren<FlyingUnit>() != null) return true;
             if (col.GetComponentInParent<SiegeDino>() != null || col.GetComponent<SiegeDino>() != null) return true;
             if (col.GetComponentInParent<BossDino>() != null || col.GetComponent<BossDino>() != null) return true;
 

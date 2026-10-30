@@ -67,7 +67,12 @@ namespace LlamAcademy.Dinos.AI
                 case 3: lateralOffset = 1.8f; break;
             }
             float depthOffset = (index >= 2) ? 1.0f : 0f;
-            return IngressPoint + Lateral * lateralOffset + Direction * depthOffset;
+            Vector3 rawPoint = IngressPoint + Lateral * lateralOffset + Direction * depthOffset;
+            if (UnityEngine.AI.NavMesh.SamplePosition(rawPoint, out UnityEngine.AI.NavMeshHit hit, 3.5f, UnityEngine.AI.NavMesh.AllAreas))
+            {
+                return hit.position;
+            }
+            return IngressPoint;
         }
 
         public Vector3 GetApproachPointForUnit(Unit.Unit unit)
@@ -119,9 +124,14 @@ namespace LlamAcademy.Dinos.AI
         public BreachPoint(Vector3 position, Vector3 direction, float width = 5.0f)
         {
             Position = position;
-            Direction = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector3.forward;
+            // Bảo đảm Direction luôn hướng về phía nam (Z âm - vào sâu trong làng)
+            if (direction.z > -0.1f)
+            {
+                direction = new Vector3(direction.x, 0, -1f).normalized;
+            }
+            Direction = direction.sqrMagnitude > 0.001f ? direction.normalized : new Vector3(0, 0, -1f);
             Direction.y = 0;
-            if (Direction == Vector3.zero) Direction = Vector3.forward;
+            if (Direction == Vector3.zero) Direction = new Vector3(0, 0, -1f);
 
             Lateral = Vector3.Cross(Vector3.up, Direction).normalized;
             if (Lateral == Vector3.zero) Lateral = Vector3.right;
@@ -131,8 +141,16 @@ namespace LlamAcademy.Dinos.AI
             ApproachPoint.y = position.y;
 
             // Điểm thâm nhập sâu vào bên trong làng (vượt qua hàng rào 4.5m)
-            IngressPoint = position + Direction * 4.5f;
-            IngressPoint.y = position.y;
+            Vector3 rawIngress = position + Direction * 4.5f;
+            rawIngress.y = position.y;
+            if (UnityEngine.AI.NavMesh.SamplePosition(rawIngress, out UnityEngine.AI.NavMeshHit hit, 4.0f, UnityEngine.AI.NavMesh.AllAreas))
+            {
+                IngressPoint = hit.position;
+            }
+            else
+            {
+                IngressPoint = rawIngress;
+            }
 
             Width = width;
             Timestamp = Time.time;

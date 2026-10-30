@@ -16,6 +16,19 @@ namespace LlamAcademy.Dinos.Unit
 
         public bool IsAerial => true;
 
+        private static readonly System.Collections.Generic.HashSet<FlyingUnit> s_ActiveFlyers = new();
+        public static System.Collections.Generic.IReadOnlyCollection<FlyingUnit> ActiveFlyers => s_ActiveFlyers;
+
+        protected virtual void OnEnable()
+        {
+            s_ActiveFlyers.Add(this);
+        }
+
+        protected virtual void OnDisable()
+        {
+            s_ActiveFlyers.Remove(this);
+        }
+
         private Transform TargetBase;
         private Transform VisualModel;
         private Vector3 _BaseModelLocalPos;

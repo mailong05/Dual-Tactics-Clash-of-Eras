@@ -412,6 +412,50 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
+            // BƯỚC 1.5: Chuẩn hóa tuyệt đối tọa độ các đoạn tường thành cánh trái và cánh phải ở chế độ Công thành
+            // Đảm bảo tuyến phòng thủ khép kín 100%, không bị thủng lỗ 20m khiến khủng long đi lạc vào góc núi
+            if (isAssault)
+            {
+                float[] leftPositionsX = new float[] {
+                    -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f,
+                    -33.6f, -36.2f, -38.8f, -41.4f
+                };
+                float[] rightPositionsX = new float[] {
+                    0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f
+                };
+
+                GameObject rightGroup = GameObject.Find("Right_Wing_Wall");
+                if (rightGroup != null)
+                {
+                    int segIdx = 0;
+                    for (int c = 0; c < rightGroup.transform.childCount; c++)
+                    {
+                        Transform child = rightGroup.transform.GetChild(c);
+                        if (child != null && child.name.Contains("Wall_Segment"))
+                        {
+                            if (segIdx < rightPositionsX.Length)
+                            {
+                                child.position = new Vector3(rightPositionsX[segIdx++], 0f, -2.5f);
+                                child.rotation = Quaternion.identity;
+                                child.gameObject.SetActive(true);
+                            }
+                            else
+                            {
+                                // Các đoạn tường thừa đâm sâu vào vách núi -> Vô hiệu hóa để quái không đi lạc vào góc núi
+                                child.gameObject.SetActive(false);
+                            }
+                        }
+                    }
+                }
+
+                GameObject gateBar = GameObject.Find("Gate_Portcullis_Barricade");
+                if (gateBar != null)
+                {
+                    gateBar.transform.position = new Vector3(-2.2f, 0f, -2.5f);
+                    gateBar.transform.rotation = Quaternion.identity;
+                }
+            }
+
             // BƯỚC 2: Phục hồi và kích hoạt các công trình, tường, sàn cầu và vật thể phòng thủ
             foreach (Transform t in allTransforms)
             {
