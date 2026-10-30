@@ -41,6 +41,7 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             UpdateNavMeshData.Destroy();
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
         }
 
         private void OnEnable()

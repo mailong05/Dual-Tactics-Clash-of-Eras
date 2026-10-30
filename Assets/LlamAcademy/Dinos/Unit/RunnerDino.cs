@@ -1,3 +1,4 @@
+using LlamAcademy.Dinos.AI;
 using UnityEngine;
 
 namespace LlamAcademy.Dinos.Unit
@@ -6,6 +7,7 @@ namespace LlamAcademy.Dinos.Unit
     {
         protected override void Awake()
         {
+            AISpeciesType = DinoAISpeciesType.VelociraptorFlanker;
             MoveSpeed = 8.5f;
             base.Awake();
             ConfigureNavMeshAgent();

@@ -64,6 +64,12 @@ namespace LlamAcademy.Dinos.Unit
 
         protected Collider[] ScanBuffer = new Collider[64];
 
+        [Header("Tactical Threat-Aware AI Pathfinding")]
+        public virtual LlamAcademy.Dinos.AI.DinoAISpeciesType AISpeciesType { get; set; } = LlamAcademy.Dinos.AI.DinoAISpeciesType.VelociraptorFlanker;
+        protected List<Vector3> _TacticalWaypoints = new List<Vector3>();
+        protected int _CurrentWaypointIndex = 0;
+        protected float _LastPathCalcTime = -99f;
+
         // GLB Animation Cache & Clips
 
         private static readonly Dictionary<string, AnimationClip[]> s_ClipsCache = new();
@@ -2165,6 +2171,7 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             EnsureHealthBarAttached();
+            OverheadAIStateInspector.AttachTo(gameObject, AISpeciesType);
 
         }
 
@@ -2551,29 +2558,51 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             else
-
             {
-
-                // Chỉ đặt destination khi chưa có path hoặc vị trí đích lệch xa > 2m
-
+                // Hành quân chiến thuật né vùng hỏa lực tháp (Threat-Aware Pathfinding)
                 if (Agent != null && Agent.isOnNavMesh)
-
                 {
-
                     Agent.isStopped = false;
-
                     Agent.updateRotation = true;
 
-                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, TargetBase.position) > 2.0f)
-
+                    // Tính toán lại lộ trình chiến thuật mỗi 2.0s hoặc khi chưa có lộ trình
+                    if (_TacticalWaypoints == null || _TacticalWaypoints.Count == 0 || Time.time - _LastPathCalcTime > 2.0f)
                     {
-
-                        Agent.SetDestination(TargetBase.position);
-
+                        _LastPathCalcTime = Time.time;
+                        if (ThreatAwarePathfinding.Instance != null && TargetBase != null)
+                        {
+                            _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
+                            _CurrentWaypointIndex = 0;
+                        }
                     }
 
-                }
+                    Vector3 moveTarget = TargetBase != null ? TargetBase.position : transform.position;
+                    if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
+                    {
+                        // Chuyển waypoint tiếp theo khi đã đến gần waypoint hiện tại
+                        while (_CurrentWaypointIndex < _TacticalWaypoints.Count - 1 && 
+                               Vector3.Distance(transform.position, _TacticalWaypoints[_CurrentWaypointIndex]) < 2.5f)
+                        {
+                            _CurrentWaypointIndex++;
+                        }
+                        moveTarget = _TacticalWaypoints[_CurrentWaypointIndex];
+                    }
 
+                    // Tách đàn nhẹ nhàng cho Raptor (Flanker) để không chen chúc dồn 1 hàng
+                    if (AISpeciesType == DinoAISpeciesType.VelociraptorFlanker)
+                    {
+                        Vector3 separation = CalculateFlockSeparation(3.0f);
+                        if (separation.sqrMagnitude > 0.01f)
+                        {
+                            moveTarget += separation * 1.5f;
+                        }
+                    }
+
+                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, moveTarget) > 1.2f)
+                    {
+                        Agent.SetDestination(moveTarget);
+                    }
+                }
             }
 
         }
@@ -3959,6 +3988,35 @@ namespace LlamAcademy.Dinos.Unit
 
         }
 
-    }
+    
+        protected Vector3 CalculateFlockSeparation(float separationRadius)
+        {
+            Vector3 push = Vector3.zero;
+            int count = 0;
+            int numHits = Physics.OverlapSphereNonAlloc(transform.position, separationRadius, ScanBuffer);
+            for (int i = 0; i < numHits; i++)
+            {
+                Collider hit = ScanBuffer[i];
+                if (hit != null && hit.gameObject != gameObject && hit.GetComponent<PrehistoricDinoBase>() != null)
+                {
+                    Vector3 diff = transform.position - hit.transform.position;
+                    diff.y = 0;
+                    float dist = diff.magnitude;
+                    if (dist > 0.01f && dist < separationRadius)
+                    {
+                        push += (diff.normalized / dist);
+                        count++;
+                    }
+                }
+            }
+            if (count > 0)
+            {
+                push /= count;
+                push.y = 0;
+                return Vector3.ClampMagnitude(push, 2.0f);
+            }
+            return Vector3.zero;
+        }
+}
 
 }

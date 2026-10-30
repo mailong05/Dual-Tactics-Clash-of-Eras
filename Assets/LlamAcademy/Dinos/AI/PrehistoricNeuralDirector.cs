@@ -118,7 +118,8 @@ namespace LlamAcademy.Dinos.AI
 
         [Header("=== Neural Network Architecture ===")]
 
-        public const int INPUT_DIM = 12;
+        public const int INPUT_DIM = 16;
+        public PrehistoricTacticsNet TacticsNet { get; private set; } = new PrehistoricTacticsNet();
 
         public const int HIDDEN_DIM = 32;
 
@@ -309,6 +310,19 @@ namespace LlamAcademy.Dinos.AI
             _Instance = this;
 
             DontDestroyOnLoad(gameObject);
+
+            if (GetComponent<FastForwardOfflineTrainer>() == null)
+            {
+                gameObject.AddComponent<FastForwardOfflineTrainer>();
+            }
+
+            // Load pre-trained neural network weights if available
+            string weightsPath = System.IO.Path.Combine(Application.persistentDataPath, "pretrained_tactics_weights.json");
+            if (!TacticsNet.LoadWeights(weightsPath))
+            {
+                string assetWeights = System.IO.Path.Combine(Application.dataPath, "LlamAcademy", "Dinos", "AI", "pretrained_tactics_weights.json");
+                TacticsNet.LoadWeights(assetWeights);
+            }
 
             InitializeNetworkWeights();
 
@@ -533,8 +547,28 @@ namespace LlamAcademy.Dinos.AI
             f[10] = Mathf.Clamp01(totalDps / 300f);
 
             // 11: Dynamic Difficulty Adjustment (Player Skill Rating 0..1)
-
             f[11] = _PlayerSkillRating;
+
+            // 12, 13, 14: Defense spatial distribution (Left, Right, Center concentration)
+            var allTowers = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            int leftCount = 0, rightCount = 0, centerCount = 0;
+            for (int t = 0; t < allTowers.Length; t++)
+            {
+                if (allTowers[t] != null && allTowers[t] is Unit.ArcherTower || allTowers[t] is Unit.BallistaTower || allTowers[t] is Unit.CatapultTower || allTowers[t] is Unit.TeslaTower)
+                {
+                    float posX = allTowers[t].transform.position.x;
+                    if (posX < -8f) leftCount++;
+                    else if (posX > 8f) rightCount++;
+                    else centerCount++;
+                }
+            }
+            int totalActiveTowers = Mathf.Max(1, leftCount + rightCount + centerCount);
+            f[12] = Mathf.Clamp01((float)leftCount / totalActiveTowers);
+            f[13] = Mathf.Clamp01((float)rightCount / totalActiveTowers);
+            f[14] = Mathf.Clamp01((float)centerCount / totalActiveTowers);
+
+            // 15: Maze Chokepoint & Bottleneck index (0..1)
+            f[15] = Mathf.Clamp01(activeWallCount / 8.0f);
 
             return f;
 
@@ -582,153 +616,25 @@ namespace LlamAcademy.Dinos.AI
 
             }
 
-            // Layer 1: Linear 12 -> 32 + ReLU
-
-            float[] h1 = new float[HIDDEN_DIM];
-
-            for (int j = 0; j < HIDDEN_DIM; j++)
-
-            {
-
-                float sum = _biases1[j];
-
-                for (int i = 0; i < INPUT_DIM; i++)
-
-                {
-
-                    sum += input[i] * _weights1[i, j];
-
-                }
-
-                h1[j] = sum > 0f ? sum : 0f;
-
-            }
-
-            // Layer 2: Linear 32 -> 32 + ReLU
-
-            float[] h2 = new float[HIDDEN_DIM];
-
-            for (int j = 0; j < HIDDEN_DIM; j++)
-
-            {
-
-                float sum = _biases2[j];
-
-                for (int i = 0; i < HIDDEN_DIM; i++)
-
-                {
-
-                    sum += h1[i] * _weights2[i, j];
-
-                }
-
-                h2[j] = sum > 0f ? sum : 0f;
-
-            }
-
-            // Head 1: Archetypes (32 -> 4) + Softmax
-
-            float[] archLogits = new float[NUM_ARCHETYPES];
-
-            for (int j = 0; j < NUM_ARCHETYPES; j++)
-
-            {
-
-                float sum = _biasArchetypes[j];
-
-                for (int i = 0; i < HIDDEN_DIM; i++)
-
-                {
-
-                    sum += h2[i] * _headArchetypes[i, j];
-
-                }
-
-                archLogits[j] = sum;
-
-            }
-
             // =========================================================================
-
-            // ĐIỀU CHỈNH DEEP LEARNING THEO CHIẾN THUẬT TƯỜNG CỦA NGƯỜI CHƠI (TỰ DO MAZING):
-
+            // SUY LUẬN MẠNG NƠ-RON PREHISTORIC TACTICS NET (FORWARD INFERENCE PASS)
+            // Hoàn toàn dựa trên các ma trận trọng số thực tế đã huấn luyện toán học
             // =========================================================================
+            TacticsNet.Forward(input, out float[] archProbs, out float[] tactProbs, out float valueEstimate);
 
-            if (wallCount == 0)
-
+            // Phân bổ lại xác suất nếu chưa đến wave có Boss (Wave < 8)
+            if (waveNumber < 8 && archProbs[3] > 0.02f)
             {
-
-                // Người chơi KHÔNG xây tường (Căn cứ mở):
-
-                // Deep Learning phản ứng: Không cần quái bay hay thiết giáp phá tường!
-
-                // TẬP TRUNG BÙNG NỔ BẦY VELOCIRAPTOR (Swarm Rush) chạy thẳng vào làng!
-
-                archLogits[0] += 0.85f; // Tăng cực mạnh Velociraptor (Runner)
-
-                archLogits[1] -= 0.60f; // Giảm mạnh Quái Bay (Pterodactyl)
-
-                archLogits[2] -= 0.50f; // Giảm mạnh Thiết Giáp (Ankylosaurus)
-
+                float bossShare = archProbs[3];
+                archProbs[3] = 0f;
+                float remSum = archProbs[0] + archProbs[1] + archProbs[2];
+                if (remSum > 0.001f)
+                {
+                    archProbs[0] += bossShare * (archProbs[0] / remSum);
+                    archProbs[1] += bossShare * (archProbs[1] / remSum);
+                    archProbs[2] += bossShare * (archProbs[2] / remSum);
+                }
             }
-
-            else
-
-            {
-
-                // Người chơi XÂY TƯỜNG (Căn cứ mê cung):
-
-                // Deep Learning phản ứng: Càng nhiều tường thì quái chạy bộ càng vô dụng!
-
-                // CỬ QUÁI BAY (Pterodactyl phớt lờ tường) và THIẾT GIÁP (Ankylosaurus húc vỡ tường)!
-
-                float wallFactor = Mathf.Clamp01(wallCount / 6f);
-
-                archLogits[1] += 0.70f * wallFactor; // Quái Bay vượt tường
-
-                archLogits[2] += 0.55f * wallFactor; // Thiết Giáp đục tường
-
-                archLogits[0] -= 0.40f * wallFactor; // Giảm Runner tránh tắc nghẽn
-
-            }
-
-            // Phản ứng với Tháp tỉa đơn vs Pháo cối diện rộng
-
-            if (input[3] > 0.25f || input[4] > 0.2f)
-
-            {
-
-                archLogits[2] += 0.30f * input[3]; // Thêm Tank hứng mũi tên
-
-            }
-
-            if (input[5] > 0.25f)
-
-            {
-
-                archLogits[2] += 0.40f * input[5]; // Thiết giáp kháng chấn động pháo
-
-            }
-
-            // Milestone Boss spawn on Wave 8, 9, 10
-
-            if (waveNumber >= 8)
-
-            {
-
-                archLogits[3] += 0.6f + (waveNumber - 8) * 0.4f;
-
-            }
-
-            else
-
-            {
-
-                archLogits[3] = -999f;
-
-            }
-
-            float[] archProbs = ComputeSoftmax(archLogits);
 
             // =========================================================================
 
@@ -750,21 +656,9 @@ namespace LlamAcademy.Dinos.AI
 
             }
 
-            // Head 3: Vulnerability (32 -> 1) + Sigmoid
-
-            float vulnSum = _biasVulnerability[0];
-
-            for (int i = 0; i < HIDDEN_DIM; i++) vulnSum += h2[i] * _headVulnerability[i, 0];
-
-            float vulnScore = ComputeSigmoid(vulnSum);
-
-            // Head 4: Aggression (32 -> 1) + Sigmoid
-
-            float aggSum = _biasAggression[0];
-
-            for (int i = 0; i < HIDDEN_DIM; i++) aggSum += h2[i] * _headAggression[i, 0];
-
-            float aggScore = ComputeSigmoid(aggSum);
+            // Head 3 & 4: Value Function & Aggression from PrehistoricTacticsNet
+            float vulnScore = valueEstimate;
+            float aggScore = Mathf.Clamp01(0.35f + _PlayerSkillRating * 0.5f);
 
             // Dynamic Difficulty Adjustment (DDA Factor)
 
@@ -1247,6 +1141,33 @@ namespace LlamAcademy.Dinos.AI
             }
 
             Debug.Log($"<color=#00FFAA>[Q-Learning & DDA]</color> Completed Episode {_rlEpisodes} | Player Skill: <b>{_PlayerSkillRating:F2}</b> | Q-Values: [{_qValues[0]:F1}, {_qValues[1]:F1}, {_qValues[2]:F1}]");
+
+            // Online Reinforcement Learning Fine-Tuning of PrehistoricTacticsNet after each live wave
+            if (TacticsNet != null && LatestPrediction.InputFeatures != null && LatestPrediction.InputFeatures.Length == 16)
+            {
+                float baseDamageDone = 1.0f - Mathf.Clamp01(baseHealthRemainingPct);
+                float costLoss = playerWon ? 1.5f : 0.4f;
+                float liveReward = 10f * baseDamageDone - 2f * costLoss;
+                float normalizedReward = Mathf.Clamp(liveReward / 20f, -1f, 1f);
+
+                int chosenArch = 0;
+                float maxP = -1f;
+                if (LatestPrediction.ArchetypeDistribution != null)
+                {
+                    for (int a = 0; a < LatestPrediction.ArchetypeDistribution.Length; a++)
+                    {
+                        if (LatestPrediction.ArchetypeDistribution[a] > maxP)
+                        {
+                            maxP = LatestPrediction.ArchetypeDistribution[a];
+                            chosenArch = a;
+                        }
+                    }
+                }
+                int chosenTactic = 0;
+
+                float loss = TacticsNet.TrainStep(LatestPrediction.InputFeatures, chosenArch, chosenTactic, normalizedReward, lr: 0.008f);
+                Debug.Log($"<color=cyan>[Online RL Fine-Tuning]</color> Wave End: Loss = {loss:F4}, Reward = {liveReward:F2}, WeightNorm = {TacticsNet.ComputeWeightNorm():F3}");
+            }
 
         }
 

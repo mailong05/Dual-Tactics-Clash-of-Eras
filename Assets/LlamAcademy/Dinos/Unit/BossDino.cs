@@ -34,6 +34,8 @@ namespace LlamAcademy.Dinos.Unit
 
         {
 
+            AISpeciesType = LlamAcademy.Dinos.AI.DinoAISpeciesType.TRexApexBoss;
+
             MoveSpeed = 3.2f;
 
             base.Awake();

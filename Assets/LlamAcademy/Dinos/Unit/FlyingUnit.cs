@@ -1,3 +1,4 @@
+using LlamAcademy.Dinos.AI;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.UI;
 using LlamAcademy.Dinos.Utility;
@@ -27,6 +28,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
+            OverheadAIStateInspector.AttachTo(gameObject, DinoAISpeciesType.PterodactylFlyer);
             MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1450;
             Health = MaxHealth;
             if (GetComponent<Collider>() == null && GetComponentInChildren<Collider>() == null)
