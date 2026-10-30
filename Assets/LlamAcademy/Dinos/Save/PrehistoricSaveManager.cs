@@ -146,7 +146,29 @@ namespace LlamAcademy.Dinos.Save
     [DefaultExecutionOrder(-15)]
     public class PrehistoricSaveManager : MonoBehaviour
     {
-        public static PrehistoricSaveManager Instance { get; private set; }
+        private static PrehistoricSaveManager _instance;
+        private static bool s_isApplicationQuitting = false;
+
+        public static PrehistoricSaveManager Instance
+        {
+            get
+            {
+                if (s_isApplicationQuitting) return null;
+                if (_instance == null)
+                {
+                    _instance = FindAnyObjectByType<PrehistoricSaveManager>();
+                    if (_instance == null && !s_isApplicationQuitting)
+                    {
+                        GameObject go = new GameObject("PrehistoricSaveManager");
+                        _instance = go.AddComponent<PrehistoricSaveManager>();
+                        DontDestroyOnLoad(go);
+                    }
+                }
+                return _instance;
+            }
+            private set => _instance = value;
+        }
+
 
         public static PrehistoricSaveManager EnsureInstance()
         {
@@ -260,14 +282,20 @@ namespace LlamAcademy.Dinos.Save
             if (CurrentData.DefenseProfile == null) CurrentData.DefenseProfile = new DefenseSaveProfile();
             if (CurrentData.AssaultProfile == null) CurrentData.AssaultProfile = new AssaultSaveProfile();
 
-            // Tự động kiểm tra nếu người chơi đã từng vượt qua đợt 10 ở bản lưu cũ
-            if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+            bool reached10 = (CurrentData.DefenseProfile.HighestWaveReached >= 10 || CurrentData.DefenseProfile.CurrentWave >= 10 ||
+                              CurrentData.AssaultProfile.HighestLevelReached >= 10 || CurrentData.AssaultProfile.AssaultLevel >= 10);
+            if (reached10 && CurrentData.UnlockedMapMax < 1)
             {
                 CurrentData.UnlockedMapMax = 1;
+                SaveDataToDisk();
             }
-            if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+
+            bool reached20 = (CurrentData.DefenseProfile.HighestWaveReached >= 20 || CurrentData.DefenseProfile.CurrentWave >= 20 ||
+                              CurrentData.AssaultProfile.HighestLevelReached >= 20 || CurrentData.AssaultProfile.AssaultLevel >= 20);
+            if (reached20 && CurrentData.UnlockedMapMax < 2)
             {
                 CurrentData.UnlockedMapMax = 2;
+                SaveDataToDisk();
             }
         }
 
@@ -279,13 +307,19 @@ namespace LlamAcademy.Dinos.Save
 
             if (map == PrehistoricMapType.VolcanicGorge)
             {
-                return CurrentData.UnlockedMapMax >= 1 || 
-                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 10);
+                bool defensePassed = CurrentData.DefenseProfile != null && 
+                    (CurrentData.DefenseProfile.HighestWaveReached >= 10 || CurrentData.DefenseProfile.CurrentWave >= 10);
+                bool assaultPassed = CurrentData.AssaultProfile != null && 
+                    (CurrentData.AssaultProfile.HighestLevelReached >= 10 || CurrentData.AssaultProfile.AssaultLevel >= 10);
+                return CurrentData.UnlockedMapMax >= 1 || defensePassed || assaultPassed;
             }
             if (map == PrehistoricMapType.GlacialTundra)
             {
-                return CurrentData.UnlockedMapMax >= 2 || 
-                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 20);
+                bool defensePassed = CurrentData.DefenseProfile != null && 
+                    (CurrentData.DefenseProfile.HighestWaveReached >= 20 || CurrentData.DefenseProfile.CurrentWave >= 20);
+                bool assaultPassed = CurrentData.AssaultProfile != null && 
+                    (CurrentData.AssaultProfile.HighestLevelReached >= 20 || CurrentData.AssaultProfile.AssaultLevel >= 20);
+                return CurrentData.UnlockedMapMax >= 2 || defensePassed || assaultPassed;
             }
             return true;
         }
@@ -305,9 +339,9 @@ namespace LlamAcademy.Dinos.Save
             if (CurrentData.UnlockedMapMax < required)
             {
                 CurrentData.UnlockedMapMax = required;
-                SaveDataToDisk();
-                Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Chúc mừng! Đã mở khóa bản đồ mới: <b>{map}</b>!");
             }
+            SaveDataToDisk();
+            Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Đã mở khóa bản đồ mới: <b>{map}</b> (UnlockedMapMax = {CurrentData.UnlockedMapMax})!");
         }
 
         private void MigrateInitialSlotsIfMissing()
@@ -766,6 +800,7 @@ namespace LlamAcademy.Dinos.Save
 
         private void OnApplicationQuit()
         {
+            s_isApplicationQuitting = true;
             AutoSaveCurrentRun(true);
         }
     }

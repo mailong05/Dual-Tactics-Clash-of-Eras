@@ -32,7 +32,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2183622664864073407}
+  - {fileID: 1150385506745841810}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!195 &3652322977320781359
@@ -83,9 +83,9 @@ MonoBehaviour:
   TargetLayers:
     serializedVersion: 2
     m_Bits: 0
-  ModelAnimator: {fileID: 5237094735084707013}
+  ModelAnimator: {fileID: 6419548466718581480}
   ModelLegacyAnimation: {fileID: 0}
-  VisualModel: {fileID: 2183622664864073407}
+  VisualModel: {fileID: 1150385506745841810}
   RoarRadius: 15
   RoarStunDuration: 3.5
   TowerLayers:
@@ -115,7 +115,7 @@ CapsuleCollider:
   m_Height: 5.5
   m_Direction: 1
   m_Center: {x: 0, y: 2.75, z: 0}
---- !u!1001 &1857576808405950804
+--- !u!1001 &611439483554537337
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -196,13 +196,13 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 4c79bea6587417d4693a2cbb40bd4aac, type: 3}
---- !u!4 &2183622664864073407 stripped
+--- !u!4 &1150385506745841810 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4c79bea6587417d4693a2cbb40bd4aac, type: 3}
-  m_PrefabInstance: {fileID: 1857576808405950804}
+  m_PrefabInstance: {fileID: 611439483554537337}
   m_PrefabAsset: {fileID: 0}
---- !u!95 &5237094735084707013 stripped
+--- !u!95 &6419548466718581480 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: 4c79bea6587417d4693a2cbb40bd4aac, type: 3}
-  m_PrefabInstance: {fileID: 1857576808405950804}
+  m_PrefabInstance: {fileID: 611439483554537337}
   m_PrefabAsset: {fileID: 0}

@@ -935,8 +935,20 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             if (PrehistoricGameplayManager.Instance != null)
             {
-                PrehistoricGameplayManager.Instance.ShowAnnouncement("🎉 CHIẾM THÀNH THÀNH CÔNG! LÀNG BỘ LẠC ĐÃ BỊ SAN BẰNG!", 6f);
+                PrehistoricGameplayManager.Instance.ShowAnnouncement("👑 CHIẾM THÀNH THÀNH CÔNG! LÀNG BỘ LỘC ĐÃ BỊ SAN BẰNG!", 6f);
             }
+
+            // Tự động mở khóa bản đồ khi vượt qua Màn 10 (Map 2) hoặc Màn 20 (Map 3) ở chế độ Công thành
+            if (AssaultLevel >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge);
+            }
+            if (AssaultLevel >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra);
+            }
+
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
         }
 
         public void TriggerAssaultDefeat()
@@ -1224,6 +1236,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void NextAssaultLevel()
         {
             AssaultLevel++;
+            if (AssaultLevel >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge);
+            }
+            if (AssaultLevel >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra);
+            }
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             // Dọn dẹp sạch toàn bộ khủng long đợt trước khi qua màn mới
             ClearAllDinos();

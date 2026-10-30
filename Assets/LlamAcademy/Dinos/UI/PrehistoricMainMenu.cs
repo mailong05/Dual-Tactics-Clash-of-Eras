@@ -50,6 +50,7 @@ namespace LlamAcademy.Dinos.UI
 
             LoadTextures();
             CreateVignetteTexture();
+            Save.PrehistoricSaveManager.EnsureInstance();
             PrehistoricSaveLoadDialog.EnsureInstance();
         }
 

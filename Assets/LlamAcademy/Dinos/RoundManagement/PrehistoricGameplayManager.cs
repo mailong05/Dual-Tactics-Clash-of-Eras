@@ -1922,6 +1922,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             ShowAnnouncement($"★ CHIẾN THẮNG ĐỢT {_CurrentWave}! THƯỞNG +{rewardGold} VÀNG! ★", 4.0f);
             OnWaveCompleted?.Invoke(_CurrentWave, rewardGold);
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
+            // Tự động mở khóa bản đồ khi vượt qua Đợt 10 (Map 2) hoặc Đợt 20 (Map 3)
+            if (_CurrentWave >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge);
+            }
+            if (_CurrentWave >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra);
+            }
+
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             // Cập nhật hệ số thích ứng độ khó DDA của AI Director
@@ -1947,6 +1957,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ResetPlayerAndCameraPosition();
+
+            if (_CurrentWave >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge);
+            }
+            if (_CurrentWave >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra);
+            }
 
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);

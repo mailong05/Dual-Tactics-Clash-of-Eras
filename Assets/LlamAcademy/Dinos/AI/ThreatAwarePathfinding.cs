@@ -57,14 +57,19 @@ namespace LlamAcademy.Dinos.AI
     public class ThreatAwarePathfinding : MonoBehaviour
     {
         private static ThreatAwarePathfinding _instance;
+        private static bool s_isApplicationQuitting = false;
+
+        public static bool HasInstance => _instance != null && !s_isApplicationQuitting;
+
         public static ThreatAwarePathfinding Instance
         {
             get
             {
+                if (s_isApplicationQuitting) return null;
                 if (_instance == null)
                 {
-                    _instance = FindFirstObjectByType<ThreatAwarePathfinding>();
-                    if (_instance == null)
+                    _instance = FindAnyObjectByType<ThreatAwarePathfinding>();
+                    if (_instance == null && !s_isApplicationQuitting)
                     {
                         GameObject go = new GameObject("ThreatAwarePathfinding_Manager");
                         _instance = go.AddComponent<ThreatAwarePathfinding>();
@@ -74,6 +79,19 @@ namespace LlamAcademy.Dinos.AI
                 return _instance;
             }
             private set => _instance = value;
+        }
+
+        private void OnApplicationQuit()
+        {
+            s_isApplicationQuitting = true;
+        }
+
+        private void OnDestroy()
+        {
+            if (_instance == this)
+            {
+                _instance = null;
+            }
         }
 
         [Header("=== Grid Configuration ===")]
@@ -117,9 +135,12 @@ namespace LlamAcademy.Dinos.AI
                         0f,
                         GridOrigin.z + (z + 0.5f) * CellSize
                     );
-                    var node = new ThreatGridNode(x, z, worldPos);
-                    // Khảo sát khả dụng trên NavMesh để loại trừ vách núi đá / vực sâu
                     bool onNav = UnityEngine.AI.NavMesh.SamplePosition(worldPos, out UnityEngine.AI.NavMeshHit hit, CellSize * 0.75f, UnityEngine.AI.NavMesh.AllAreas);
+                    if (onNav)
+                    {
+                        worldPos.y = hit.position.y;
+                    }
+                    var node = new ThreatGridNode(x, z, worldPos);
                     node.IsWalkable = onNav;
                     _grid[x, z] = node;
                 }
@@ -148,6 +169,10 @@ namespace LlamAcademy.Dinos.AI
                     node.HasWall = false;
                     node.WallRef = null;
                     bool onNav = UnityEngine.AI.NavMesh.SamplePosition(node.WorldPos, out UnityEngine.AI.NavMeshHit hit, CellSize * 0.75f, UnityEngine.AI.NavMesh.AllAreas);
+                    if (onNav)
+                    {
+                        node.WorldPos.y = hit.position.y;
+                    }
                     node.IsWalkable = onNav;
                 }
             }
