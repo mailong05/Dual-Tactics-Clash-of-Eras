@@ -88,6 +88,11 @@ namespace LlamAcademy.Dinos.Unit
         {
             if (Health <= 0) return;
 
+            if ((HealthBar == null || !HealthBar.gameObject.activeInHierarchy) && Utility.HealthBarCanvas.Instance != null)
+            {
+                EnsureHealthBarAttached();
+            }
+
             if (damage >= Health)
             {
                 Health = 0;
@@ -104,6 +109,7 @@ namespace LlamAcademy.Dinos.Unit
                 Health -= damage;
                 if (HealthBar != null)
                 {
+                    HealthBar.gameObject.SetActive(true);
                     HealthBar.SetProgress((float)Health / MaxHealth);
                 }
                 RaiseDamageEvent(damage);

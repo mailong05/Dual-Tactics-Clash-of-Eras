@@ -2410,8 +2410,8 @@ namespace LlamAcademy.Dinos.Unit
                     _IsEngagedInMelee = false;
                 }
 
-                // State machine với Hysteresis: Vào cự ly thì khóa đánh, chỉ thoát khi mục tiêu rời xa > meleeExitRange
-                if (!_IsEngagedInMelee && (distToClosest <= meleeAttackRange || (Agent != null && Agent.isOnNavMesh && Agent.remainingDistance <= Agent.stoppingDistance + 0.35f && distToClosest <= meleeExitRange)))
+                // State machine: Chỉ khóa đánh khi thực tế khoảng cách vật lý đến mép collider <= meleeAttackRange
+                if (!_IsEngagedInMelee && distToClosest <= meleeAttackRange)
                 {
                     _IsEngagedInMelee = true;
                 }
@@ -2619,11 +2619,18 @@ namespace LlamAcademy.Dinos.Unit
                     // Tách đàn nhẹ nhàng cho Raptor (Flanker) để không chen chúc dồn 1 hàng
                     if (AISpeciesType == DinoAISpeciesType.VelociraptorFlanker)
                     {
-                        Vector3 separation = CalculateFlockSeparation(3.0f);
+                        Vector3 separation = CalculateFlockSeparation(2.5f);
                         if (separation.sqrMagnitude > 0.01f)
                         {
-                            moveTarget += separation * 1.5f;
+                            moveTarget += separation * 0.8f;
                         }
+                    }
+
+                    // Giữ moveTarget nằm an toàn trong hành lang chiến đấu, tránh lệch sang vách đá hai bên mép núi
+                    moveTarget.x = Mathf.Clamp(moveTarget.x, -21.0f, 17.0f);
+                    if (NavMesh.SamplePosition(moveTarget, out NavMeshHit mHit, 2.5f, NavMesh.AllAreas))
+                    {
+                        moveTarget = mHit.position;
                     }
 
                     if (!Agent.hasPath || Vector3.Distance(Agent.destination, moveTarget) > 1.2f)
@@ -3640,6 +3647,24 @@ namespace LlamAcademy.Dinos.Unit
         protected virtual void PerformAttack(IDamageable target)
 
         {
+            if (target == null || target.Transform == null) return;
+
+            // XÁC MINH CỰ LY CẬN CHIẾN THỰC TẾ:
+            // Khủng long chỉ được phép gây sát thương nếu thực sự đứng áp sát mục tiêu trong tầm cắn (maxReach <= 3.2m).
+            // Tuyệt đối không cho phép đứng từ xa cắn vào hư không gây mất máu công trình/căn cứ!
+            Collider targetCol = target.Transform.GetComponentInChildren<Collider>();
+            Vector3 closestP = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : target.Transform.position;
+            Vector3 flatDiff = transform.position - closestP;
+            flatDiff.y = 0;
+            float actualDist = flatDiff.magnitude;
+
+            float agentRad = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+            float maxReach = Mathf.Max(AttackRange + agentRad + 0.6f, 3.2f);
+            if (actualDist > maxReach)
+            {
+                _IsEngagedInMelee = false;
+                return;
+            }
 
             bool isStructure = (target is Wall) || (target is PrehistoricVillageBase) || (target is ArcherTower) || (target is BallistaTower) || (target is CatapultTower) || (target is TeslaTower) || (target is FrostTower);
 
@@ -3867,9 +3892,17 @@ namespace LlamAcademy.Dinos.Unit
 
             }
 
-            // VÔ HIỆU HÓA NGAY LẬP TỨC COLLIDER VÀ NAVMESH AGENT:
-
+            // VÔ HIỆU HÓA NGAY LẬP TỨC COLLIDER, NAVMESH AGENT VÀ THANH MÁU:
             // Tránh xác quái vật trong lúc ngã chết (0.5s) tạo thành vật cản vô hình kẹt đường đồng đội
+            // và hủy thanh máu ngay lập tức để không bị hiện tượng lặp máu hay thanh máu ma
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.Unregister(this);
+            }
+            if (HealthBar != null)
+            {
+                HealthBar.gameObject.SetActive(false);
+            }
 
             Collider[] allCols = GetComponentsInChildren<Collider>();
 

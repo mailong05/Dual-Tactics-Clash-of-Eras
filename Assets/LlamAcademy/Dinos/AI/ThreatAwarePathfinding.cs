@@ -81,6 +81,11 @@ namespace LlamAcademy.Dinos.AI
             private set => _instance = value;
         }
 
+        public static ThreatAwarePathfinding EnsureInstance()
+        {
+            return Instance;
+        }
+
         private void OnApplicationQuit()
         {
             s_isApplicationQuitting = true;
@@ -140,6 +145,15 @@ namespace LlamAcademy.Dinos.AI
                     {
                         worldPos.y = hit.position.y;
                     }
+                    // Loại bỏ triệt để các góc chết rìa chân núi hai bên cánh tường thành (nơi tường cắm vào vách đá)
+                    if (worldPos.x > 17.5f && worldPos.z >= -12.0f && worldPos.z <= 4.0f)
+                    {
+                        onNav = false;
+                    }
+                    else if (worldPos.x < -21.0f && worldPos.z >= -12.0f && worldPos.z <= 4.0f)
+                    {
+                        onNav = false;
+                    }
                     var node = new ThreatGridNode(x, z, worldPos);
                     node.IsWalkable = onNav;
                     _grid[x, z] = node;
@@ -173,6 +187,14 @@ namespace LlamAcademy.Dinos.AI
                     {
                         node.WorldPos.y = hit.position.y;
                     }
+                    if (node.WorldPos.x > 17.5f && node.WorldPos.z >= -12.0f && node.WorldPos.z <= 4.0f)
+                    {
+                        onNav = false;
+                    }
+                    else if (node.WorldPos.x < -21.0f && node.WorldPos.z >= -12.0f && node.WorldPos.z <= 4.0f)
+                    {
+                        onNav = false;
+                    }
                     node.IsWalkable = onNav;
                 }
             }
@@ -191,38 +213,38 @@ namespace LlamAcademy.Dinos.AI
                 string unitName = unit.gameObject.name.ToLower();
                 if (unit is ArcherTower || unitName.Contains("archer"))
                 {
-                    attackRange = 30f;
+                    attackRange = 15f;
                     dps = 45f;
                 }
                 else if (unit is BallistaTower || unitName.Contains("ballista"))
                 {
-                    attackRange = 38f;
+                    attackRange = 18f;
                     dps = 65f;
                 }
                 else if (unit is CatapultTower || unitName.Contains("catapult"))
                 {
-                    attackRange = 40f;
+                    attackRange = 20f;
                     dps = 60f;
                 }
                 else if (unit is TeslaTower || unitName.Contains("tesla"))
                 {
-                    attackRange = 18f;
+                    attackRange = 13f;
                     dps = 55f;
                 }
                 else if (unit is FrostTower || unitName.Contains("frost"))
                 {
-                    attackRange = 20f;
+                    attackRange = 14f;
                     dps = 35f;
                 }
                 else if (unitName.Contains("watchtower") || unitName.Contains("tower"))
                 {
-                    attackRange = 28f;
+                    attackRange = 15f;
                     dps = 40f;
                 }
                 else
                 {
                     // Regular defender NPC
-                    attackRange = 18f;
+                    attackRange = 12f;
                     dps = 25f;
                 }
 
@@ -320,8 +342,10 @@ namespace LlamAcademy.Dinos.AI
             switch (species)
             {
                 case DinoAISpeciesType.VelociraptorFlanker:
-                    wThreat = 4.5f;
-                    wWall = 3.2f;
+                    // Cân bằng trọng số né tháp 2.8f và chi phí tường 1.2f:
+                    // Vẫn ưu tiên bọc sườn né các tháp tập trung hỏa lực, nhưng không dấn sâu vào chân núi cụt
+                    wThreat = 2.8f;
+                    wWall = 1.2f;
                     break;
                 case DinoAISpeciesType.AnkylosaurusTanker:
                     wThreat = 0.25f;

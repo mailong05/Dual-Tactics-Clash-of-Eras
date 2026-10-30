@@ -401,40 +401,39 @@ namespace LlamAcademy.Dinos.AI
             line.enabled = IsHeatmapVisible;
         }
 
-        private void OnGUI()
+                private void OnGUI()
         {
-            // Toggle Button in bottom-left
+            if (!IsHeatmapVisible) return;
+
             GUI.skin = null;
             GUI.depth = -200;
 
-            int btnW = 260;
-            int btnH = 36;
-            int posX = 15;
-            int posY = Screen.height - 110;
-
-            GUI.backgroundColor = IsHeatmapVisible ? new Color(0.2f, 0.85f, 0.4f, 0.95f) : new Color(0.25f, 0.35f, 0.45f, 0.85f);
-            string btnText = IsHeatmapVisible ? "🗺️ ẨN BẢN ĐỒ ĐE DỌA (HEATMAP) [H]" : "🗺️ HIỆN BẢN ĐỒ ĐE DỌA (HEATMAP) [H]";
-
-            if (GUI.Button(new Rect(posX, posY, btnW, btnH), $"<b>{btnText}</b>"))
+            Mobile.MobileUIHelper.BeginScaling();
+            try
             {
-                ToggleHeatmap();
-            }
+                // Bảng Chú giải thuật toán Threat Heatmap A* nổi ở góc trên bên trái
+                float posX = 20f;
+                float posY = 155f;
+                float w = 330f;
+                float h = 152f;
+                Rect legendRect = new Rect(posX, posY, w, h);
+                Mobile.MobileUIHelper.RegisterUIRect(legendRect);
 
-            // Legend when visible
-            if (IsHeatmapVisible)
-            {
-                Rect legendRect = new Rect(posX, posY - 150, 310, 142);
-                GUI.backgroundColor = new Color(0.08f, 0.12f, 0.18f, 0.92f);
+                GUI.backgroundColor = new Color(0.06f, 0.10f, 0.16f, 0.94f);
                 GUI.Box(legendRect, "");
 
-                GUILayout.BeginArea(new Rect(posX + 8, posY - 146, 294, 134));
-                GUILayout.Label("<color=cyan><b>CHÚ GIẢI THUẬT TOÁN THREAT $A^*$</b></color>", GetHeaderStyle());
+                GUILayout.BeginArea(new Rect(posX + 8, posY + 6, w - 16, h - 12));
+                GUILayout.Label("<color=cyan><b>🗺️ CHÚ GIẢI BẢN ĐỒ THREAT $A^*$</b></color>", GetHeaderStyle());
                 GUILayout.Label("🟩 <b>Xanh lá</b>: Vùng mù hỏa lực / Hành lang an toàn", GetItemStyle());
                 GUILayout.Label("🟨 <b>Vàng</b>: Vùng sát thương trung bình", GetItemStyle());
                 GUILayout.Label("🟥 <b>Đỏ</b>: Tử địa tập trung hỏa lực tháp", GetItemStyle());
                 GUILayout.Label("<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker $A^*$)", GetItemStyle());
                 GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker $A^*$)", GetItemStyle());
                 GUILayout.EndArea();
+            }
+            finally
+            {
+                Mobile.MobileUIHelper.EndScaling();
             }
         }
 

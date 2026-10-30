@@ -336,7 +336,8 @@ namespace LlamAcademy.Dinos.Utility
 
 
 
-                    keyValuePair.Key.TryGetComponent(out Collider col);
+                    Collider col = keyValuePair.Key.GetComponentInChildren<Collider>();
+                    Renderer rend = keyValuePair.Key.GetComponentInChildren<Renderer>();
                     string lowerName = keyValuePair.Key.gameObject.name.ToLower();
                     bool isBridge = lowerName.Contains("bridge") || lowerName.Contains("ramp");
                     bool isFence = !isBridge && (lowerName.Contains("segment") ||
@@ -348,26 +349,25 @@ namespace LlamAcademy.Dinos.Utility
                     Vector3 targetPos;
                     if (isBridge)
                     {
-                        float topY = col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.5f);
-                        targetPos = new Vector3(
-                            col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x,
-                            topY + 0.8f,
-                            col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z
-                        );
+                        float topY = rend != null ? rend.bounds.max.y : (col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.5f));
+                        float centerX = rend != null ? rend.bounds.center.x : (col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x);
+                        float centerZ = rend != null ? rend.bounds.center.z : (col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z);
+                        targetPos = new Vector3(centerX, topY + 0.8f, centerZ);
                     }
                     else if (isFence)
                     {
-                        // Đặt thanh máu ngay sát trên mép trên cùng của hàng rào cọc gỗ (+0.15m trên đỉnh cọc):
-                        float topY = col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.85f);
-                        targetPos = new Vector3(
-                            col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x,
-                            topY + 0.15f,
-                            col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z
-                        );
+                        // Đặt thanh máu nổi rõ ràng trên đỉnh của hàng rào cọc gỗ (+0.65m trên đỉnh cọc) để không bị che khuất
+                        float topY = rend != null ? rend.bounds.max.y : (col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 3.0f));
+                        float centerX = rend != null ? rend.bounds.center.x : (col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x);
+                        float centerZ = rend != null ? rend.bounds.center.z : (col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z);
+                        targetPos = new Vector3(centerX, topY + 0.65f, centerZ);
                     }
-                    else if (col != null)
+                    else if (rend != null || col != null)
                     {
-                        targetPos = new Vector3(col.bounds.center.x, col.bounds.max.y + 0.6f, col.bounds.center.z);
+                        float topY = rend != null ? rend.bounds.max.y : col.bounds.max.y;
+                        float centerX = rend != null ? rend.bounds.center.x : col.bounds.center.x;
+                        float centerZ = rend != null ? rend.bounds.center.z : col.bounds.center.z;
+                        targetPos = new Vector3(centerX, topY + 0.6f, centerZ);
                     }
                     else
                     {

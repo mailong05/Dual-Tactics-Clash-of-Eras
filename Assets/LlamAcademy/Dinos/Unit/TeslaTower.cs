@@ -9,7 +9,7 @@ namespace LlamAcademy.Dinos.Unit
     public class TeslaTower : Unit
     {
         [Header("Tesla Settings")]
-        [SerializeField] private float AttackRange = 18.0f;
+        [SerializeField] private float AttackRange = 13.0f;
         [SerializeField] private float AttackInterval = 1.2f;
         [SerializeField] private int DamagePerHit = 25;
         public void SetDamage(int dmg) => DamagePerHit = dmg;
@@ -25,7 +25,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
-            AttackRange = Mathf.Max(AttackRange, 22.0f);
+            AttackRange = 11.5f;
             if (EnemyLayers.value == 0)
             {
                 EnemyLayers = (1 << 8) | (1 << 7) | LayerMask.GetMask("Dinos", "Default");

@@ -8,7 +8,7 @@ namespace LlamAcademy.Dinos.Unit
     public class BallistaTower : Unit
     {
         [Header("Ballista Mechanics")]
-        [SerializeField] private float AttackRange = 38.0f;
+        [SerializeField] private float AttackRange = 18.0f;
         [SerializeField] private float FireInterval = 2.2f;
         [SerializeField] private int SpearDamage = 70;
         public void SetDamage(int dmg) => SpearDamage = dmg;
@@ -29,7 +29,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
-            AttackRange = Mathf.Max(AttackRange, 38.0f);
+            AttackRange = 16.5f;
             if (EnemyLayers.value == 0)
             {
                 EnemyLayers = (1 << 8) | (1 << 7) | LayerMask.GetMask("Dinos", "Default");

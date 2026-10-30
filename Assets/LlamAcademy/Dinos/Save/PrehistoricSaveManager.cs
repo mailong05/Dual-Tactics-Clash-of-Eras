@@ -21,6 +21,7 @@ namespace LlamAcademy.Dinos.Save
         public int TotalMonstersKilled = 0;
         public int TotalScore = 0;
         public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
+        public int UnlockedMapMax = 0; // 0 = AncientValley, 1 = VolcanicGorge, 2 = GlacialTundra
         public bool HasActiveRun = false;
         public string LastSavedTimestamp = "";
     }
@@ -34,6 +35,7 @@ namespace LlamAcademy.Dinos.Save
         public int BaseHealth = 1000;
         public int MaxBaseHealth = 1000;
         public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
+        public int UnlockedMapMax = 0; // 0 = AncientValley, 1 = VolcanicGorge, 2 = GlacialTundra
         public bool HasActiveRun = false;
         public string LastSavedTimestamp = "";
     }
@@ -299,35 +301,56 @@ namespace LlamAcademy.Dinos.Save
             }
         }
 
-        public bool IsMapUnlocked(PrehistoricMapType map)
+        public bool IsMapUnlocked(PrehistoricMapType map, PrehistoricGameMode? mode = null)
         {
             if (map == PrehistoricMapType.AncientValley) return true;
             EnsureProfilesInitialized();
             if (CurrentData == null) return false;
 
-            if (map == PrehistoricMapType.VolcanicGorge)
+            PrehistoricGameMode targetMode = mode ?? (PrehistoricGameModeManager.Instance != null 
+                ? PrehistoricGameModeManager.Instance.CurrentMode 
+                : CurrentData.LastPlayedMode);
+
+            if (targetMode == PrehistoricGameMode.TowerDefense)
             {
-                bool defensePassed = CurrentData.DefenseProfile != null && 
-                    (CurrentData.DefenseProfile.HighestWaveReached >= 10 || CurrentData.DefenseProfile.CurrentWave >= 10);
-                bool assaultPassed = CurrentData.AssaultProfile != null && 
-                    (CurrentData.AssaultProfile.HighestLevelReached >= 10 || CurrentData.AssaultProfile.AssaultLevel >= 10);
-                return CurrentData.UnlockedMapMax >= 1 || defensePassed || assaultPassed;
+                if (CurrentData.DefenseProfile == null) return false;
+                if (map == PrehistoricMapType.VolcanicGorge)
+                {
+                    bool defensePassed = CurrentData.DefenseProfile.HighestWaveReached >= 10 || CurrentData.DefenseProfile.CurrentWave >= 10;
+                    return CurrentData.DefenseProfile.UnlockedMapMax >= 1 || defensePassed;
+                }
+                if (map == PrehistoricMapType.GlacialTundra)
+                {
+                    bool defensePassed = CurrentData.DefenseProfile.HighestWaveReached >= 20 || CurrentData.DefenseProfile.CurrentWave >= 20;
+                    return CurrentData.DefenseProfile.UnlockedMapMax >= 2 || defensePassed;
+                }
             }
-            if (map == PrehistoricMapType.GlacialTundra)
+            else // DinoAssault
             {
-                bool defensePassed = CurrentData.DefenseProfile != null && 
-                    (CurrentData.DefenseProfile.HighestWaveReached >= 20 || CurrentData.DefenseProfile.CurrentWave >= 20);
-                bool assaultPassed = CurrentData.AssaultProfile != null && 
-                    (CurrentData.AssaultProfile.HighestLevelReached >= 20 || CurrentData.AssaultProfile.AssaultLevel >= 20);
-                return CurrentData.UnlockedMapMax >= 2 || defensePassed || assaultPassed;
+                if (CurrentData.AssaultProfile == null) return false;
+                if (map == PrehistoricMapType.VolcanicGorge)
+                {
+                    bool assaultPassed = CurrentData.AssaultProfile.HighestLevelReached >= 10 || CurrentData.AssaultProfile.AssaultLevel >= 10;
+                    return CurrentData.AssaultProfile.UnlockedMapMax >= 1 || assaultPassed;
+                }
+                if (map == PrehistoricMapType.GlacialTundra)
+                {
+                    bool assaultPassed = CurrentData.AssaultProfile.HighestLevelReached >= 20 || CurrentData.AssaultProfile.AssaultLevel >= 20;
+                    return CurrentData.AssaultProfile.UnlockedMapMax >= 2 || assaultPassed;
+                }
             }
-            return true;
+
+            return false;
         }
 
-        public void UnlockMap(PrehistoricMapType map)
+        public void UnlockMap(PrehistoricMapType map, PrehistoricGameMode? mode = null)
         {
             EnsureProfilesInitialized();
             if (CurrentData == null) return;
+
+            PrehistoricGameMode targetMode = mode ?? (PrehistoricGameModeManager.Instance != null 
+                ? PrehistoricGameModeManager.Instance.CurrentMode 
+                : CurrentData.LastPlayedMode);
 
             int required = map switch
             {
@@ -336,12 +359,24 @@ namespace LlamAcademy.Dinos.Save
                 _ => 0
             };
 
-            if (CurrentData.UnlockedMapMax < required)
+            if (targetMode == PrehistoricGameMode.TowerDefense)
             {
-                CurrentData.UnlockedMapMax = required;
+                if (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.UnlockedMapMax < required)
+                {
+                    CurrentData.DefenseProfile.UnlockedMapMax = required;
+                }
             }
+            else
+            {
+                if (CurrentData.AssaultProfile != null && CurrentData.AssaultProfile.UnlockedMapMax < required)
+                {
+                    CurrentData.AssaultProfile.UnlockedMapMax = required;
+                }
+            }
+
+            CurrentData.UnlockedMapMax = Math.Max(CurrentData.DefenseProfile?.UnlockedMapMax ?? 0, CurrentData.AssaultProfile?.UnlockedMapMax ?? 0);
             SaveDataToDisk();
-            Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Đã mở khóa bản đồ mới: <b>{map}</b> (UnlockedMapMax = {CurrentData.UnlockedMapMax})!");
+            Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Đã mở khóa bản đồ mới: <b>{map}</b> cho chế độ <b>{targetMode}</b>!");
         }
 
         private void MigrateInitialSlotsIfMissing()

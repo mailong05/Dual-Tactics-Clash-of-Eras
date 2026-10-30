@@ -7,7 +7,7 @@ namespace LlamAcademy.Dinos.Unit
     public class CatapultTower : Unit
     {
         [Header("Catapult Mechanics")]
-        [SerializeField] private float AttackRange = 40.0f;
+        [SerializeField] private float AttackRange = 20.0f;
         [SerializeField] private float MinRange = 3.5f;
         [SerializeField] private float FireInterval = 3.0f;
         [SerializeField] private int ExplosionDamage = 50;
@@ -31,7 +31,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
-            AttackRange = Mathf.Max(AttackRange, 40.0f);
+            AttackRange = 18.0f;
             if (EnemyLayers.value == 0)
             {
                 EnemyLayers = (1 << 8) | (1 << 7) | LayerMask.GetMask("Dinos", "Default");

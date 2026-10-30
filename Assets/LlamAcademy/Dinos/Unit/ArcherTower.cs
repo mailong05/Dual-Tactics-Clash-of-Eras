@@ -8,7 +8,7 @@ namespace LlamAcademy.Dinos.Unit
     public class ArcherTower : Unit
     {
         [Header("Archer Mechanics")]
-        [SerializeField] private float AttackRange = 30.0f;
+        [SerializeField] private float AttackRange = 15.0f;
         [SerializeField] private float FireInterval = 1.0f;
         [SerializeField] private int ArrowDamage = 28;
         [SerializeField] private float ArrowSpeed = 24.0f;
@@ -23,7 +23,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
-            AttackRange = Mathf.Max(AttackRange, 30.0f);
+            AttackRange = 14.5f;
             if (EnemyLayers.value == 0)
             {
                 EnemyLayers = (1 << 8) | (1 << 7) | LayerMask.GetMask("Dinos", "Default");
