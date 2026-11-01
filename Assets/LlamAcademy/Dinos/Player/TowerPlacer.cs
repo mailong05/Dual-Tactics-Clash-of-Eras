@@ -79,6 +79,7 @@ namespace LlamAcademy.Dinos.Player
                 }
             }
             _PlacedTowerObjects.Clear();
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
 
             // 2. Quét dọn triệt để mọi đối tượng do người chơi đặt runtime có gắn PlayerPlacedTowerMarker
             var placedMarkers = FindObjectsByType<PlayerPlacedTowerMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -496,6 +497,7 @@ namespace LlamAcademy.Dinos.Player
             towerUnit.gameObject.AddComponent<PlayerPlacedTowerMarker>();
 
             OnTowerPlaced?.Invoke(towerUnit);
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
             _PlacedTowerObjects.Add(towerUnit.gameObject);
             Audio.PrehistoricAudioManager.Instance?.PlayTowerPlaced();
             Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();

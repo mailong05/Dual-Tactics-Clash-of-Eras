@@ -50,6 +50,7 @@ namespace LlamAcademy.Dinos.UI
 
             LoadTextures();
             CreateVignetteTexture();
+            Save.PrehistoricSaveManager.EnsureInstance();
             PrehistoricSaveLoadDialog.EnsureInstance();
         }
 
@@ -312,6 +313,11 @@ namespace LlamAcademy.Dinos.UI
                 if (GUILayout.Button(defTabLabel, GUILayout.Height(tabBtnH)))
                 {
                     SelectedMode = PrehistoricGameMode.TowerDefense;
+                    if (SelectedMap != PrehistoricMapType.AncientValley && Save.PrehistoricSaveManager.Instance != null && !Save.PrehistoricSaveManager.Instance.IsMapUnlocked(SelectedMap, SelectedMode))
+                    {
+                        SelectedMap = PrehistoricMapType.AncientValley;
+                        PrehistoricMapManager.ApplyMapTheme(PrehistoricMapType.AncientValley);
+                    }
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                 }
 
@@ -322,6 +328,11 @@ namespace LlamAcademy.Dinos.UI
                 if (GUILayout.Button(assTabLabel, GUILayout.Height(tabBtnH)))
                 {
                     SelectedMode = PrehistoricGameMode.DinoAssault;
+                    if (SelectedMap != PrehistoricMapType.AncientValley && Save.PrehistoricSaveManager.Instance != null && !Save.PrehistoricSaveManager.Instance.IsMapUnlocked(SelectedMap, SelectedMode))
+                    {
+                        SelectedMap = PrehistoricMapType.AncientValley;
+                        PrehistoricMapManager.ApplyMapTheme(PrehistoricMapType.AncientValley);
+                    }
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                 }
 
@@ -341,8 +352,8 @@ namespace LlamAcademy.Dinos.UI
                 bool isGlacial = (SelectedMap == PrehistoricMapType.GlacialTundra);
                 float mapBtnH = Mathf.Round(44f * scale);
 
-                bool isVolcanicUnlocked = Save.PrehistoricSaveManager.Instance == null || Save.PrehistoricSaveManager.Instance.IsMapUnlocked(PrehistoricMapType.VolcanicGorge);
-                bool isGlacialUnlocked = Save.PrehistoricSaveManager.Instance == null || Save.PrehistoricSaveManager.Instance.IsMapUnlocked(PrehistoricMapType.GlacialTundra);
+                bool isVolcanicUnlocked = Save.PrehistoricSaveManager.Instance == null || Save.PrehistoricSaveManager.Instance.IsMapUnlocked(PrehistoricMapType.VolcanicGorge, SelectedMode);
+                bool isGlacialUnlocked = Save.PrehistoricSaveManager.Instance == null || Save.PrehistoricSaveManager.Instance.IsMapUnlocked(PrehistoricMapType.GlacialTundra, SelectedMode);
 
                 // MAP 1: THUNG LŨNG CỔ ĐẠI (Luôn mở)
                 GUI.backgroundColor = isValley ? new Color(0.18f, 0.75f, 0.45f, 1f) : new Color(0.20f, 0.25f, 0.32f, 0.70f);
@@ -363,7 +374,8 @@ namespace LlamAcademy.Dinos.UI
                     string volcanicLabel = $"<size={Mathf.RoundToInt(12 * scale)}>🔒 NÚI DUNG NHAM</size>\n<size={Mathf.RoundToInt(9 * scale)}>(Vượt Đợt 10 để mở)</size>";
                     if (GUILayout.Button(volcanicLabel, GUILayout.Height(mapBtnH)))
                     {
-                        _lockNoticeMessage = "🔒 BẢN ĐỒ NÚI DUNG NHAM ĐANG KHÓA!\nHãy vượt qua Đợt 10 (Boss T-Rex) của Thung Lũng Cổ Đại để mở khóa!";
+                        string modeName = SelectedMode == PrehistoricGameMode.TowerDefense ? "THỦ THÀNH" : "CÔNG THÀNH";
+                        _lockNoticeMessage = $"🔒 BẢN ĐỒ NÚI DUNG NHAM ĐANG KHÓA TRONG CHẾ ĐỘ {modeName}!\nHãy vượt qua Đợt/Cấp 10 của chế độ {modeName} để mở khóa!";
                         _lockNoticeTimer = 4.0f;
                         PrehistoricAudioManager.Instance?.PlayButtonClick();
                     }

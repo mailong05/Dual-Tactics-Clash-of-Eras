@@ -41,6 +41,10 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             UpdateNavMeshData.Destroy();
+            if (AI.ThreatAwarePathfinding.HasInstance)
+            {
+                AI.ThreatAwarePathfinding.Instance.RecalculateThreatField();
+            }
         }
 
         private void OnEnable()
@@ -134,30 +138,14 @@ namespace LlamAcademy.Dinos.Unit
 
         private static void WidenBreachOpening(Vector3 breachPos, float collapseRadius)
         {
+            // Mỗi đoạn tường là một thực thể phòng thủ độc lập.
+            // Tuyệt đối không kích nổ dây chuyền làm sập các tường lân cận khi chỉ 1 đoạn bị húc đổ!
             if (s_IsWideningBreach) return;
             s_IsWideningBreach = true;
             try
             {
-                // 1. Phá hủy thêm đoạn tường gối đầu kế bên trong phạm vi 2.8m để mở toang lối đi rộng ~5.0m
-                Collider[] hits = Physics.OverlapSphere(breachPos, collapseRadius);
-                foreach (var hit in hits)
-                {
-                    if (hit == null) continue;
-                    Wall adjacentWall = hit.GetComponentInParent<Wall>();
-                    if (adjacentWall != null && adjacentWall.gameObject != null && adjacentWall.Health > 0)
-                    {
-                        float dist = Vector3.Distance(adjacentWall.transform.position, breachPos);
-                        if (dist > 0.4f && dist <= collapseRadius)
-                        {
-                            adjacentWall.Die();
-                            break; // 1 đoạn kế bên sụp là đã mở toang 5m+ cực kỳ rộng rãi!
-                        }
-                    }
-                }
-
-                // 2. Trim bớt BoxCollider và NavMeshObstacle của các tường đứng 2 bên mép (từ 2.8m đến 4.8m)
-                // để không cấn vào lối đi của khủng long to lớn như T-Rex và Ankylosaurus
-                Collider[] edgeHits = Physics.OverlapSphere(breachPos, 4.8f);
+                // Chỉ tỉa nhẹ va chạm 2 mép để khủng long to lớn (T-Rex) không bị cấn kẹt khi chui qua lỗ thủng
+                Collider[] edgeHits = Physics.OverlapSphere(breachPos, 3.5f);
                 foreach (var hit in edgeHits)
                 {
                     if (hit == null) continue;
@@ -167,13 +155,13 @@ namespace LlamAcademy.Dinos.Unit
                         if (edgeWall.TryGetComponent(out BoxCollider bc))
                         {
                             Vector3 sz = bc.size;
-                            sz.x = Mathf.Max(sz.x * 0.80f, 1.2f);
+                            sz.x = Mathf.Max(sz.x * 0.85f, 1.2f);
                             bc.size = sz;
                         }
                         if (edgeWall.TryGetComponent(out NavMeshObstacle nmo))
                         {
                             Vector3 sz = nmo.size;
-                            sz.x = Mathf.Max(sz.x * 0.80f, 1.2f);
+                            sz.x = Mathf.Max(sz.x * 0.85f, 1.2f);
                             nmo.size = sz;
                         }
                     }
@@ -209,18 +197,41 @@ namespace LlamAcademy.Dinos.Unit
             UpdateNavMeshData.MoveObstacles();
 
             // 3. Đăng ký vị trí khe hở vào TacticalBreachMemory để điều phối quái và quân cố thủ
-            Vector3 toBase = Vector3.forward;
-            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            Vector3 basePos = new Vector3(-2.23f, 0f, -38.26f);
+            if (PrehistoricVillageBase.Instance != null)
             {
-                toBase = (RoundManager.Instance.DinoTarget.position - transform.position).normalized;
+                basePos = PrehistoricVillageBase.Instance.transform.position;
+            }
+            else if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.BaseTarget != null)
+            {
+                basePos = PrehistoricGameplayManager.Instance.BaseTarget.position;
             }
             else if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
             {
-                toBase = (PrehistoricGameModeManager.Instance.VillageBase.transform.position - transform.position).normalized;
+                basePos = PrehistoricGameModeManager.Instance.VillageBase.transform.position;
             }
+            else if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            {
+                basePos = RoundManager.Instance.DinoTarget.position;
+            }
+
+            Vector3 toBase = (basePos - transform.position);
             toBase.y = 0;
-            if (toBase == Vector3.zero) toBase = transform.forward;
-            LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase, 5.0f);
+            if (toBase.sqrMagnitude > 0.01f) toBase.Normalize();
+            else toBase = new Vector3(0, 0, -1f);
+
+            // Bảo đảm toBase luôn hướng về phía nam (Z âm - vào sâu trong làng)
+            if (toBase.z > -0.1f)
+            {
+                toBase = new Vector3(toBase.x, 0, -1f).normalized;
+            }
+
+            if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
+            {
+                LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.RegisterBreach(transform.position, toBase, 5.0f);
+            }
+
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
 
             PrehistoricDinoBase.OnWallBreached(this);
             if (gameObject.activeInHierarchy)
@@ -253,7 +264,8 @@ namespace LlamAcademy.Dinos.Unit
         private void DeactivateAssociatedBridgeFloors()
         {
             string n = gameObject.name.ToLower();
-            bool isBridge = n.Contains("bridge") || n.Contains("arch") || n.Contains("ramp") || n.Contains("gate");
+            // Chỉ áp dụng cho cầu gỗ sông thực sự, TUYỆT ĐỐI không áp dụng cho hàng rào cọc hay cổng thành
+            bool isBridge = n.Contains("bridge") || n.Contains("ramp");
             if (!isBridge) return;
 
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
@@ -261,16 +273,17 @@ namespace LlamAcademy.Dinos.Unit
             {
                 if (t == null || t == transform || (Root != null && t == Root.transform)) continue;
                 string tn = t.gameObject.name;
+                // Chỉ tắt mặt sàn đi bộ ngầm của chính chiếc cầu đó (Smooth Floor, Walkway_Deck)
+                // TUYỆT ĐỐI KHÔNG can thiệp vào hàng rào cọc gỗ Plank_Defenses!
                 bool isFloor = tn.Contains("Smooth Floor") || 
                                tn.Contains("Walkway_Deck") || 
                                tn.Contains("Collider_Walkway_Deck") || 
-                               tn.Contains("FloorDeck") ||
-                               tn.Contains("Plank_Defenses");
+                               tn.Contains("FloorDeck");
 
                 if (isFloor)
                 {
                     float dist = Vector3.Distance(new Vector3(t.position.x, 0, t.position.z), new Vector3(transform.position.x, 0, transform.position.z));
-                    if (dist < 35f)
+                    if (dist < 8f) // Bán kính hẹp trong phạm vi thân cầu
                     {
                         Renderer[] rList = t.GetComponentsInChildren<Renderer>(true);
                         foreach (var r in rList) if (r != null) r.enabled = false;
@@ -363,6 +376,7 @@ private IEnumerator HandleDeath()
             {
                 NavMeshManager.Instance.NavMeshUpdatedByObstacles();
             }
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
             PrehistoricDinoBase.OnWallBreached(this);
         }
 

@@ -98,6 +98,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
             Instance = this;
+            AI.ThreatAwarePathfinding.EnsureInstance();
 
             if (_MaxBaseHealth < 1000) _MaxBaseHealth = 1000;
             _CurrentBaseHealth = _MaxBaseHealth;
@@ -295,18 +296,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
-                // Không xóa chòi canh, vòm cổng, đuốc, cầu, sàn, lều làng
-                bool isTower = n.Contains("Big Tower") || n.Contains("Watchtower") || n.Contains("Bastion_Tower") || n.Contains("Tower_Tribal");
-                bool isArch = n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) || n.Contains("Overhead_Arch") || n.Contains("Arch_Entry");
-                bool isTorch = n.Contains("Torch");
-                bool isFloorOrBridge = n.Contains("Smooth Floor") || n.Contains("Walkway_Deck") ||
-                                       n.Contains("Collider_Walkway_Deck") || n.Contains("FloorDeck") ||
-                                       n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
-                                       n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase);
-                bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
-
-                if (isTower || isArch || isTorch || isFloorOrBridge || isHut) continue;
-
+                // Nhận diện đối tượng thuộc cổng thành hoặc rào chắn tiền tuyến (Z từ -6m đến +2.5m)
                 bool isChildOfFortress = false;
                 if (t.parent != null)
                 {
@@ -317,7 +307,22 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                 }
 
-                bool isFence = isChildOfFortress ||
+                bool isFrontGateOrBarricade = isChildOfFortress ||
+                                              n == "Gate_Complex" ||
+                                              n.StartsWith("Gate_") ||
+                                              n.Contains("Overhead_Arch") ||
+                                              (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) && t.position.z >= -6f && t.position.z <= 2.5f);
+
+                // Giữ lại chòi canh, cổng vòm sâu bên trong làng (Z < -10), cầu sông bắc qua nước (Z > 5 hoặc Z < -20)
+                bool isTower = n.Contains("Big Tower") || n.Contains("Watchtower") || n.Contains("Bastion_Tower") || n.Contains("Tower_Tribal");
+                bool isInteriorArch = n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) && t.position.z < -10f;
+                bool isRiverBridge = (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) || n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase)) && (t.position.z > 5f || t.position.z < -20f);
+                bool isFloor = n.Contains("Smooth Floor") || n.Contains("Walkway_Deck") || n.Contains("Collider_Walkway_Deck") || n.Contains("FloorDeck");
+                bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
+
+                if (!isFrontGateOrBarricade && (isTower || isInteriorArch || isRiverBridge || isFloor || isHut)) continue;
+
+                bool isFence = isFrontGateOrBarricade ||
                                n.Contains("Wall_Segment") || n.Contains("Plank_Defenses") ||
                                n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
                                n.Contains("Barricade") || n.Contains("Palisade") ||
@@ -409,6 +414,50 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         Utility.HealthBarCanvas.Instance.Unregister(cu);
                     }
+                }
+            }
+
+            // BƯỚC 1.5: Chuẩn hóa tuyệt đối tọa độ các đoạn tường thành cánh trái và cánh phải ở chế độ Công thành
+            // Đảm bảo tuyến phòng thủ khép kín 100%, không bị thủng lỗ 20m khiến khủng long đi lạc vào góc núi
+            if (isAssault)
+            {
+                float[] leftPositionsX = new float[] {
+                    -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f,
+                    -33.6f, -36.2f, -38.8f, -41.4f
+                };
+                float[] rightPositionsX = new float[] {
+                    0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f
+                };
+
+                GameObject rightGroup = GameObject.Find("Right_Wing_Wall");
+                if (rightGroup != null)
+                {
+                    int segIdx = 0;
+                    for (int c = 0; c < rightGroup.transform.childCount; c++)
+                    {
+                        Transform child = rightGroup.transform.GetChild(c);
+                        if (child != null && child.name.Contains("Wall_Segment"))
+                        {
+                            if (segIdx < rightPositionsX.Length)
+                            {
+                                child.position = new Vector3(rightPositionsX[segIdx++], 0f, -2.5f);
+                                child.rotation = Quaternion.identity;
+                                child.gameObject.SetActive(true);
+                            }
+                            else
+                            {
+                                // Các đoạn tường thừa đâm sâu vào vách núi -> Vô hiệu hóa để quái không đi lạc vào góc núi
+                                child.gameObject.SetActive(false);
+                            }
+                        }
+                    }
+                }
+
+                GameObject gateBar = GameObject.Find("Gate_Portcullis_Barricade");
+                if (gateBar != null)
+                {
+                    gateBar.transform.position = new Vector3(-2.2f, 0f, -2.5f);
+                    gateBar.transform.rotation = Quaternion.identity;
                 }
             }
 
@@ -1878,6 +1927,16 @@ namespace LlamAcademy.Dinos.RoundManagement
             ShowAnnouncement($"★ CHIẾN THẮNG ĐỢT {_CurrentWave}! THƯỞNG +{rewardGold} VÀNG! ★", 4.0f);
             OnWaveCompleted?.Invoke(_CurrentWave, rewardGold);
             Audio.PrehistoricAudioManager.Instance?.PlayVictory();
+            // Tự động mở khóa bản đồ khi vượt qua Đợt 10 (Map 2) hoặc Đợt 20 (Map 3)
+            if (_CurrentWave >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge, PrehistoricGameMode.TowerDefense);
+            }
+            if (_CurrentWave >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.TowerDefense);
+            }
+
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             // Cập nhật hệ số thích ứng độ khó DDA của AI Director
@@ -1903,6 +1962,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
             ResetPlayerAndCameraPosition();
+
+            if (_CurrentWave >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge, PrehistoricGameMode.TowerDefense);
+            }
+            if (_CurrentWave >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.TowerDefense);
+            }
 
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
@@ -1941,11 +2009,11 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Mở khóa bản đồ kế tiếp khi chiến thắng đợt 10
             if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.AncientValley)
             {
-                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge);
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge, PrehistoricGameMode.TowerDefense);
             }
             else if (Environment.PrehistoricMapManager.CurrentMap == Environment.PrehistoricMapType.VolcanicGorge)
             {
-                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra);
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.TowerDefense);
             }
 
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: false);
@@ -3226,6 +3294,20 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (GUI.Button(aiRect, aiLabel))
             {
                 UI.PrehistoricNeuralMonitorUI.Instance?.ToggleWindow();
+            }
+            currentY += btnH + 6f;
+
+            // 2.5 Nút Bật/Tắt Bản Đồ Đe Dọa (Threat Heatmap A*)
+            Rect heatmapRect = new Rect(x, currentY, dockWidth, btnH);
+            Mobile.MobileUIHelper.RegisterUIRect(heatmapRect);
+
+            bool isHeatmapOpen = AI.ThreatHeatmapVisualizer.Instance != null && AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible;
+            GUI.backgroundColor = isHeatmapOpen ? new Color(0.1f, 0.95f, 0.5f, 0.95f) : new Color(0.15f, 0.35f, 0.55f, 0.88f);
+
+            string heatmapLabel = isHeatmapOpen ? "<b>🗺️ HEATMAP $A^*$: [BẬT]</b>" : "<b>🗺️ HEATMAP $A^*$ [H]</b>";
+            if (GUI.Button(heatmapRect, heatmapLabel))
+            {
+                AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();
             }
             currentY += btnH + 6f;
 

@@ -64,6 +64,12 @@ namespace LlamAcademy.Dinos.Unit
 
         protected Collider[] ScanBuffer = new Collider[64];
 
+        [Header("Tactical Threat-Aware AI Pathfinding")]
+        public virtual LlamAcademy.Dinos.AI.DinoAISpeciesType AISpeciesType { get; set; } = LlamAcademy.Dinos.AI.DinoAISpeciesType.VelociraptorFlanker;
+        protected List<Vector3> _TacticalWaypoints = new List<Vector3>();
+        protected int _CurrentWaypointIndex = 0;
+        protected float _LastPathCalcTime = -99f;
+
         // GLB Animation Cache & Clips
 
         private static readonly Dictionary<string, AnimationClip[]> s_ClipsCache = new();
@@ -880,12 +886,9 @@ namespace LlamAcademy.Dinos.Unit
 
                     float dot = Vector3.Dot(toBaseDir, toWall.normalized);
 
-                    if (dot < 0.2f || wallDistToBase > myDistToBase + 1.0f)
-
+                    if (dot < 0.2f || wallDistToBase > myDistToBase + 1.0f || closest.z > myPos.z + 0.5f || Mathf.Abs(closest.x) > 25.0f)
                     {
-
-                        continue; // Tường nằm ở sau lưng -> BỎ QUA!
-
+                        continue; // Tường nằm ở sau lưng hoặc góc núi ngoài rìa -> BỎ QUA!
                     }
 
                     Vector3 lateralDir = Vector3.Cross(Vector3.up, toBaseDir).normalized;
@@ -2165,6 +2168,7 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             EnsureHealthBarAttached();
+            OverheadAIStateInspector.AttachTo(gameObject, AISpeciesType);
 
         }
 
@@ -2215,59 +2219,36 @@ namespace LlamAcademy.Dinos.Unit
         }
 
         protected virtual void FindTargetBase()
-
         {
-
-            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
-
+            if (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
             {
-
-                TargetBase = RoundManager.Instance.DinoTarget;
-
+                TargetBase = PrehistoricVillageBase.Instance.transform;
                 return;
-
             }
 
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.BaseTarget != null)
-
             {
-
                 TargetBase = PrehistoricGameplayManager.Instance.BaseTarget;
-
                 return;
-
-            }
-
-            if (PrehistoricVillageBase.Instance != null)
-
-            {
-
-                TargetBase = PrehistoricVillageBase.Instance.transform;
-
-                return;
-
             }
 
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.VillageBase != null)
-
             {
-
                 TargetBase = PrehistoricGameModeManager.Instance.VillageBase.transform;
-
                 return;
+            }
 
+            if (RoundManager.Instance != null && RoundManager.Instance.DinoTarget != null)
+            {
+                TargetBase = RoundManager.Instance.DinoTarget;
+                return;
             }
 
             GameObject eggObj = GameObject.Find("Dino Egg Spawn");
-
             if (eggObj != null)
-
             {
-
                 TargetBase = eggObj.transform;
-
                 return;
-
             }
 
             GameObject eggTag = GameObject.FindWithTag("Finish");
@@ -2318,14 +2299,52 @@ namespace LlamAcademy.Dinos.Unit
 
             }
 
-            if (TargetBase == null)
-
+                        if (TargetBase == null)
             {
-
                 FindTargetBase();
-
                 if (TargetBase == null) return;
+            }
 
+            // 0. Kiểm tra hoàn thành vượt qua khe hở tường (Breach Transit)
+            if (_IsNavigatingBreach)
+            {
+                _BreachTransitTimer += Time.deltaTime;
+                bool reachedIngress = false;
+                if (_CurrentBreachPoint != null)
+                {
+                    Vector3 myFlat = new Vector3(transform.position.x, 0, transform.position.z);
+                    Vector3 ingressFlat = new Vector3(_CurrentBreachPoint.IngressPoint.x, 0, _CurrentBreachPoint.IngressPoint.z);
+                    if (Vector3.Distance(myFlat, ingressFlat) < 2.5f || _CurrentBreachPoint.HasPassedPlane(transform.position))
+                    {
+                        reachedIngress = true;
+                    }
+                }
+                // Timeout an toàn 3.5s để không bao giờ bị kẹt lại khe hở
+                if (_BreachTransitTimer > 3.5f)
+                {
+                    reachedIngress = true;
+                }
+
+                if (reachedIngress)
+                {
+                    if (_CurrentBreachPoint != null)
+                    {
+                        _CurrentBreachPoint.ReleaseSlot(this);
+                        TacticalBreachMemory.Instance?.DispatchNextDinosToBreach(_CurrentBreachPoint);
+                        _CurrentBreachPoint = null;
+                    }
+                    RestoreOriginalColliderAndAgent();
+                    _IsNavigatingBreach = false;
+                    _BreachTransitTimer = 0f;
+
+                    // Tiếp tục tiến quân thẳng về Căn cứ làng
+                    if (Agent != null && Agent.enabled && Agent.isOnNavMesh && TargetBase != null)
+                    {
+                        Agent.isStopped = false;
+                        Agent.ResetPath();
+                        Agent.SetDestination(TargetBase.position);
+                    }
+                }
             }
 
             float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
@@ -2362,7 +2381,7 @@ namespace LlamAcademy.Dinos.Unit
 
             {
 
-                CurrentTarget = FindImmediatePathBlocker(Mathf.Max(WallScanRadius, 15.0f));
+                CurrentTarget = FindImmediatePathBlocker(Mathf.Min(WallScanRadius, 3.0f));
 
             }
 
@@ -2384,8 +2403,15 @@ namespace LlamAcademy.Dinos.Unit
 
                 float distToClosest = flatDiff.magnitude;
 
-                // State machine với Hysteresis: Vào cự ly thì khóa đánh, chỉ thoát khi mục tiêu rời xa > meleeExitRange
-                if (!_IsEngagedInMelee && (distToClosest <= meleeAttackRange || (Agent != null && Agent.isOnNavMesh && Agent.remainingDistance <= Agent.stoppingDistance + 0.35f && distToClosest <= meleeExitRange)))
+                // Nếu mục tiêu phụ không phải Nhà chính và cự ly > 3.5m: Bỏ mục tiêu phụ, xông thẳng về Nhà chính
+                if (CurrentTarget != null && !(CurrentTarget is PrehistoricVillageBase) && distToClosest > 3.5f)
+                {
+                    CurrentTarget = null;
+                    _IsEngagedInMelee = false;
+                }
+
+                // State machine: Chỉ khóa đánh khi thực tế khoảng cách vật lý đến mép collider <= meleeAttackRange
+                if (!_IsEngagedInMelee && distToClosest <= meleeAttackRange)
                 {
                     _IsEngagedInMelee = true;
                 }
@@ -2551,29 +2577,67 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             else
-
             {
-
-                // Chỉ đặt destination khi chưa có path hoặc vị trí đích lệch xa > 2m
-
+                // Hành quân chiến thuật né vùng hỏa lực tháp (Threat-Aware Pathfinding)
                 if (Agent != null && Agent.isOnNavMesh)
-
                 {
-
                     Agent.isStopped = false;
-
                     Agent.updateRotation = true;
 
-                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, TargetBase.position) > 2.0f)
-
+                    // Tính toán lại lộ trình chiến thuật mỗi 2.0s hoặc khi chưa có lộ trình
+                    if (_TacticalWaypoints == null || _TacticalWaypoints.Count == 0 || Time.time - _LastPathCalcTime > 2.0f)
                     {
-
-                        Agent.SetDestination(TargetBase.position);
-
+                        _LastPathCalcTime = Time.time;
+                        if (ThreatAwarePathfinding.Instance != null && TargetBase != null)
+                        {
+                            try
+                            {
+                                _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
+                                _CurrentWaypointIndex = 0;
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Debug.LogWarning($"[Dino Pathfinding] An toan: {ex.Message}");
+                                _TacticalWaypoints = new List<Vector3> { TargetBase.position };
+                                _CurrentWaypointIndex = 0;
+                            }
+                        }
                     }
 
-                }
+                    Vector3 moveTarget = TargetBase != null ? TargetBase.position : transform.position;
+                    if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
+                    {
+                        // Chuyển waypoint tiếp theo khi đã đến gần waypoint hiện tại
+                        while (_CurrentWaypointIndex < _TacticalWaypoints.Count - 1 && 
+                               Vector3.Distance(transform.position, _TacticalWaypoints[_CurrentWaypointIndex]) < 2.5f)
+                        {
+                            _CurrentWaypointIndex++;
+                        }
+                        moveTarget = _TacticalWaypoints[_CurrentWaypointIndex];
+                    }
 
+                    // Tách đàn nhẹ nhàng cho Raptor (Flanker) để không chen chúc dồn 1 hàng
+                    if (AISpeciesType == DinoAISpeciesType.VelociraptorFlanker)
+                    {
+                        Vector3 separation = CalculateFlockSeparation(2.5f);
+                        if (separation.sqrMagnitude > 0.01f)
+                        {
+                            moveTarget += separation * 0.8f;
+                        }
+                    }
+
+                    // Giữ moveTarget nằm an toàn trong hành lang chiến đấu, tránh lệch sang vách đá hai bên mép núi
+                    moveTarget.x = Mathf.Clamp(moveTarget.x, -21.0f, 17.0f);
+                    if (NavMesh.SamplePosition(moveTarget, out NavMeshHit mHit, 2.5f, NavMesh.AllAreas))
+                    {
+                        moveTarget = mHit.position;
+                    }
+
+                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, moveTarget) > 1.2f)
+                    {
+                        Agent.SetDestination(moveTarget);
+                    }
+                }
             }
 
         }
@@ -2647,7 +2711,11 @@ namespace LlamAcademy.Dinos.Unit
                 float lateralOffset = Mathf.Abs(Vector3.Dot(lateralDir, toCol));
 
                 // 1. Nếu đã ở cự ly áp sát cận chiến: Luôn ưu tiên đánh tối đa!
-                bool isTouching = d <= (AttackRange + 1.8f);
+                bool isSiegeDino = this is SiegeDino;
+                float maxScanRange = isSiegeDino ? 4.2f : (AttackRange + 0.8f);
+                if (d > maxScanRange) continue;
+                if (dotFwd < 0.35f || lateralOffset > 1.8f) continue;
+                bool isTouching = true;
 
                 // 2. Nếu ở xa hơn: Chỉ chọn mục tiêu nằm ở nửa phía trước hướng tiến về căn cứ và nằm trong hành lang tiến quân
                 if (!isTouching)
@@ -2663,13 +2731,13 @@ namespace LlamAcademy.Dinos.Unit
                 // - Càng thẳng hướng tiến về căn cứ (dotToBase * 30) và hướng mặt (dotFwd * 20) càng ưu tiên
                 // - Càng gần càng ưu tiên (-d * 5)
                 float threatBonus = 0f;
-                if (candidate is PrehistoricVillageBase) threatBonus = 120f;
+                if (candidate is PrehistoricVillageBase) threatBonus = 2000f;
                 else if (candidate is CatapultTower || candidate is BallistaTower || candidate is TeslaTower || candidate is ArcherTower) threatBonus = 60f;
                 else if (candidate is Wall) threatBonus = 40f;
                 else if (candidate is Enemy.Defender) threatBonus = -100f; // Luôn ưu tiên công trình và căn cứ hơn NPC
 
                 float touchBonus = isTouching ? 300f : 0f;
-                float score = touchBonus + threatBonus + (dotToBase * 30f) + (dotFwd * 20f) - (d * 5f);
+                float score = threatBonus + (dotFwd * 50f) - (d * 20f);
 
                 if (score > bestScore)
                 {
@@ -3151,7 +3219,8 @@ namespace LlamAcademy.Dinos.Unit
             if (n.Contains("bridge") || n.Contains("ramp") || n.Contains("smooth floor") ||
                 n == "world" || n == "props" ||
                 n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain") ||
-                n.Contains("base") || n.Contains("egg"))
+                n.Contains("base") || n.Contains("egg") ||
+                n.Contains("mountain") || n.Contains("rock") || n.Contains("cliff") || n.Contains("stone") || n.Contains("boulder"))
             {
                 return null;
             }
@@ -3578,6 +3647,24 @@ namespace LlamAcademy.Dinos.Unit
         protected virtual void PerformAttack(IDamageable target)
 
         {
+            if (target == null || target.Transform == null) return;
+
+            // XÁC MINH CỰ LY CẬN CHIẾN THỰC TẾ:
+            // Khủng long chỉ được phép gây sát thương nếu thực sự đứng áp sát mục tiêu trong tầm cắn (maxReach <= 3.2m).
+            // Tuyệt đối không cho phép đứng từ xa cắn vào hư không gây mất máu công trình/căn cứ!
+            Collider targetCol = target.Transform.GetComponentInChildren<Collider>();
+            Vector3 closestP = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : target.Transform.position;
+            Vector3 flatDiff = transform.position - closestP;
+            flatDiff.y = 0;
+            float actualDist = flatDiff.magnitude;
+
+            float agentRad = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+            float maxReach = Mathf.Max(AttackRange + agentRad + 0.6f, 3.2f);
+            if (actualDist > maxReach)
+            {
+                _IsEngagedInMelee = false;
+                return;
+            }
 
             bool isStructure = (target is Wall) || (target is PrehistoricVillageBase) || (target is ArcherTower) || (target is BallistaTower) || (target is CatapultTower) || (target is TeslaTower) || (target is FrostTower);
 
@@ -3805,9 +3892,17 @@ namespace LlamAcademy.Dinos.Unit
 
             }
 
-            // VÔ HIỆU HÓA NGAY LẬP TỨC COLLIDER VÀ NAVMESH AGENT:
-
+            // VÔ HIỆU HÓA NGAY LẬP TỨC COLLIDER, NAVMESH AGENT VÀ THANH MÁU:
             // Tránh xác quái vật trong lúc ngã chết (0.5s) tạo thành vật cản vô hình kẹt đường đồng đội
+            // và hủy thanh máu ngay lập tức để không bị hiện tượng lặp máu hay thanh máu ma
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.Unregister(this);
+            }
+            if (HealthBar != null)
+            {
+                HealthBar.gameObject.SetActive(false);
+            }
 
             Collider[] allCols = GetComponentsInChildren<Collider>();
 
@@ -3959,6 +4054,35 @@ namespace LlamAcademy.Dinos.Unit
 
         }
 
-    }
+    
+        protected Vector3 CalculateFlockSeparation(float separationRadius)
+        {
+            Vector3 push = Vector3.zero;
+            int count = 0;
+            int numHits = Physics.OverlapSphereNonAlloc(transform.position, separationRadius, ScanBuffer);
+            for (int i = 0; i < numHits; i++)
+            {
+                Collider hit = ScanBuffer[i];
+                if (hit != null && hit.gameObject != gameObject && hit.GetComponent<PrehistoricDinoBase>() != null)
+                {
+                    Vector3 diff = transform.position - hit.transform.position;
+                    diff.y = 0;
+                    float dist = diff.magnitude;
+                    if (dist > 0.01f && dist < separationRadius)
+                    {
+                        push += (diff.normalized / dist);
+                        count++;
+                    }
+                }
+            }
+            if (count > 0)
+            {
+                push /= count;
+                push.y = 0;
+                return Vector3.ClampMagnitude(push, 2.0f);
+            }
+            return Vector3.zero;
+        }
+}
 
 }

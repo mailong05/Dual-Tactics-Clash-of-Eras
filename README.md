@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20AR-success.svg)](https://unity.com/)
 [![Language](https://img.shields.io/badge/Language-C%23-green.svg?logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
 
-**Dual Tactics: Clash of Eras** là một tựa game chiến thuật 3D thời gian thực lấy bối cảnh kỷ nguyên tiền sử, được xây dựng trên nền tảng **Unity 6 (Universal Render Pipeline)**. Trò chơi mang đến trải nghiệm đột phá với hệ thống **Chế độ chơi kép (Dual Game Modes)**: Người chơi có thể vừa đóng vai trò người chỉ huy phòng tuyến xây tháp thủ thành, vừa có thể hoán đổi vai trò sang thống lĩnh bầy đàn khủng long tiền sử để công phá các căn cứ làng thổ dân.
+**Dual Tactics: Clash of Eras** là tựa game chiến thuật 3D thời gian thực lấy bối cảnh kỷ nguyên tiền sử, được xây dựng trên nền tảng **Unity 6 (Universal Render Pipeline)**. Trò chơi mang đến trải nghiệm đột phá với hệ thống **Chế độ chơi kép (Dual Game Modes)**: Người chơi có thể vừa đóng vai trò người chỉ huy phòng tuyến xây tháp thủ thành, vừa có thể hoán đổi vai trò sang thống lĩnh bầy đàn khủng long tiền sử để công phá các căn cứ làng thổ dân.
 
 ---
 
@@ -14,61 +14,77 @@
 ### 1. ⚔️ Hai Chế Độ Chơi Song Hành (Dual Game Modes)
 * **Thủ Thành Tiền Sử (Tower Defense):**
   * Xây dựng, bố trí và nâng cấp hệ thống phòng thủ kiên cố bảo vệ Căn Cứ Làng Bộ Lạc.
-  * Đối đầu với các đợt tấn công ngày càng hung hãn của bầy quái vật và các Boss khủng long bạo chúa.
+  * Đối đầu với các đợt tấn công ngày càng hung hãn của bầy quái vật và các Boss khủng long bạo chúa với AI thích ứng.
 * **Công Thành Tiền Sử (Dino Assault / Boss Mode):**
   * Đổi vai trực tiếp: Người chơi trở thành kẻ chỉ huy bầy khủng long tiến công phá hủy căn cứ loài người.
-  * Quản lý tài nguyên Thịt (Food) để tính toán triệu hồi quân lực hợp lý theo thời gian thực.
-  * Phá vỡ hệ thống tường thành, bẫy chông, chòi canh để san bằng Nhà Làng.
+  * Quản lý tài nguyên Thịt (Food) để tính toán triệu hồi quân lực hợp lý theo thời gian thực (Velociraptor, Khủng Long Thiết Giáp, Thằn Lằn Bay, T-Rex Bạo Chúa).
+  * Phá vỡ hệ thống rào cọc, tường gỗ độc lập, cạm bẫy và tiêu diệt thổ dân để san bằng Nhà Làng.
+* **Tiến Trình Màn Chơi Độc Lập (Isolated Campaign Progression):**
+  * Tiến trình mở khóa map được phân tách hoàn toàn độc lập giữa chế độ Thủ Thành và Công Thành. Khi hoàn thành Map 1 ở chế độ Công Thành để mở khóa Map 2, Map 2 của chế độ Thủ Thành vẫn được bảo toàn trạng thái khóa, đảm bảo tính toàn vẹn thử thách của từng chế độ.
 
 ---
 
-### 2. 🦖 Hệ Thống Đơn Vị & Công Trình Đa Dạng
-* **Chủng loài khủng long (Dino Units):**
-  * **Velociraptor:** Tốc độ di chuyển cực nhanh, di chuyển theo bầy, tấn công cắn xé liên hoàn.
-  * **Ankylosaurus (Thiết Giáp):** Giáp dày, lượng máu khổng lồ, chuyên dụng húc đổ cổng thành và hấp thụ sát thương.
-  * **Pterodactyl (Thằn Lằn Bay):** Khủng long bay vượt chướng ngại vật địa hình, tấn công chòi canh từ trên cao.
-  * **T-Rex Bạo Chúa (Boss Dino):** Kích thước khổng lồ, lượng máu và sát thương hủy diệt mọi công trình phòng thủ.
-* **Hệ thống tháp & cạm bẫy phòng ngự (Defenses & Towers):**
-  * **Chòi Cung Thủ Gỗ & Tháp Nỏ Khổng Lồ (Ballista):** Tấn công tầm xa đơn mục tiêu với độ chính xác cao.
-  * **Máy Bắn Đá Lửa (Catapult):** Bắn đá lửa gây sát thương diện rộng (AoE), phá vỡ các cụm quái vật đông đúc.
-  * **Trụ Sấm Sét (Tesla Tower):** Phóng sét dây chuyền gây sát thương điện giật liên hoàn.
-  * **Tháp Băng Tiền Sử (Frost Tower):** Làm chậm tốc độ di chuyển của kẻ địch trong vùng ảnh hưởng.
-  * **Cạm Bẫy & Công Trình Chắn:** Rào Cọc Gỗ (Plank Defenses), Cổng Thành (Portcullis Barricade), Hố Hắc Ín (Tar Pit), Bẫy Chông Độc (Spike Trap).
-  * **Lực lượng Thổ Dân:** Chiến Binh Phóng Giáo và Cung Thủ Làng túc trực tuần tra quanh căn cứ.
+### 2. 🗺️ Hệ Thống Bản Đồ Chiến Trường & Đột Biến Môi Trường (Themed Maps & Mutations)
+* **Map 1: Thung Lũng Tiền Sử (Prehistoric Valley):**
+  * Rừng rậm nhiệt đới nguyên sinh, thảm thực vật rậm rạp và hệ thống thành lũy gỗ sơ khai của bộ lạc cổ.
+* **Map 2: Hẻm Núi Dung Nham (Volcanic Gorge):**
+  * Địa hình hẻm núi dung nham nóng chảy rực lửa, áp dụng cơ chế đột biến sinh học độc quyền (`PrehistoricVolcanicMutant`):
+    * **🌋 Magma Velociraptor:** Tốc độ di chuyển tăng vượt trội; khi ngã xuống kích hoạt phát nổ dung nham diện rộng (*AOE Lava Death Explosion*) gây sát thương cho tháp và quân phòng thủ xung quanh.
+    * **🔥 Inferno Pterodactyl:** Thần lằn bay hỏa ngục thả bom dung nham nổ tung (*Magma Bomb Drop*) thiêu đốt phòng tuyến khi bay tuần tiễu bên trên.
+    * **🛡️ Obsidian Ankylosaurus:** Vỏ giáp bazan hắc diệu thạch siêu bền vững, chống chịu lượng sát thương cực đại và phá hủy rào chắn.
+    * **👑🌋 Bạo Chúa T-Rex Nham Thạch:** Thể hình khổng lồ, phóng sóng xung kích địa chấn (*Volcanic Shockwave*) làm choáng và đẩy lùi toàn bộ phòng tuyến người chơi.
+    * **Tro tàn lửa lơ lửng (`Volcanic_Ember_Aura`):** Hiệu ứng hạt tro tàn bốc lên từ thân thể khủng long; vật liệu URP chuẩn hóa hiển thị sắc nét từng đường vân vảy, răng nanh và đổ bóng 3D chân thực (không bị cháy sáng hay ám màu silhouette).
+* **Map 3: Lãnh Địa Băng Giá (Glacial Tundra):**
+  * Đồng tuyết vĩnh cửu với gió tuyết khắc nghiệt và thử thách phòng thủ trên nền địa hình băng giá.
 
 ---
 
 ### 3. 🧠 Trí Tuệ Nhân Tạo & Deep Learning Thích Ứng (AI & Deep Learning Director)
 * **Mạng Nơ-ron Đa Nhiệm Chạy On-Device (`PrehistoricNeuralDirector.cs`):**
-  * Tích hợp trực tiếp mô hình Deep Learning **PrehistoricTacticsNet** vào Unity C#, suy luận thời gian thực (On-Device Inference) trên CPU/GPU mà không cần phụ thuộc server bên ngoài. Hoạt động 100% offline mượt mà trên cả máy tính và điện thoại Android (độ trễ siêu thấp `< 0.05 ms`).
-  * **Kiến trúc mạng (Multi-Task MLP):**
-    * **12 Đầu vào (Telemetry Features):** Đo lường vàng, máu căn cứ, tiến trình màn, mật độ tháp đơn mục tiêu, pháo diện rộng, tháp sấm sét, tháp băng, bẫy chông, tường rào, mật độ DPS và chỉ số kỹ năng.
-    * **2 Hidden Layers (32 neurons + ReLU):** Trích xuất đặc trưng và liên kết chiến thuật.
-    * **4 Đầu ra Đa Nhiệm (Multi-Task Heads):**
-      1. *Softmax Archetypes (4 classes):* Tỷ lệ phối hợp quân lực (Runner, Flyer, Tank, Boss).
-      2. *Softmax Spatial Route Bias (3 routes):* Định hướng mũi tiến công không gian (Cổng Bắc, Cánh Đông, Sườn Tây).
-      3. *Sigmoid Vulnerability:* Đánh giá chỉ số sơ hở của phòng tuyến người chơi.
-      4. *Sigmoid Aggression & DDA:* Hệ số thích ứng độ khó thời gian thực.
+  * Tích hợp trực tiếp mô hình Deep Learning **PrehistoricTacticsNet** vào Unity C#, suy luận thời gian thực (On-Device Inference) trên CPU/GPU không phụ thuộc server bên ngoài. Hoạt động 100% offline mượt mà trên PC và Android (`< 0.05 ms`).
+  * **12 Đầu vào (Telemetry Features):** Đo lường vàng, máu căn cứ, tiến trình màn, mật độ tháp đơn mục tiêu, pháo diện rộng, tháp sấm sét, tháp băng, bẫy chông, tường rào, mật độ DPS và chỉ số kỹ năng.
+  * **4 Đầu ra Đa Nhiệm (Multi-Task Heads):**
+    1. *Softmax Archetypes (4 classes):* Tỷ lệ phối hợp quân lực (Runner, Flyer, Tank, Boss).
+    2. *Softmax Spatial Route Bias (3 routes):* Định hướng mũi tiến công không gian (Cổng Bắc, Cánh Đông, Sườn Tây).
+    3. *Sigmoid Vulnerability:* Đánh giá chỉ số sơ hở của phòng tuyến người chơi.
+    4. *Sigmoid Aggression & DDA:* Hệ số thích ứng độ khó thời gian thực.
+* **Thuật Toán Tìm Đường Né Đe Dọa A\* (`ThreatAwarePathfinding.cs`):**
+  * Khủng long tự động tính toán trường chi phí đe dọa (*Threat Cost Field*) từ tầm bắn của tháp và NPC phòng thủ.
+  * Đánh giá cân bằng giữa cự ly ngắn nhất và mức độ an toàn để chủ động chọn hành lang an toàn (*Safe Corridors*) hoặc bọc sườn (*Flanking*) né tránh hỏa lực tập trung.
+  * Giải thuật điều hướng thông minh loại bỏ hoàn toàn các góc kẹt địa hình chân núi và vách đá.
+* **Bản Đồ Nhiệt Nguy Hiểm Thời Gian Thực (`ThreatHeatmapVisualizer.cs`):**
+  * Bật/tắt trực tiếp bằng phím tắt **`H`** hoặc nút bấm trên thanh công cụ UI.
+  * Trực quan hóa mật độ đe dọa bằng lưới màu động trên địa hình 3D:
+    * 🟢 **Xanh lá:** Vùng an toàn / Điểm mù của tháp canh.
+    * 🟡 **Vàng:** Vùng đe dọa trung bình.
+    * 🔴 **Đỏ:** Khu vực hỏa lực hủy diệt (Kill Zone).
 * **Bảng Giám Sát Trí Tuệ Nhân Tạo XAI (`PrehistoricNeuralMonitorUI.cs`):**
-  * Bảng điều khiển Explainable AI (XAI) trực quan hóa hoạt động của mạng nơ-ron bằng phím tắt **`F1`** hoặc nút bấm **`🧠 AI Director`** trên HUD.
-  * Hiển thị thanh tiến trình 12 cảm biến trận đấu, đồ thị thanh xác suất Softmax, hướng đánh không gian, hệ số DDA và lời giải thích chiến thuật bằng ngôn ngữ tự nhiên (*Natural Language Tactical Rationale*).
-* **Cơ Chế Cân Bằng Độ Khó Động (Dynamic Difficulty Adjustment - DDA):**
-  * Tự động đo lường chuỗi thắng, tỷ lệ bảo toàn máu căn cứ và tốc độ diệt quái để phân cấp trình độ người chơi, từ đó điều chỉnh độ hung hãn của bầy quái một cách thông minh và kịch tính.
-* **Thuật toán Đột Phá Khe Hẹp (`TacticalBreachMemory`):** Giới hạn tối đa 4 quái vật vượt qua một lối đi cùng lúc, ngăn chặn triệt để tình trạng quái vật dồn cục, kẹt mesh tại các nút thắt cổ chai.
-* **Cơ chế Tản Đội Hình Đa Điểm (Flank & Spread Attack):** Khủng long tự động phân tán góc tiếp cận khi bao vây tấn công công trình. Mỗi cá thể cắn đều tính sát thương độc lập trong thời gian thực.
-* **Cơ chế Tự Dọn Dẹp Scene Sạch Sẽ (`CleanAllGameplayGarbage`):** Tự động vô hiệu hóa Collider ngay khi quái vật ngã chết để tránh xác làm vật cản tàng hình; tự hủy đạn bay lơ lửng và dọn dẹp các thanh máu mồ côi sau mỗi đợt chơi.
+  * Phím tắt **`F1`** hoặc nút **`🧠 AI Director`** trên HUD để theo dõi 12 cảm biến trận đấu, xác suất Softmax và lời giải thích chiến thuật bằng ngôn ngữ tự nhiên (*Natural Language Tactical Rationale*).
 
 ---
 
-### 4. 💾 Hệ Thống Lưu & Tải Game Đa Khe (Multi-Slot Save/Load)
+### 4. 🏹 Cân Bằng Chiến Đấu & Cơ Chế Va Chạm Thực Tế
+* **Giới Hạn Tầm Đánh Thực Tế (Anti-Snipe Defense Balancing):**
+  * Chuẩn hóa bán kính giao chiến của thổ dân bảo vệ làng (Cung thủ: 14.0m, Chiến binh phóng giáo: 9.5m), loại bỏ hoàn toàn hiện tượng tấn công siêu tầm xa xuyên bản đồ.
+  * Cân bằng tầm quét mục tiêu của Tháp Nỏ, Tháp Cung, Máy Bắn Đá và Trụ Sấm Sét, mở ra không gian chiến thuật hợp lý cho khủng long luồn lách né tháp.
+* **Sát Thương Cận Chiến Chuẩn Xác:**
+  * Khủng long bắt buộc phải tiếp cận đúng cự ly mục tiêu ($\le 3.2\text{m}$) mới có thể tung đòn cắn/quật đuôi, xóa bỏ triệt để hiện tượng gây sát thương ảo từ xa.
+* **Hệ Thống Phân Đoạn Tường Gỗ Độc Lập:**
+  * Hàng rào gỗ và cổng thành được chia tách thành các phân đoạn vật lý độc lập. Mỗi phân đoạn sở hữu lượng máu riêng và thanh máu trực quan; khi một đoạn tường bị tấn công sẽ chỉ trừ máu của đoạn đó, không làm sập dây chuyền các đoạn khác.
+* **Tự Động Thu Hồi Rác Scene (`CleanAllGameplayGarbage`):**
+  * Vô hiệu hóa Collider ngay khi đơn vị ngã chết để tránh xác cản đường; tự hủy đạn bay lơ lửng và dọn dẹp các thanh máu mồ côi khi kết thúc đợt chơi.
+
+---
+
+### 5. 💾 Hệ Thống Lưu & Tải Game Đa Khe (Multi-Slot Save/Load)
 * **3 Khe lưu trữ độc lập** cho mỗi chế độ chơi (Thủ Thành & Công Thành riêng biệt).
 * Hỗ trợ lưu tự động (Auto-Save) sau mỗi đợt thắng/thua và lưu thủ công (Manual Save) trực tiếp trong menu Pause.
 * Khả năng chọn lưu đè hoặc lưu vào khe trống tương tự các tựa game RPG/Chiến thuật kinh điển.
-* Đồng bộ dữ liệu an toàn trên bộ nhớ cục bộ (Local JSON) kèm khả năng đồng bộ đám mây (Cloud Save).
+* Đồng bộ dữ liệu an toàn trên bộ nhớ cục bộ (Local JSON) kèm khả năng mở rộng đồng bộ đám mây (Cloud Save).
 
 ---
 
-### 5. 📱 Đa Nền Tảng & Thực Tế Tăng Cường (AR Mode)
+### 6. 📱 Đa Nền Tảng & Thực Tế Tăng Cường (AR Mode)
 * **PC (Windows):** Điều khiển mượt mà bằng chuột và bàn phím (WASD / Mũi tên / Chuột xoay & zoom camera).
 * **Thiết bị di động (Android / iOS):** Giao diện cảm ứng tối ưu, hỗ trợ cử chỉ vuốt pan, xoay và pinch-to-zoom đa điểm.
 * **Chế độ AR Tabletop:** Tích hợp Unity AR Foundation, cho phép quét mặt phẳng thực tế và chiếu sa bàn chiến trường 3D ngay trên bàn làm việc của bạn.
@@ -82,20 +98,21 @@ ADAPTIVE TOWER DEFENSE 3D/
 ├── Assets/
 │   ├── LlamAcademy/
 │   │   └── Dinos/
-│   │       ├── AI/               # TacticalBreachMemory, AdaptiveWaveManager, Swarm Logic
+│   │       ├── AI/               # ThreatAwarePathfinding, PrehistoricNeuralDirector, Heatmap
 │   │       ├── AR/               # AR Tabletop Controller & AR Surface Trackers
 │   │       ├── Audio/            # PrehistoricAudioManager, BGM & Sound FX
 │   │       ├── Cloud/            # IOCloudManager & Telemetry Synchronizer
 │   │       ├── Config/           # ScriptableObjects cho Tháp và Khủng Long
 │   │       ├── Enemy/            # Defender (Chiến binh, Cung thủ thổ dân)
+│   │       ├── Environment/      # PrehistoricVolcanicMutant (Hệ thống đột biến map 2)
 │   │       ├── Player/           # Điều khiển Camera, TowerPlacer, DinoSpawner
 │   │       ├── RoundManagement/  # PrehistoricGameplayManager, PrehistoricGameModeManager
-│   │       ├── Save/             # PrehistoricSaveManager (Hệ thống Multi-slot Save)
-│   │       ├── Scenes/           # Scene chính (Dinos.unity)
-│   │       ├── UI/               # Runtime UI, HUD, Modal Thắng/Thua, Giao diện Save/Load
+│   │       ├── Save/             # PrehistoricSaveManager (Multi-slot Save độc lập)
+│   │       ├── Scenes/           # Dinos.unity, Dinos_VolcanicGorge.unity, Dinos_GlacialTundra.unity
+│   │       ├── UI/               # Runtime UI, HUD, Heatmap Button, XAI Monitor, Save/Load
 │   │       ├── Unit/             # Các lớp cơ sở Dino, Wall, Towers, Traps, FlyingUnit
 │   │       └── Utility/          # HealthBarCanvas, WorldSpace Billboards
-│   ├── Resources/                # Prefabs, Animation Controllers, Textures
+│   ├── Resources/                # Prefabs, Animation Controllers, Textures, Materials
 │   └── Stylized Lava Texture/    # Shader & Texture dòng dung nham tiền sử
 ├── Packages/                     # Khai báo các Package Unity (URP, Input System, XR/AR)
 ├── ProjectSettings/              # Cấu hình dự án Unity (Quality, Tags, Layers, Physics)
@@ -103,6 +120,21 @@ ADAPTIVE TOWER DEFENSE 3D/
 ├── build_android.ps1             # Script PowerShell tự động build bản Android (.apk)
 └── README.md                     # Tài liệu giới thiệu và hướng dẫn dự án
 ```
+
+---
+
+## 🛠️ Nhật Ký Cải Tiến Kỹ Thuật Mới Nhất
+
+| Hạng Mục | Nội Dung Cải Tiến & Khắc Phục | Trạng Thái |
+| :--- | :--- | :---: |
+| **Volcanic Visual Fix** | Xóa bỏ vòng lặp ép HDR Emission toàn thân trong `PrehistoricVolcanicMutant.cs`, khắc phục triệt để lỗi T-Rex và Raptor biến thành khối vàng neon silhouette. Tái tạo màu da cam nham thạch tự nhiên, giữ trọn vẹn 100% texture vân vảy và đổ bóng 3D. | ✅ Hoàn thành |
+| **Scene PPtr Integrity** | Sửa dứt điểm lỗi `Broken text PPtr (Local file identifier doesn't exist)` trên cả 3 bản đồ (`Dinos_VolcanicGorge.unity`, `Dinos.unity`, `Dinos_GlacialTundra.unity`). Phục hồi đầy đủ component `Image` của các thanh máu tường rào. | ✅ Hoàn thành |
+| **Particle Velocity Mode** | Sửa lỗi `Particle Velocity curves must all be in the same mode` bằng cách đồng bộ 3 trục tọa độ của `velocityOverLifetime` sang chế độ `TwoConstants`. | ✅ Hoàn thành |
+| **Threat-Aware Pathfinding** | Tích hợp thuật toán né tháp A* theo bản đồ nhiệt đe dọa (`ThreatAwarePathfinding`), xử lý mượt mà các góc kẹt vách núi sườn Đông. | ✅ Hoàn thành |
+| **Realtime Threat Heatmap** | Tích hợp công cụ trực quan hóa bản đồ nhiệt đe dọa thời gian thực trên địa hình (`ThreatHeatmapVisualizer`) bật/tắt bằng phím `H`. | ✅ Hoàn thành |
+| **Combat Reach & Anti-Snipe** | Giới hạn tầm bắn của NPC thổ dân (14m Cung thủ, 9.5m Phóng giáo) và tháp canh; ràng buộc cự ly tấn công cận chiến của khủng long $\le 3.2\text{m}$. | ✅ Hoàn thành |
+| **Independent Progression** | Phân tách độc lập tiến trình mở khóa map giữa 2 chế độ Thủ Thành và Công Thành qua `PrehistoricSaveManager`. | ✅ Hoàn thành |
+| **Front Wall Health Bars** | Tách riêng các phân đoạn tường rào gỗ trước thành, hỗ trợ hiển thị thanh máu riêng biệt cho từng khối rào khi bị tấn công. | ✅ Hoàn thành |
 
 ---
 
@@ -133,7 +165,9 @@ ADAPTIVE TOWER DEFENSE 3D/
 | **Xoay Camera** | Giữ chuột giữa / chuột phải và di chuyển | Vuốt 2 ngón tay xoay tròn |
 | **Thu Phóng Camera** | Lăn con trỏ chuột (`Scroll Wheel`) | Dùng 2 ngón tay chụm / mở (`Pinch-to-zoom`) |
 | **Chọn & Đặt Tháp / Quái** | Chuột trái (`Left Click`) | Chạm ngón tay vào ô giao diện / vị trí đất |
-| **Hủy Đặt Tháp** | Chuột phải (`Right Click`) hoặc phím `Esc` | Nhấn nút Hủy trên thanh công cụ |
+| **Phím Nhanh Thả Quái (Assault)** | Phím số `[1]` Raptor, `[2]` Bay, `[3]` Thiết Giáp, `[4]` T-Rex | Chạm vào thẻ quái trên thanh triệu hồi |
+| **Bản Đồ Nhiệt Nguy Hiểm (Heatmap)** | Phím tắt **`H`** hoặc nút bấm Heatmap trên UI | Chạm biểu tượng Heatmap trên thanh điều khiển |
+| **Bảng Giám Sát AI Deep Learning** | Phím tắt **`F1`** hoặc nút `🧠 AI Director` | Chạm biểu tượng AI Director trên HUD |
 | **Menu Tạm Dừng / Lưu Game** | Nhấn phím `Esc` hoặc bấm biểu tượng Menu góc trái | Bấm biểu tượng Menu góc trên bên trái |
 
 ---

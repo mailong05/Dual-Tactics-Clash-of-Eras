@@ -41,7 +41,6 @@ namespace LlamAcademy.Dinos.Environment
 
         // Timers & Combat Variables
         private float _abilityTimer = 0f;
-        private float _pulseTimer = 0f;
         private bool _isDead = false;
 
         public static void ApplyMutation(GameObject dinoObj)
@@ -130,22 +129,31 @@ namespace LlamAcademy.Dinos.Environment
                     Material cloned = new Material(mats[i]);
                     if (MutationType == VolcanicMutationType.ObsidianAnkylosaurus)
                     {
-                        // Vỏ giáp đá bazan đen kịt với đường vân lửa
-                        cloned.color = new Color(0.20f, 0.18f, 0.18f);
+                        // Vỏ giáp đá bazan đen xám, giữ nguyên texture da gốc
+                        Color origColor = cloned.HasProperty("_Color") ? cloned.color : (cloned.HasProperty("_BaseColor") ? cloned.GetColor("_BaseColor") : Color.white);
+                        Color basaltColor = Color.Lerp(origColor, new Color(0.28f, 0.25f, 0.25f), 0.50f);
+                        if (cloned.HasProperty("_Color")) cloned.color = basaltColor;
+                        if (cloned.HasProperty("_BaseColor")) cloned.SetColor("_BaseColor", basaltColor);
+
                         if (cloned.HasProperty("_EmissionColor"))
                         {
-                            cloned.EnableKeyword("_EMISSION");
-                            cloned.SetColor("_EmissionColor", new Color(1.0f, 0.32f, 0.05f) * 2.2f);
+                            cloned.DisableKeyword("_EMISSION");
+                            cloned.SetColor("_EmissionColor", Color.black);
                         }
                     }
                     else
                     {
-                        // Toàn thân phủ sắc cam đỏ nham thạch rực sáng
-                        cloned.color = new Color(1.0f, 0.45f, 0.18f);
+                        // Sắc cam đỏ nham thạch vừa phải (30%), giữ trọn vẹn vân da, vảy, mắt, răng và ánh sáng đổ bóng 3D của khủng long
+                        Color origColor = cloned.HasProperty("_Color") ? cloned.color : (cloned.HasProperty("_BaseColor") ? cloned.GetColor("_BaseColor") : Color.white);
+                        Color magmaTint = Color.Lerp(origColor, new Color(0.92f, 0.40f, 0.15f), 0.30f);
+                        if (cloned.HasProperty("_Color")) cloned.color = magmaTint;
+                        if (cloned.HasProperty("_BaseColor")) cloned.SetColor("_BaseColor", magmaTint);
+
                         if (cloned.HasProperty("_EmissionColor"))
                         {
-                            cloned.EnableKeyword("_EMISSION");
-                            cloned.SetColor("_EmissionColor", new Color(1.0f, 0.35f, 0.05f) * 2.6f);
+                            // Tắt emission toàn thân để tránh T-rex và Raptor bị thành khối màu vàng chói (silhouette)
+                            cloned.DisableKeyword("_EMISSION");
+                            cloned.SetColor("_EmissionColor", Color.black);
                         }
                     }
                     mats[i] = cloned;
@@ -193,7 +201,11 @@ namespace LlamAcademy.Dinos.Environment
 
             var velOverLifetime = _emberAura.velocityOverLifetime;
             velOverLifetime.enabled = true;
+            // Unity yêu cầu bắt buộc: toàn bộ các trục (X, Y, Z) trong velocityOverLifetime phải cùng chung CurveMode!
+            // Thiết lập cả 3 trục theo dạng TwoConstants để tạo chuyển động tro tàn lửa bay bốc lên cao và phân tán tự nhiên
+            velOverLifetime.x = new ParticleSystem.MinMaxCurve(-0.35f, 0.35f);
             velOverLifetime.y = new ParticleSystem.MinMaxCurve(1.5f, 2.5f);
+            velOverLifetime.z = new ParticleSystem.MinMaxCurve(-0.35f, 0.35f);
 
             var psRenderer = auraObj.GetComponent<ParticleSystemRenderer>();
             Material emberMat = Resources.Load<Material>("Materials/Particle_LavaEmber");
@@ -237,19 +249,7 @@ namespace LlamAcademy.Dinos.Environment
         {
             if (_isDead) return;
 
-            // 1. Hiệu ứng nhịp đập dung nham (Lava Pulse)
-            _pulseTimer += Time.deltaTime * 3.0f;
-            float emissionIntensity = 2.0f + Mathf.PingPong(_pulseTimer, 1.5f);
-            Color pulseColor = new Color(1.0f, 0.35f, 0.05f) * emissionIntensity;
-            foreach (var mat in _clonedMaterials)
-            {
-                if (mat != null && mat.HasProperty("_EmissionColor"))
-                {
-                    mat.SetColor("_EmissionColor", pulseColor);
-                }
-            }
-
-            // 2. Kỹ năng đặc thù theo chủng loài
+            // 1. Kỹ năng đặc thù theo chủng loài
             _abilityTimer += Time.deltaTime;
 
             if (MutationType == VolcanicMutationType.InfernoPterodactyl && _abilityTimer >= 4.0f)

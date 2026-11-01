@@ -57,6 +57,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
             Instance = this;
+            AI.ThreatAwarePathfinding.EnsureInstance();
 
             EnsureAudioAndSettings();
         }
@@ -725,6 +726,17 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             dockY += btnH + 6f;
 
+            // Nút Bật/Tắt Bản Đồ Đe Dọa (Threat Heatmap A*)
+            Rect hmRect = new Rect(rightX, dockY, dockWidth, btnH);
+            Mobile.MobileUIHelper.RegisterUIRect(hmRect);
+            bool isHmOpen = AI.ThreatHeatmapVisualizer.Instance != null && AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible;
+            GUI.backgroundColor = isHmOpen ? new Color(0.1f, 0.95f, 0.5f, 0.95f) : new Color(0.15f, 0.35f, 0.55f, 0.88f);
+            if (GUI.Button(hmRect, isHmOpen ? "<b>🗺️ HEATMAP: BẬT</b>" : "<b>🗺️ HEATMAP [H]</b>"))
+            {
+                AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();
+            }
+            dockY += btnH + 6f;
+
             // Nút Chuyển Đổi Chế Độ AR
             Rect arRect = new Rect(rightX, dockY, dockWidth, btnH);
             Mobile.MobileUIHelper.RegisterUIRect(arRect);
@@ -935,8 +947,20 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             if (PrehistoricGameplayManager.Instance != null)
             {
-                PrehistoricGameplayManager.Instance.ShowAnnouncement("🎉 CHIẾM THÀNH THÀNH CÔNG! LÀNG BỘ LẠC ĐÃ BỊ SAN BẰNG!", 6f);
+                PrehistoricGameplayManager.Instance.ShowAnnouncement("👑 CHIẾM THÀNH THÀNH CÔNG! LÀNG BỘ LỘC ĐÃ BỊ SAN BẰNG!", 6f);
             }
+
+            // Tự động mở khóa bản đồ khi vượt qua Màn 10 (Map 2) hoặc Màn 20 (Map 3) ở chế độ Công thành
+            if (AssaultLevel >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge, PrehistoricGameMode.DinoAssault);
+            }
+            if (AssaultLevel >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.DinoAssault);
+            }
+
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
         }
 
         public void TriggerAssaultDefeat()
@@ -1224,6 +1248,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void NextAssaultLevel()
         {
             AssaultLevel++;
+            if (AssaultLevel >= 10)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge, PrehistoricGameMode.DinoAssault);
+            }
+            if (AssaultLevel >= 20)
+            {
+                Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.DinoAssault);
+            }
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             // Dọn dẹp sạch toàn bộ khủng long đợt trước khi qua màn mới
             ClearAllDinos();

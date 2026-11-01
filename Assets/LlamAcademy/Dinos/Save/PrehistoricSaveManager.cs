@@ -21,6 +21,7 @@ namespace LlamAcademy.Dinos.Save
         public int TotalMonstersKilled = 0;
         public int TotalScore = 0;
         public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
+        public int UnlockedMapMax = 0; // 0 = AncientValley, 1 = VolcanicGorge, 2 = GlacialTundra
         public bool HasActiveRun = false;
         public string LastSavedTimestamp = "";
     }
@@ -34,6 +35,7 @@ namespace LlamAcademy.Dinos.Save
         public int BaseHealth = 1000;
         public int MaxBaseHealth = 1000;
         public int MapIndex = 0; // 0 = AncientValley, 1 = VolcanicGorge
+        public int UnlockedMapMax = 0; // 0 = AncientValley, 1 = VolcanicGorge, 2 = GlacialTundra
         public bool HasActiveRun = false;
         public string LastSavedTimestamp = "";
     }
@@ -146,7 +148,29 @@ namespace LlamAcademy.Dinos.Save
     [DefaultExecutionOrder(-15)]
     public class PrehistoricSaveManager : MonoBehaviour
     {
-        public static PrehistoricSaveManager Instance { get; private set; }
+        private static PrehistoricSaveManager _instance;
+        private static bool s_isApplicationQuitting = false;
+
+        public static PrehistoricSaveManager Instance
+        {
+            get
+            {
+                if (s_isApplicationQuitting) return null;
+                if (_instance == null)
+                {
+                    _instance = FindAnyObjectByType<PrehistoricSaveManager>();
+                    if (_instance == null && !s_isApplicationQuitting)
+                    {
+                        GameObject go = new GameObject("PrehistoricSaveManager");
+                        _instance = go.AddComponent<PrehistoricSaveManager>();
+                        DontDestroyOnLoad(go);
+                    }
+                }
+                return _instance;
+            }
+            private set => _instance = value;
+        }
+
 
         public static PrehistoricSaveManager EnsureInstance()
         {
@@ -260,40 +284,73 @@ namespace LlamAcademy.Dinos.Save
             if (CurrentData.DefenseProfile == null) CurrentData.DefenseProfile = new DefenseSaveProfile();
             if (CurrentData.AssaultProfile == null) CurrentData.AssaultProfile = new AssaultSaveProfile();
 
-            // Tự động kiểm tra nếu người chơi đã từng vượt qua đợt 10 ở bản lưu cũ
-            if (CurrentData.DefenseProfile.HighestWaveReached >= 10 && CurrentData.UnlockedMapMax < 1)
+            bool reached10 = (CurrentData.DefenseProfile.HighestWaveReached >= 10 || CurrentData.DefenseProfile.CurrentWave >= 10 ||
+                              CurrentData.AssaultProfile.HighestLevelReached >= 10 || CurrentData.AssaultProfile.AssaultLevel >= 10);
+            if (reached10 && CurrentData.UnlockedMapMax < 1)
             {
                 CurrentData.UnlockedMapMax = 1;
+                SaveDataToDisk();
             }
-            if (CurrentData.DefenseProfile.HighestWaveReached >= 20 && CurrentData.UnlockedMapMax < 2)
+
+            bool reached20 = (CurrentData.DefenseProfile.HighestWaveReached >= 20 || CurrentData.DefenseProfile.CurrentWave >= 20 ||
+                              CurrentData.AssaultProfile.HighestLevelReached >= 20 || CurrentData.AssaultProfile.AssaultLevel >= 20);
+            if (reached20 && CurrentData.UnlockedMapMax < 2)
             {
                 CurrentData.UnlockedMapMax = 2;
+                SaveDataToDisk();
             }
         }
 
-        public bool IsMapUnlocked(PrehistoricMapType map)
+        public bool IsMapUnlocked(PrehistoricMapType map, PrehistoricGameMode? mode = null)
         {
             if (map == PrehistoricMapType.AncientValley) return true;
             EnsureProfilesInitialized();
             if (CurrentData == null) return false;
 
-            if (map == PrehistoricMapType.VolcanicGorge)
+            PrehistoricGameMode targetMode = mode ?? (PrehistoricGameModeManager.Instance != null 
+                ? PrehistoricGameModeManager.Instance.CurrentMode 
+                : CurrentData.LastPlayedMode);
+
+            if (targetMode == PrehistoricGameMode.TowerDefense)
             {
-                return CurrentData.UnlockedMapMax >= 1 || 
-                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 10);
+                if (CurrentData.DefenseProfile == null) return false;
+                if (map == PrehistoricMapType.VolcanicGorge)
+                {
+                    bool defensePassed = CurrentData.DefenseProfile.HighestWaveReached >= 10 || CurrentData.DefenseProfile.CurrentWave >= 10;
+                    return CurrentData.DefenseProfile.UnlockedMapMax >= 1 || defensePassed;
+                }
+                if (map == PrehistoricMapType.GlacialTundra)
+                {
+                    bool defensePassed = CurrentData.DefenseProfile.HighestWaveReached >= 20 || CurrentData.DefenseProfile.CurrentWave >= 20;
+                    return CurrentData.DefenseProfile.UnlockedMapMax >= 2 || defensePassed;
+                }
             }
-            if (map == PrehistoricMapType.GlacialTundra)
+            else // DinoAssault
             {
-                return CurrentData.UnlockedMapMax >= 2 || 
-                       (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HighestWaveReached >= 20);
+                if (CurrentData.AssaultProfile == null) return false;
+                if (map == PrehistoricMapType.VolcanicGorge)
+                {
+                    bool assaultPassed = CurrentData.AssaultProfile.HighestLevelReached >= 10 || CurrentData.AssaultProfile.AssaultLevel >= 10;
+                    return CurrentData.AssaultProfile.UnlockedMapMax >= 1 || assaultPassed;
+                }
+                if (map == PrehistoricMapType.GlacialTundra)
+                {
+                    bool assaultPassed = CurrentData.AssaultProfile.HighestLevelReached >= 20 || CurrentData.AssaultProfile.AssaultLevel >= 20;
+                    return CurrentData.AssaultProfile.UnlockedMapMax >= 2 || assaultPassed;
+                }
             }
-            return true;
+
+            return false;
         }
 
-        public void UnlockMap(PrehistoricMapType map)
+        public void UnlockMap(PrehistoricMapType map, PrehistoricGameMode? mode = null)
         {
             EnsureProfilesInitialized();
             if (CurrentData == null) return;
+
+            PrehistoricGameMode targetMode = mode ?? (PrehistoricGameModeManager.Instance != null 
+                ? PrehistoricGameModeManager.Instance.CurrentMode 
+                : CurrentData.LastPlayedMode);
 
             int required = map switch
             {
@@ -302,12 +359,24 @@ namespace LlamAcademy.Dinos.Save
                 _ => 0
             };
 
-            if (CurrentData.UnlockedMapMax < required)
+            if (targetMode == PrehistoricGameMode.TowerDefense)
             {
-                CurrentData.UnlockedMapMax = required;
-                SaveDataToDisk();
-                Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Chúc mừng! Đã mở khóa bản đồ mới: <b>{map}</b>!");
+                if (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.UnlockedMapMax < required)
+                {
+                    CurrentData.DefenseProfile.UnlockedMapMax = required;
+                }
             }
+            else
+            {
+                if (CurrentData.AssaultProfile != null && CurrentData.AssaultProfile.UnlockedMapMax < required)
+                {
+                    CurrentData.AssaultProfile.UnlockedMapMax = required;
+                }
+            }
+
+            CurrentData.UnlockedMapMax = Math.Max(CurrentData.DefenseProfile?.UnlockedMapMax ?? 0, CurrentData.AssaultProfile?.UnlockedMapMax ?? 0);
+            SaveDataToDisk();
+            Debug.Log($"<color=orange>[SaveSystem]</color> 🎉 Đã mở khóa bản đồ mới: <b>{map}</b> cho chế độ <b>{targetMode}</b>!");
         }
 
         private void MigrateInitialSlotsIfMissing()
@@ -766,6 +835,7 @@ namespace LlamAcademy.Dinos.Save
 
         private void OnApplicationQuit()
         {
+            s_isApplicationQuitting = true;
             AutoSaveCurrentRun(true);
         }
     }

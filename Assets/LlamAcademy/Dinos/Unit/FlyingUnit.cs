@@ -1,3 +1,4 @@
+using LlamAcademy.Dinos.AI;
 using LlamAcademy.Dinos.RoundManagement;
 using LlamAcademy.Dinos.UI;
 using LlamAcademy.Dinos.Utility;
@@ -15,6 +16,19 @@ namespace LlamAcademy.Dinos.Unit
 
         public bool IsAerial => true;
 
+        private static readonly System.Collections.Generic.HashSet<FlyingUnit> s_ActiveFlyers = new();
+        public static System.Collections.Generic.IReadOnlyCollection<FlyingUnit> ActiveFlyers => s_ActiveFlyers;
+
+        protected virtual void OnEnable()
+        {
+            s_ActiveFlyers.Add(this);
+        }
+
+        protected virtual void OnDisable()
+        {
+            s_ActiveFlyers.Remove(this);
+        }
+
         private Transform TargetBase;
         private Transform VisualModel;
         private Vector3 _BaseModelLocalPos;
@@ -27,6 +41,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Awake()
         {
             base.Awake();
+            OverheadAIStateInspector.AttachTo(gameObject, DinoAISpeciesType.PterodactylFlyer);
             MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 1450;
             Health = MaxHealth;
             if (GetComponent<Collider>() == null && GetComponentInChildren<Collider>() == null)

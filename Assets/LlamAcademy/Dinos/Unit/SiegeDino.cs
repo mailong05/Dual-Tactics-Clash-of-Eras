@@ -1,3 +1,4 @@
+using LlamAcademy.Dinos.AI;
 using UnityEngine;
 
 namespace LlamAcademy.Dinos.Unit
@@ -54,6 +55,7 @@ namespace LlamAcademy.Dinos.Unit
 
         protected override void Awake()
         {
+            AISpeciesType = DinoAISpeciesType.AnkylosaurusTanker;
             MoveSpeed = 3.0f;
             base.Awake();
             ConfigureNavMeshAgent();
