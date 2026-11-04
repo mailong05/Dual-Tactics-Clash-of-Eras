@@ -36,7 +36,6 @@ namespace LlamAcademy.Dinos.Environment
 
         private Unit.Unit _unit;
         private NavMeshAgent _agent;
-        private readonly List<Material> _clonedMaterials = new();
         private ParticleSystem _emberAura;
 
         // Timers & Combat Variables
@@ -75,11 +74,6 @@ namespace LlamAcademy.Dinos.Environment
                 _unit.OnDeath -= HandleDeath;
             }
 
-            foreach (var mat in _clonedMaterials)
-            {
-                if (mat != null) Destroy(mat);
-            }
-            _clonedMaterials.Clear();
         }
 
         private void IdentifyMutationType()
@@ -115,54 +109,24 @@ namespace LlamAcademy.Dinos.Environment
 
         private void ApplyVisualTransformations()
         {
-            // 1. Áp dụng vật liệu dung nham / hắc diệu thạch rực lửa
+            // 1. Triệt tiêu hoàn toàn emission toàn thân (khắc phục 100% lỗi khủng long biến thành khối vàng neon silhouette)
+            // Giữ nguyên trọn vẹn 100% texture da gốc, vảy sừng, mắt, răng và ánh sáng đổ bóng 3D của khủng long
             var renderers = GetComponentsInChildren<Renderer>(true);
             foreach (var r in renderers)
             {
                 if (r is ParticleSystemRenderer) continue;
 
-                var mats = r.materials;
-                for (int i = 0; i < mats.Length; i++)
+                foreach (var mat in r.sharedMaterials)
                 {
-                    if (mats[i] == null) continue;
-
-                    Material cloned = new Material(mats[i]);
-                    if (MutationType == VolcanicMutationType.ObsidianAnkylosaurus)
+                    if (mat != null && mat.HasProperty("_EmissionColor"))
                     {
-                        // Vỏ giáp đá bazan đen xám, giữ nguyên texture da gốc
-                        Color origColor = cloned.HasProperty("_Color") ? cloned.color : (cloned.HasProperty("_BaseColor") ? cloned.GetColor("_BaseColor") : Color.white);
-                        Color basaltColor = Color.Lerp(origColor, new Color(0.28f, 0.25f, 0.25f), 0.50f);
-                        if (cloned.HasProperty("_Color")) cloned.color = basaltColor;
-                        if (cloned.HasProperty("_BaseColor")) cloned.SetColor("_BaseColor", basaltColor);
-
-                        if (cloned.HasProperty("_EmissionColor"))
-                        {
-                            cloned.DisableKeyword("_EMISSION");
-                            cloned.SetColor("_EmissionColor", Color.black);
-                        }
+                        mat.DisableKeyword("_EMISSION");
+                        mat.SetColor("_EmissionColor", Color.black);
                     }
-                    else
-                    {
-                        // Sắc cam đỏ nham thạch vừa phải (30%), giữ trọn vẹn vân da, vảy, mắt, răng và ánh sáng đổ bóng 3D của khủng long
-                        Color origColor = cloned.HasProperty("_Color") ? cloned.color : (cloned.HasProperty("_BaseColor") ? cloned.GetColor("_BaseColor") : Color.white);
-                        Color magmaTint = Color.Lerp(origColor, new Color(0.92f, 0.40f, 0.15f), 0.30f);
-                        if (cloned.HasProperty("_Color")) cloned.color = magmaTint;
-                        if (cloned.HasProperty("_BaseColor")) cloned.SetColor("_BaseColor", magmaTint);
-
-                        if (cloned.HasProperty("_EmissionColor"))
-                        {
-                            // Tắt emission toàn thân để tránh T-rex và Raptor bị thành khối màu vàng chói (silhouette)
-                            cloned.DisableKeyword("_EMISSION");
-                            cloned.SetColor("_EmissionColor", Color.black);
-                        }
-                    }
-                    mats[i] = cloned;
-                    _clonedMaterials.Add(cloned);
                 }
-                r.materials = mats;
             }
 
-            // 2. Kích thước khổng lồ cho Boss T-Rex
+            // 2. Kích thước khổng lồ cho Boss T-Rex Nham Thạch
             if (MutationType == VolcanicMutationType.VolcanicTRexBoss)
             {
                 transform.localScale *= 1.25f;
