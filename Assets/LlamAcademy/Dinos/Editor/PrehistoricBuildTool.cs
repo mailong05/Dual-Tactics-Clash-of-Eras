@@ -140,6 +140,29 @@ namespace LlamAcademy.Dinos.Editor
             return EditorBuildSettings.scenes.Length > 0 ? EditorBuildSettings.scenes[0].path : "";
         }
 
+        [MenuItem("Prehistoric TD/☁️ Khởi Động IO Cloud & Docker Backend...", priority = 70)]
+        public static void LaunchCloudBackend()
+        {
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string ps1Path = Path.Combine(projectRoot, "run_backend.ps1");
+            if (File.Exists(ps1Path))
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoExit -ExecutionPolicy Bypass -File \"{ps1Path}\"",
+                    WorkingDirectory = projectRoot,
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+                Debug.Log("<color=green>[IO Cloud]</color> Đã khởi chạy terminal backend tại cổng 8000!");
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("Lỗi", $"Không tìm thấy file khởi động tại: {ps1Path}", "Đóng");
+            }
+        }
+
         [MenuItem("Prehistoric TD/⚡ Build Nhanh (.exe)", priority = 92)]
         public static void QuickBuild()
         {

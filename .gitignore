@@ -146,12 +146,4 @@ scratch/
 Assets/Resources/PerformanceTestRunInfo.json*
 Assets/Resources/PerformanceTestRunSettings.json*
 
-# Simulated cloud backend / Docker files
-backend/
-docker-compose*.yml
-run_backend.ps1
-
-# Ignore temporary agent-generated markdown reports, keep official README.md
-*.md
-!README.md
 
