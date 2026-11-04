@@ -1,0 +1,16 @@
+{
+  "model_name": "PrehistoricTacticsNet",
+  "parameters": 10568,
+  "epochs": 40,
+  "batch_size": 32,
+  "training_samples": 1600,
+  "validation_samples": 400,
+  "training_time_seconds": 13.09,
+  "device": "cuda",
+  "final_train_loss": 0.0021,
+  "final_val_loss": 0.0007,
+  "final_val_accuracy_percent": 100.0,
+  "pth_checkpoint": "C:\\Users\\VanLong\\ADAPTIVE TOWER DEFENSE 3D\\backend\\data\\tactics_model.pth",
+  "onnx_export": "C:\\Users\\VanLong\\ADAPTIVE TOWER DEFENSE 3D\\backend\\data\\tactics_model.onnx",
+  "chart_path": "C:\\Users\\VanLong\\ADAPTIVE TOWER DEFENSE 3D\\backend\\data\\training_metrics.png"
+}
