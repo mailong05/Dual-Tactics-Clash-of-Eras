@@ -146,4 +146,18 @@ scratch/
 Assets/Resources/PerformanceTestRunInfo.json*
 Assets/Resources/PerformanceTestRunSettings.json*
 
+# ==============================================================================
+# Academic Submission & Internal Reports (Kept locally on PC, excluded from GitHub)
+# ==============================================================================
+ACADEMIC_SUBMISSION_REPORT.md
+BAO_CAO_BAI_TAP_LON_ADAPTIVE_TOWER_DEFENSE_3D.md
+DEMO_SCRIPT_AND_CHECKLIST.md
+DOCKER_AND_CLOUD_GUIDE.md
+EVIDENCE_OF_INTEGRATION.md
+KICH_BAN_VIDEO_DEMO_YOUTUBE.md
+SLIDE_THUYET_TRINH_BAO_CAO.md
+TESTING_REPORT.md
+package_submission.ps1
+Packages_Submission/
+
 
