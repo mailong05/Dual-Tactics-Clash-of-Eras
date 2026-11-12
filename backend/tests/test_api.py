@@ -1,20 +1,26 @@
 """
 Comprehensive Automated Integration Test Suite
 IO Cloud & Deep Learning AI Backend Server
-Tests all 7 FastAPI endpoints, model inference, multi-task outputs, and data persistence.
+Tests all FastAPI endpoints, model inference, multi-task outputs, and persistent SQLite storage.
 """
 
 import os
 import sys
+import tempfile
 import pytest
 from fastapi.testclient import TestClient
+
+# Use an isolated temporary SQLite DB for tests so live backend/data/io_cloud.db stays clean
+_TEST_DB_DIR = tempfile.mkdtemp(prefix="io_cloud_test_")
+os.environ["CLOUD_DB_PATH"] = os.path.join(_TEST_DB_DIR, "test_io_cloud.db")
 
 # Add backend directory to python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app import app
+from app import app, init_db
 from model import ai_director
 
+init_db()
 client = TestClient(app)
 
 
@@ -26,6 +32,7 @@ def test_root_endpoint():
     assert data["service"] == "IO Cloud & Deep Learning AI Backend"
     assert data["status"] == "online"
     assert data["docker_container"] is True
+    assert data["persistence"] == "sqlite"
     assert data["docs_url"] == "/docs"
 
 
@@ -37,6 +44,7 @@ def test_health_check_and_model_liveness():
     assert data["status"] == "healthy"
     assert data["model_loaded"] is True
     assert data["checkpoint_loaded"] is True
+    assert data["storage"] == "sqlite"
     assert "device" in data
     assert "timestamp" in data
 
@@ -129,8 +137,8 @@ def test_adaptive_counter_mechanisms():
     assert "T-Rex" in resp_boss["tactical_rationale"]
 
 
-def test_telemetry_stream_logging():
-    """Verify real-time game telemetry logging into IO Cloud analytics"""
+def test_telemetry_stream_logging_and_summary():
+    """Verify real-time game telemetry logging and persistent summary retrieval"""
     telemetry = {
         "player_id": "stream_test_user",
         "round": 2,
@@ -144,6 +152,12 @@ def test_telemetry_stream_logging():
     assert data["status"] == "logged"
     assert "event_id" in data
     assert data["total_records"] >= 1
+
+    summary_resp = client.get("/api/v1/cloud/telemetry/summary?limit=5")
+    assert summary_resp.status_code == 200
+    summary = summary_resp.json()
+    assert summary["total_records"] >= 1
+    assert any(log["player_id"] == "stream_test_user" for log in summary["recent_logs"])
 
 
 def test_cloud_save_and_load_lifecycle():
@@ -222,3 +236,13 @@ def test_onnx_model_file_integrity():
     onnx.checker.check_model(model_proto)
     assert len(model_proto.graph.input) == 1
     assert len(model_proto.graph.output) == 3
+
+
+def test_sqlite_persistence_survives_new_client():
+    """Verify SQLite storage persists data on disk across fresh FastAPI TestClient instances"""
+    assert os.path.exists(os.environ["CLOUD_DB_PATH"])
+    fresh_client = TestClient(app)
+    resp = fresh_client.get("/api/v1/cloud/load/player_test_integration_999")
+    assert resp.status_code == 200
+    assert resp.json()["player_name"] == "Jurassico Master"
+    assert resp.json()["coins"] == 1250

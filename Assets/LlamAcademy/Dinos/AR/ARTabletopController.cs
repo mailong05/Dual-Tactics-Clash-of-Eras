@@ -7,15 +7,13 @@ using UnityEngine.UI;
 namespace LlamAcademy.Dinos.AR
 {
     /// <summary>
-    /// Augmented Reality Implementation: Bounded Tabletop Diorama AR & Real Camera Pass-Through.
-    /// Dual Architecture:
-    /// 1. Mobile (AR Foundation architecture): ARPlaneManager + ARRaycastManager plane detection & anchoring.
-    /// 2. PC / Webcam: 6-DOF Spatial Tabletop Plane Anchor & Fiducial Marker alignment, pinning the diorama
-    ///    rock-solidly to the table surface without drift.
-    /// 3. Bounded Prehistoric Stone Pedestal Diorama (ARDioramaFrame) with clipping volume masking out-of-bounds scenery.
-    /// 4. Transparent Shadow Matte capturing real-time dinosaur & tower shadows onto the real desk.
-    /// 5. Full 3D Spatial Gestures: 1-finger Pan, 2-finger 360° Twist, 2-finger Pinch Zoom (0.4x - 2.2x),
-    ///    and Direct Tabletop Touch-to-Place.
+    /// Augmented Reality Implementation: Video Pass-Through Camera & Bounded Tabletop Diorama AR.
+    /// Architecture:
+    /// 1. Live Camera Pass-Through: WebCamTexture real-time rear/PC camera feed rendered on a background quad,
+    ///    with automatic fallback to a Holographic Tabletop Grid if no camera hardware is attached.
+    /// 2. Bounded Prehistoric Stone Pedestal Diorama (ARDioramaFrame) with out-of-bounds scenery clipping.
+    /// 3. Transparent URP Shadow Matte Shader (ARShadowMatte.shader) casting real-time dinosaur & tower shadows onto the desk.
+    /// 4. Full 3D Spatial Gestures: Pan, 360° Twist/Orbit, Pinch Zoom (0.4x - 2.2x), and Direct Tabletop Placement.
     /// </summary>
     [DefaultExecutionOrder(-6)]
     public class ARTabletopController : MonoBehaviour
@@ -341,8 +339,11 @@ namespace LlamAcademy.Dinos.AR
             // 1. Stop Camera Feed & teardown background
             StopWebCamFeed();
 
-            // 2. Disable Stone Diorama Pedestal, Shadow Matte & restore scenery
-            ARDioramaFrame.Instance.SetARMode(false);
+            // 2. Disable Stone Diorama Pedestal, Shadow Matte & restore scenery (avoid spawning in teardown)
+            if (ARDioramaFrame.HasInstance)
+            {
+                ARDioramaFrame.Instance.SetARMode(false);
+            }
 
             // 3. Restore Camera settings
             RestoreCameraFromAR();

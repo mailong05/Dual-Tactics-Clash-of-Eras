@@ -87,7 +87,7 @@
 ### 6. 📱 Đa Nền Tảng & Thực Tế Tăng Cường (AR Mode)
 * **PC (Windows):** Điều khiển mượt mà bằng chuột và bàn phím (WASD / Mũi tên / Chuột xoay & zoom camera).
 * **Thiết bị di động (Android / iOS):** Giao diện cảm ứng tối ưu, hỗ trợ cử chỉ vuốt pan, xoay và pinch-to-zoom đa điểm.
-* **Chế độ AR Tabletop:** Tích hợp Unity AR Foundation, cho phép quét mặt phẳng thực tế và chiếu sa bàn chiến trường 3D ngay trên bàn làm việc của bạn.
+* **Chế độ AR Tabletop:** Tích hợp hệ thống **Camera Video Pass-Through (`WebCamTexture`)** kết hợp Đế Sa Bàn Đá Tiền Sử (`ARDioramaFrame`) cắt cảnh ngoài biên và Shader `ARShadowMatte` chiếu bóng đổ thực tế lên mặt bàn qua camera thật (hỗ trợ Android Camera & PC Webcam).
 
 ---
 

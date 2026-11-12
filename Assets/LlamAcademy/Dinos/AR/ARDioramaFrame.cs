@@ -18,11 +18,14 @@ namespace LlamAcademy.Dinos.AR
     public class ARDioramaFrame : MonoBehaviour
     {
         private static ARDioramaFrame _instance;
+        private static bool _isQuitting = false;
+        public static bool HasInstance => _instance != null;
+
         public static ARDioramaFrame Instance
         {
             get
             {
-                if (_instance == null)
+                if (_instance == null && !_isQuitting)
                 {
                     _instance = FindFirstObjectByType<ARDioramaFrame>();
                     if (_instance == null)
@@ -34,6 +37,11 @@ namespace LlamAcademy.Dinos.AR
                 return _instance;
             }
             private set => _instance = value;
+        }
+
+        private void OnApplicationQuit()
+        {
+            _isQuitting = true;
         }
 
         [Header("=== Diorama Dimensions ===")]
@@ -199,6 +207,7 @@ namespace LlamAcademy.Dinos.AR
         /// </summary>
         public void SetARMode(bool isARActive)
         {
+            if (!isARActive && !_isDioramaBuilt) return;
             if (!_isDioramaBuilt) BuildStonePedestal();
             if (_shadowMattePlane == null) BuildShadowMatteReceiver();
 
@@ -234,12 +243,13 @@ namespace LlamAcademy.Dinos.AR
             {
                 if (r == null || !r.gameObject.activeInHierarchy) continue;
 
-                // Do not cull diorama frame or gameplay units
-                if (r.transform.IsChildOf(_pedestalRoot.transform)) continue;
+                // Do not cull diorama frame, AR helpers, heatmap overlays, or gameplay units
+                if (_pedestalRoot != null && r.transform.IsChildOf(_pedestalRoot.transform)) continue;
+                if (r.gameObject.name.StartsWith("AR_") || r.gameObject.name.StartsWith("Threat_")) continue;
                 if (r.GetComponentInParent<Unit.Unit>() != null) continue;
                 if (r.GetComponentInParent<Unit.Wall>() != null) continue;
 
-                Vector3 pos = r.transform.position;
+                Vector3 pos = r.bounds.center;
                 float diffX = Mathf.Abs(pos.x - DioramaCenter.x);
                 float diffZ = Mathf.Abs(pos.z - DioramaCenter.z);
 

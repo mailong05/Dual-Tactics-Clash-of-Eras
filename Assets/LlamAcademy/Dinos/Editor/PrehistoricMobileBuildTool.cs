@@ -152,7 +152,11 @@ namespace LlamAcademy.Dinos.Editor
             // Set application entry to classic Activity for maximum stability across all Android devices
             PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.Activity;
 
-            Debug.Log($"<color=cyan>[Mobile Build]</color> Configured PlayerSettings for Android: Package={packageName}, Version={version}, IL2CPP=ARM64+ARMv7");
+            // Allow Android 9+ devices to communicate with HTTP LAN/Docker endpoints as well as HTTPS Cloud servers
+            PlayerSettings.Android.forceInternetPermission = true;
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
+
+            Debug.Log($"<color=cyan>[Mobile Build]</color> Configured PlayerSettings for Android: Package={packageName}, Version={version}, IL2CPP=ARM64+ARMv7, InsecureHTTP=AlwaysAllowed");
         }
 
         public static bool BuildAndroidPlayer(string outputPath, bool isDevBuild, bool openFolderAfterBuild)
@@ -183,9 +187,20 @@ namespace LlamAcademy.Dinos.Editor
                 return false;
             }
 
+            // Đảm bảo cấu hình EditorBuildSettings chứa đầy đủ cả 3 màn chơi (Map 1, Map 2, Map 3)
+            PrehistoricBuildTool.EnsureBuildScenes(scenePath);
+            string[] buildScenePaths = EditorBuildSettings.scenes
+                .Where(s => s.enabled && !string.IsNullOrEmpty(s.path) && File.Exists(s.path))
+                .Select(s => s.path)
+                .ToArray();
+            if (buildScenePaths == null || buildScenePaths.Length == 0)
+            {
+                buildScenePaths = new[] { scenePath };
+            }
+
             BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
             {
-                scenes = new[] { scenePath },
+                scenes = buildScenePaths,
                 locationPathName = outputPath,
                 target = BuildTarget.Android,
                 options = isDevBuild ? (BuildOptions.Development | BuildOptions.AllowDebugging) : BuildOptions.None

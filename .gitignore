@@ -159,5 +159,7 @@ SLIDE_THUYET_TRINH_BAO_CAO.md
 TESTING_REPORT.md
 package_submission.ps1
 Packages_Submission/
+backend/data/*.db
+backend/data/*.db-*
 
 

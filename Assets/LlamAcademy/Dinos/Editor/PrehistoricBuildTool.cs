@@ -287,7 +287,7 @@ namespace LlamAcademy.Dinos.Editor
             }
         }
 
-        private static void EnsureBuildScenes(string mainScenePath)
+        public static void EnsureBuildScenes(string mainScenePath)
         {
             var scenes = EditorBuildSettings.scenes.ToList();
             string[] allTargetScenes = new[]
