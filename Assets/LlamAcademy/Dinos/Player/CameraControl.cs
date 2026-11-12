@@ -116,6 +116,10 @@ namespace LlamAcademy.Dinos.Player
             {
                 return;
             }
+            if (AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsUsingRealARFoundation)
+            {
+                return;
+            }
             if (Keyboard.current != null)
             {
                 // Phím C: Đổi góc nhìn Camera giữa Trước Làng và Sau Làng

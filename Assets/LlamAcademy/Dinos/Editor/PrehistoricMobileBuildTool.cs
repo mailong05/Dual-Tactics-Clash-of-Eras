@@ -273,6 +273,9 @@ namespace LlamAcademy.Dinos.Editor
         {
             if (report.summary.platform == BuildTarget.Android)
             {
+                System.Type.GetType("LlamAcademy.Dinos.Editor.PrehistoricARAutoSetup, Assembly-CSharp-Editor")
+                    ?.GetMethod("EnsureARPackagesAndConfiguration", System.Type.EmptyTypes)
+                    ?.Invoke(null, null);
                 string pkg = PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Android);
                 if (string.IsNullOrEmpty(pkg) || pkg.StartsWith("com.DefaultCompany"))
                 {

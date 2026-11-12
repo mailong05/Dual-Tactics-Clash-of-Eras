@@ -592,7 +592,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             int food = spawner != null ? spawner.ResourcesToSpend : 0;
 
             // 1. Top-Left Food & Command Banner
-            Rect foodBannerRect = new Rect(20, 20, 360, 130);
+            Rect foodBannerRect = new Rect(16, 12, 315, 108);
             Mobile.MobileUIHelper.RegisterUIRect(foodBannerRect);
             GUILayout.BeginArea(foodBannerRect, GUI.skin.box);
             GUILayout.BeginVertical();

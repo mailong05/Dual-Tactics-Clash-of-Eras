@@ -87,7 +87,8 @@
 ### 6. 📱 Đa Nền Tảng & Thực Tế Tăng Cường (AR Mode)
 * **PC (Windows):** Điều khiển mượt mà bằng chuột và bàn phím (WASD / Mũi tên / Chuột xoay & zoom camera).
 * **Thiết bị di động (Android / iOS):** Giao diện cảm ứng tối ưu, hỗ trợ cử chỉ vuốt pan, xoay và pinch-to-zoom đa điểm.
-* **Chế độ AR Tabletop:** Tích hợp hệ thống **Camera Video Pass-Through (`WebCamTexture`)** kết hợp Đế Sa Bàn Đá Tiền Sử (`ARDioramaFrame`) cắt cảnh ngoài biên và Shader `ARShadowMatte` chiếu bóng đổ thực tế lên mặt bàn qua camera thật (hỗ trợ Android Camera & PC Webcam).
+* **Chế độ AR Tabletop (Hybrid ARCore + Desktop Pass-Through):** Tích hợp **Unity AR Foundation 6.6.2 + ARCore 6.6.2** trên Android (quét mặt phẳng 6-DOF, chạm mặt bàn đặt sa bàn Tap-to-Place thật bằng cách co giãn `XROrigin` giữ nguyên NavMesh $1\times$), kết hợp **Camera Video Pass-Through (`WebCamTexture`)** dự phòng trên PC Webcam, Đế Sa Bàn Đá Tiền Sử (`ARDioramaFrame` $68 \times 72\text{m}$) và Shader `ARShadowMatte` chiếu bóng đổ thực tế.
+* **Điện Toán Đám Mây IO Cloud (HTTPS Railway + Docker Local):** Máy chủ FastAPI + PyTorch triển khai sẵn HTTPS tại `https://io-cloud-ai-backend-production.up.railway.app` (kèm volume SQLite bền vững) và có thể chạy local bằng Docker Compose trên cổng `8000`.
 
 ---
 

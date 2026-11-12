@@ -46,12 +46,13 @@ namespace LlamAcademy.Dinos.AR
 
         [Header("=== Diorama Dimensions ===")]
         public Vector3 DioramaCenter = new Vector3(0f, 0f, -5f);
-        public Vector2 DioramaSize = new Vector2(90f, 92f); // Width (X), Length (Z)
+        public Vector2 DioramaSize = new Vector2(68f, 72f); // Compact tabletop footprint (X, Z)
         public float PedestalHeight = 1.8f;
 
         private GameObject _pedestalRoot;
         private GameObject _shadowMattePlane;
         private Material _stoneMaterial;
+        private Material _arenaTopMaterial;
         private Material _shadowMatteMaterial;
 
         // Cached distant out-of-bounds scenery to toggle for AR clipping
@@ -98,9 +99,25 @@ namespace LlamAcademy.Dinos.AR
             GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
             slab.name = "Diorama_Main_Slab";
             slab.transform.SetParent(_pedestalRoot.transform, false);
-            slab.transform.localPosition = new Vector3(0f, -PedestalHeight * 0.5f, 0f);
+            slab.transform.localPosition = new Vector3(0f, -PedestalHeight * 0.5f - 0.05f, 0f);
             slab.transform.localScale = new Vector3(DioramaSize.x + 2f, PedestalHeight, DioramaSize.y + 2f);
             ApplyMaterial(slab, _stoneMaterial);
+
+            // 1b. Playable Compact Arena Top Plate (replaces huge desert floor slab in AR mode)
+            _arenaTopMaterial = new Material(litShader);
+            Color topCol = new Color(0.68f, 0.56f, 0.38f, 1f);
+            if (_arenaTopMaterial.HasProperty("_BaseColor")) _arenaTopMaterial.SetColor("_BaseColor", topCol);
+            if (_arenaTopMaterial.HasProperty("_Color")) _arenaTopMaterial.SetColor("_Color", topCol);
+            if (_arenaTopMaterial.HasProperty("_Smoothness")) _arenaTopMaterial.SetFloat("_Smoothness", 0.05f);
+
+            GameObject arenaTop = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            arenaTop.name = "Diorama_Arena_Floor";
+            arenaTop.transform.SetParent(_pedestalRoot.transform, false);
+            arenaTop.transform.localPosition = new Vector3(0f, -0.06f, 0f);
+            arenaTop.transform.localScale = new Vector3(DioramaSize.x, 0.10f, DioramaSize.y);
+            ApplyMaterial(arenaTop, _arenaTopMaterial);
+            Collider topColComp = arenaTop.GetComponent<Collider>();
+            if (topColComp != null) Destroy(topColComp);
 
             // 2. 4 Beveled Stone Border Rims
             float halfW = DioramaSize.x * 0.5f;
@@ -250,11 +267,17 @@ namespace LlamAcademy.Dinos.AR
                 if (r.GetComponentInParent<Unit.Wall>() != null) continue;
 
                 Vector3 pos = r.bounds.center;
+                Vector3 size = r.bounds.size;
                 float diffX = Mathf.Abs(pos.x - DioramaCenter.x);
                 float diffZ = Mathf.Abs(pos.z - DioramaCenter.z);
 
-                // If located outside the tabletop diorama bounds (e.g. distant backdrop mountains, infinite plane)
-                if (diffX > halfW || diffZ > halfL)
+                bool isHugeOuterGround = (size.x > 82f || size.z > 82f)
+                    || r.gameObject.name.Contains("Cracked Sand")
+                    || r.gameObject.name == "Ground"
+                    || r.gameObject.name == "Smooth Floor";
+
+                // Hide distant mountains, out-of-bounds rocks, AND giant desert floor slabs so real camera surrounds the diorama
+                if (diffX > halfW || diffZ > halfL || isHugeOuterGround)
                 {
                     r.gameObject.SetActive(false);
                     _culledSceneryObjects.Add(r.gameObject);
@@ -283,6 +306,7 @@ namespace LlamAcademy.Dinos.AR
             RestoreBoundaryClipping();
             if (_pedestalRoot != null) Destroy(_pedestalRoot);
             if (_stoneMaterial != null) Destroy(_stoneMaterial);
+            if (_arenaTopMaterial != null) Destroy(_arenaTopMaterial);
             if (_shadowMatteMaterial != null) Destroy(_shadowMatteMaterial);
         }
     }

@@ -63,6 +63,7 @@ namespace LlamAcademy.Dinos.Mobile
         private void Update()
         {
             if (!IsMobileDevice && !MobileUIHelper.IsMobile) return;
+            if (AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsUsingRealARFoundation) return;
 
             var touches = Touch.activeTouches;
             if (touches.Count == 0)

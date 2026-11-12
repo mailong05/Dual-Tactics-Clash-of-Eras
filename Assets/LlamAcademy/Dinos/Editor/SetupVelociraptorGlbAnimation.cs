@@ -33,8 +33,8 @@ namespace LlamAcademy.Dinos.Editor
 
                 if (!Directory.Exists(ANIM_DIR)) Directory.CreateDirectory(ANIM_DIR);
 
-                // 1. Load GLB via glTFast
-                var gltf = new GltfImport();
+                // 1. Load GLB via glTFast (use UninterruptedDeferAgent in Editor so glTFast does not invoke DontDestroyOnLoad)
+                var gltf = new GltfImport(deferAgent: new UninterruptedDeferAgent());
                 var importSettings = new ImportSettings
                 {
                     AnimationMethod = AnimationMethod.Legacy
