@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
 #if AR_FOUNDATION_ENABLED
+using UnityEditor.XR.ARCore;
 using UnityEditor.XR.Management;
 using UnityEditor.XR.Management.Metadata;
 using UnityEngine.XR.ARFoundation;
@@ -210,6 +211,24 @@ namespace LlamAcademy.Dinos.Editor
                     AssetDatabase.SaveAssets();
                     Debug.Log("<color=green>[ARCore Setup]</color> Enabled ARCoreLoader in Android XR Plug-in Management!");
                 }
+            }
+
+            // Ensure Android Min SDK satisfies ARCore + Vulkan (API 29) and configure ARCore as Optional
+            // so phones with ARCore use full 6-DOF SLAM while non-ARCore phones gracefully fall back to camera pass-through.
+            if (PlayerSettings.Android.minSdkVersion < AndroidSdkVersions.AndroidApiLevel29)
+            {
+                PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
+            }
+
+            ARCoreSettings arCoreSettings = ARCoreSettings.GetOrCreateSettings();
+            if (arCoreSettings != null &&
+                (arCoreSettings.requirement != ARCoreSettings.Requirement.Optional ||
+                 arCoreSettings.depth != ARCoreSettings.Requirement.Optional))
+            {
+                arCoreSettings.requirement = ARCoreSettings.Requirement.Optional;
+                arCoreSettings.depth = ARCoreSettings.Requirement.Optional;
+                EditorUtility.SetDirty(arCoreSettings);
+                AssetDatabase.SaveAssets();
             }
 
             return assigned;

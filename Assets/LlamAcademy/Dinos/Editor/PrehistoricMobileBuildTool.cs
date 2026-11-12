@@ -139,8 +139,12 @@ namespace LlamAcademy.Dinos.Editor
 
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, packageName);
             PlayerSettings.Android.bundleVersionCode = bundleVersionCode;
-            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26; // Android 8.0+
+            // ARCore with Vulkan graphics API requires at least Android API Level 29 (Android 10.0)
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
+
+            // Ensure AR Foundation & ARCore XR settings are synchronized before Android APK build
+            PrehistoricARAutoSetup.EnsureARPackagesAndConfiguration(false);
 
             // Target ARM64 and ARMv7 architectures
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
