@@ -360,5 +360,121 @@ namespace LlamAcademy.Dinos.Editor
             EditorApplication.Exit(success ? 0 : 1);
         }
     }
+
+    /// <summary>
+    /// Cửa sổ cấu hình URL IO Cloud dùng chung cho cả Windows (.exe) và Android (.apk).
+    /// Tự động ghi vào Assets/Resources/IOCloudConfig.json để nhúng vào mọi bản build.
+    /// </summary>
+    public class PrehistoricCloudConfigWindow : EditorWindow
+    {
+        private string _publicCloudUrl = "";
+        private string _localDockerUrl = "http://localhost:8000";
+        private string _testResult = "";
+
+        private static string ConfigFilePath => Path.Combine(Directory.GetCurrentDirectory(), "Assets", "Resources", "IOCloudConfig.json");
+
+        [MenuItem("Prehistoric TD/☁️ Cấu Hình URL IO Cloud (.exe & .apk)...", priority = 71)]
+        public static void ShowWindow()
+        {
+            var win = GetWindow<PrehistoricCloudConfigWindow>("Cấu Hình IO Cloud URL");
+            win.minSize = new Vector2(520, 320);
+            win.Show();
+        }
+
+        private void OnEnable()
+        {
+            LoadConfig();
+        }
+
+        private void LoadConfig()
+        {
+            if (File.Exists(ConfigFilePath))
+            {
+                try
+                {
+                    var cfg = JsonUtility.FromJson<Cloud.IOCloudEmbeddedConfig>(File.ReadAllText(ConfigFilePath));
+                    if (cfg != null)
+                    {
+                        _publicCloudUrl = cfg.publicCloudUrl ?? "";
+                        _localDockerUrl = string.IsNullOrEmpty(cfg.localDockerUrl) ? "http://localhost:8000" : cfg.localDockerUrl;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private void SaveConfig()
+        {
+            string dir = Path.GetDirectoryName(ConfigFilePath);
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+            var cfg = new Cloud.IOCloudEmbeddedConfig
+            {
+                publicCloudUrl = (_publicCloudUrl ?? "").Trim().TrimEnd('/'),
+                localDockerUrl = string.IsNullOrWhiteSpace(_localDockerUrl) ? "http://localhost:8000" : _localDockerUrl.Trim().TrimEnd('/')
+            };
+            File.WriteAllText(ConfigFilePath, JsonUtility.ToJson(cfg, true));
+            AssetDatabase.Refresh();
+            Debug.Log($"<color=green>[IO Cloud Config]</color> Đã lưu cấu hình nhúng tại Assets/Resources/IOCloudConfig.json (Cloud='{cfg.publicCloudUrl}', Local='{cfg.localDockerUrl}')");
+        }
+
+        private void OnGUI()
+        {
+            GUILayout.Space(10);
+            EditorGUILayout.LabelField("☁️ CẤU HÌNH ĐỊA CHỈ IO CLOUD CHO .EXE VÀ .APK", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Dán URL HTTPS công cộng (sau khi deploy thư mục backend/ lên Render hoặc Railway) vào ô bên dưới.\n" +
+                "Sau khi bấm Lưu, mọi bản build .exe và .apk mới sẽ TỰ ĐỘNG kết nối Cloud ở bất kỳ mạng nào (4G/5G/Wi-Fi)!\n" +
+                "Nếu chưa có URL công cộng hoặc mất mạng trên PC, game sẽ tự lùi về Docker nội bộ (http://localhost:8000).",
+                MessageType.Info);
+
+            GUILayout.Space(8);
+            _publicCloudUrl = EditorGUILayout.TextField("Public Cloud URL (HTTPS):", _publicCloudUrl);
+            _localDockerUrl = EditorGUILayout.TextField("Local Docker URL (PC):", _localDockerUrl);
+
+            GUILayout.Space(12);
+            EditorGUILayout.BeginHorizontal();
+            GUI.backgroundColor = new Color(0.2f, 0.85f, 0.45f);
+            if (GUILayout.Button("💾 Lưu Cấu Hình Nhúng Build", GUILayout.Height(36)))
+            {
+                SaveConfig();
+                _testResult = "✓ Đã lưu Assets/Resources/IOCloudConfig.json! Bạn có thể Build .exe / .apk ngay.";
+            }
+
+            GUI.backgroundColor = new Color(0.25f, 0.72f, 1f);
+            if (GUILayout.Button("📡 Kiểm Tra Kết Nối (/health)", GUILayout.Height(36)))
+            {
+                string target = !string.IsNullOrWhiteSpace(_publicCloudUrl) ? _publicCloudUrl.Trim().TrimEnd('/') : _localDockerUrl.Trim().TrimEnd('/');
+                TestHealthSync(target);
+            }
+            GUI.backgroundColor = Color.white;
+            EditorGUILayout.EndHorizontal();
+
+            if (!string.IsNullOrEmpty(_testResult))
+            {
+                GUILayout.Space(10);
+                EditorGUILayout.HelpBox(_testResult, _testResult.StartsWith("✓") ? MessageType.Info : MessageType.Warning);
+            }
+        }
+
+        private void TestHealthSync(string baseUrl)
+        {
+            try
+            {
+                using (var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(12) })
+                {
+                    var resp = client.GetAsync($"{baseUrl}/health").GetAwaiter().GetResult();
+                    string body = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    _testResult = resp.IsSuccessStatusCode
+                        ? $"✓ KẾT NỐI THÀNH CÔNG tới {baseUrl}/health:\n{body}"
+                        : $"✗ Server trả về mã {(int)resp.StatusCode} ({resp.ReasonPhrase})";
+                }
+            }
+            catch (Exception ex)
+            {
+                _testResult = $"✗ Không thể kết nối tới {baseUrl}/health: {ex.Message}";
+            }
+        }
+    }
 }
 #endif

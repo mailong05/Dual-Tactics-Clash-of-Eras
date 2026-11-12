@@ -130,8 +130,8 @@ namespace LlamAcademy.Dinos.Player
                     ResetToCenter();
                 }
 
-                // Phím H: Bật/Tắt bảng phím tắt trợ giúp Camera
-                if (Keyboard.current.hKey.wasPressedThisFrame)
+                // Phím K: Bật/Tắt bảng phím tắt trợ giúp Camera (tránh trùng phím H của Threat Heatmap)
+                if (Keyboard.current.kKey.wasPressedThisFrame)
                 {
                     ShowControlsHint = !ShowControlsHint;
                 }
@@ -525,49 +525,63 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
 
-            if (!ShowControlsHint)
+            Mobile.MobileUIHelper.BeginScaling();
+            try
             {
-                // Mini toggle pill at bottom left above toolbar
-                float pillW = 140f;
-                float pillH = 24f;
-                float pillX = 20f;
-                float pillY = Screen.height - pillH - 85f;
-                Color oldC = GUI.backgroundColor;
-                GUI.backgroundColor = new Color(0.15f, 0.20f, 0.28f, 0.85f);
-                if (GUI.Button(new Rect(pillX, pillY, pillW, pillH), "<size=11><b>🎥 Phím Tắt [H]</b></size>"))
+                float screenH = Mobile.MobileUIHelper.ScreenHeight;
+                if (!ShowControlsHint)
                 {
-                    ShowControlsHint = true;
+                    // Mini toggle pill at bottom left above toolbar
+                    float pillW = 140f;
+                    float pillH = 24f;
+                    float pillX = 20f;
+                    float pillY = screenH - pillH - 85f;
+                    Rect pillRect = new Rect(pillX, pillY, pillW, pillH);
+                    Mobile.MobileUIHelper.RegisterUIRect(pillRect);
+
+                    Color oldC = GUI.backgroundColor;
+                    GUI.backgroundColor = new Color(0.15f, 0.20f, 0.28f, 0.85f);
+                    if (GUI.Button(pillRect, "<size=11><b>🎥 Phím Tắt [K]</b></size>"))
+                    {
+                        ShowControlsHint = true;
+                    }
+                    GUI.backgroundColor = oldC;
+                    return;
                 }
-                GUI.backgroundColor = oldC;
-                return;
+
+                // Compact floating hint bar at bottom-left, safely placed ABOVE the toolbar
+                float panelWidth = 330f;
+                float panelHeight = 85f;
+                float x = 20f;
+                float y = screenH - panelHeight - 88f;
+                Rect panelRect = new Rect(x, y, panelWidth, panelHeight);
+                Mobile.MobileUIHelper.RegisterUIRect(panelRect);
+
+                GUI.color = new Color(0.1f, 0.12f, 0.15f, 0.90f);
+                GUI.Box(panelRect, GUIContent.none);
+                GUI.color = Color.white;
+
+                GUILayout.BeginArea(new Rect(x + 8f, y + 6f, panelWidth - 16f, panelHeight - 12f));
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("<b>🎥 CAMERA TỰ DO</b>", GetHintHeaderStyle());
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("✕ (K)", GUILayout.Width(45), GUILayout.Height(18)))
+                {
+                    ShowControlsHint = false;
+                }
+                GUILayout.EndHorizontal();
+
+                GUILayout.Label("• <b>WASD / Mũi tên:</b> Di chuyển (<b>Shift</b>: Tăng tốc)", GetHintTextStyle());
+                GUILayout.Label("• <b>Chuột Giữa / Phải:</b> Giữ & kéo map tự do", GetHintTextStyle());
+                GUILayout.Label("• <b>Cuộn chuột:</b> Zoom | <b>Q/E:</b> Xoay | <b>F:</b> Về làng | <b>C:</b> Góc nhìn", GetHintTextStyle());
+
+                GUILayout.EndArea();
             }
-
-            // Compact floating hint bar at bottom-left, safely placed ABOVE the toolbar
-            float panelWidth = 330f;
-            float panelHeight = 85f;
-            float x = 20f;
-            float y = Screen.height - panelHeight - 88f;
-
-            GUI.color = new Color(0.1f, 0.12f, 0.15f, 0.90f);
-            GUI.Box(new Rect(x, y, panelWidth, panelHeight), GUIContent.none);
-            GUI.color = Color.white;
-
-            GUILayout.BeginArea(new Rect(x + 8f, y + 6f, panelWidth - 16f, panelHeight - 12f));
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("<b>🎥 CAMERA TỰ DO</b>", GetHintHeaderStyle());
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("✕ (H)", GUILayout.Width(45), GUILayout.Height(18)))
+            finally
             {
-                ShowControlsHint = false;
+                Mobile.MobileUIHelper.EndScaling();
             }
-            GUILayout.EndHorizontal();
-
-            GUILayout.Label("• <b>WASD / Mũi tên:</b> Di chuyển (<b>Shift</b>: Tăng tốc)", GetHintTextStyle());
-            GUILayout.Label("• <b>Chuột Giữa / Phải:</b> Giữ & kéo map tự do", GetHintTextStyle());
-            GUILayout.Label("• <b>Cuộn chuột:</b> Zoom | <b>Q/E:</b> Xoay | <b>F:</b> Về làng | <b>C:</b> Góc nhìn", GetHintTextStyle());
-
-            GUILayout.EndArea();
         }
 
         private void DrawMobileCameraControls()

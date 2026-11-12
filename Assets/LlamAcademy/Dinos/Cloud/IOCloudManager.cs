@@ -12,18 +12,25 @@ namespace LlamAcademy.Dinos.Cloud
 {
     /// <summary>
     /// Connects Unity to the containerized IO Cloud & Deep Learning AI Director Backend.
-    /// Supports configurable Cloud/LAN endpoints (PC & Android APK), real-time telemetry streaming,
-    /// remote neural inference, persistent Cloud Save/Load, global Leaderboard, and Live-Ops config.
+    /// Smart Endpoint Resolution (PC .exe & Android .apk):
+    /// 1. User-configured URL saved in PlayerPrefs (editable in-game at runtime).
+    /// 2. Embedded Public HTTPS Cloud URL from Resources/IOCloudConfig.json (works on Android 4G/5G & remote PCs).
+    /// 3. Local Docker container fallback (http://localhost:8000) on PC/Editor.
+    /// Handles real-time telemetry streaming, remote neural inference, persistent Cloud Save/Load,
+    /// global Leaderboard, and Live-Ops remote config.
     /// </summary>
     public class IOCloudManager : MonoBehaviour
     {
         public static IOCloudManager Instance { get; private set; }
 
         private const string PrefCloudUrlKey = "IOCloud_BaseUrl";
+        private const string ResourceConfigName = "IOCloudConfig";
 
         [Header("IO Cloud Service Configuration")]
         [SerializeField] private string CloudBaseUrl = "http://localhost:8000";
+        [SerializeField] private string PublicCloudFallbackUrl = "https://io-cloud-ai-backend-production.up.railway.app";
         [SerializeField] private float TimeoutSeconds = 3.5f;
+        [SerializeField] private float CloudHttpsWakeupTimeout = 15.0f;
         [SerializeField] private bool EnableCloudAiPrediction = true;
 
         [Header("Cloud State")]
@@ -43,7 +50,10 @@ namespace LlamAcademy.Dinos.Cloud
         [SerializeField] private bool ShowCloudBadge = true;
 
         private bool _isPanelExpanded = false;
+        public bool IsPanelExpanded => _isPanelExpanded;
+        private bool _isConnecting = false;
         private string _editableUrl = "";
+        private string _localDockerUrl = "http://localhost:8000";
         private readonly List<LeaderboardEntry> _cachedLeaderboard = new();
 
         private GUIStyle _cloudStatusStyle;
@@ -51,8 +61,10 @@ namespace LlamAcademy.Dinos.Cloud
         private GUIStyle _cloudRationaleStyle;
 
         public string ActiveCloudBaseUrl => string.IsNullOrWhiteSpace(CloudBaseUrl)
-            ? "http://localhost:8000"
+            ? _localDockerUrl
             : CloudBaseUrl.Trim().TrimEnd('/');
+
+        public bool IsUsingPublicHttpsCloud => ActiveCloudBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
         private void Awake()
         {
@@ -64,12 +76,53 @@ namespace LlamAcademy.Dinos.Cloud
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            LoadEmbeddedConfig();
+
             string savedUrl = PlayerPrefs.GetString(PrefCloudUrlKey, "");
             if (!string.IsNullOrWhiteSpace(savedUrl))
             {
-                CloudBaseUrl = savedUrl.Trim().TrimEnd('/');
+                CloudBaseUrl = NormalizeUrl(savedUrl);
+            }
+            else if (!string.IsNullOrWhiteSpace(PublicCloudFallbackUrl))
+            {
+                CloudBaseUrl = NormalizeUrl(PublicCloudFallbackUrl);
+            }
+            else
+            {
+                CloudBaseUrl = _localDockerUrl;
             }
             _editableUrl = ActiveCloudBaseUrl;
+        }
+
+        private void LoadEmbeddedConfig()
+        {
+            TextAsset cfgAsset = Resources.Load<TextAsset>(ResourceConfigName);
+            if (cfgAsset == null || string.IsNullOrWhiteSpace(cfgAsset.text)) return;
+
+            try
+            {
+                IOCloudEmbeddedConfig cfg = JsonUtility.FromJson<IOCloudEmbeddedConfig>(cfgAsset.text);
+                if (cfg != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(cfg.publicCloudUrl))
+                    {
+                        PublicCloudFallbackUrl = NormalizeUrl(cfg.publicCloudUrl);
+                    }
+                    if (!string.IsNullOrWhiteSpace(cfg.localDockerUrl))
+                    {
+                        _localDockerUrl = NormalizeUrl(cfg.localDockerUrl);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[IO Cloud] Could not parse Resources/{ResourceConfigName}.json: {ex.Message}");
+            }
+        }
+
+        private static string NormalizeUrl(string raw)
+        {
+            return string.IsNullOrWhiteSpace(raw) ? "" : raw.Trim().TrimEnd('/');
         }
 
         private void Start()
@@ -82,8 +135,10 @@ namespace LlamAcademy.Dinos.Cloud
         /// </summary>
         public void SetCloudBaseUrl(string newUrl, bool reconnectImmediately = true)
         {
-            if (string.IsNullOrWhiteSpace(newUrl)) return;
-            CloudBaseUrl = newUrl.Trim().TrimEnd('/');
+            string normalized = NormalizeUrl(newUrl);
+            if (string.IsNullOrEmpty(normalized)) return;
+
+            CloudBaseUrl = normalized;
             _editableUrl = CloudBaseUrl;
             PlayerPrefs.SetString(PrefCloudUrlKey, CloudBaseUrl);
             PlayerPrefs.Save();
@@ -94,16 +149,50 @@ namespace LlamAcademy.Dinos.Cloud
             }
         }
 
+        public void ResetToDefaultUrl(bool reconnectImmediately = true)
+        {
+            PlayerPrefs.DeleteKey(PrefCloudUrlKey);
+            PlayerPrefs.Save();
+            LoadEmbeddedConfig();
+
+            CloudBaseUrl = !string.IsNullOrWhiteSpace(PublicCloudFallbackUrl)
+                ? PublicCloudFallbackUrl
+                : _localDockerUrl;
+            _editableUrl = CloudBaseUrl;
+
+            if (reconnectImmediately)
+            {
+                StartCoroutine(CheckCloudLiveness());
+            }
+        }
+
         public IEnumerator CheckCloudLiveness()
         {
-            string url = $"{ActiveCloudBaseUrl}/health";
-            using (UnityWebRequest req = UnityWebRequest.Get(url))
+            if (_isConnecting) yield break;
+            _isConnecting = true;
+
+            try
             {
-                req.timeout = Mathf.CeilToInt(TimeoutSeconds);
-                yield return req.SendWebRequest();
+                string primaryUrl = ActiveCloudBaseUrl;
+                bool connected = false;
+                yield return ProbeHealthEndpoint(primaryUrl, ok => connected = ok);
+
+                // If public/custom URL isn't reachable on PC/Editor, fallback seamlessly to local Docker :8000
+                if (!connected && !Mobile.MobileUIHelper.IsMobile &&
+                    !string.Equals(primaryUrl, _localDockerUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    bool localOk = false;
+                    yield return ProbeHealthEndpoint(_localDockerUrl, ok => localOk = ok);
+                    if (localOk)
+                    {
+                        CloudBaseUrl = _localDockerUrl;
+                        _editableUrl = _localDockerUrl;
+                        connected = true;
+                    }
+                }
 
                 bool prev = IsCloudConnected;
-                IsCloudConnected = (req.result == UnityWebRequest.Result.Success);
+                IsCloudConnected = connected;
 
                 if (IsCloudConnected != prev)
                 {
@@ -119,9 +208,29 @@ namespace LlamAcademy.Dinos.Cloud
                 }
                 else
                 {
-                    LastSyncMessage = "Offline - dùng AI On-Device dự phòng.";
+                    LastSyncMessage = Mobile.MobileUIHelper.IsMobile && !IsUsingPublicHttpsCloud && ActiveCloudBaseUrl.Contains("localhost")
+                        ? "Đang dùng localhost trên Mobile - hãy nhập IP Wi-Fi PC hoặc Cloud URL."
+                        : "Offline - đang dùng AI On-Device dự phòng.";
                     Debug.LogWarning($"<color=yellow>[IO Cloud]</color> Cloud backend offline ({ActiveCloudBaseUrl}). Seamlessly falling back to onboard AI Director.");
                 }
+            }
+            finally
+            {
+                _isConnecting = false;
+            }
+        }
+
+        private IEnumerator ProbeHealthEndpoint(string baseUrl, Action<bool> resultCallback)
+        {
+            string url = $"{baseUrl}/health";
+            bool isHttps = baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            int timeoutSec = Mathf.CeilToInt(isHttps ? CloudHttpsWakeupTimeout : TimeoutSeconds);
+
+            using (UnityWebRequest req = UnityWebRequest.Get(url))
+            {
+                req.timeout = timeoutSec;
+                yield return req.SendWebRequest();
+                resultCallback?.Invoke(req.result == UnityWebRequest.Result.Success);
             }
         }
 
@@ -192,12 +301,14 @@ namespace LlamAcademy.Dinos.Cloud
             };
         }
 
+        private int ActiveRequestTimeoutSeconds => Mathf.CeilToInt(IsUsingPublicHttpsCloud ? 10.0f : TimeoutSeconds);
+
         private IEnumerator PostTelemetryRoutine(TelemetryPayload payload)
         {
             string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/telemetry";
             string jsonBody = JsonUtility.ToJson(payload);
 
-            using (UnityWebRequest req = CreateJsonPost(url, jsonBody, 3))
+            using (UnityWebRequest req = CreateJsonPost(url, jsonBody, ActiveRequestTimeoutSeconds))
             {
                 yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
@@ -212,7 +323,7 @@ namespace LlamAcademy.Dinos.Cloud
             string url = $"{ActiveCloudBaseUrl}/api/v1/ai/predict-wave";
             string jsonBody = JsonUtility.ToJson(payload);
 
-            using (UnityWebRequest req = CreateJsonPost(url, jsonBody, Mathf.CeilToInt(TimeoutSeconds)))
+            using (UnityWebRequest req = CreateJsonPost(url, jsonBody, ActiveRequestTimeoutSeconds))
             {
                 yield return req.SendWebRequest();
 
@@ -265,7 +376,7 @@ namespace LlamAcademy.Dinos.Cloud
                 selected_mode = string.IsNullOrEmpty(selectedMode) ? "TowerDefense" : selectedMode
             };
 
-            using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), 3))
+            using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), ActiveRequestTimeoutSeconds))
             {
                 yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
@@ -294,7 +405,7 @@ namespace LlamAcademy.Dinos.Cloud
             string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/load/{UnityWebRequest.EscapeURL(SystemInfo.deviceUniqueIdentifier)}";
             using (UnityWebRequest req = UnityWebRequest.Get(url))
             {
-                req.timeout = 3;
+                req.timeout = ActiveRequestTimeoutSeconds;
                 yield return req.SendWebRequest();
 
                 if (req.result == UnityWebRequest.Result.Success)
@@ -333,7 +444,7 @@ namespace LlamAcademy.Dinos.Cloud
                 mode = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.CurrentMode.ToString() : "TowerDefense"
             };
 
-            using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), 3))
+            using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), ActiveRequestTimeoutSeconds))
             {
                 yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
@@ -354,7 +465,7 @@ namespace LlamAcademy.Dinos.Cloud
             string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/leaderboard?limit={limit}";
             using (UnityWebRequest req = UnityWebRequest.Get(url))
             {
-                req.timeout = 3;
+                req.timeout = ActiveRequestTimeoutSeconds;
                 yield return req.SendWebRequest();
 
                 if (req.result == UnityWebRequest.Result.Success)
@@ -374,7 +485,7 @@ namespace LlamAcademy.Dinos.Cloud
             string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/config";
             using (UnityWebRequest req = UnityWebRequest.Get(url))
             {
-                req.timeout = 3;
+                req.timeout = ActiveRequestTimeoutSeconds;
                 yield return req.SendWebRequest();
 
                 if (req.result == UnityWebRequest.Result.Success)
@@ -412,6 +523,11 @@ namespace LlamAcademy.Dinos.Cloud
         {
             if (!ShowCloudBadge) return;
 
+            bool isSubModalOpen = (UI.PrehistoricSettingsMenu.Instance != null && UI.PrehistoricSettingsMenu.Instance.IsOpen)
+                || (UI.PrehistoricSaveLoadDialog.Instance != null && UI.PrehistoricSaveLoadDialog.Instance.IsOpen)
+                || (UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen);
+            if (isSubModalOpen) return;
+
             Mobile.MobileUIHelper.BeginScaling();
             try
             {
@@ -425,13 +541,18 @@ namespace LlamAcademy.Dinos.Cloud
 
         private void DrawCloudOverlayHUD()
         {
-            bool arBannerVisible = AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
+            bool isMainMenuOpen = UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen;
+            if (isMainMenuOpen)
+            {
+                GUI.depth = -1300;
+            }
+            bool arBannerVisible = !isMainMenuOpen && AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
 
-            float width = _isPanelExpanded ? 430f : 380f;
+            float width = _isPanelExpanded ? 445f : 390f;
             float baseHeight = (!string.IsNullOrEmpty(LastTacticalRationale) && !LastTacticalRationale.Contains("standby")) ? 62f : 44f;
-            float height = _isPanelExpanded ? (baseHeight + 235f) : baseHeight;
-            float x = (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
-            float y = arBannerVisible ? 96f : 10f;
+            float height = _isPanelExpanded ? (baseHeight + 250f) : baseHeight;
+            float x = isMainMenuOpen ? 16f : (Mobile.MobileUIHelper.ScreenWidth - width) / 2f;
+            float y = isMainMenuOpen ? 14f : (arBannerVisible ? 96f : 10f);
 
             Rect panelRect = new Rect(x, y, width, height);
             Mobile.MobileUIHelper.RegisterUIRect(panelRect);
@@ -443,15 +564,20 @@ namespace LlamAcademy.Dinos.Cloud
             GUILayout.BeginArea(new Rect(x + 8f, y + 4f, width - 16f, height - 8f));
             GUILayout.BeginHorizontal();
 
-            string statusColor = IsCloudConnected ? "#00FFAA" : "#FFB84D";
-            string statusText = IsCloudConnected ? "ONLINE" : "STANDBY (Local AI)";
+            string statusColor = IsCloudConnected ? "#00FFAA" : (_isConnecting ? "#38BDF8" : "#FFB84D");
+            string endpointMode = IsUsingPublicHttpsCloud ? "Cloud HTTPS" : "Docker/LAN";
+            string statusText = _isConnecting
+                ? "CONNECTING..."
+                : (IsCloudConnected ? $"ONLINE ({endpointMode})" : "STANDBY (Local AI)");
             GUILayout.Label($"<b>☁ IO CLOUD:</b> <color={statusColor}>{statusText}</color>", GetCloudStatusStyle());
 
             GUILayout.FlexibleSpace();
+            GUI.enabled = !_isConnecting;
             if (GUILayout.Button(IsCloudConnected ? "Ping ✓" : "Connect", GUILayout.Width(62), GUILayout.Height(18)))
             {
                 StartCoroutine(CheckCloudLiveness());
             }
+            GUI.enabled = true;
             if (GUILayout.Button(_isPanelExpanded ? "▴ Ẩn" : "▾ Chi tiết", GUILayout.Width(68), GUILayout.Height(18)))
             {
                 _isPanelExpanded = !_isPanelExpanded;
@@ -481,6 +607,10 @@ namespace LlamAcademy.Dinos.Cloud
                 if (GUILayout.Button("Lưu", GUILayout.Width(42), GUILayout.Height(20)))
                 {
                     SetCloudBaseUrl(_editableUrl, true);
+                }
+                if (GUILayout.Button("Mặc định", GUILayout.Width(62), GUILayout.Height(20)))
+                {
+                    ResetToDefaultUrl(true);
                 }
                 GUILayout.EndHorizontal();
 
@@ -576,6 +706,13 @@ namespace LlamAcademy.Dinos.Cloud
             }
             return _cloudRationaleStyle;
         }
+    }
+
+    [Serializable]
+    public class IOCloudEmbeddedConfig
+    {
+        public string publicCloudUrl = "";
+        public string localDockerUrl = "http://localhost:8000";
     }
 
     [Serializable]
