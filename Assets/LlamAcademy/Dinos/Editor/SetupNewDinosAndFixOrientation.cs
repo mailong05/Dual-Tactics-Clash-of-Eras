@@ -14,7 +14,7 @@ namespace LlamAcademy.Dinos.Editor
 
         static SetupNewDinosAndFixOrientation()
         {
-            EditorApplication.delayCall += ExecuteSetup;
+            // Setup already applied to saved prefabs; invoke via MenuItem when needed to avoid EditMode prefab/glTFast churn on every domain reload.
         }
 
         [MenuItem("Tools/Prehistoric TD/Setup New Dinos & Orientation Fix")]

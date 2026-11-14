@@ -1,12 +1,16 @@
 """
 IO Cloud & Deep Learning AI Backend Server
 Adaptive Prehistoric Tower Defense 3D
+Supports persistent SQLite storage in backend/data/io_cloud.db across container restarts.
 """
 
+import json
+import os
+import sqlite3
 import time
 import uuid
-from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, status
+from typing import Dict, Any, List
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -15,7 +19,7 @@ from model import ai_director
 app = FastAPI(
     title="Dual Tactics: Clash of Eras - IO Cloud & AI Director Service",
     description="Containerized Deep Learning & IO Cloud telemetry backend for Adaptive Prehistoric Tower Defense 3D",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 # Enable CORS for Unity clients (Editor, WebGL, Android, Windows)
@@ -27,15 +31,80 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory Cloud Database (Persists during container lifecycle)
-CLOUD_SAVES: Dict[str, Dict[str, Any]] = {}
-TELEMETRY_LOGS: List[Dict[str, Any]] = []
-LEADERBOARD: List[Dict[str, Any]] = [
-    {"player_id": "player_chief_jurassic", "player_name": "T-Rex Hunter", "score": 14500, "wave_reached": 18, "mode": "TowerDefense"},
-    {"player_id": "player_stone_strategist", "player_name": "Caveman Prime", "score": 12800, "wave_reached": 15, "mode": "TowerDefense"},
-    {"player_id": "player_dino_overlord", "player_name": "Raptor Queen", "score": 11200, "wave_reached": 14, "mode": "DinoAssault"},
-    {"player_id": "player_totem_master", "player_name": "Shaman Thunder", "score": 9850, "wave_reached": 12, "mode": "TowerDefense"}
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "io_cloud.db")
+
+SEED_LEADERBOARD = [
+    ("player_chief_jurassic", "T-Rex Hunter", 14500, 18, "TowerDefense", 1700000001.0),
+    ("player_stone_strategist", "Caveman Prime", 12800, 15, "TowerDefense", 1700000002.0),
+    ("player_dino_overlord", "Raptor Queen", 11200, 14, "DinoAssault", 1700000003.0),
+    ("player_totem_master", "Shaman Thunder", 9850, 12, "TowerDefense", 1700000004.0),
 ]
+
+
+def _get_db_path() -> str:
+    return os.environ.get("CLOUD_DB_PATH", DEFAULT_DB_PATH)
+
+
+def _get_conn() -> sqlite3.Connection:
+    db_path = _get_db_path()
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    """Initializes persistent SQLite tables and seeds default leaderboard if empty."""
+    with _get_conn() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cloud_saves (
+                player_id TEXT PRIMARY KEY,
+                payload_json TEXT NOT NULL,
+                last_saved REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS telemetry_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                player_id TEXT NOT NULL,
+                round_num INTEGER NOT NULL,
+                game_mode TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                logged_at REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS leaderboard (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id TEXT NOT NULL,
+                player_name TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                wave_reached INTEGER NOT NULL,
+                mode TEXT NOT NULL,
+                submitted_at REAL NOT NULL
+            )
+            """
+        )
+        count = conn.execute("SELECT COUNT(*) FROM leaderboard").fetchone()[0]
+        if count == 0:
+            conn.executemany(
+                """
+                INSERT INTO leaderboard (player_id, player_name, score, wave_reached, mode, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                SEED_LEADERBOARD,
+            )
+        conn.commit()
+
+
+init_db()
+
 
 # Pydantic Schemas
 class GameTelemetry(BaseModel):
@@ -82,6 +151,7 @@ def root():
         "game": "Dual Tactics: Clash of Eras",
         "status": "online",
         "docker_container": True,
+        "persistence": "sqlite",
         "docs_url": "/docs"
     }
 
@@ -89,12 +159,14 @@ def root():
 @app.get("/health")
 def health_check():
     """Liveness probe for Docker container and IO Cloud monitoring"""
+    init_db()
     return {
         "status": "healthy",
         "timestamp": time.time(),
         "model_loaded": True,
         "checkpoint_loaded": getattr(ai_director, "checkpoint_loaded", False),
-        "device": ai_director.device
+        "device": ai_director.device,
+        "storage": "sqlite"
     }
 
 
@@ -113,39 +185,90 @@ def predict_adaptive_wave(telemetry: GameTelemetry):
 
 @app.post("/api/v1/cloud/telemetry")
 def record_telemetry(telemetry: GameTelemetry):
-    """Ingests battle telemetry into IO Cloud analytics pipeline"""
+    """Ingests battle telemetry into persistent IO Cloud SQLite analytics pipeline"""
+    init_db()
     entry = telemetry.model_dump()
-    entry["logged_at"] = time.time()
-    entry["event_id"] = str(uuid.uuid4())
-    TELEMETRY_LOGS.append(entry)
+    logged_at = time.time()
+    event_id = str(uuid.uuid4())
+    entry["logged_at"] = logged_at
+    entry["event_id"] = event_id
 
-    # Keep memory bounded
-    if len(TELEMETRY_LOGS) > 1000:
-        TELEMETRY_LOGS.pop(0)
+    with _get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO telemetry_logs (event_id, player_id, round_num, game_mode, payload_json, logged_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (event_id, entry["player_id"], entry["round"], entry["game_mode"], json.dumps(entry), logged_at),
+        )
+        # Keep bounded at most 2000 rows in persistent DB
+        conn.execute(
+            """
+            DELETE FROM telemetry_logs
+            WHERE id NOT IN (SELECT id FROM telemetry_logs ORDER BY id DESC LIMIT 2000)
+            """
+        )
+        total_records = conn.execute("SELECT COUNT(*) FROM telemetry_logs").fetchone()[0]
+        conn.commit()
 
     return {
         "status": "logged",
-        "event_id": entry["event_id"],
-        "total_records": len(TELEMETRY_LOGS)
+        "event_id": event_id,
+        "total_records": total_records
     }
+
+
+@app.get("/api/v1/cloud/telemetry/summary")
+def get_telemetry_summary(limit: int = 20):
+    """Returns persisted battle telemetry logs and summary count for demonstration & debugging"""
+    init_db()
+    with _get_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM telemetry_logs").fetchone()[0]
+        rows = conn.execute(
+            "SELECT payload_json FROM telemetry_logs ORDER BY id DESC LIMIT ?",
+            (max(1, min(limit, 100)),),
+        ).fetchall()
+    recent = [json.loads(r["payload_json"]) for r in rows]
+    return {"total_records": total, "recent_logs": recent}
 
 
 @app.post("/api/v1/cloud/save")
 def save_player_state(payload: CloudSavePayload):
-    """Saves player game progress to IO Cloud"""
+    """Saves player game progress persistently to IO Cloud SQLite"""
+    init_db()
     data = payload.model_dump()
-    data["last_saved"] = time.time()
-    CLOUD_SAVES[payload.player_id] = data
-    return {"status": "saved", "player_id": payload.player_id, "timestamp": data["last_saved"]}
+    last_saved = time.time()
+    data["last_saved"] = last_saved
+
+    with _get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO cloud_saves (player_id, payload_json, last_saved)
+            VALUES (?, ?, ?)
+            ON CONFLICT(player_id) DO UPDATE SET
+                payload_json = excluded.payload_json,
+                last_saved = excluded.last_saved
+            """,
+            (payload.player_id, json.dumps(data), last_saved),
+        )
+        conn.commit()
+
+    return {"status": "saved", "player_id": payload.player_id, "timestamp": last_saved}
 
 
 @app.get("/api/v1/cloud/load/{player_id}")
 def load_player_state(player_id: str):
-    """Loads player game progress from IO Cloud"""
-    if player_id in CLOUD_SAVES:
-        return CLOUD_SAVES[player_id]
+    """Loads player game progress from persistent IO Cloud SQLite"""
+    init_db()
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT payload_json FROM cloud_saves WHERE player_id = ?",
+            (player_id,),
+        ).fetchone()
 
-    # Return default initialized save
+    if row is not None:
+        return json.loads(row["payload_json"])
+
     default_save = CloudSavePayload(player_id=player_id).model_dump()
     default_save["last_saved"] = time.time()
     return default_save
@@ -153,19 +276,56 @@ def load_player_state(player_id: str):
 
 @app.get("/api/v1/cloud/leaderboard")
 def get_leaderboard(limit: int = 10):
-    """Returns top scores across all modes"""
-    sorted_board = sorted(LEADERBOARD, key=lambda x: x["score"], reverse=True)
-    return {"leaderboard": sorted_board[:limit], "count": len(sorted_board)}
+    """Returns top scores across all modes from persistent SQLite"""
+    init_db()
+    with _get_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM leaderboard").fetchone()[0]
+        rows = conn.execute(
+            """
+            SELECT player_id, player_name, score, wave_reached, mode, submitted_at
+            FROM leaderboard
+            ORDER BY score DESC, id DESC
+            LIMIT ?
+            """,
+            (max(1, min(limit, 100)),),
+        ).fetchall()
+
+    board = [dict(r) for r in rows]
+    return {"leaderboard": board, "count": total}
 
 
 @app.post("/api/v1/cloud/leaderboard/submit")
 def submit_score(submission: ScoreSubmission):
-    """Submits a new highscore to global cloud leaderboard"""
-    entry = submission.model_dump()
-    entry["submitted_at"] = time.time()
-    LEADERBOARD.append(entry)
-    LEADERBOARD.sort(key=lambda x: x["score"], reverse=True)
-    return {"status": "recorded", "rank": LEADERBOARD.index(entry) + 1}
+    """Submits a new highscore to persistent global cloud leaderboard"""
+    init_db()
+    submitted_at = time.time()
+    with _get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO leaderboard (player_id, player_name, score, wave_reached, mode, submitted_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                submission.player_id,
+                submission.player_name,
+                submission.score,
+                submission.wave_reached,
+                submission.mode,
+                submitted_at,
+            ),
+        )
+        row_id = cur.lastrowid
+        # Compute 1-based rank matching ORDER BY score DESC, id DESC
+        rank = conn.execute(
+            """
+            SELECT COUNT(*) + 1 FROM leaderboard
+            WHERE score > ? OR (score = ? AND id > ?)
+            """,
+            (submission.score, submission.score, row_id),
+        ).fetchone()[0]
+        conn.commit()
+
+    return {"status": "recorded", "rank": rank}
 
 
 @app.get("/api/v1/cloud/config")

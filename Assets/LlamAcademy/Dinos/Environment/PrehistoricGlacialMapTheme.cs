@@ -654,8 +654,12 @@ namespace LlamAcademy.Dinos.Environment
             if (!IsThemeActive) return;
 
             bool isMenuOpen = UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen;
-            if (!isMenuOpen)
+            bool cloudExpanded = Cloud.IOCloudManager.Instance != null && Cloud.IOCloudManager.Instance.IsPanelExpanded;
+            if (!isMenuOpen && !cloudExpanded)
             {
+                Mobile.MobileUIHelper.BeginScaling();
+                try
+                {
                 Color prevBg = GUI.backgroundColor;
                 Color prevColor = GUI.color;
 
@@ -666,8 +670,8 @@ namespace LlamAcademy.Dinos.Environment
                     GUI.color = new Color(1f, 1f, 1f, alpha);
                     float bannerW = 620f;
                     float bannerH = 75f;
-                    float bannerX = (Screen.width - bannerW) / 2f;
-                    float bannerY = 60f;
+                    float bannerX = (Mobile.MobileUIHelper.ScreenWidth - bannerW) / 2f;
+                    float bannerY = 82f;
 
                     Rect bannerRect = new Rect(bannerX, bannerY, bannerW, bannerH);
                     GUI.backgroundColor = new Color(0.08f, 0.22f, 0.38f, 0.92f * alpha);
@@ -698,8 +702,9 @@ namespace LlamAcademy.Dinos.Environment
                     // 2. Huy hiệu Bản đồ cố định hiển thị ở dưới thanh IO CLOUD (Y = 56)
                     float badgeW = 210f;
                     float badgeH = 24f;
-                    float badgeX = (Screen.width - badgeW) / 2f;
-                    float badgeY = 56f;
+                    float badgeX = (Mobile.MobileUIHelper.ScreenWidth - badgeW) / 2f;
+                    bool arActive = AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
+                    float badgeY = arActive ? 172f : 78f;
 
                     GUI.backgroundColor = new Color(0.10f, 0.25f, 0.42f, 0.90f);
                     GUI.Box(new Rect(badgeX, badgeY, badgeW, badgeH), GUIContent.none);
@@ -717,6 +722,11 @@ namespace LlamAcademy.Dinos.Environment
 
                 GUI.backgroundColor = prevBg;
                 GUI.color = prevColor;
+                }
+                finally
+                {
+                    Mobile.MobileUIHelper.EndScaling();
+                }
             }
         }
     }

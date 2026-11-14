@@ -1,0 +1,4 @@
+{
+    "publicCloudUrl": "https://io-cloud-ai-backend-production.up.railway.app",
+    "localDockerUrl": "http://localhost:8000"
+}

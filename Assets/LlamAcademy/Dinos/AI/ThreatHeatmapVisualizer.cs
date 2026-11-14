@@ -423,12 +423,12 @@ namespace LlamAcademy.Dinos.AI
                 GUI.Box(legendRect, "");
 
                 GUILayout.BeginArea(new Rect(posX + 8, posY + 6, w - 16, h - 12));
-                GUILayout.Label("<color=cyan><b>🗺️ CHÚ GIẢI BẢN ĐỒ THREAT $A^*$</b></color>", GetHeaderStyle());
+                GUILayout.Label("<color=cyan><b>🗺️ CHÚ GIẢI BẢN ĐỒ THREAT A*</b></color>", GetHeaderStyle());
                 GUILayout.Label("🟩 <b>Xanh lá</b>: Vùng mù hỏa lực / Hành lang an toàn", GetItemStyle());
                 GUILayout.Label("🟨 <b>Vàng</b>: Vùng sát thương trung bình", GetItemStyle());
                 GUILayout.Label("🟥 <b>Đỏ</b>: Tử địa tập trung hỏa lực tháp", GetItemStyle());
-                GUILayout.Label("<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker $A^*$)", GetItemStyle());
-                GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker $A^*$)", GetItemStyle());
+                GUILayout.Label("<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)", GetItemStyle());
+                GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker A*)", GetItemStyle());
                 GUILayout.EndArea();
             }
             finally

@@ -694,6 +694,7 @@ namespace LlamAcademy.Dinos.Save
 
             SaveDataToDisk();
             SaveToSlot(PrehistoricGameMode.TowerDefense, 0, isAutoSave: true);
+            AutoSyncToCloudIfOnline();
             Debug.Log($"<color=green>[SaveSystem]</color> Auto-Saved Defense Run: Wave {CurrentData.DefenseProfile.CurrentWave}, Gold {CurrentData.DefenseProfile.Gold}g, Active: {hasActiveRun}");
         }
 
@@ -732,6 +733,7 @@ namespace LlamAcademy.Dinos.Save
 
             SaveDataToDisk();
             SaveToSlot(PrehistoricGameMode.DinoAssault, 0, isAutoSave: true);
+            AutoSyncToCloudIfOnline();
             Debug.Log($"<color=green>[SaveSystem]</color> Auto-Saved Assault Run: Level {CurrentData.AssaultProfile.AssaultLevel}, Meat {CurrentData.AssaultProfile.Meat}, Active: {hasActiveRun}");
         }
 
@@ -812,10 +814,79 @@ namespace LlamAcademy.Dinos.Save
             OnGameSaved?.Invoke(CurrentData);
         }
 
+        private float _lastAutoCloudSyncTime = -99f;
+        private bool _cloudHooksBound = false;
+
+        private void Start()
+        {
+            BindCloudHooks();
+        }
+
+        private void BindCloudHooks()
+        {
+            if (_cloudHooksBound || IOCloudManager.Instance == null) return;
+            IOCloudManager.Instance.OnCloudSaveLoaded += HandleCloudSaveLoaded;
+            IOCloudManager.Instance.OnCollectSaveSnapshot = CollectCloudSnapshot;
+            _cloudHooksBound = true;
+        }
+
+        private (string playerName, int coins, int highestWave, string mode) CollectCloudSnapshot()
+        {
+            EnsureProfilesInitialized();
+            bool isAssault = CurrentData.LastPlayedMode == PrehistoricGameMode.DinoAssault;
+            int waveOrLvl = isAssault ? CurrentData.AssaultProfile.HighestLevelReached : CurrentData.DefenseProfile.HighestWaveReached;
+            int res = isAssault ? CurrentData.AssaultProfile.Meat : CurrentData.DefenseProfile.Gold;
+            return (CurrentData.PlayerChiefName, res, waveOrLvl, CurrentData.LastPlayedMode.ToString());
+        }
+
+        private void HandleCloudSaveLoaded(CloudSaveResponse loaded)
+        {
+            if (loaded == null) return;
+            EnsureProfilesInitialized();
+
+            if (!string.IsNullOrWhiteSpace(loaded.player_name))
+            {
+                CurrentData.PlayerChiefName = loaded.player_name;
+            }
+
+            if (loaded.selected_mode == PrehistoricGameMode.DinoAssault.ToString())
+            {
+                CurrentData.AssaultProfile.HighestLevelReached = Mathf.Max(CurrentData.AssaultProfile.HighestLevelReached, loaded.highest_wave);
+                CurrentData.AssaultProfile.Meat = Mathf.Max(CurrentData.AssaultProfile.Meat, loaded.coins);
+            }
+            else
+            {
+                CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, loaded.highest_wave);
+                CurrentData.DefenseProfile.Gold = Mathf.Max(CurrentData.DefenseProfile.Gold, loaded.coins);
+            }
+
+            SaveDataToDisk();
+            Debug.Log($"<color=cyan>[IO Cloud]</color> Applied loaded Cloud Save for {CurrentData.PlayerChiefName} (Wave {loaded.highest_wave}, Coins {loaded.coins}).");
+        }
+
+        private void AutoSyncToCloudIfOnline()
+        {
+            BindCloudHooks();
+            if (s_isApplicationQuitting) return;
+            if (Time.unscaledTime - _lastAutoCloudSyncTime < 2.0f) return;
+
+            if (IOCloudManager.Instance != null && IOCloudManager.Instance.IsCloudConnected)
+            {
+                _lastAutoCloudSyncTime = Time.unscaledTime;
+                var snap = CollectCloudSnapshot();
+                IOCloudManager.Instance.SaveProgressToCloud(snap.playerName, snap.coins, snap.highestWave, snap.mode);
+                if (CurrentData.TotalScore > 0)
+                {
+                    IOCloudManager.Instance.SubmitScoreToCloud(snap.playerName, CurrentData.TotalScore, snap.highestWave);
+                }
+            }
+        }
+
         public void SyncToCloud(Action<bool, string> onComplete)
         {
             if (IOCloudManager.Instance != null && IOCloudManager.Instance.IsCloudConnected)
             {
+                IOCloudManager.Instance.SaveProgressToCloud(CurrentData.PlayerChiefName, CurrentData.Gold, CurrentData.HighestWaveReached, CurrentData.LastPlayedMode.ToString());
                 IOCloudManager.Instance.SubmitScoreToCloud(CurrentData.PlayerChiefName, CurrentData.TotalScore, CurrentData.HighestWaveReached);
                 onComplete?.Invoke(true, $"Đã đồng bộ thành công hồ sơ [{CurrentData.PlayerChiefName}] ({CurrentData.TotalScore} điểm) lên IO Cloud!");
             }

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: dual-tactics-io-cloud
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: MODEL_DEVICE
+        value: cpu
+      - key: CLOUD_DB_PATH
+        value: /app/data/io_cloud.db

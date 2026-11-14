@@ -19,5 +19,7 @@ EditorBuildSettings:
     guid: 38755a1399936fd4c9720cfd8477e3d6
   m_configObjects:
     AI Tree Settings Object: {fileID: 11400000, guid: b2f5ca8448dcab74a8c1a70437bc210c, type: 2}
+    UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: 77de9e9f42816544aa043ff9c85ce295, type: 2}
     com.unity.dt.app-ui: {fileID: 11400000, guid: 99f9c9493070a9d4c979a8fec7c5a8d3, type: 2}
     com.unity.input.settings: {fileID: 11400000, guid: 9e7be553448fa2546aea5752021cbcf7, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: a72224326ef2f6942ae3eb1c3132a47b, type: 2}
