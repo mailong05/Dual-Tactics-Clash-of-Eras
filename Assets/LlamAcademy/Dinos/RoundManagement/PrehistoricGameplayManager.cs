@@ -1988,6 +1988,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetPhase(PrehistoricWavePhase.GameOver);
             StopAllCoroutines();
             Audio.PrehistoricAudioManager.Instance?.PlayGameOver();
+
+            // Khôi phục 100% máu nhà chính để khi người chơi chơi lại hoặc tiếp tục sẽ luôn bắt đầu nguyên vẹn
+            _CurrentBaseHealth = _MaxBaseHealth;
+            if (Unit.PrehistoricVillageBase.Instance != null)
+            {
+                Unit.PrehistoricVillageBase.Instance.RestoreBase(_MaxBaseHealth);
+            }
+            OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
+
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: false);
 
             // Mở khóa con trỏ chuột để người chơi tương tác với menu
@@ -2898,7 +2907,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             PrehistoricDinoBase.ClearClipsCache();
 
             _CurrentWave = Mathf.Clamp(targetWave, 1, _MaxWaves);
-            _CurrentBaseHealth = savedHp > 0 ? savedHp : _MaxBaseHealth;
+            _CurrentBaseHealth = _MaxBaseHealth;
+            if (Unit.PrehistoricVillageBase.Instance != null)
+            {
+                Unit.PrehistoricVillageBase.Instance.RestoreBase(_MaxBaseHealth);
+            }
+            OnBaseHealthChanged?.Invoke(_CurrentBaseHealth, _MaxBaseHealth);
 
             if (RoundManager.Instance != null)
             {
@@ -2929,7 +2943,6 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             int targetWave = 1;
             int savedGold = StartingGold;
-            int savedHp = _MaxBaseHealth;
 
             if (Save.PrehistoricSaveManager.Instance != null)
             {
@@ -2939,11 +2952,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 {
                     targetWave = Mathf.Clamp(prof.CurrentWave, 1, _MaxWaves);
                     if (prof.Gold > 0) savedGold = prof.Gold;
-                    if (prof.BaseHealth > 0) savedHp = prof.BaseHealth;
                 }
             }
 
-            LoadDefenseWave(targetWave, savedGold, savedHp);
+            LoadDefenseWave(targetWave, savedGold, _MaxBaseHealth);
         }
 
         public void StartNewGameFromMenu()

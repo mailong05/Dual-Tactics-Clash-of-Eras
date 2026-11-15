@@ -46,6 +46,7 @@ namespace LlamAcademy.Dinos.AR
         private Material _OriginalSkybox;
         private CameraClearFlags _OriginalCameraClearFlags = CameraClearFlags.Skybox;
         private Color _OriginalCameraBackgroundColor = Color.black;
+        private float _originalShadowDistance = 50f;
 #if AR_FOUNDATION_ENABLED
         private Transform _OriginalCameraParent;
         private Vector3 _OriginalCameraLocalPos;
@@ -461,6 +462,9 @@ namespace LlamAcademy.Dinos.AR
         {
             Debug.Log("<color=cyan>[AR System]</color> Tabletop AR Mode Activated. Checking ARCore / Camera Pass-Through...");
 
+            _originalShadowDistance = QualitySettings.shadowDistance;
+            QualitySettings.shadowDistance = Mathf.Max(120f, _originalShadowDistance);
+
             SetupCameraForAR();
             ARDioramaFrame.Instance.SetARMode(true);
 
@@ -471,6 +475,11 @@ namespace LlamAcademy.Dinos.AR
         private void DeactivateARTabletop()
         {
             Debug.Log("<color=cyan>[AR System]</color> Restoring Standard 3D Tactical Battlefield...");
+
+            if (_originalShadowDistance > 0f)
+            {
+                QualitySettings.shadowDistance = _originalShadowDistance;
+            }
 
             if (CameraInitRoutine != null)
             {

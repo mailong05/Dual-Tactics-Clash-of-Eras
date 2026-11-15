@@ -2,9 +2,9 @@ Shader "Prehistoric/ARShadowMatte"
 {
     Properties
     {
-        _ShadowColor ("Shadow Color", Color) = (0.28, 0.28, 0.28, 1.0)
-        _MaxRadius ("Max Shadow Radius", Float) = 46.0
-        _FadeDistance ("Fade Distance", Float) = 8.0
+        _ShadowColor ("Shadow Color", Color) = (0.25, 0.25, 0.25, 1.0)
+        _MaxRadius ("Max Shadow Radius", Float) = 85.0
+        _FadeDistance ("Fade Distance", Float) = 12.0
     }
     SubShader
     {
@@ -22,12 +22,14 @@ Shader "Prehistoric/ARShadowMatte"
             Blend DstColor Zero
             ZWrite Off
             ZTest LEqual
-            Cull Back
+            Cull Off
 
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _SHADOWS_SOFT
+            #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"

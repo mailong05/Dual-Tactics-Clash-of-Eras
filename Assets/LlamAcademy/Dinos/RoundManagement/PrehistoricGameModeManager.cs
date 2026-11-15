@@ -960,6 +960,14 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.DinoAssault);
             }
 
+            // Chuẩn bị thông số máu 100% nguyên vẹn cho màn tiếp theo
+            int nextLevelBaseHp = 1000 + AssaultLevel * 350;
+            if (Save.PrehistoricSaveManager.Instance != null && Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile != null)
+            {
+                Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.BaseHealth = nextLevelBaseHp;
+                Save.PrehistoricSaveManager.Instance.CurrentData.AssaultProfile.MaxBaseHealth = nextLevelBaseHp;
+            }
+
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
         }
 
@@ -971,6 +979,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             Cursor.visible = true;
             Audio.PrehistoricAudioManager.Instance?.PlayGameOver();
             Debug.Log($"<color=red>[Assault Defeat]</color> Toàn bộ khủng long đã tử trận màn {AssaultLevel}!");
+
+            // Khi thua trận, lập tức hồi phục lại Căn Cứ Làng 100% đầy đủ cho lần thử lại kế tiếp
+            int fullBaseHp = 1000 + (AssaultLevel - 1) * 350;
+            if (VillageBase != null)
+            {
+                VillageBase.RestoreBase(fullBaseHp);
+            }
+
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
         }
 
         private struct DefenseSpawnSpec
@@ -1256,13 +1273,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.DinoAssault);
             }
-            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             // Dọn dẹp sạch toàn bộ khủng long đợt trước khi qua màn mới
             ClearAllDinos();
 
-            // Khôi phục và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
+            // Khôi phục 100% Căn Cứ Làng và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
             SetupVillageDefensesForLevel(AssaultLevel);
+            int fullBaseHp = 1000 + (AssaultLevel - 1) * 350;
+            if (VillageBase != null)
+            {
+                VillageBase.RestoreBase(fullBaseHp);
+            }
+
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             // Cung cấp đúng lượng thịt cố định của màn mới
             int nextMeat = GetFixedMeatForLevel(AssaultLevel);
@@ -1391,9 +1414,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 spawner.ResourcesToSpend = targetMeat;
             }
 
-            if (Unit.PrehistoricVillageBase.Instance != null && savedHp > 0)
+            // Luôn đảm bảo Căn Cứ Làng khi bắt đầu màn mới hoặc nạp màn chơi được hồi phục 100% đầy đủ theo cấp màn
+            int fullBaseHp = 1000 + (AssaultLevel - 1) * 350;
+            if (Unit.PrehistoricVillageBase.Instance != null)
             {
-                Unit.PrehistoricVillageBase.Instance.Health = savedHp;
+                Unit.PrehistoricVillageBase.Instance.RestoreBase(fullBaseHp);
             }
 
             AssaultPhase = PrehistoricAssaultPhase.Setup;
@@ -1408,7 +1433,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
-            Debug.Log($"<color=cyan>[Assault]</color> Đã tải chiến dịch Công Thành: Màn {AssaultLevel} ({savedMeat} Thịt)!");
+            Debug.Log($"<color=cyan>[Assault]</color> Đã tải chiến dịch Công Thành: Màn {AssaultLevel} ({savedMeat} Thịt, Căn cứ {fullBaseHp} HP đầy đủ)!");
         }
 
         public void ContinueAssaultFromMenu()
@@ -1427,7 +1452,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            LoadAssaultLevel(targetLevel, savedMeat, 1000);
+            int fullHp = 1000 + (targetLevel - 1) * 350;
+            LoadAssaultLevel(targetLevel, savedMeat, fullHp);
         }
 
         public void RestartAssaultFromLevel1()

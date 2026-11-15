@@ -26,7 +26,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-      - _MaxRadius: 46
-      - _FadeDistance: 8
+      - _MaxRadius: 85
+      - _FadeDistance: 12
     m_Colors:
-      - _ShadowColor: {r: 0.28, g: 0.28, b: 0.28, a: 1}
+      - _ShadowColor: {r: 0.25, g: 0.25, b: 0.25, a: 1}
