@@ -25,6 +25,10 @@ namespace LlamAcademy.Dinos.UI
     {
         public static PrehistoricMainMenu Instance { get; private set; }
 
+        public static bool IsAnyMenuOrAuthOpen =>
+            (Instance != null && Instance.IsOpen) ||
+            (PrehistoricAuthDialog.Instance != null && PrehistoricAuthDialog.Instance.IsOpen);
+
         [Header("Menu State")]
         public bool IsOpen = true;
         public bool Use2DBackground = true;
@@ -60,6 +64,12 @@ namespace LlamAcademy.Dinos.UI
             if (IsOpen && PrehistoricAudioManager.Instance != null)
             {
                 PrehistoricAudioManager.Instance.PlayOpeningBgm();
+            }
+
+            // Kiểm tra tải game lần đầu: nếu chưa từng đăng nhập trên máy này thì mở giao diện Đăng Nhập / Đăng Ký chuyên dụng
+            if (LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.NeedsFirstRunLoginPrompt)
+            {
+                PrehistoricAuthDialog.EnsureInstance().OpenDialog(AuthMode.Login);
             }
         }
 
@@ -157,9 +167,11 @@ namespace LlamAcademy.Dinos.UI
         {
             if (!IsOpen) return;
 
-            // Kiểm tra xem có Modal phụ nào (Cài đặt hoặc Lưu/Tải game) đang mở đè lên không
+            // Kiểm tra xem có Modal phụ nào (Cài đặt, Lưu/Tải game, hoặc Đăng nhập/Cloud) đang mở đè lên không
             bool isSubModalOpen = (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
-                || (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen);
+                || (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen)
+                || (PrehistoricAuthDialog.Instance != null && PrehistoricAuthDialog.Instance.IsOpen)
+                || (PrehistoricCloudAccountDialog.Instance != null && PrehistoricCloudAccountDialog.Instance.IsOpen);
 
             MobileUIHelper.BeginScaling();
             try
@@ -539,6 +551,22 @@ namespace LlamAcademy.Dinos.UI
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     PrehistoricSaveLoadDialog.EnsureInstance().OpenLoadDialog(isDefense ? PrehistoricGameMode.TowerDefense : PrehistoricGameMode.DinoAssault);
+                }
+
+                GUILayout.Space(6f * scale);
+
+                // ------------------------------------------
+                // Nút 4: TÀI KHOẢN CLOUD & WEB DASHBOARD
+                // ------------------------------------------
+                GUI.backgroundColor = new Color(0.12f, 0.70f, 0.85f, 0.98f);
+                string cloudLabel = LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.IsLoggedIn
+                    ? $"<b><size={Mathf.RoundToInt(14 * scale)}>☁️ TÀI KHOẢN: {LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.CurrentDisplayName}</size></b>\n<size={Mathf.RoundToInt(10 * scale)}><color=#E0F2FE>Đồng bộ đám mây & Web Dashboard</color></size>"
+                    : $"<b><size={Mathf.RoundToInt(14 * scale)}>☁️ TÀI KHOẢN CLOUD & ĐỒNG BỘ</size></b>\n<size={Mathf.RoundToInt(10 * scale)}><color=#E0F2FE>Đăng nhập, lưu trữ đa thiết bị & Web</color></size>";
+
+                if (GUILayout.Button(cloudLabel, GUILayout.Height(mainBtnH * 0.78f)))
+                {
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog();
                 }
 
                 GUILayout.Space(6f * scale);

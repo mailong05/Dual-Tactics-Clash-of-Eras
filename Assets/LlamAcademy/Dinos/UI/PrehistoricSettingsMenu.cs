@@ -1,5 +1,6 @@
 using LlamAcademy.Dinos.AR;
 using LlamAcademy.Dinos.Audio;
+using LlamAcademy.Dinos.Cloud;
 using LlamAcademy.Dinos.Mobile;
 using LlamAcademy.Dinos.Player;
 using LlamAcademy.Dinos.RoundManagement;
@@ -334,6 +335,19 @@ namespace LlamAcademy.Dinos.UI
 
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
+
+                GUILayout.Space(3);
+                GUI.backgroundColor = new Color(0.12f, 0.70f, 0.85f);
+                string cloudAccountBtn = (IOCloudManager.Instance != null && IOCloudManager.Instance.IsLoggedIn)
+                    ? $"<b>👤 TÀI KHOẢN CLOUD ({IOCloudManager.Instance.CurrentDisplayName}) & WEB DASHBOARD</b>"
+                    : "<b>👤 ĐĂNG NHẬP CLOUD / ĐỒNG BỘ ĐA THIẾT BỊ & WEB DASHBOARD</b>";
+                if (GUILayout.Button(cloudAccountBtn, GUILayout.Height(28)))
+                {
+                    audio?.PlayButtonClick();
+                    IsOpen = false;
+                    PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog();
+                }
+                GUI.backgroundColor = Color.white;
             }
             GUILayout.EndVertical();
 

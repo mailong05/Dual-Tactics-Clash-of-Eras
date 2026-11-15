@@ -26,13 +26,18 @@ client = TestClient(app)
 
 def test_root_endpoint():
     """Verify service root metadata and online status"""
-    response = client.get("/")
+    response = client.get("/api")
     assert response.status_code == 200
     data = response.json()
     assert data["service"] == "IO Cloud & Deep Learning AI Backend"
     assert data["status"] == "online"
     assert data["docker_container"] is True
     assert data["persistence"] == "sqlite"
+
+    # Root and /dashboard should both serve the rich Web Dashboard HTML
+    html_resp = client.get("/")
+    assert html_resp.status_code == 200
+    assert "<!DOCTYPE html>" in html_resp.text
     assert data["docs_url"] == "/docs"
 
 
@@ -246,3 +251,56 @@ def test_sqlite_persistence_survives_new_client():
     assert resp.status_code == 200
     assert resp.json()["player_name"] == "Jurassico Master"
     assert resp.json()["coins"] == 1250
+
+
+def test_account_register_and_login():
+    """Verify cross-device Chief account registration and PIN-based login"""
+    # 1. Register new Chief account
+    reg_payload = {
+        "username": "chief_vanlong",
+        "pin": "2026",
+        "display_name": "Tù Trưởng Văn Long"
+    }
+    resp_reg = client.post("/api/v1/auth/register", json=reg_payload)
+    assert resp_reg.status_code == 200
+    assert resp_reg.json()["status"] == "success"
+    assert resp_reg.json()["username"] == "chief_vanlong"
+
+    # 2. Duplicate registration should be rejected
+    resp_dup = client.post("/api/v1/auth/register", json=reg_payload)
+    assert resp_dup.status_code == 200
+    assert resp_dup.json()["status"] == "error"
+
+    # 3. Login with wrong PIN should fail
+    resp_wrong_pin = client.post("/api/v1/auth/login", json={"username": "chief_vanlong", "pin": "0000"})
+    assert resp_wrong_pin.status_code == 200
+    assert resp_wrong_pin.json()["status"] == "error"
+
+    # 4. Login with correct PIN should succeed and return save data
+    resp_login = client.post("/api/v1/auth/login", json={"username": "chief_vanlong", "pin": "2026"})
+    assert resp_login.status_code == 200
+    data = resp_login.json()
+    assert data["status"] == "success"
+    assert data["username"] == "chief_vanlong"
+    assert data["display_name"] == "Tù Trưởng Văn Long"
+    assert "save_data" in data
+
+
+def test_dashboard_endpoint():
+    """Verify HTML5 Web Dashboard is served with HTTP 200"""
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "DUAL TACTICS: CLASH OF ERAS" in resp.text
+    assert "Chart.js" in resp.text
+
+
+def test_accounts_listing():
+    """Verify cloud accounts endpoint returns list of registered chiefs"""
+    resp = client.get("/api/v1/cloud/accounts")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "count" in data
+    assert data["count"] >= 1
+    assert any(acc["username"] == "chief_vanlong" for acc in data["accounts"])
+

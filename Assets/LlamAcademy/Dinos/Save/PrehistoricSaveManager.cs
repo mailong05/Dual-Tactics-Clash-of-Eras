@@ -453,7 +453,7 @@ namespace LlamAcademy.Dinos.Save
                 HasActiveRun = true
             };
 
-            bool isGameplayActive = UI.PrehistoricMainMenu.Instance == null || !UI.PrehistoricMainMenu.Instance.IsOpen;
+            bool isGameplayActive = !UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen;
 
             if (mode == PrehistoricGameMode.TowerDefense)
             {
@@ -467,8 +467,11 @@ namespace LlamAcademy.Dinos.Save
                     wave = Mathf.Min(wave + 1, PrehistoricGameplayManager.Instance.MaxWaves);
                 }
 
-                int baseHp = (isGameplayActive && PrehistoricGameplayManager.Instance != null) ? PrehistoricGameplayManager.Instance.CurrentBaseHealth : CurrentData.DefenseProfile.BaseHealth;
-                int maxHp = (isGameplayActive && PrehistoricGameplayManager.Instance != null) ? PrehistoricGameplayManager.Instance.MaxBaseHealth : CurrentData.DefenseProfile.MaxBaseHealth;
+                int maxHp = (isGameplayActive && PrehistoricGameplayManager.Instance != null) ? PrehistoricGameplayManager.Instance.MaxBaseHealth : (CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.MaxBaseHealth > 0 ? CurrentData.DefenseProfile.MaxBaseHealth : 1000);
+                // Khi không ở trong pha giao tranh trực tiếp (chuẩn bị, thắng đợt, chơi lại), máu nhà chính luôn đầy 100%
+                int baseHp = (isGameplayActive && PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase) 
+                    ? PrehistoricGameplayManager.Instance.CurrentBaseHealth 
+                    : maxHp;
                 int gold = (isGameplayActive && TowerPlacer.Instance != null) ? TowerPlacer.Instance.Gold : CurrentData.DefenseProfile.Gold;
                 int killed = CurrentData.DefenseProfile.TotalMonstersKilled;
                 int score = (wave * 1000) + (killed * 25) + gold;
@@ -518,17 +521,13 @@ namespace LlamAcademy.Dinos.Save
                 if (isGameplayActive && spawner != null) meat = spawner.ResourcesToSpend;
                 else if (CurrentData.AssaultProfile != null && CurrentData.AssaultProfile.Meat > 0) meat = CurrentData.AssaultProfile.Meat;
 
-                int baseHp = 1000;
-                int maxHp = 1000;
-                if (isGameplayActive && PrehistoricVillageBase.Instance != null)
+                int fullHp = 1000 + (level - 1) * 350;
+                int baseHp = fullHp;
+                int maxHp = fullHp;
+                if (isGameplayActive && PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat && PrehistoricVillageBase.Instance != null)
                 {
                     baseHp = PrehistoricVillageBase.Instance.Health;
-                    maxHp = PrehistoricVillageBase.Instance.MaxHealth;
-                }
-                else if (CurrentData.AssaultProfile != null)
-                {
-                    baseHp = CurrentData.AssaultProfile.BaseHealth;
-                    maxHp = CurrentData.AssaultProfile.MaxBaseHealth;
+                    maxHp = PrehistoricVillageBase.Instance.MaxHealth > 0 ? PrehistoricVillageBase.Instance.MaxHealth : fullHp;
                 }
 
                 slot.WaveOrLevel = level;
@@ -671,8 +670,11 @@ namespace LlamAcademy.Dinos.Save
                     wave = Mathf.Min(wave + 1, PrehistoricGameplayManager.Instance.MaxWaves);
                 }
 
-                int baseHp = PrehistoricGameplayManager.Instance.CurrentBaseHealth;
                 int maxHp = PrehistoricGameplayManager.Instance.MaxBaseHealth;
+                // Khi ở giai đoạn chuẩn bị xây dựng, vừa thắng đợt hoặc thua trận, máu lưu luôn là 100% đầy đủ
+                int baseHp = (PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase) 
+                    ? PrehistoricGameplayManager.Instance.CurrentBaseHealth 
+                    : maxHp;
                 int gold = TowerPlacer.Instance != null ? TowerPlacer.Instance.Gold : 500;
 
                 CurrentData.DefenseProfile.CurrentWave = wave;
@@ -715,12 +717,13 @@ namespace LlamAcademy.Dinos.Save
                 DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();
                 if (spawner != null) meat = Mathf.Max(500, spawner.ResourcesToSpend);
 
-                int baseHp = 1000;
-                int maxHp = 1000;
-                if (PrehistoricVillageBase.Instance != null)
+                int fullHp = 1000 + (level - 1) * 350;
+                int baseHp = fullHp;
+                int maxHp = fullHp;
+                if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat && PrehistoricVillageBase.Instance != null)
                 {
                     baseHp = PrehistoricVillageBase.Instance.Health;
-                    maxHp = PrehistoricVillageBase.Instance.MaxHealth;
+                    maxHp = PrehistoricVillageBase.Instance.MaxHealth > 0 ? PrehistoricVillageBase.Instance.MaxHealth : fullHp;
                 }
 
                 CurrentData.AssaultProfile.AssaultLevel = level;

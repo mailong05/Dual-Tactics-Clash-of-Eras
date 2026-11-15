@@ -181,29 +181,43 @@ namespace LlamAcademy.Dinos.AR
             _shadowMattePlane.name = "AR_Shadow_Matte_Receiver";
             _shadowMattePlane.transform.SetParent(_pedestalRoot.transform, false);
 
-            // Lay flat horizontally at table surface (Y = -0.01m)
-            _shadowMattePlane.transform.localPosition = new Vector3(0f, -0.01f, 0f);
+            // Lay flat horizontally right above floor surface (Y = 0.015m)
+            _shadowMattePlane.transform.localPosition = new Vector3(0f, 0.015f, 0f);
             _shadowMattePlane.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            _shadowMattePlane.transform.localScale = new Vector3(DioramaSize.x * 2.2f, DioramaSize.y * 2.2f, 1f);
+            // Kích thước rộng rãi bao trọn toàn bộ khuôn viên làng, các tháp và hành lang khủng long tiến công
+            _shadowMattePlane.transform.localScale = new Vector3(DioramaSize.x * 1.5f, DioramaSize.y * 1.5f, 1f);
 
-            // Shadow Matte Material
-            Shader shadowShader = Shader.Find("Prehistoric/ARShadowMatte");
-            if (shadowShader != null)
+            // 1. Thử nạp Material chuyên dụng trong Resources
+            Material loadedMat = Resources.Load<Material>("Materials/M_ARShadowMatte");
+            if (loadedMat != null)
             {
-                _shadowMatteMaterial = new Material(shadowShader);
+                _shadowMatteMaterial = new Material(loadedMat);
             }
             else
             {
-                // Unlit transparent shadow fallback
-                _shadowMatteMaterial = PrehistoricShaderUtility.CreateUnlitMaterial(new Color(0.08f, 0.08f, 0.08f, 0.28f));
+                // 2. Thử tìm Shader ARShadowMatte
+                Shader shadowShader = Shader.Find("Prehistoric/ARShadowMatte");
+                if (shadowShader != null)
+                {
+                    _shadowMatteMaterial = new Material(shadowShader);
+                }
             }
 
             MeshRenderer mr = _shadowMattePlane.GetComponent<MeshRenderer>();
             if (mr != null)
             {
-                mr.material = _shadowMatteMaterial;
-                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                mr.receiveShadows = true;
+                if (_shadowMatteMaterial != null)
+                {
+                    mr.material = _shadowMatteMaterial;
+                    mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    mr.receiveShadows = true;
+                    mr.enabled = true;
+                }
+                else
+                {
+                    // Tuyệt đối không để material opaque unlit màu đen che khuất khung hình camera!
+                    mr.enabled = false;
+                }
             }
 
             Collider col = _shadowMattePlane.GetComponent<Collider>();
@@ -251,6 +265,7 @@ namespace LlamAcademy.Dinos.AR
         private void SetDioramaActive(bool active)
         {
             if (_pedestalRoot != null) _pedestalRoot.SetActive(active);
+            if (_shadowMattePlane != null) _shadowMattePlane.SetActive(active);
         }
 
         /// <summary>
@@ -321,9 +336,17 @@ namespace LlamAcademy.Dinos.AR
                 if (r.gameObject.name.StartsWith("AR_") || r.gameObject.name.StartsWith("Threat_") || r.gameObject.name.StartsWith("HealthBar_")) continue;
                 if (_pedestalRoot != null && r.transform.IsChildOf(_pedestalRoot.transform)) continue;
 
-                // Bảo vệ toàn bộ công trình làng và quân lính
-                if (r.GetComponentInParent<Unit.Unit>() != null) continue;
-                if (r.GetComponentInParent<Unit.Wall>() != null) continue;
+                // Bảo vệ toàn bộ công trình làng và quân lính, đảm bảo luôn bật đổ bóng (Cast Shadows)
+                if (r.GetComponentInParent<Unit.Unit>() != null)
+                {
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                    continue;
+                }
+                if (r.GetComponentInParent<Unit.Wall>() != null)
+                {
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                    continue;
+                }
 
                 string objName = r.gameObject.name.ToLowerInvariant();
                 bool isVillageOrUnit = objName.Contains("village")
@@ -339,7 +362,11 @@ namespace LlamAcademy.Dinos.AR
                     || objName.Contains("defense")
                     || objName.Contains("look target");
 
-                if (isVillageOrUnit) continue;
+                if (isVillageOrUnit)
+                {
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                    continue;
+                }
 
                 // Bất kỳ Renderer nào không thuộc làng hay quân lính đều là cảnh quan tự nhiên (núi, cây, đá)
                 // -> Ẩn đi để nhường chỗ hoàn toàn cho không gian phòng thực tế từ camera AR (chuẩn xác Hình 2)!
@@ -363,6 +390,7 @@ namespace LlamAcademy.Dinos.AR
                 }
             }
             _culledSceneryObjects.Clear();
+            if (_shadowMattePlane != null) _shadowMattePlane.SetActive(false);
         }
 
         private void OnDestroy()

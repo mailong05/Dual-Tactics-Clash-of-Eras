@@ -24,6 +24,9 @@ namespace LlamAcademy.Dinos.Cloud
         public static IOCloudManager Instance { get; private set; }
 
         private const string PrefCloudUrlKey = "IOCloud_BaseUrl";
+        private const string PrefAccountUsernameKey = "IOCloud_Account_Username";
+        private const string PrefAccountDisplayNameKey = "IOCloud_Account_DisplayName";
+        private const string PrefHasEverLoggedInKey = "IOCloud_HasEverLoggedIn";
         private const string ResourceConfigName = "IOCloudConfig";
 
         [Header("IO Cloud Service Configuration")]
@@ -41,7 +44,39 @@ namespace LlamAcademy.Dinos.Cloud
         public string LastSyncMessage { get; private set; } = "";
         public RemoteConfigResponse CurrentRemoteConfig { get; private set; }
 
+        [Header("Cloud Account (Cross-Device Sync)")]
+        public string CurrentUsername { get; private set; } = "";
+        public string CurrentDisplayName { get; private set; } = "";
+        public bool IsLoggedIn => !string.IsNullOrEmpty(CurrentUsername);
+        public string ActivePlayerId => IsLoggedIn ? CurrentUsername : SystemInfo.deviceUniqueIdentifier;
+        public string ActivePlayerDisplayName => IsLoggedIn
+            ? CurrentDisplayName
+            : (Save.PrehistoricSaveManager.Instance != null ? Save.PrehistoricSaveManager.Instance.CurrentData.PlayerChiefName : "Tù Trưởng Tiền Sử");
+
+        public bool NeedsFirstRunLoginPrompt
+        {
+            get => PlayerPrefs.GetInt(PrefHasEverLoggedInKey, 0) == 0 && !IsLoggedIn;
+            set
+            {
+                PlayerPrefs.SetInt(PrefHasEverLoggedInKey, value ? 0 : 1);
+                PlayerPrefs.Save();
+            }
+        }
+
+        public void MarkHasLoggedIn()
+        {
+            PlayerPrefs.SetInt(PrefHasEverLoggedInKey, 1);
+            PlayerPrefs.Save();
+        }
+
+        public void SkipFirstRunLoginPrompt()
+        {
+            PlayerPrefs.SetInt(PrefHasEverLoggedInKey, 1);
+            PlayerPrefs.Save();
+        }
+
         public event Action<bool> OnCloudStatusChanged;
+        public event Action<bool, string> OnAccountStateChanged;
         public event Action<DeepLearningWaveResponse> OnDeepLearningWaveReceived;
         public event Action<CloudSaveResponse> OnCloudSaveLoaded;
         public Func<(string playerName, int coins, int highestWave, string mode)> OnCollectSaveSnapshot;
@@ -92,6 +127,9 @@ namespace LlamAcademy.Dinos.Cloud
                 CloudBaseUrl = _localDockerUrl;
             }
             _editableUrl = ActiveCloudBaseUrl;
+
+            CurrentUsername = PlayerPrefs.GetString(PrefAccountUsernameKey, "");
+            CurrentDisplayName = PlayerPrefs.GetString(PrefAccountDisplayNameKey, "");
         }
 
         private void LoadEmbeddedConfig()
@@ -269,7 +307,7 @@ namespace LlamAcademy.Dinos.Cloud
 
             return new TelemetryPayload
             {
-                player_id = SystemInfo.deviceUniqueIdentifier,
+                player_id = ActivePlayerId,
                 round = Mathf.Max(1, roundNumber),
                 gold = Mathf.Max(0, currentGold),
                 base_hp = baseHp,
@@ -355,6 +393,159 @@ namespace LlamAcademy.Dinos.Cloud
         }
 
         /// <summary>
+        /// Opens the rich real-time HTML5 Web Dashboard in default system browser.
+        /// </summary>
+        public void OpenWebDashboard()
+        {
+            string url = $"{ActiveCloudBaseUrl}/dashboard";
+            Debug.Log($"<color=cyan>[IO Cloud]</color> Opening Web Dashboard: {url}");
+            Application.OpenURL(url);
+        }
+
+        /// <summary>
+        /// Registers a new Prehistoric Chief account on the Cloud backend.
+        /// </summary>
+        public void RegisterAccount(string username, string pin, string displayName, Action<bool, string> onComplete)
+        {
+            StartCoroutine(RegisterAccountRoutine(username, pin, displayName, onComplete));
+        }
+
+        private IEnumerator RegisterAccountRoutine(string username, string pin, string displayName, Action<bool, string> onComplete)
+        {
+            string url = $"{ActiveCloudBaseUrl}/api/v1/auth/register";
+            AuthRequestPayload payload = new AuthRequestPayload
+            {
+                username = username,
+                pin = pin,
+                display_name = string.IsNullOrEmpty(displayName) ? username : displayName
+            };
+
+            using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), ActiveRequestTimeoutSeconds))
+            {
+                yield return req.SendWebRequest();
+                if (req.result == UnityWebRequest.Result.Success)
+                {
+                    try
+                    {
+                        AuthResponsePayload resp = JsonUtility.FromJson<AuthResponsePayload>(req.downloadHandler.text);
+                        if (resp != null && resp.status == "success")
+                        {
+                            CurrentUsername = resp.username;
+                            CurrentDisplayName = string.IsNullOrEmpty(resp.display_name) ? resp.username : resp.display_name;
+                            PlayerPrefs.SetString(PrefAccountUsernameKey, CurrentUsername);
+                            PlayerPrefs.SetString(PrefAccountDisplayNameKey, CurrentDisplayName);
+                            MarkHasLoggedIn();
+                            PlayerPrefs.Save();
+
+                            if (Save.PrehistoricSaveManager.Instance != null)
+                            {
+                                Save.PrehistoricSaveManager.Instance.SetPlayerChiefName(CurrentDisplayName);
+                            }
+
+                            OnAccountStateChanged?.Invoke(true, CurrentUsername);
+                            onComplete?.Invoke(true, resp.message);
+                            yield break;
+                        }
+                        else
+                        {
+                            onComplete?.Invoke(false, resp != null ? resp.message : "Đăng ký không thành công.");
+                            yield break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        onComplete?.Invoke(false, $"Lỗi phản hồi máy chủ: {ex.Message}");
+                        yield break;
+                    }
+                }
+                else
+                {
+                    onComplete?.Invoke(false, $"Lỗi kết nối máy chủ: {req.error}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Logs in to an existing Prehistoric Chief account and fetches saved Cloud progression.
+        /// </summary>
+        public void LoginAccount(string username, string pin, Action<bool, string, CloudSaveResponse> onComplete)
+        {
+            StartCoroutine(LoginAccountRoutine(username, pin, onComplete));
+        }
+
+        private IEnumerator LoginAccountRoutine(string username, string pin, Action<bool, string, CloudSaveResponse> onComplete)
+        {
+            string url = $"{ActiveCloudBaseUrl}/api/v1/auth/login";
+            AuthRequestPayload payload = new AuthRequestPayload
+            {
+                username = username,
+                pin = pin
+            };
+
+            using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), ActiveRequestTimeoutSeconds))
+            {
+                yield return req.SendWebRequest();
+                if (req.result == UnityWebRequest.Result.Success)
+                {
+                    try
+                    {
+                        AuthResponsePayload resp = JsonUtility.FromJson<AuthResponsePayload>(req.downloadHandler.text);
+                        if (resp != null && resp.status == "success")
+                        {
+                            CurrentUsername = resp.username;
+                            CurrentDisplayName = string.IsNullOrEmpty(resp.display_name) ? resp.username : resp.display_name;
+                            PlayerPrefs.SetString(PrefAccountUsernameKey, CurrentUsername);
+                            PlayerPrefs.SetString(PrefAccountDisplayNameKey, CurrentDisplayName);
+                            MarkHasLoggedIn();
+                            PlayerPrefs.Save();
+
+                            if (Save.PrehistoricSaveManager.Instance != null)
+                            {
+                                Save.PrehistoricSaveManager.Instance.SetPlayerChiefName(CurrentDisplayName);
+                                if (resp.save_data != null)
+                                {
+                                    OnCloudSaveLoaded?.Invoke(resp.save_data);
+                                }
+                            }
+
+                            OnAccountStateChanged?.Invoke(true, CurrentUsername);
+                            onComplete?.Invoke(true, resp.message, resp.save_data);
+                            yield break;
+                        }
+                        else
+                        {
+                            onComplete?.Invoke(false, resp != null ? resp.message : "Đăng nhập không thành công.", null);
+                            yield break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        onComplete?.Invoke(false, $"Lỗi phản hồi máy chủ: {ex.Message}", null);
+                        yield break;
+                    }
+                }
+                else
+                {
+                    onComplete?.Invoke(false, $"Lỗi kết nối máy chủ: {req.error}", null);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Logs out of the current Cloud account.
+        /// </summary>
+        public void LogoutAccount()
+        {
+            CurrentUsername = "";
+            CurrentDisplayName = "";
+            PlayerPrefs.DeleteKey(PrefAccountUsernameKey);
+            PlayerPrefs.DeleteKey(PrefAccountDisplayNameKey);
+            PlayerPrefs.DeleteKey(PrefHasEverLoggedInKey);
+            PlayerPrefs.Save();
+            OnAccountStateChanged?.Invoke(false, "");
+        }
+
+        /// <summary>
         /// Saves player progression persistently to IO Cloud (/api/v1/cloud/save).
         /// </summary>
         public void SaveProgressToCloud(string playerName, int coins, int highestWave, string selectedMode, Action<bool, string> onComplete = null)
@@ -365,10 +556,12 @@ namespace LlamAcademy.Dinos.Cloud
         private IEnumerator SaveProgressRoutine(string playerName, int coins, int highestWave, string selectedMode, Action<bool, string> onComplete)
         {
             string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/save";
+            string effectiveName = !string.IsNullOrEmpty(playerName) ? playerName : ActivePlayerDisplayName;
+
             CloudSaveRequest payload = new CloudSaveRequest
             {
-                player_id = SystemInfo.deviceUniqueIdentifier,
-                player_name = string.IsNullOrEmpty(playerName) ? "Prehistoric Chief" : playerName,
+                player_id = ActivePlayerId,
+                player_name = effectiveName,
                 unlocked_towers = new[] { "Watchtower", "Ballista", "Catapult", "TeslaTower", "TarPit", "SpikeTrap", "Barricade" },
                 unlocked_dinos = new[] { "Velociraptor", "Pterodactyl", "Ankylosaurus", "TRex" },
                 coins = Mathf.Max(0, coins),
@@ -381,7 +574,7 @@ namespace LlamAcademy.Dinos.Cloud
                 yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
                 {
-                    LastSyncMessage = $"Đã lưu Cloud ({coins} vàng, Wave {highestWave})";
+                    LastSyncMessage = $"Đã lưu Cloud cho [{effectiveName}] ({coins} vàng, Wave {highestWave})";
                     onComplete?.Invoke(true, LastSyncMessage);
                 }
                 else
@@ -402,7 +595,7 @@ namespace LlamAcademy.Dinos.Cloud
 
         private IEnumerator LoadProgressRoutine(Action<bool, CloudSaveResponse> onComplete)
         {
-            string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/load/{UnityWebRequest.EscapeURL(SystemInfo.deviceUniqueIdentifier)}";
+            string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/load/{UnityWebRequest.EscapeURL(ActivePlayerId)}";
             using (UnityWebRequest req = UnityWebRequest.Get(url))
             {
                 req.timeout = ActiveRequestTimeoutSeconds;
@@ -435,10 +628,12 @@ namespace LlamAcademy.Dinos.Cloud
         private IEnumerator SubmitScoreRoutine(string playerName, int score, int waveReached)
         {
             string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/leaderboard/submit";
+            string effectiveName = !string.IsNullOrEmpty(playerName) ? playerName : ActivePlayerDisplayName;
+
             ScorePayload payload = new ScorePayload
             {
-                player_id = SystemInfo.deviceUniqueIdentifier,
-                player_name = string.IsNullOrEmpty(playerName) ? "Prehistoric Chief" : playerName,
+                player_id = ActivePlayerId,
+                player_name = effectiveName,
                 score = Mathf.Max(0, score),
                 wave_reached = Mathf.Max(1, waveReached),
                 mode = PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.CurrentMode.ToString() : "TowerDefense"
@@ -525,7 +720,9 @@ namespace LlamAcademy.Dinos.Cloud
 
             bool isSubModalOpen = (UI.PrehistoricSettingsMenu.Instance != null && UI.PrehistoricSettingsMenu.Instance.IsOpen)
                 || (UI.PrehistoricSaveLoadDialog.Instance != null && UI.PrehistoricSaveLoadDialog.Instance.IsOpen)
-                || (UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen);
+                || (UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen)
+                || (UI.PrehistoricCloudAccountDialog.Instance != null && UI.PrehistoricCloudAccountDialog.Instance.IsOpen)
+                || (UI.PrehistoricAuthDialog.Instance != null && UI.PrehistoricAuthDialog.Instance.IsOpen);
             if (isSubModalOpen) return;
 
             Mobile.MobileUIHelper.BeginScaling();
@@ -569,7 +766,8 @@ namespace LlamAcademy.Dinos.Cloud
             string statusText = _isConnecting
                 ? "CONNECTING..."
                 : (IsCloudConnected ? $"ONLINE ({endpointMode})" : "STANDBY (Local AI)");
-            GUILayout.Label($"<b>☁ IO CLOUD:</b> <color={statusColor}>{statusText}</color>", GetCloudStatusStyle());
+            string accountBadge = IsLoggedIn ? $" | <color=#38BDF8>👤 {CurrentDisplayName}</color>" : "";
+            GUILayout.Label($"<b>☁ IO CLOUD:</b> <color={statusColor}>{statusText}</color>{accountBadge}", GetCloudStatusStyle());
 
             GUILayout.FlexibleSpace();
             GUI.enabled = !_isConnecting;
@@ -601,6 +799,23 @@ namespace LlamAcademy.Dinos.Cloud
             if (_isPanelExpanded)
             {
                 GUILayout.Space(4);
+                // Prominent Account & Web Dashboard Action Row
+                GUILayout.BeginHorizontal();
+                GUI.backgroundColor = new Color(0.15f, 0.65f, 0.95f, 1f);
+                string accBtnText = IsLoggedIn ? $"👤 Tài Khoản ({CurrentDisplayName})" : "👤 Đăng Nhập Cloud";
+                if (GUILayout.Button(accBtnText, GUILayout.Height(24)))
+                {
+                    UI.PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog(UI.CloudDialogTab.Account);
+                }
+                GUI.backgroundColor = new Color(0.65f, 0.35f, 0.95f, 1f);
+                if (GUILayout.Button("🌐 Mở Web Dashboard", GUILayout.Height(24)))
+                {
+                    OpenWebDashboard();
+                }
+                GUI.backgroundColor = Color.white;
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(4);
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("<b>Server URL:</b>", GetCloudSubStyle(), GUILayout.Width(72));
                 _editableUrl = GUILayout.TextField(_editableUrl ?? "", GUILayout.Height(20));
@@ -626,7 +841,7 @@ namespace LlamAcademy.Dinos.Cloud
                     else
                     {
                         int gold = TowerPlacer.Instance != null ? TowerPlacer.Instance.Gold : 200;
-                        SaveProgressToCloud("Chief Long", gold, 1,
+                        SaveProgressToCloud(ActivePlayerDisplayName, gold, 1,
                             PrehistoricGameModeManager.Instance != null ? PrehistoricGameModeManager.Instance.CurrentMode.ToString() : "TowerDefense");
                     }
                 }
@@ -634,9 +849,9 @@ namespace LlamAcademy.Dinos.Cloud
                 {
                     LoadProgressFromCloud();
                 }
-                if (GUILayout.Button("🏆 Làm mới BXH", GUILayout.Height(22)))
+                if (GUILayout.Button("🏆 Bảng Xếp Hạng", GUILayout.Height(22)))
                 {
-                    FetchLeaderboard(5);
+                    UI.PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog(UI.CloudDialogTab.Leaderboard);
                 }
                 GUILayout.EndHorizontal();
 
@@ -804,5 +1019,23 @@ namespace LlamAcademy.Dinos.Cloud
         public float dino_speed_multiplier;
         public float boss_health_multiplier;
         public string server_message;
+    }
+
+    [Serializable]
+    public class AuthRequestPayload
+    {
+        public string username;
+        public string pin;
+        public string display_name;
+    }
+
+    [Serializable]
+    public class AuthResponsePayload
+    {
+        public string status;
+        public string message;
+        public string username;
+        public string display_name;
+        public CloudSaveResponse save_data;
     }
 }

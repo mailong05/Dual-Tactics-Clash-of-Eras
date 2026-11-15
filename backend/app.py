@@ -2,24 +2,40 @@
 IO Cloud & Deep Learning AI Backend Server
 Adaptive Prehistoric Tower Defense 3D
 Supports persistent SQLite storage in backend/data/io_cloud.db across container restarts.
+Includes:
+- Cross-Device Player Account Registration & PIN Login (Prehistoric Chief Profiles).
+- Persistent Multi-Device Cloud Save & Load.
+- Real-Time Battle Telemetry Pipeline for Deep Learning AI Director.
+- Global High-Score Leaderboard.
+- Modern Responsive Web Dashboard (/dashboard, /web).
+- Optional Adafruit IO IoT Bridge.
 """
 
+import hashlib
 import json
 import os
 import sqlite3
 import time
 import uuid
-from typing import Dict, Any, List
-from fastapi import FastAPI
+from typing import Dict, Any, List, Optional
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+import requests
+import sys
+
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 from model import ai_director
+from dashboard import get_dashboard_html
 
 app = FastAPI(
     title="Dual Tactics: Clash of Eras - IO Cloud & AI Director Service",
     description="Containerized Deep Learning & IO Cloud telemetry backend for Adaptive Prehistoric Tower Defense 3D",
-    version="1.1.0"
+    version="1.2.0"
 )
 
 # Enable CORS for Unity clients (Editor, WebGL, Android, Windows)
@@ -53,9 +69,24 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+def _hash_pin(pin: str) -> str:
+    return hashlib.sha256(pin.strip().encode("utf-8")).hexdigest()
+
+
 def init_db() -> None:
-    """Initializes persistent SQLite tables and seeds default leaderboard if empty."""
+    """Initializes persistent SQLite tables and seeds default leaderboard and demo account if empty."""
     with _get_conn() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS accounts (
+                username TEXT PRIMARY KEY,
+                pin_hash TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                last_login REAL NOT NULL
+            )
+            """
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS cloud_saves (
@@ -100,6 +131,37 @@ def init_db() -> None:
                 """,
                 SEED_LEADERBOARD,
             )
+
+        # Seed default Chief account if none exists
+        acc_count = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+        if acc_count == 0:
+            now = time.time()
+            demo_pin = _hash_pin("1234")
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO accounts (username, pin_hash, display_name, created_at, last_login)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                ("chief_demo", demo_pin, "Tù Trưởng Demo", now, now)
+            )
+            demo_save = {
+                "player_id": "chief_demo",
+                "player_name": "Tù Trưởng Demo",
+                "unlocked_towers": ["Watchtower", "Barricade", "SpikeTrap", "Ballista"],
+                "unlocked_dinos": ["Velociraptor", "Pterodactyl", "Ankylosaurus", "TRex"],
+                "coins": 750,
+                "highest_wave": 10,
+                "selected_mode": "TowerDefense",
+                "last_saved": now
+            }
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO cloud_saves (player_id, payload_json, last_saved)
+                VALUES (?, ?, ?)
+                """,
+                ("chief_demo", json.dumps(demo_save), now)
+            )
+
         conn.commit()
 
 
@@ -142,16 +204,38 @@ class ScoreSubmission(BaseModel):
     mode: str = "TowerDefense"
 
 
+class AccountAuthRequest(BaseModel):
+    username: str
+    pin: str
+    display_name: str = ""
+
+
+class AdafruitPushPayload(BaseModel):
+    aio_username: str
+    aio_key: str
+    feed_key: str = "wave"
+    value: float
+
+
 # ================== ENDPOINTS ==================
 
-@app.get("/")
-def root():
+@app.get("/", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/web", response_class=HTMLResponse)
+def web_dashboard():
+    """Serves modern interactive real-time HTML5 dashboard for lecturers & developers"""
+    return HTMLResponse(content=get_dashboard_html())
+
+
+@app.get("/api")
+def root_api():
     return {
         "service": "IO Cloud & Deep Learning AI Backend",
         "game": "Dual Tactics: Clash of Eras",
         "status": "online",
         "docker_container": True,
         "persistence": "sqlite",
+        "dashboard_url": "/dashboard",
         "docs_url": "/docs"
     }
 
@@ -169,6 +253,153 @@ def health_check():
         "storage": "sqlite"
     }
 
+
+# ================== ACCOUNT AUTHENTICATION ==================
+
+@app.post("/api/v1/auth/register")
+def register_account(req: AccountAuthRequest):
+    """
+    Registers a new Prehistoric Chief cloud profile with a PIN code.
+    Allows seamlessly synchronizing game progress across PC, Mobile, and web.
+    """
+    init_db()
+    username = req.username.strip().lower()
+    if len(username) < 3 or len(username) > 32:
+        return {"status": "error", "message": "Tên tài khoản Tù Trưởng phải từ 3 đến 32 ký tự."}
+    if len(req.pin.strip()) < 4:
+        return {"status": "error", "message": "Mã PIN bảo vệ phải có ít nhất 4 ký tự/chữ số."}
+
+    display_name = req.display_name.strip() or req.username.strip()
+    pin_hash = _hash_pin(req.pin)
+    now = time.time()
+
+    with _get_conn() as conn:
+        existing = conn.execute("SELECT username FROM accounts WHERE username = ?", (username,)).fetchone()
+        if existing is not None:
+            return {
+                "status": "error",
+                "message": f"Tài khoản [{username}] đã tồn tại. Vui lòng bấm 'Đăng Nhập' hoặc chọn tên khác."
+            }
+
+        conn.execute(
+            """
+            INSERT INTO accounts (username, pin_hash, display_name, created_at, last_login)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (username, pin_hash, display_name, now, now)
+        )
+
+        # Seed default cloud save row if none exists
+        save_exists = conn.execute("SELECT player_id FROM cloud_saves WHERE player_id = ?", (username,)).fetchone()
+        if save_exists is None:
+            default_data = {
+                "player_id": username,
+                "player_name": display_name,
+                "unlocked_towers": ["Watchtower", "Barricade", "SpikeTrap", "Ballista"],
+                "unlocked_dinos": ["Velociraptor", "Pterodactyl", "Ankylosaurus", "TRex"],
+                "coins": 500,
+                "highest_wave": 1,
+                "selected_mode": "TowerDefense",
+                "last_saved": now
+            }
+            conn.execute(
+                "INSERT INTO cloud_saves (player_id, payload_json, last_saved) VALUES (?, ?, ?)",
+                (username, json.dumps(default_data), now)
+            )
+
+        conn.commit()
+
+    return {
+        "status": "success",
+        "message": f"Chúc mừng! Đã tạo thành công tài khoản Tù Trưởng [{username}]!",
+        "username": username,
+        "display_name": display_name
+    }
+
+
+@app.post("/api/v1/auth/login")
+def login_account(req: AccountAuthRequest):
+    """
+    Logs in to an existing Prehistoric Chief account using username and PIN.
+    Returns the player's saved cloud progress for instant synchronization.
+    """
+    init_db()
+    username = req.username.strip().lower()
+    pin_hash = _hash_pin(req.pin)
+    now = time.time()
+
+    with _get_conn() as conn:
+        acc = conn.execute(
+            "SELECT username, pin_hash, display_name FROM accounts WHERE username = ?",
+            (username,)
+        ).fetchone()
+
+        if acc is None:
+            return {
+                "status": "error",
+                "message": f"Không tìm thấy tài khoản [{username}]. Vui lòng bấm 'Tạo Tài Khoản Mới'!"
+            }
+
+        if acc["pin_hash"] != pin_hash:
+            return {
+                "status": "error",
+                "message": "Mã PIN bảo vệ không chính xác. Vui lòng kiểm tra lại!"
+            }
+
+        conn.execute("UPDATE accounts SET last_login = ? WHERE username = ?", (now, username))
+
+        # Fetch saved cloud progress
+        save_row = conn.execute(
+            "SELECT payload_json FROM cloud_saves WHERE player_id = ?",
+            (username,)
+        ).fetchone()
+
+        save_data = json.loads(save_row["payload_json"]) if save_row else None
+        conn.commit()
+
+    return {
+        "status": "success",
+        "message": f"Đăng nhập thành công! Chào mừng Tù Trưởng {acc['display_name']}.",
+        "username": username,
+        "display_name": acc["display_name"],
+        "save_data": save_data
+    }
+
+
+@app.get("/api/v1/cloud/accounts")
+def list_cloud_accounts():
+    """Lists registered cloud accounts and latest synced progression for the Web Dashboard"""
+    init_db()
+    with _get_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+        rows = conn.execute(
+            """
+            SELECT a.username, a.display_name, a.created_at, a.last_login, s.payload_json
+            FROM accounts a
+            LEFT JOIN cloud_saves s ON a.username = s.player_id
+            ORDER BY a.last_login DESC
+            LIMIT 50
+            """
+        ).fetchall()
+
+    accounts = []
+    for r in rows:
+        save_info = json.loads(r["payload_json"]) if r["payload_json"] else {}
+        accounts.append({
+            "username": r["username"],
+            "display_name": r["display_name"],
+            "created_at": r["created_at"],
+            "last_login": r["last_login"],
+            "highest_wave": save_info.get("highest_wave", 1),
+            "coins": save_info.get("coins", 500),
+            "selected_mode": save_info.get("selected_mode", "TowerDefense"),
+            "last_saved": save_info.get("last_saved", r["last_login"])
+        })
+
+    return {"count": total, "accounts": accounts}
+
+
+# ================== AI INFERENCE & TELEMETRY ==================
 
 @app.post("/api/v1/ai/predict-wave")
 def predict_adaptive_wave(telemetry: GameTelemetry):
@@ -338,3 +569,27 @@ def get_remote_config():
         "boss_health_multiplier": 1.0,
         "server_message": "Welcome to Dual Tactics: Clash of Eras! Powered by IO Cloud & Deep Learning AI."
     }
+
+
+# ================== ADAFRUIT IO IOT BRIDGE ==================
+
+@app.post("/api/v1/cloud/adafruit/push")
+def push_to_adafruit(payload: AdafruitPushPayload):
+    """
+    Optional IoT telemetry bridge to Adafruit IO (https://io.adafruit.com).
+    Publishes real-time game telemetry (e.g. current wave, highest score) to user's Adafruit feed.
+    """
+    url = f"https://io.adafruit.com/api/v2/{payload.aio_username}/feeds/{payload.feed_key}/data"
+    headers = {
+        "X-AIO-Key": payload.aio_key,
+        "Content-Type": "application/json"
+    }
+    try:
+        resp = requests.post(url, json={"value": payload.value}, headers=headers, timeout=5.0)
+        return {
+            "status": "success" if resp.status_code < 300 else "error",
+            "adafruit_status": resp.status_code,
+            "response": resp.json() if resp.status_code < 300 else resp.text
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

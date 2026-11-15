@@ -46,6 +46,7 @@ namespace LlamAcademy.Dinos.AR
         private Material _OriginalSkybox;
         private CameraClearFlags _OriginalCameraClearFlags = CameraClearFlags.Skybox;
         private Color _OriginalCameraBackgroundColor = Color.black;
+        private float _originalShadowDistance = 50f;
 #if AR_FOUNDATION_ENABLED
         private Transform _OriginalCameraParent;
         private Vector3 _OriginalCameraLocalPos;
@@ -214,7 +215,7 @@ namespace LlamAcademy.Dinos.AR
             // Hotkey 'R' toggles AR Tabletop Mode (when not placing tower, not in Main Menu, and not on GameOver/Victory modal)
             if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
             {
-                bool isMenuOpen = UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen;
+                bool isMenuOpen = UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen;
                 var gp = RoundManagement.PrehistoricGameplayManager.Instance;
                 bool isEndModal = gp != null && (gp.CurrentPhase == RoundManagement.PrehistoricWavePhase.GameOver || gp.CurrentPhase == RoundManagement.PrehistoricWavePhase.Victory);
                 bool isPlacing = TowerPlacer.Instance != null && TowerPlacer.Instance.ActiveTower != null;
@@ -461,6 +462,9 @@ namespace LlamAcademy.Dinos.AR
         {
             Debug.Log("<color=cyan>[AR System]</color> Tabletop AR Mode Activated. Checking ARCore / Camera Pass-Through...");
 
+            _originalShadowDistance = QualitySettings.shadowDistance;
+            QualitySettings.shadowDistance = Mathf.Max(120f, _originalShadowDistance);
+
             SetupCameraForAR();
             ARDioramaFrame.Instance.SetARMode(true);
 
@@ -471,6 +475,11 @@ namespace LlamAcademy.Dinos.AR
         private void DeactivateARTabletop()
         {
             Debug.Log("<color=cyan>[AR System]</color> Restoring Standard 3D Tactical Battlefield...");
+
+            if (_originalShadowDistance > 0f)
+            {
+                QualitySettings.shadowDistance = _originalShadowDistance;
+            }
 
             if (CameraInitRoutine != null)
             {
