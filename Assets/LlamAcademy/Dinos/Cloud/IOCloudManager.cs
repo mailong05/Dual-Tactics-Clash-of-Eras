@@ -721,7 +721,8 @@ namespace LlamAcademy.Dinos.Cloud
             bool isSubModalOpen = (UI.PrehistoricSettingsMenu.Instance != null && UI.PrehistoricSettingsMenu.Instance.IsOpen)
                 || (UI.PrehistoricSaveLoadDialog.Instance != null && UI.PrehistoricSaveLoadDialog.Instance.IsOpen)
                 || (UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen)
-                || (UI.PrehistoricCloudAccountDialog.Instance != null && UI.PrehistoricCloudAccountDialog.Instance.IsOpen);
+                || (UI.PrehistoricCloudAccountDialog.Instance != null && UI.PrehistoricCloudAccountDialog.Instance.IsOpen)
+                || (UI.PrehistoricAuthDialog.Instance != null && UI.PrehistoricAuthDialog.Instance.IsOpen);
             if (isSubModalOpen) return;
 
             Mobile.MobileUIHelper.BeginScaling();

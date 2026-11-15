@@ -61,12 +61,9 @@ namespace LlamAcademy.Dinos.UI
             return Instance;
         }
 
-        public bool IsFirstRunPrompt { get; private set; } = false;
-
-        public void OpenDialog(CloudDialogTab tab = CloudDialogTab.Account, bool isFirstRunPrompt = false)
+        public void OpenDialog(CloudDialogTab tab = CloudDialogTab.Account)
         {
             _activeTab = tab;
-            IsFirstRunPrompt = isFirstRunPrompt;
             IsOpen = true;
             _feedbackMessage = "";
             _scrollPos = Vector2.zero;
@@ -372,17 +369,6 @@ namespace LlamAcademy.Dinos.UI
                 GUILayout.BeginVertical(GUI.skin.box);
                 GUI.backgroundColor = Color.white;
 
-                if (IsFirstRunPrompt)
-                {
-                    GUI.backgroundColor = new Color(0.12f, 0.45f, 0.70f, 0.95f);
-                    GUILayout.BeginVertical(GUI.skin.box);
-                    GUI.backgroundColor = Color.white;
-                    GUILayout.Label("<size=14><b><color=#FFD700>🎉 CHÀO MỪNG BẠN ĐẾN VỚI ADAPTIVE TOWER DEFENSE 3D!</color></b></size>");
-                    GUILayout.Label("<size=11><color=#E0F2FE>Đây là lần đầu bạn mở game trên máy này. Hãy <b>Đăng Ký</b> hoặc <b>Đăng Nhập</b> để tự động đồng bộ màn chơi (Wave, Vàng, Kỷ lục) lên đám mây, chơi tiếp tục mọi lúc mọi nơi trên cả PC và Android.</color></size>");
-                    GUILayout.EndVertical();
-                    GUILayout.Space(6);
-                }
-
                 GUILayout.Label("<size=14><b>🔐 ĐĂNG NHẬP HOẶC TẠO TÀI KHOẢN CLOUD MỚI:</b></size>");
                 GUILayout.Label("<size=11><color=#94A3B8>Nhập tên Tù Trưởng và mã PIN 4 chữ số. Nếu đổi sang máy tính khác hoặc điện thoại Android, chỉ cần nhập đúng thông tin này là toàn bộ màn chơi sẽ được phục hồi 100%.</color></size>");
                 GUILayout.Space(8);
@@ -431,10 +417,6 @@ namespace LlamAcademy.Dinos.UI
                         cloudMgr.LoginAccount(_inputUsername.Trim(), _inputPin.Trim(), (ok, msg, saveData) =>
                         {
                             SetFeedback(msg, ok);
-                            if (ok && IsFirstRunPrompt)
-                            {
-                                Invoke(nameof(CloseDialog), 1.2f);
-                            }
                         });
                     }
                 }
@@ -460,28 +442,12 @@ namespace LlamAcademy.Dinos.UI
                         cloudMgr.RegisterAccount(_inputUsername.Trim(), _inputPin.Trim(), _inputDisplayName.Trim(), (ok, msg) =>
                         {
                             SetFeedback(msg, ok);
-                            if (ok && IsFirstRunPrompt)
-                            {
-                                Invoke(nameof(CloseDialog), 1.2f);
-                            }
                         });
                     }
                 }
 
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
-
-                if (IsFirstRunPrompt)
-                {
-                    GUILayout.Space(8);
-                    GUI.backgroundColor = new Color(0.38f, 0.44f, 0.52f, 0.95f);
-                    if (GUILayout.Button("<b>🎮 BỎ QUA & VÀO MENU (CHƠI KHÁCH / OFFLINE)</b>\n<size=10>Bạn có thể đăng nhập hoặc tạo tài khoản bất kỳ lúc nào sau này</size>", GUILayout.Height(38)))
-                    {
-                        cloudMgr?.SkipFirstRunLoginPrompt();
-                        CloseDialog();
-                    }
-                    GUI.backgroundColor = Color.white;
-                }
 
                 GUILayout.EndVertical();
             }

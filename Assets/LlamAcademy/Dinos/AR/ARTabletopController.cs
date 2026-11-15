@@ -214,7 +214,7 @@ namespace LlamAcademy.Dinos.AR
             // Hotkey 'R' toggles AR Tabletop Mode (when not placing tower, not in Main Menu, and not on GameOver/Victory modal)
             if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
             {
-                bool isMenuOpen = UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen;
+                bool isMenuOpen = UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen;
                 var gp = RoundManagement.PrehistoricGameplayManager.Instance;
                 bool isEndModal = gp != null && (gp.CurrentPhase == RoundManagement.PrehistoricWavePhase.GameOver || gp.CurrentPhase == RoundManagement.PrehistoricWavePhase.Victory);
                 bool isPlacing = TowerPlacer.Instance != null && TowerPlacer.Instance.ActiveTower != null;

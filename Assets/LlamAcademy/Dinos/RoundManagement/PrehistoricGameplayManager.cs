@@ -1105,7 +1105,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
-            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 Audio.PrehistoricAudioManager.Instance?.PlayOpeningBgm();
             }
@@ -1122,7 +1122,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
 
-            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }
@@ -3008,7 +3008,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
 
-            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }

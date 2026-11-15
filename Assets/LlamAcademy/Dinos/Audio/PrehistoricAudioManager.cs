@@ -148,8 +148,12 @@ namespace LlamAcademy.Dinos.Audio
         private void Start()
         {
             EnsureAudioListenerExists();
-            // Tự động kích hoạt nhạc nền theo chế độ chơi hiện tại
-            if (PrehistoricGameModeManager.Instance != null)
+            // Nếu đang ở màn hình Menu hoặc Đăng nhập: Luôn phát nhạc mở đầu (Opening BGM)
+            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
+            {
+                PlayOpeningBgm();
+            }
+            else if (PrehistoricGameModeManager.Instance != null)
             {
                 PlayBgmForMode(PrehistoricGameModeManager.Instance.CurrentMode);
             }

@@ -653,7 +653,7 @@ namespace LlamAcademy.Dinos.Environment
         {
             if (!IsThemeActive) return;
 
-            bool isMenuOpen = UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen;
+            bool isMenuOpen = UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen;
             bool cloudExpanded = Cloud.IOCloudManager.Instance != null && Cloud.IOCloudManager.Instance.IsPanelExpanded;
             if (!isMenuOpen && !cloudExpanded)
             {

@@ -25,6 +25,10 @@ namespace LlamAcademy.Dinos.UI
     {
         public static PrehistoricMainMenu Instance { get; private set; }
 
+        public static bool IsAnyMenuOrAuthOpen =>
+            (Instance != null && Instance.IsOpen) ||
+            (PrehistoricAuthDialog.Instance != null && PrehistoricAuthDialog.Instance.IsOpen);
+
         [Header("Menu State")]
         public bool IsOpen = true;
         public bool Use2DBackground = true;
@@ -62,10 +66,10 @@ namespace LlamAcademy.Dinos.UI
                 PrehistoricAudioManager.Instance.PlayOpeningBgm();
             }
 
-            // Kiểm tra tải game lần đầu: nếu chưa từng đăng nhập tài khoản trên thiết bị này thì mở hộp thoại đăng ký / đăng nhập
+            // Kiểm tra tải game lần đầu: nếu chưa từng đăng nhập trên máy này thì mở giao diện Đăng Nhập / Đăng Ký chuyên dụng
             if (LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.NeedsFirstRunLoginPrompt)
             {
-                PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog(CloudDialogTab.Account, isFirstRunPrompt: true);
+                PrehistoricAuthDialog.EnsureInstance().OpenDialog(AuthMode.Login);
             }
         }
 
@@ -163,9 +167,11 @@ namespace LlamAcademy.Dinos.UI
         {
             if (!IsOpen) return;
 
-            // Kiểm tra xem có Modal phụ nào (Cài đặt hoặc Lưu/Tải game) đang mở đè lên không
+            // Kiểm tra xem có Modal phụ nào (Cài đặt, Lưu/Tải game, hoặc Đăng nhập/Cloud) đang mở đè lên không
             bool isSubModalOpen = (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
-                || (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen);
+                || (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen)
+                || (PrehistoricAuthDialog.Instance != null && PrehistoricAuthDialog.Instance.IsOpen)
+                || (PrehistoricCloudAccountDialog.Instance != null && PrehistoricCloudAccountDialog.Instance.IsOpen);
 
             MobileUIHelper.BeginScaling();
             try

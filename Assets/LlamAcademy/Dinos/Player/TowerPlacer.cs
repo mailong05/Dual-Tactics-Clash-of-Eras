@@ -172,7 +172,7 @@ namespace LlamAcademy.Dinos.Player
 
         private void Update()
         {
-            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }
@@ -624,7 +624,7 @@ namespace LlamAcademy.Dinos.Player
 
         private void OnGUI()
         {
-            if (UI.PrehistoricMainMenu.Instance != null && UI.PrehistoricMainMenu.Instance.IsOpen)
+            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }

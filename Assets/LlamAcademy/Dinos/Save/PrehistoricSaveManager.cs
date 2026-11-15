@@ -453,7 +453,7 @@ namespace LlamAcademy.Dinos.Save
                 HasActiveRun = true
             };
 
-            bool isGameplayActive = UI.PrehistoricMainMenu.Instance == null || !UI.PrehistoricMainMenu.Instance.IsOpen;
+            bool isGameplayActive = !UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen;
 
             if (mode == PrehistoricGameMode.TowerDefense)
             {
