@@ -2778,12 +2778,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 6. Đặt lại trạng thái về Pha Xây Dựng (Building Phase)
             SetPhase(PrehistoricWavePhase.BuildingPhase);
 
-            // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật
-            ResetPlayerAndCameraPosition();
-            if (CameraControl.Instance != null)
+            // 7. Đặt lại vị trí ban đầu của Camera và Nhân vật (Bảo tồn chế độ AR nếu đang bật)
+            if (AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive)
             {
-                CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
-                CameraControl.Instance.ResetToCenter();
+                AR.ARTabletopController.Instance.RefreshARState();
+            }
+            else
+            {
+                ResetPlayerAndCameraPosition();
+                if (CameraControl.Instance != null)
+                {
+                    CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
+                    CameraControl.Instance.ResetToCenter();
+                }
             }
 
             ShowAnnouncement("⚔ CHƠI LẠI TỪ ĐẦU (MÀN 1)! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN! ⚔", 4.0f);
@@ -2815,11 +2822,18 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
 
-            ResetPlayerAndCameraPosition();
-            if (CameraControl.Instance != null)
+            if (AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive)
             {
-                CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
-                CameraControl.Instance.ResetToCenter();
+                AR.ARTabletopController.Instance.RefreshARState();
+            }
+            else
+            {
+                ResetPlayerAndCameraPosition();
+                if (CameraControl.Instance != null)
+                {
+                    CameraControl.Instance.SetPerspective(CameraPerspective.Rear_TowerDefense);
+                    CameraControl.Instance.ResetToCenter();
+                }
             }
 
             int waveGold = StartingGold + (_CurrentWave - 1) * 300;
@@ -3304,7 +3318,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             bool isHeatmapOpen = AI.ThreatHeatmapVisualizer.Instance != null && AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible;
             GUI.backgroundColor = isHeatmapOpen ? new Color(0.1f, 0.95f, 0.5f, 0.95f) : new Color(0.15f, 0.35f, 0.55f, 0.88f);
 
-            string heatmapLabel = isHeatmapOpen ? "<b>🗺️ HEATMAP $A^*$: [BẬT]</b>" : "<b>🗺️ HEATMAP $A^*$ [H]</b>";
+            string heatmapLabel = isHeatmapOpen ? "<b>🗺️ HEATMAP [H]: BẬT</b>" : "<b>🗺️ HEATMAP [H]</b>";
             if (GUI.Button(heatmapRect, heatmapLabel))
             {
                 AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();

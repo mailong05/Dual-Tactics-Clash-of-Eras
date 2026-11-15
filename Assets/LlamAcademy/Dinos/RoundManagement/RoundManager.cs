@@ -205,6 +205,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void EndRound()
         {
+            // Trong chế độ Công Thành (Dino Assault), toàn bộ tiến trình điều phối bởi PrehistoricGameModeManager.
+            // TUYỆT ĐỐI KHÔNG GỌI EndRound VÀ KHÔNG SÁT HẠI KHỦNG LONG BẰNG TakeDamage(int.MaxValue)!
+            if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
+            {
+                CancelInvoke(nameof(EndRound));
+                IsEndingRound = false;
+                return;
+            }
+
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
             {
                 return;

@@ -1329,6 +1329,12 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             _DefeatCheckTimer = 0f;
+
+            if (AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive)
+            {
+                AR.ARTabletopController.Instance.RefreshARState();
+            }
+
             Debug.Log($"<color=cyan>[Assault Retry]</color> Đã làm mới 100% chiến trường Màn {AssaultLevel}!");
         }
 
