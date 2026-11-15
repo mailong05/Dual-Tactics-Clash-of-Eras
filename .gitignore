@@ -119,6 +119,8 @@ InitTestScene*.unity*
 
 # Python files, virtual environments, and caches
 *.py
+!backend/*.py
+!backend/tests/*.py
 *.pyc
 *.pyo
 *.pyd

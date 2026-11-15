@@ -2,7 +2,9 @@ Shader "Prehistoric/ARShadowMatte"
 {
     Properties
     {
-        _ShadowColor ("Shadow Color", Color) = (0.2, 0.2, 0.2, 1.0)
+        _ShadowColor ("Shadow Color", Color) = (0.28, 0.28, 0.28, 1.0)
+        _MaxRadius ("Max Shadow Radius", Float) = 46.0
+        _FadeDistance ("Fade Distance", Float) = 8.0
     }
     SubShader
     {
@@ -11,6 +13,7 @@ Shader "Prehistoric/ARShadowMatte"
             "RenderType" = "Transparent" 
             "Queue" = "Transparent-50" 
             "RenderPipeline" = "UniversalPipeline"
+            "IgnoreProjector" = "True"
         }
         Pass
         {
@@ -19,6 +22,7 @@ Shader "Prehistoric/ARShadowMatte"
             Blend DstColor Zero
             ZWrite Off
             ZTest LEqual
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex vert
@@ -41,6 +45,8 @@ Shader "Prehistoric/ARShadowMatte"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _ShadowColor;
+                float _MaxRadius;
+                float _FadeDistance;
             CBUFFER_END
 
             Varyings vert(Attributes input)
@@ -54,17 +60,22 @@ Shader "Prehistoric/ARShadowMatte"
 
             half4 frag(Varyings input) : SV_Target
             {
+                // Soft edge distance falloff to ensure zero hard square borders on real camera view
+                float distFromCenter = length(input.positionWS.xz);
+                float fade = saturate((_MaxRadius - distFromCenter) / max(0.001, _FadeDistance));
+
                 float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);
                 Light mainLight = GetMainLight(shadowCoord);
                 half shadow = mainLight.shadowAttenuation;
                 
-                // Where shadow is 1.0 (fully lit), output (1,1,1) -> transparent via DstColor Zero blend
-                // Where shadow < 1.0 (in shadow), output dark tone -> multiplies background, casting realistic shadow on desk
-                half3 col = lerp(_ShadowColor.rgb, half3(1.0, 1.0, 1.0), shadow);
+                // When fully lit or outside fade: shadowFactor = 1.0 -> col = (1,1,1) -> 100% transparent via DstColor Zero blend
+                // When in shadow: shadow < 1.0 -> col < 1.0 -> multiplies real camera feed, casting soft realistic shadows
+                half shadowFactor = lerp(1.0, shadow, fade);
+                half3 col = lerp(_ShadowColor.rgb, half3(1.0, 1.0, 1.0), shadowFactor);
                 return half4(col, 1.0);
             }
             ENDHLSL
         }
     }
-    FallBack "Hidden/Universal Render Pipeline/FallbackError"
+    FallBack Off
 }

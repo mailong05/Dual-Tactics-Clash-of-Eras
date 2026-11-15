@@ -61,6 +61,12 @@ namespace LlamAcademy.Dinos.UI
             {
                 PrehistoricAudioManager.Instance.PlayOpeningBgm();
             }
+
+            // Kiểm tra tải game lần đầu: nếu chưa từng đăng nhập tài khoản trên thiết bị này thì mở hộp thoại đăng ký / đăng nhập
+            if (LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.NeedsFirstRunLoginPrompt)
+            {
+                PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog(CloudDialogTab.Account, isFirstRunPrompt: true);
+            }
         }
 
         private void LoadTextures()
@@ -539,6 +545,22 @@ namespace LlamAcademy.Dinos.UI
                 {
                     PrehistoricAudioManager.Instance?.PlayButtonClick();
                     PrehistoricSaveLoadDialog.EnsureInstance().OpenLoadDialog(isDefense ? PrehistoricGameMode.TowerDefense : PrehistoricGameMode.DinoAssault);
+                }
+
+                GUILayout.Space(6f * scale);
+
+                // ------------------------------------------
+                // Nút 4: TÀI KHOẢN CLOUD & WEB DASHBOARD
+                // ------------------------------------------
+                GUI.backgroundColor = new Color(0.12f, 0.70f, 0.85f, 0.98f);
+                string cloudLabel = LlamAcademy.Dinos.Cloud.IOCloudManager.Instance != null && LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.IsLoggedIn
+                    ? $"<b><size={Mathf.RoundToInt(14 * scale)}>☁️ TÀI KHOẢN: {LlamAcademy.Dinos.Cloud.IOCloudManager.Instance.CurrentDisplayName}</size></b>\n<size={Mathf.RoundToInt(10 * scale)}><color=#E0F2FE>Đồng bộ đám mây & Web Dashboard</color></size>"
+                    : $"<b><size={Mathf.RoundToInt(14 * scale)}>☁️ TÀI KHOẢN CLOUD & ĐỒNG BỘ</size></b>\n<size={Mathf.RoundToInt(10 * scale)}><color=#E0F2FE>Đăng nhập, lưu trữ đa thiết bị & Web</color></size>";
+
+                if (GUILayout.Button(cloudLabel, GUILayout.Height(mainBtnH * 0.78f)))
+                {
+                    PrehistoricAudioManager.Instance?.PlayButtonClick();
+                    PrehistoricCloudAccountDialog.EnsureInstance().OpenDialog();
                 }
 
                 GUILayout.Space(6f * scale);
