@@ -219,26 +219,39 @@ namespace LlamAcademy.Dinos.Player
                 }
             }
 
+            // Fallback an toàn tuyệt đối: Nếu tia raycast không trúng collider vật lý (ví dụ trong chế độ AR Sa Bàn),
+            // đối chiếu trực tiếp với mặt phẳng sa bàn Y = 0 để luôn xác định được điểm chạm
+            if (!foundGround)
+            {
+                Plane tablePlane = new Plane(Vector3.up, Vector3.zero);
+                if (tablePlane.Raycast(ray, out float enterDist))
+                {
+                    hit.point = ray.GetPoint(enterDist);
+                    foundGround = true;
+                }
+            }
+
             if (foundGround)
             {
                 // Căn chuẩn vị trí: Bám sát chính xác tọa độ click chuột của người chơi, nắn nhẹ cao độ theo NavMesh
                 Vector3 placePos = hit.point;
+                if (placePos.y < 0f) placePos.y = 0.05f;
                 bool foundNavMesh = false;
 
-                if (NavMesh.SamplePosition(hit.point, out NavMeshHit navHit, 3.5f, NavMesh.AllAreas))
+                if (NavMesh.SamplePosition(hit.point, out NavMeshHit navHit, 4.5f, NavMesh.AllAreas))
                 {
-                    // Nếu click gần NavMesh (<= 1.8m), đặt vào vị trí NavMesh; nếu ở ngoài một chút, giữ tọa độ XZ click và căn chỉnh độ cao Y
-                    if (Vector3.Distance(hit.point, navHit.position) <= 1.8f)
+                    // Nếu click gần NavMesh (<= 2.5m), đặt vào vị trí NavMesh; nếu ở ngoài một chút, giữ tọa độ XZ click và căn chỉnh độ cao Y
+                    if (Vector3.Distance(hit.point, navHit.position) <= 2.5f)
                     {
                         placePos = navHit.position;
                     }
                     else
                     {
-                        placePos = new Vector3(hit.point.x, navHit.position.y, hit.point.z);
+                        placePos = new Vector3(hit.point.x, Mathf.Max(navHit.position.y, 0.05f), hit.point.z);
                     }
                     foundNavMesh = true;
                 }
-                else if (NavMesh.SamplePosition(hit.point, out navHit, 8.0f, NavMesh.AllAreas))
+                else if (NavMesh.SamplePosition(hit.point, out navHit, 12.0f, NavMesh.AllAreas))
                 {
                     placePos = navHit.position;
                     foundNavMesh = true;
@@ -323,11 +336,20 @@ namespace LlamAcademy.Dinos.Player
 
                         int assaultLvl = (PrehistoricGameModeManager.Instance != null) ? PrehistoricGameModeManager.Instance.AssaultLevel : 1;
                         float assaultHpMult = 1.0f + (assaultLvl - 1) * 0.15f;
-                        int finalHp = Mathf.RoundToInt(SpawnDino.Health * assaultHpMult);
+                        int baseHp = (SpawnDino != null && SpawnDino.Health > 0) ? SpawnDino.Health : targetPrefab.MaxHealth;
+                        if (baseHp <= 0) baseHp = 450;
+                        int finalHp = Mathf.RoundToInt(baseHp * assaultHpMult);
                         spawnedDino.MaxHealth = finalHp;
                         spawnedDino.Health = finalHp;
                         spawnedDino.OnDeath += (obj) => OnDinoDeath?.Invoke(obj.Transform.GetComponent<Unit.Unit>());
                         spawnedDino.enabled = true;
+
+                        // Bảo đảm Rigidbody là Kinematic (không rơi tự do xuyên sàn do PhysX trọng lực)
+                        if (spawnedDino.TryGetComponent(out Rigidbody rb))
+                        {
+                            rb.isKinematic = true;
+                            rb.useGravity = false;
+                        }
 
                         // Gắn thanh máu ngay lập tức
                         if (Utility.HealthBarCanvas.Instance != null)
@@ -339,7 +361,7 @@ namespace LlamAcademy.Dinos.Player
                         NavMeshAgent agent = spawnedDino.GetComponent<NavMeshAgent>();
                         if (spawnedDino is Unit.PrehistoricDinoBase pDino)
                         {
-                            pDino.EnsureOnNavMesh(15.0f);
+                            pDino.EnsureOnNavMesh(25.0f);
                             pDino.ConfigureNavMeshAgent();
                             if (pDino.Agent != null && pDino.Agent.isOnNavMesh)
                             {

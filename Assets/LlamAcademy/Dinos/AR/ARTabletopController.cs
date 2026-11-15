@@ -82,6 +82,7 @@ namespace LlamAcademy.Dinos.AR
         private GameObject ARControlPill;
         private Text ARButtonText;
         private GameObject ARPlaneGrid;
+        private Renderer _arGridRenderer;
         private Coroutine CameraInitRoutine;
 
         private void Awake()
@@ -168,19 +169,42 @@ namespace LlamAcademy.Dinos.AR
         private void CreateARPlaneGrid()
         {
             ARPlaneGrid = new GameObject("AR_Tracking_Grid_Plane");
-            ARPlaneGrid.transform.position = new Vector3(0f, -0.05f, -5f);
+            ARPlaneGrid.transform.position = new Vector3(0f, 0f, 0f);
+            ARPlaneGrid.layer = 6; // Layer 6: Grass / Ground surface
 
+            // Tạo tấm mặt phẳng AR Sa Bàn Hologram màu cyan (chuẩn xác như Hình 2 bạn mong muốn)
+            // Tấm plane này là chiến trường AR mà các công trình làng được tải lên trên camera thực tế.
             GameObject plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
             plane.name = "AR_Grid_Mesh";
+            plane.layer = 6; // Layer 6: Grass / Ground surface
             plane.transform.SetParent(ARPlaneGrid.transform, false);
-            plane.transform.localScale = new Vector3(7.2f, 1f, 7.6f);
+            plane.transform.localPosition = new Vector3(0f, -0.01f, 0f); // Ngay tại mặt sàn Y = 0 để khớp 100% với NavMesh
+            // Plane primitive trong Unity mặc định là 10m x 10m.
+            // Scale (7.6f, 1f, 9.6f) phủ rộng 76m (X: [-38, 38]) x 96m (Z: [-48, 48]), bao trọn căn cứ làng và vùng thả khủng long!
+            plane.transform.localScale = new Vector3(7.6f, 1f, 9.6f);
 
-            Material mat = Rendering.PrehistoricShaderUtility.CreateUnlitMaterial(new Color(0.1f, 0.70f, 0.95f, 0.16f));
-            Renderer r = plane.GetComponent<Renderer>();
-            if (r != null) r.material = mat;
+            // Shader & Material màu cyan AR Hologram (khi bật tùy chọn hiện lưới)
+            Material mat = Rendering.PrehistoricShaderUtility.CreateUnlitMaterial(new Color(0.08f, 0.70f, 0.96f, 0.50f));
+            _arGridRenderer = plane.GetComponent<Renderer>();
+            if (_arGridRenderer != null)
+            {
+                _arGridRenderer.material = mat;
+                _arGridRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _arGridRenderer.receiveShadows = true;
+                // MẶC ĐỊNH TÀNG HÌNH: Đặt trực tiếp toàn bộ công trình làng và khủng long lên mặt bàn thật!
+                // Không có tấm bìa xanh chắn tầm nhìn camera thực tế!
+                _arGridRenderer.enabled = false;
+            }
 
-            Collider col = plane.GetComponent<Collider>();
-            if (col != null) Destroy(col);
+            // GẮN BOXCOLLIDER VỮNG CHẮC Ở LAYER 6 (GROUND):
+            // Cho phép chuột/ngón tay raycast chạm chuẩn xác vào mặt phẳng camera AR này,
+            // đặt tháp và thả khủng long đứng vững chắc tại Y = 0 mà không bao giờ bị rơi xuyên sàn!
+            BoxCollider col = plane.GetComponent<BoxCollider>();
+            if (col == null) col = plane.AddComponent<BoxCollider>();
+            col.size = new Vector3(10f, 0.1f, 10f);
+            col.center = new Vector3(0f, -0.05f, 0f);
+            col.isTrigger = false;
+            col.enabled = true;
 
             ARPlaneGrid.SetActive(false);
         }
@@ -255,6 +279,7 @@ namespace LlamAcademy.Dinos.AR
                         IsSurfacePlaced = true;
                         IsPlaneAnchorLocked = true;
                         SetARPlanesVisible(false);
+                        if (ARPlaneGrid != null) ARPlaneGrid.SetActive(true);
 
                         if (RoundManagement.PrehistoricGameplayManager.Instance != null)
                         {
@@ -299,7 +324,9 @@ namespace LlamAcademy.Dinos.AR
 
         private void HandleFallbackARGestures()
         {
-            bool isPlacing = TowerPlacer.Instance != null && TowerPlacer.Instance.ActiveTower != null;
+            bool isPlacingTower = TowerPlacer.Instance != null && TowerPlacer.Instance.ActiveTower != null;
+            bool isPlacingDino = Player.DinoSpawner.Instance != null && Player.DinoSpawner.Instance.ActiveDinoSO != null;
+            bool isPlacing = isPlacingTower || isPlacingDino;
 
             if (Mouse.current != null)
             {
@@ -406,6 +433,7 @@ namespace LlamAcademy.Dinos.AR
                 IsSurfacePlaced = false;
                 IsPlaneAnchorLocked = false;
                 SetARPlanesVisible(true);
+                if (ARPlaneGrid != null) ARPlaneGrid.SetActive(false);
             }
 #endif
         }
@@ -762,6 +790,15 @@ namespace LlamAcademy.Dinos.AR
         {
             CameraStatusMessage = "Đang xin quyền và dò tìm Camera...";
 
+            // 1. Tối ưu hóa: Nếu luồng webcam đã mở sẵn và đang chạy ổn định, tái sử dụng ngay lập tức
+            if (_WebCamTexture != null && _WebCamTexture.isPlaying && _WebCamTexture.width > 16)
+            {
+                IsCameraStreaming = true;
+                CameraStatusMessage = $"📸 PC AR Preview ({_WebCamTexture.deviceName})";
+                EnsureARBackgroundSetup(_WebCamTexture);
+                yield break;
+            }
+
             WebCamDevice[] devices = WebCamTexture.devices;
             if (devices == null || devices.Length == 0)
             {
@@ -782,14 +819,17 @@ namespace LlamAcademy.Dinos.AR
                 }
             }
 
+            if (_WebCamTexture != null)
+            {
+                if (_WebCamTexture.isPlaying) _WebCamTexture.Stop();
+                DestroyImmediate(_WebCamTexture);
+                _WebCamTexture = null;
+                // Chờ 1 frame để Windows DirectShow giải phóng hoàn toàn filter camera phần cứng
+                yield return null;
+            }
+
             try
             {
-                if (_WebCamTexture != null)
-                {
-                    if (_WebCamTexture.isPlaying) _WebCamTexture.Stop();
-                    Destroy(_WebCamTexture);
-                }
-
                 _WebCamTexture = new WebCamTexture(targetDeviceName, 1280, 720, 30);
                 _WebCamTexture.Play();
             }
@@ -809,7 +849,7 @@ namespace LlamAcademy.Dinos.AR
                 yield return null;
             }
 
-            if (_WebCamTexture != null && _WebCamTexture.isPlaying)
+            if (_WebCamTexture != null && _WebCamTexture.isPlaying && _WebCamTexture.width > 16)
             {
                 IsCameraStreaming = true;
                 CameraStatusMessage = $"📸 PC AR Preview ({targetDeviceName})";
@@ -820,6 +860,55 @@ namespace LlamAcademy.Dinos.AR
                 IsCameraStreaming = false;
                 CameraStatusMessage = "Chưa nhận được khung hình camera. Đang dùng Sa Bàn 3D Hologram.";
                 EnsureARBackgroundSetup(null);
+            }
+        }
+
+        /// <summary>
+        /// Làm mới và bảo toàn trạng thái AR Camera khi người chơi bấm 'Chơi Lại' hoặc 'Chơi Lại Từ Đầu'.
+        /// Tuyệt đối không để màn hình bị đen hay mất luồng camera!
+        /// </summary>
+        public void RefreshARState()
+        {
+            if (!IsARModeActive) return;
+
+            SetupCameraForAR();
+            if (ARDioramaFrame.HasInstance)
+            {
+                ARDioramaFrame.Instance.SetARMode(true);
+            }
+
+            if (_WebCamTexture != null && _WebCamTexture.isPlaying && _WebCamTexture.width > 16)
+            {
+                IsCameraStreaming = true;
+                EnsureARBackgroundSetup(_WebCamTexture);
+            }
+            else
+            {
+                if (CameraInitRoutine != null) StopCoroutine(CameraInitRoutine);
+                CameraInitRoutine = StartCoroutine(StartWebCamFeedRoutine());
+            }
+
+            UpdateBackgroundQuadTransform();
+        }
+
+        private void StopWebCamFeed()
+        {
+            if (_WebCamTexture != null)
+            {
+                if (_WebCamTexture.isPlaying)
+                {
+                    _WebCamTexture.Stop();
+                }
+                DestroyImmediate(_WebCamTexture);
+                _WebCamTexture = null;
+            }
+
+            IsCameraStreaming = false;
+            CameraStatusMessage = "";
+
+            if (_BackgroundQuad != null)
+            {
+                _BackgroundQuad.SetActive(false);
             }
         }
 
@@ -920,26 +1009,7 @@ namespace LlamAcademy.Dinos.AR
             }
         }
 
-        private void StopWebCamFeed()
-        {
-            if (_WebCamTexture != null)
-            {
-                if (_WebCamTexture.isPlaying)
-                {
-                    _WebCamTexture.Stop();
-                }
-                Destroy(_WebCamTexture);
-                _WebCamTexture = null;
-            }
 
-            IsCameraStreaming = false;
-            CameraStatusMessage = "";
-
-            if (_BackgroundQuad != null)
-            {
-                _BackgroundQuad.SetActive(false);
-            }
-        }
 
         private void OnDisable()
         {
@@ -980,7 +1050,7 @@ namespace LlamAcademy.Dinos.AR
         {
             float screenW = Mobile.MobileUIHelper.ScreenWidth;
             // Occupy only the safe center corridor [x >= 340 .. screenW - 210] so left HUD & right 2D Radar NEVER overlap!
-            float bannerW = Mathf.Clamp(screenW - 565f, 440f, 640f);
+            float bannerW = Mathf.Clamp(screenW - 565f, 440f, 740f);
             float bannerH = 74f;
             float x = Mathf.Max(342f, (screenW - bannerW) * 0.5f);
             float y = 10f;
@@ -1032,6 +1102,14 @@ namespace LlamAcademy.Dinos.AR
             GUI.backgroundColor = new Color(0.3f, 0.6f, 0.4f, 0.95f);
             if (GUILayout.Button("<b>➖</b>", GUILayout.Width(34), GUILayout.Height(24))) AdjustDioramaScale(-0.15f);
             if (GUILayout.Button("<b>➕</b>", GUILayout.Width(34), GUILayout.Height(24))) AdjustDioramaScale(0.15f);
+
+            // Nút chuyển đổi hiển thị sàn lưới ảo (Mặc định tàng hình để hiện trọn vẹn mặt bàn thật)
+            GUI.backgroundColor = (_arGridRenderer != null && _arGridRenderer.enabled) ? new Color(0.1f, 0.7f, 0.9f, 0.95f) : new Color(0.35f, 0.4f, 0.45f, 0.95f);
+            string gridText = (_arGridRenderer != null && _arGridRenderer.enabled) ? "<b>🌐 Lưới: BẬT</b>" : "<b>🌐 Lưới: TẮT</b>";
+            if (GUILayout.Button(gridText, GUILayout.Width(82), GUILayout.Height(24)))
+            {
+                if (_arGridRenderer != null) _arGridRenderer.enabled = !_arGridRenderer.enabled;
+            }
 
             GUI.backgroundColor = new Color(0.2f, 0.7f, 0.5f, 0.95f);
             if (GUILayout.Button("<b>🎯 Làng</b>", GUILayout.Width(66), GUILayout.Height(24)))

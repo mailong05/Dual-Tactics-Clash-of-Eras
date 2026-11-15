@@ -14,6 +14,7 @@ namespace LlamAcademy.Dinos.Unit
         [SerializeField] private NavMeshUpdateData UpdateNavMeshData;
 
         private float ObstacleSpawnHeight;
+        private readonly System.Collections.Generic.List<GameObject> _deactivatedAssociatedFloors = new();
 
         protected override void Awake()
         {
@@ -88,6 +89,20 @@ namespace LlamAcademy.Dinos.Unit
 
         public void FullRestore()
         {
+            if (_deactivatedAssociatedFloors.Count > 0)
+            {
+                foreach (var go in _deactivatedAssociatedFloors)
+                {
+                    if (go != null)
+                    {
+                        go.SetActive(true);
+                        foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+                        foreach (var c in go.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+                    }
+                }
+                _deactivatedAssociatedFloors.Clear();
+            }
+
             if (Root != null)
             {
                 Root.SetActive(true);
@@ -258,37 +273,38 @@ namespace LlamAcademy.Dinos.Unit
 
                 
         /// <summary>
-        /// Tự động dò tìm và vô hiệu hóa toàn bộ mặt sàn gỗ (Smooth Floor, Walkway_Deck, ván gỗ)
-        /// liên kết với cầu/dốc khi cầu bị khủng long phá hủy, xóa bỏ hoàn toàn hiện tượng sàn ma trôi nổi.
+        /// Tự động dò tìm và vô hiệu hóa toàn bộ mặt sàn gỗ (Bridge_Tribal, Ramp_Tribal, Smooth Floor, Walkway_Deck, ván gỗ)
+        /// nằm ngay bên dưới hoặc trong phạm vi gần (bán kính 5.5m) của công trình/rào chắn bị phá hủy,
+        /// loại bỏ hoàn toàn hiện tượng sàn ma trôi nổi khi cầu/rào cọc bị húc đổ.
         /// </summary>
         private void DeactivateAssociatedBridgeFloors()
         {
-            string n = gameObject.name.ToLower();
-            // Chỉ áp dụng cho cầu gỗ sông thực sự, TUYỆT ĐỐI không áp dụng cho hàng rào cọc hay cổng thành
-            bool isBridge = n.Contains("bridge") || n.Contains("ramp");
-            if (!isBridge) return;
-
+            Vector3 wallPos = transform.position;
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             foreach (var t in allTransforms)
             {
                 if (t == null || t == transform || (Root != null && t == Root.transform)) continue;
                 string tn = t.gameObject.name;
-                // Chỉ tắt mặt sàn đi bộ ngầm của chính chiếc cầu đó (Smooth Floor, Walkway_Deck)
-                // TUYỆT ĐỐI KHÔNG can thiệp vào hàng rào cọc gỗ Plank_Defenses!
-                bool isFloor = tn.Contains("Smooth Floor") || 
+
+                // Nhận diện sàn cầu, bản mặt cầu, dốc hoặc sàn gỗ đi bộ
+                bool isFloor = tn.Contains("Bridge_Tribal") ||
+                               tn.Contains("Ramp_Tribal") ||
+                               tn.Contains("Smooth Floor") || 
                                tn.Contains("Walkway_Deck") || 
                                tn.Contains("Collider_Walkway_Deck") || 
                                tn.Contains("FloorDeck");
 
                 if (isFloor)
                 {
-                    float dist = Vector3.Distance(new Vector3(t.position.x, 0, t.position.z), new Vector3(transform.position.x, 0, transform.position.z));
-                    if (dist < 8f) // Bán kính hẹp trong phạm vi thân cầu
+                    float dist = Vector2.Distance(new Vector2(t.position.x, t.position.z), new Vector2(wallPos.x, wallPos.z));
+                    if (dist <= 5.5f) // Bán kính bao quát thân cầu và ván sàn ngay dưới chân rào chắn
                     {
                         Renderer[] rList = t.GetComponentsInChildren<Renderer>(true);
                         foreach (var r in rList) if (r != null) r.enabled = false;
                         Collider[] cList = t.GetComponentsInChildren<Collider>(true);
                         foreach (var c in cList) if (c != null) c.enabled = false;
+
+                        _deactivatedAssociatedFloors.Add(t.gameObject);
                         t.gameObject.SetActive(false);
                     }
                 }
