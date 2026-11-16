@@ -432,7 +432,11 @@ namespace LlamAcademy.Dinos.Audio
         /// </summary>
         public void PlayDinoSound(string dinoName)
         {
-            if (!_IsSfxEnabled || _sfxSource == null || string.IsNullOrEmpty(dinoName)) return;
+            if (string.IsNullOrEmpty(dinoName)) return;
+            if (!_IsSfxEnabled) return;
+
+            if (_sfxSource == null || _dinoSelectSource == null) SetupAudioSources();
+            if (_trexClip == null) LoadAllAudioClips();
 
             string lower = dinoName.ToLower();
             AudioClip clipToPlay = null;
@@ -553,6 +557,8 @@ namespace LlamAcademy.Dinos.Audio
             if (!_IsSfxEnabled || _sfxSource == null || _clickClip == null) return;
             _sfxSource.PlayOneShot(_clickClip, _SfxVolume * 0.75f);
         }
+
+        public void PlayUiClick() => PlayButtonClick();
 
         public void PlayTowerPlaced()
         {

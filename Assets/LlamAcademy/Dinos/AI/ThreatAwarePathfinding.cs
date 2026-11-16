@@ -145,12 +145,12 @@ namespace LlamAcademy.Dinos.AI
                     {
                         worldPos.y = hit.position.y;
                     }
-                    // Loại bỏ triệt để các góc chết rìa chân núi hai bên cánh tường thành (nơi tường cắm vào vách đá)
-                    if (worldPos.x > 17.5f && worldPos.z >= -12.0f && worldPos.z <= 4.0f)
+                    // Chỉ loại bỏ các điểm ngoài vách núi dốc đứng thực sự (X > 25.5f hoặc X < -26.5f), bảo đảm mở thông hoàn toàn hành lang bọc sườn hai cánh
+                    if (worldPos.x > 25.5f && worldPos.z >= -12.0f && worldPos.z <= 4.0f)
                     {
                         onNav = false;
                     }
-                    else if (worldPos.x < -21.0f && worldPos.z >= -12.0f && worldPos.z <= 4.0f)
+                    else if (worldPos.x < -26.5f && worldPos.z >= -12.0f && worldPos.z <= 4.0f)
                     {
                         onNav = false;
                     }
@@ -187,11 +187,11 @@ namespace LlamAcademy.Dinos.AI
                     {
                         node.WorldPos.y = hit.position.y;
                     }
-                    if (node.WorldPos.x > 17.5f && node.WorldPos.z >= -12.0f && node.WorldPos.z <= 4.0f)
+                    if (node.WorldPos.x > 25.5f && node.WorldPos.z >= -12.0f && node.WorldPos.z <= 4.0f)
                     {
                         onNav = false;
                     }
-                    else if (node.WorldPos.x < -21.0f && node.WorldPos.z >= -12.0f && node.WorldPos.z <= 4.0f)
+                    else if (node.WorldPos.x < -26.5f && node.WorldPos.z >= -12.0f && node.WorldPos.z <= 4.0f)
                     {
                         onNav = false;
                     }
@@ -342,10 +342,10 @@ namespace LlamAcademy.Dinos.AI
             switch (species)
             {
                 case DinoAISpeciesType.VelociraptorFlanker:
-                    // Cân bằng trọng số né tháp 2.8f và chi phí tường 1.2f:
-                    // Vẫn ưu tiên bọc sườn né các tháp tập trung hỏa lực, nhưng không dấn sâu vào chân núi cụt
-                    wThreat = 2.8f;
-                    wWall = 1.2f;
+                    // Trọng số né tháp 6.5f và chi phí tường cực cao:
+                    // Buộc Velociraptor thực hiện bọc sườn rộng ở hai bên cánh, tuyệt đối không đâm thẳng vào cửa chính hay cụm hỏa lực
+                    wThreat = 6.5f;
+                    wWall = 250f;
                     break;
                 case DinoAISpeciesType.AnkylosaurusTanker:
                     wThreat = 0.25f;
@@ -438,6 +438,28 @@ namespace LlamAcademy.Dinos.AI
                         // Cost calculation with threat and wall penalty
                         float threatFactor = 1.0f + wThreat * (neighbor.ThreatScore * 0.05f);
                         float wallPenalty = wWall * neighbor.WallPenalty;
+
+                        // Với Velociraptor Flanker: Nếu ô có tường/rào chắn -> Phạt cực nặng (+50000)
+                        // để A* luôn luôn dẫn đường qua hành lang cánh hở
+                        if (species == DinoAISpeciesType.VelociraptorFlanker && neighbor.HasWall)
+                        {
+                            wallPenalty += 50000f;
+                        }
+
+                        // Ưu tiên tuyệt đối hành lang bọc sườn hai bên cánh (|X| > 10m) cho Velociraptor Flanker
+                        // trên toàn bộ lộ trình tiến quân (từ bãi thả Z < 38m tới tận căn cứ làng),
+                        // triệt để phạt nặng trục chính diện (|X| < 6.5m) để không bao giờ đâm thẳng vào rào cản giữa!
+                        if (species == DinoAISpeciesType.VelociraptorFlanker && neighbor.WorldPos.z < 38.0f && neighbor.WorldPos.z > -36.0f)
+                        {
+                            if (Mathf.Abs(neighbor.WorldPos.x) > 10.5f)
+                            {
+                                threatFactor *= 0.25f; // Chiết khấu 75% chi phí để ưu tiên tuyệt đối hành lang bọc sườn cánh!
+                            }
+                            else if (Mathf.Abs(neighbor.WorldPos.x) < 6.5f)
+                            {
+                                threatFactor += 28.0f; // Phạt cực nặng hành động đâm thẳng trục chính diện
+                            }
+                        }
 
                         float tentativeGCost = currentNode.GCost + stepDist * threatFactor + wallPenalty;
 

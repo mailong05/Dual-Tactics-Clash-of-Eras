@@ -57,6 +57,7 @@ namespace LlamAcademy.Dinos.AR
         // Cached distant out-of-bounds scenery to toggle for AR clipping
         private readonly List<GameObject> _culledSceneryObjects = new List<GameObject>();
         private bool _isDioramaBuilt = false;
+        private bool _isARModeActive = false;
 
         private void Awake()
         {
@@ -181,8 +182,9 @@ namespace LlamAcademy.Dinos.AR
             _shadowMattePlane.name = "AR_Shadow_Matte_Receiver";
             _shadowMattePlane.transform.SetParent(_pedestalRoot.transform, false);
 
-            // Lay flat horizontally right above floor surface (Y = 0.015m)
-            _shadowMattePlane.transform.localPosition = new Vector3(0f, 0.015f, 0f);
+            // Đặt hơi thấp hơn mặt sàn một chút (Y = -0.015m) để toàn bộ công trình, tháp và khủng long nằm ở trên,
+            // triệt tiêu Z-fighting và đảm bảo bóng đổ (Shadows) luôn hiển thị 100% ổn định trong AR
+            _shadowMattePlane.transform.localPosition = new Vector3(0f, -0.015f, 0f);
             _shadowMattePlane.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             // Kích thước rộng rãi bao trọn toàn bộ khuôn viên làng, các tháp và hành lang khủng long tiến công
             _shadowMattePlane.transform.localScale = new Vector3(DioramaSize.x * 1.5f, DioramaSize.y * 1.5f, 1f);
@@ -203,6 +205,13 @@ namespace LlamAcademy.Dinos.AR
                 }
             }
 
+            if (_shadowMatteMaterial != null)
+            {
+                _shadowMatteMaterial.EnableKeyword("_MAIN_LIGHT_SHADOWS");
+                _shadowMatteMaterial.EnableKeyword("_MAIN_LIGHT_SHADOWS_CASCADE");
+                _shadowMatteMaterial.EnableKeyword("_SHADOWS_SOFT");
+            }
+
             MeshRenderer mr = _shadowMattePlane.GetComponent<MeshRenderer>();
             if (mr != null)
             {
@@ -215,7 +224,6 @@ namespace LlamAcademy.Dinos.AR
                 }
                 else
                 {
-                    // Tuyệt đối không để material opaque unlit màu đen che khuất khung hình camera!
                     mr.enabled = false;
                 }
             }
@@ -246,7 +254,8 @@ namespace LlamAcademy.Dinos.AR
         /// </summary>
         public void SetARMode(bool isARActive)
         {
-            if (!isARActive && !_isDioramaBuilt) return;
+            _isARModeActive = isARActive;
+
             if (!_isDioramaBuilt) BuildStonePedestal();
             if (_shadowMattePlane == null) BuildShadowMatteReceiver();
 
@@ -273,7 +282,11 @@ namespace LlamAcademy.Dinos.AR
         /// </summary>
         private void ApplyBoundaryClipping()
         {
-            _culledSceneryObjects.Clear();
+            // Bảo toàn danh sách nếu đã chứa đối tượng để không làm mất tham chiếu khi gọi refresh
+            if (_culledSceneryObjects == null)
+            {
+                return;
+            }
 
             // 1. Ẩn trực tiếp các đối tượng cảnh quan tự nhiên lớn thuộc World:
             // - "Ground": Chứa toàn bộ mặt đất sa mạc (Cracked Sand) và toàn bộ 200 cây cối (Vegetation: Palm, Cycads, Bushes, Grass)
@@ -387,10 +400,40 @@ namespace LlamAcademy.Dinos.AR
                 if (_culledSceneryObjects[i] != null)
                 {
                     _culledSceneryObjects[i].SetActive(true);
+                    Renderer r = _culledSceneryObjects[i].GetComponent<Renderer>();
+                    if (r != null) r.enabled = true;
                 }
             }
             _culledSceneryObjects.Clear();
             if (_shadowMattePlane != null) _shadowMattePlane.SetActive(false);
+            if (_pedestalRoot != null) _pedestalRoot.SetActive(false);
+
+            // BẢO CHỨNG TUYỆT ĐỐI 100%: Quét và kích hoạt lại toàn bộ Scene GameObjects
+            // (World, Ground, Núi Đá pb_Mesh, Rừng cây, Smooth Floor, v.v.)
+            // để đảm bảo khi thoát AR về góc nhìn 3D không bao giờ bị biến thành nền đen vô cực (Hình 3)!
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (scene.isLoaded)
+            {
+                var roots = scene.GetRootGameObjects();
+                foreach (var root in roots)
+                {
+                    if (root == null) continue;
+                    if (root.name.StartsWith("AR_")) continue;
+
+                    if (!root.activeSelf) root.SetActive(true);
+
+                    Transform[] children = root.GetComponentsInChildren<Transform>(true);
+                    foreach (var child in children)
+                    {
+                        if (child != null && !child.name.StartsWith("AR_"))
+                        {
+                            if (!child.gameObject.activeSelf) child.gameObject.SetActive(true);
+                            Renderer r = child.GetComponent<Renderer>();
+                            if (r != null && !r.enabled) r.enabled = true;
+                        }
+                    }
+                }
+            }
         }
 
         private void OnDestroy()

@@ -274,8 +274,8 @@ namespace LlamAcademy.Dinos.Unit
                 
         /// <summary>
         /// Tự động dò tìm và vô hiệu hóa toàn bộ mặt sàn gỗ (Bridge_Tribal, Ramp_Tribal, Smooth Floor, Walkway_Deck, ván gỗ)
-        /// nằm ngay bên dưới hoặc trong phạm vi gần (bán kính 5.5m) của công trình/rào chắn bị phá hủy,
-        /// loại bỏ hoàn toàn hiện tượng sàn ma trôi nổi khi cầu/rào cọc bị húc đổ.
+        /// nằm ngay bên dưới hoặc trong phạm vi liên đới (bán kính 12.0m) của công trình/rào chắn bị phá hủy,
+        /// loại bỏ hoàn toàn hiện tượng sàn dốc/bản gỗ ma trôi nổi khi rào cọc bị húc đổ (Hình 8).
         /// </summary>
         private void DeactivateAssociatedBridgeFloors()
         {
@@ -284,25 +284,49 @@ namespace LlamAcademy.Dinos.Unit
             foreach (var t in allTransforms)
             {
                 if (t == null || t == transform || (Root != null && t == Root.transform)) continue;
-                string tn = t.gameObject.name;
+                string tn = t.gameObject.name.ToLowerInvariant();
 
                 // Nhận diện sàn cầu, bản mặt cầu, dốc hoặc sàn gỗ đi bộ
-                bool isFloor = tn.Contains("Bridge_Tribal") ||
-                               tn.Contains("Ramp_Tribal") ||
-                               tn.Contains("Smooth Floor") || 
-                               tn.Contains("Walkway_Deck") || 
-                               tn.Contains("Collider_Walkway_Deck") || 
-                               tn.Contains("FloorDeck");
+                bool isFloor = tn.Contains("bridge") ||
+                               tn.Contains("ramp") ||
+                               tn.Contains("smooth floor") || 
+                               tn.Contains("walkway") || 
+                               tn.Contains("deck") || 
+                               tn.Contains("floor");
 
                 if (isFloor)
                 {
                     float dist = Vector2.Distance(new Vector2(t.position.x, t.position.z), new Vector2(wallPos.x, wallPos.z));
-                    if (dist <= 5.5f) // Bán kính bao quát thân cầu và ván sàn ngay dưới chân rào chắn
+
+                    // Đồng thời kiểm tra khoảng cách đến điểm gần nhất trên Collider của sàn
+                    Collider floorCol = t.GetComponentInChildren<Collider>();
+                    if (floorCol != null)
+                    {
+                        Vector3 closest = floorCol.ClosestPoint(wallPos);
+                        float closestDist = Vector2.Distance(new Vector2(closest.x, closest.z), new Vector2(wallPos.x, wallPos.z));
+                        dist = Mathf.Min(dist, closestDist);
+                    }
+
+                    if (dist <= 12.0f) // Bán kính bao quát trọn vẹn toàn bộ bản dốc Ramp_Tribal liên kết với rào chắn
                     {
                         Renderer[] rList = t.GetComponentsInChildren<Renderer>(true);
                         foreach (var r in rList) if (r != null) r.enabled = false;
                         Collider[] cList = t.GetComponentsInChildren<Collider>(true);
                         foreach (var c in cList) if (c != null) c.enabled = false;
+
+                        // Nếu đối tượng có gắn script Wall/Unit, dọn dẹp health bar
+                        Wall attachedWall = t.GetComponent<Wall>();
+                        if (attachedWall != null && attachedWall != this)
+                        {
+                            if (Utility.HealthBarCanvas.Instance != null)
+                            {
+                                Utility.HealthBarCanvas.Instance.Unregister(attachedWall);
+                            }
+                            if (attachedWall.HealthBar != null && attachedWall.HealthBar.gameObject != null)
+                            {
+                                Destroy(attachedWall.HealthBar.gameObject);
+                            }
+                        }
 
                         _deactivatedAssociatedFloors.Add(t.gameObject);
                         t.gameObject.SetActive(false);

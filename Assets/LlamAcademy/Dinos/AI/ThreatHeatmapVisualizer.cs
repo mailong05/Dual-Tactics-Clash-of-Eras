@@ -117,10 +117,6 @@ namespace LlamAcademy.Dinos.AI
         public void SetVisibility(bool visible)
         {
             IsHeatmapVisible = visible;
-            if (_overlayPlane != null) _overlayPlane.SetActive(visible);
-            if (_flankerLine != null) _flankerLine.enabled = visible;
-            if (_tankerLine != null) _tankerLine.enabled = visible;
-
             if (visible)
             {
                 // Rebuild terrain mesh if missing or scene reloaded
@@ -128,9 +124,17 @@ namespace LlamAcademy.Dinos.AI
                 {
                     CreateHeatmapPlane();
                 }
+                if (_flankerLine == null || _tankerLine == null)
+                {
+                    CreatePathLineRenderers();
+                }
                 UpdateHeatmapTexture();
                 RefreshVisualPaths();
             }
+
+            if (_overlayPlane != null) _overlayPlane.SetActive(visible);
+            if (_flankerLine != null) _flankerLine.enabled = visible;
+            if (_tankerLine != null) _tankerLine.enabled = visible;
         }
 
         /// <summary>
@@ -268,6 +272,7 @@ namespace LlamAcademy.Dinos.AI
 
             _overlayMaterial = new Material(shader);
             _overlayMaterial.SetFloat("_Surface", 1); // Transparent
+            _overlayMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             _overlayMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
             _overlayMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             _overlayMaterial.SetInt("_ZWrite", 0);
@@ -371,21 +376,41 @@ namespace LlamAcademy.Dinos.AI
         {
             if (ThreatAwarePathfinding.Instance == null) return;
 
-            Vector3 spawnPos = new Vector3(-2.2f, 0f, 32f);
-            Vector3 basePos = new Vector3(-2.2f, 0f, -38f);
+            Vector3 spawnPos;
+            Vector3 basePos;
 
-            if (PrehistoricGameplayManager.Instance != null)
+            if (RoundManagement.PrehistoricGameModeManager.Instance != null && 
+                RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault)
             {
-                basePos = PrehistoricGameplayManager.Instance.GetValidBaseTargetPosition();
+                // Chế độ Công thành: Khủng long xuất trận từ phía Nam (-34f) tiến về phía Bắc (+15f) vào Căn cứ Làng
+                spawnPos = new Vector3(0f, 0f, -34f);
+                basePos = (RoundManagement.PrehistoricGameModeManager.Instance.VillageBase != null)
+                    ? RoundManagement.PrehistoricGameModeManager.Instance.VillageBase.transform.position
+                    : new Vector3(0f, 0f, 15f);
+            }
+            else
+            {
+                // Chế độ Thủ thành: Quái xuất hiện từ phía Bắc (+32f) tiến về Căn cứ phía Nam (-38f)
+                spawnPos = new Vector3(-2.2f, 0f, 32f);
+                basePos = (RoundManagement.PrehistoricGameplayManager.Instance != null)
+                    ? RoundManagement.PrehistoricGameplayManager.Instance.GetValidBaseTargetPosition()
+                    : new Vector3(-2.23f, 0f, -38.26f);
             }
 
-            // 1. Calculate Flanker Path (Velociraptor avoids towers through blind spots)
-            List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
-            DrawLinePath(_flankerLine, flankerPath, 0.40f);
+            try
+            {
+                // 1. Calculate Flanker Path (Velociraptor avoids towers through blind spots)
+                List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
+                DrawLinePath(_flankerLine, flankerPath, 0.40f);
 
-            // 2. Calculate Tanker Path (Ankylosaurus charges through walls directly)
-            List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
-            DrawLinePath(_tankerLine, tankerPath, 0.50f);
+                // 2. Calculate Tanker Path (Ankylosaurus charges through walls directly)
+                List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
+                DrawLinePath(_tankerLine, tankerPath, 0.50f);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[ThreatHeatmapVisualizer] RefreshVisualPaths error: {ex.Message}");
+            }
         }
 
         private void DrawLinePath(LineRenderer line, List<Vector3> path, float yOffset)

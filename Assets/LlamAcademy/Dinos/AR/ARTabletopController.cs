@@ -47,6 +47,7 @@ namespace LlamAcademy.Dinos.AR
         private CameraClearFlags _OriginalCameraClearFlags = CameraClearFlags.Skybox;
         private Color _OriginalCameraBackgroundColor = Color.black;
         private float _originalShadowDistance = 50f;
+        private bool _isCameraSetupForAR = false;
 #if AR_FOUNDATION_ENABLED
         private Transform _OriginalCameraParent;
         private Vector3 _OriginalCameraLocalPos;
@@ -98,6 +99,24 @@ namespace LlamAcademy.Dinos.AR
 
         private void Start()
         {
+            if (RenderSettings.skybox != null)
+            {
+                _OriginalSkybox = RenderSettings.skybox;
+            }
+            if (Camera.main != null)
+            {
+                _OriginalCameraClearFlags = Camera.main.clearFlags;
+                if (Camera.main.backgroundColor != Color.black && Camera.main.backgroundColor != Color.clear)
+                {
+                    _OriginalCameraBackgroundColor = Camera.main.backgroundColor;
+                }
+                else
+                {
+                    _OriginalCameraBackgroundColor = new Color(0.70f, 0.82f, 0.95f, 1f);
+                }
+            }
+            _originalShadowDistance = QualitySettings.shadowDistance;
+
             CreateARButtonUI();
             CreateARPlaneGrid();
         }
@@ -462,8 +481,30 @@ namespace LlamAcademy.Dinos.AR
         {
             Debug.Log("<color=cyan>[AR System]</color> Tabletop AR Mode Activated. Checking ARCore / Camera Pass-Through...");
 
-            _originalShadowDistance = QualitySettings.shadowDistance;
-            QualitySettings.shadowDistance = Mathf.Max(120f, _originalShadowDistance);
+            if (_originalShadowDistance <= 0f)
+            {
+                _originalShadowDistance = QualitySettings.shadowDistance;
+            }
+            QualitySettings.shadowDistance = Mathf.Max(150f, _originalShadowDistance);
+
+            var urpAsset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            if (urpAsset != null)
+            {
+                urpAsset.shadowDistance = 150f;
+            }
+
+            // Đảm bảo Directional Light luôn bật Soft Shadows trong chế độ AR
+            Light[] allLights = FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (Light l in allLights)
+            {
+                if (l != null && l.type == LightType.Directional)
+                {
+                    l.enabled = true;
+                    l.shadows = LightShadows.Soft;
+                    l.shadowStrength = 0.85f;
+                    l.shadowNearPlane = 0.1f;
+                }
+            }
 
             SetupCameraForAR();
             ARDioramaFrame.Instance.SetARMode(true);
@@ -479,6 +520,11 @@ namespace LlamAcademy.Dinos.AR
             if (_originalShadowDistance > 0f)
             {
                 QualitySettings.shadowDistance = _originalShadowDistance;
+            }
+            var urpAsset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            if (urpAsset != null && _originalShadowDistance > 0f)
+            {
+                urpAsset.shadowDistance = _originalShadowDistance;
             }
 
             if (CameraInitRoutine != null)
@@ -768,30 +814,64 @@ namespace LlamAcademy.Dinos.AR
         private void SetupCameraForAR()
         {
             if (Camera.main == null) return;
+            if (_isCameraSetupForAR) return;
 
-            _OriginalSkybox = RenderSettings.skybox;
+            if (_OriginalSkybox == null && RenderSettings.skybox != null)
+            {
+                _OriginalSkybox = RenderSettings.skybox;
+            }
+
+            if (_OriginalCameraClearFlags == CameraClearFlags.SolidColor && Camera.main.clearFlags != CameraClearFlags.SolidColor)
+            {
+                _OriginalCameraClearFlags = Camera.main.clearFlags;
+            }
+
+            if (Camera.main.backgroundColor != Color.black && Camera.main.backgroundColor != Color.clear)
+            {
+                _OriginalCameraBackgroundColor = Camera.main.backgroundColor;
+            }
+
             RenderSettings.skybox = null;
-
-            _OriginalCameraClearFlags = Camera.main.clearFlags;
-            _OriginalCameraBackgroundColor = Camera.main.backgroundColor;
-
             Camera.main.clearFlags = CameraClearFlags.SolidColor;
             Camera.main.backgroundColor = new Color(0f, 0f, 0f, 0f);
 
+            _isCameraSetupForAR = true;
             CameraControl.Instance?.ResetToCenter();
         }
 
         private void RestoreCameraFromAR()
         {
+            _isCameraSetupForAR = false;
+
             if (_OriginalSkybox != null)
             {
                 RenderSettings.skybox = _OriginalSkybox;
             }
+            else
+            {
+                Material defaultSky = Resources.GetBuiltinResource<Material>("Default-Skybox.mat");
+                if (defaultSky != null) RenderSettings.skybox = defaultSky;
+            }
 
             if (Camera.main != null)
             {
-                Camera.main.clearFlags = _OriginalCameraClearFlags;
-                Camera.main.backgroundColor = _OriginalCameraBackgroundColor;
+                if (RenderSettings.skybox != null)
+                {
+                    Camera.main.clearFlags = (_OriginalCameraClearFlags != CameraClearFlags.SolidColor) ? _OriginalCameraClearFlags : CameraClearFlags.Skybox;
+                    Camera.main.backgroundColor = (_OriginalCameraBackgroundColor != Color.black && _OriginalCameraBackgroundColor != Color.clear)
+                        ? _OriginalCameraBackgroundColor
+                        : new Color(0.70f, 0.82f, 0.95f, 1f);
+                }
+                else
+                {
+                    Camera.main.clearFlags = CameraClearFlags.SolidColor;
+                    Camera.main.backgroundColor = new Color(0.70f, 0.82f, 0.95f, 1f); // Bầu trời xanh ban ngày tiền sử, không bao giờ để đen!
+                }
+            }
+
+            if (_BackgroundQuad != null)
+            {
+                _BackgroundQuad.SetActive(false);
             }
         }
 

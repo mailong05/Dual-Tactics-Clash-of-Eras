@@ -153,6 +153,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 return;
             }
+
+            // Phím tắt tiện ích chiến thuật: Heatmap [H], AI Monitor [F1], Toàn màn hình [F11]
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.hKey.wasPressedThisFrame)
+                {
+                    AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();
+                    Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+                if (Keyboard.current.f1Key.wasPressedThisFrame)
+                {
+                    UI.PrehistoricNeuralMonitorUI.Instance?.ToggleWindow();
+                    Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
+                }
+                if (Keyboard.current.f11Key.wasPressedThisFrame)
+                {
+                    Screen.fullScreen = !Screen.fullScreen;
+                }
+            }
+
             // Phím tắt M / F1 đổi chế độ trong trận đã được chuyển ra Menu Chính
             if (Keyboard.current != null && (Keyboard.current.mKey.wasPressedThisFrame))
             {
@@ -376,10 +396,6 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.ChangeActiveDino(dino);
-            }
-            if (dino != null)
-            {
-                Audio.PrehistoricAudioManager.Instance?.PlayDinoSound(dino);
             }
         }
 
@@ -734,6 +750,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (GUI.Button(hmRect, isHmOpen ? "<b>🗺️ HEATMAP: BẬT</b>" : "<b>🗺️ HEATMAP [H]</b>"))
             {
                 AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
             }
             dockY += btnH + 6f;
 
