@@ -2304,9 +2304,12 @@ namespace LlamAcademy.Dinos.Unit
 
             float agentRadius = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
 
-            float meleeAttackRange = Mathf.Max(AttackRange + agentRadius + 0.3f, 2.4f);
+            bool isBoss = (this is BossDino) || (AISpeciesType == LlamAcademy.Dinos.AI.DinoAISpeciesType.TRexApexBoss);
+            float meleeAttackRange = isBoss
+                ? Mathf.Max(AttackRange + agentRadius + 1.5f, 7.2f)
+                : Mathf.Max(AttackRange + agentRadius + 0.3f, 2.6f);
 
-            float meleeExitRange = meleeAttackRange + 1.8f; // Vùng đệm 1.8m triệt tiêu hoàn toàn hiện tượng rung giật bật/tắt di chuyển 60Hz
+            float meleeExitRange = meleeAttackRange + 2.0f; // Vùng đệm 2.0m triệt tiêu hoàn toàn hiện tượng rung giật bật/tắt di chuyển 60Hz
 
             // 1. Kiểm tra mục tiêu hiện tại còn tồn tại không
 
@@ -2448,7 +2451,7 @@ namespace LlamAcademy.Dinos.Unit
                         Vector3 standoffDir = (transform.position - closestPoint);
                         standoffDir.y = 0;
                         if (standoffDir.sqrMagnitude < 0.01f) standoffDir = -transform.forward;
-                        float safeMargin = Mathf.Max(agentRadius + 0.8f, AttackRange * 0.82f);
+                        float safeMargin = isBoss ? 6.2f : Mathf.Max(agentRadius + 1.6f, AttackRange * 0.92f);
                         Vector3 standoffPoint = closestPoint + standoffDir.normalized * safeMargin;
                         if (NavMesh.SamplePosition(standoffPoint, out NavMeshHit standHit, 2.0f, NavMesh.AllAreas))
                         {
@@ -2465,99 +2468,61 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // 4. Nếu không vướng vật cản: Hành quân thẳng về Nhà chính Làng (TargetBase)
-
             _IsEngagedInMelee = false;
 
             Collider baseCol = TargetBase.GetComponentInChildren<Collider>();
-
             Vector3 baseClosest = baseCol != null ? GetSafeClosestPoint(baseCol, transform.position) : TargetBase.position;
-
             Vector3 toBaseFlat = transform.position - baseClosest;
-
             toBaseFlat.y = 0;
-
             float distToBase = toBaseFlat.magnitude;
 
-            float baseAttackThreshold = (this is BossDino)
-                ? Mathf.Max(AttackRange + agentRadius + 2.0f, 5.0f)
-                : Mathf.Max(AttackRange + agentRadius + 0.8f, 3.2f);
+            float baseAttackThreshold = isBoss
+                ? Mathf.Max(AttackRange + agentRadius + 1.5f, 6.8f)
+                : Mathf.Max(AttackRange + agentRadius + 0.8f, 3.8f);
 
-            float baseExitThreshold = baseAttackThreshold + 1.0f;
+            IDamageable baseDamageable = (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
+                ? (IDamageable)PrehistoricVillageBase.Instance
+                : TargetBase.GetComponent<IDamageable>();
 
-            if (distToBase <= baseAttackThreshold)
-
+            if (baseDamageable != null && baseDamageable.Health > 0)
             {
-
-                if (Agent != null && Agent.isOnNavMesh)
-
+                if (distToBase <= baseAttackThreshold)
                 {
+                    CurrentTarget = baseDamageable;
+                    _IsEngagedInMelee = true;
 
-                    Agent.isStopped = true;
+                    if (Agent != null && Agent.isOnNavMesh)
+                    {
+                        Agent.isStopped = true;
+                        Agent.updateRotation = false;
+                        Agent.velocity = Vector3.zero;
+                    }
 
-                    Agent.updateRotation = false;
-
-                    Agent.velocity = Vector3.zero;
-
-                    if (Agent.hasPath) Agent.ResetPath();
-
-                }
-
-                Vector3 baseDir = (baseClosest - transform.position);
-
-                baseDir.y = 0;
-
-                if (baseDir.sqrMagnitude < 0.2f)
-
-                {
-
-                    baseDir = (TargetBase.position - transform.position);
-
+                    Vector3 baseDir = (baseClosest - transform.position);
                     baseDir.y = 0;
-
-                }
-
-                // Tuyệt đối không xoay body khi đang vung đòn cắn (_IsAttackingAnim) để triệt tiêu hiện tượng giật lắc đầu
-
-                if (!_IsAttackingAnim && baseDir.sqrMagnitude > 0.01f)
-
-                {
-
-                    Quaternion baseRot = Quaternion.LookRotation(baseDir.normalized);
-
-                    if (Quaternion.Angle(transform.rotation, baseRot) > 5.0f)
-
+                    if (baseDir.sqrMagnitude < 0.1f)
                     {
-
-                        transform.rotation = Quaternion.RotateTowards(transform.rotation, baseRot, 120f * Time.deltaTime);
-
+                        baseDir = (TargetBase.position - transform.position);
+                        baseDir.y = 0;
                     }
 
-                }
-
-                if (Time.time >= LastAttackTime + AttackInterval)
-
-                {
-
-                    LastAttackTime = Time.time;
-
-                    IDamageable baseDamageable = (PrehistoricVillageBase.Instance != null && PrehistoricVillageBase.Instance.Health > 0)
-
-                        ? (IDamageable)PrehistoricVillageBase.Instance
-
-                        : TargetBase.GetComponent<IDamageable>();
-
-                    if (baseDamageable != null)
-
+                    // Tuyệt đối không xoay body khi đang vung đòn cắn (_IsAttackingAnim) để triệt tiêu hiện tượng giật lắc đầu
+                    if (!_IsAttackingAnim && baseDir.sqrMagnitude > 0.01f)
                     {
+                        Quaternion baseRot = Quaternion.LookRotation(baseDir.normalized);
+                        if (Quaternion.Angle(transform.rotation, baseRot) > 5.0f)
+                        {
+                            transform.rotation = Quaternion.RotateTowards(transform.rotation, baseRot, 120f * Time.deltaTime);
+                        }
+                    }
 
+                    if (Time.time >= LastAttackTime + AttackInterval)
+                    {
+                        LastAttackTime = Time.time;
                         PerformAttack(baseDamageable);
-
                     }
-
+                    return;
                 }
-
-                return;
-
             }
 
             else
@@ -2611,7 +2576,18 @@ namespace LlamAcademy.Dinos.Unit
                     }
 
                     // Giữ moveTarget nằm an toàn trong hành lang chiến đấu, cho phép mở rộng bọc sườn hai cánh (-26.0f đến 24.0f)
-                    moveTarget.x = Mathf.Clamp(moveTarget.x, -26.0f, 24.0f);
+                    if (AISpeciesType == DinoAISpeciesType.VelociraptorFlanker && transform.position.z > -24.0f)
+                    {
+                        // Giữ vững hành lang cánh cho đến khi vượt qua cụm tháp chính diện vào sâu trong làng
+                        if (transform.position.x < 0f)
+                            moveTarget.x = Mathf.Clamp(moveTarget.x, -25.0f, -10.0f);
+                        else
+                            moveTarget.x = Mathf.Clamp(moveTarget.x, 10.0f, 25.0f);
+                    }
+                    else
+                    {
+                        moveTarget.x = Mathf.Clamp(moveTarget.x, -26.0f, 24.0f);
+                    }
                     if (NavMesh.SamplePosition(moveTarget, out NavMeshHit mHit, 2.5f, NavMesh.AllAreas))
                     {
                         moveTarget = mHit.position;
@@ -2649,6 +2625,13 @@ namespace LlamAcademy.Dinos.Unit
                 Collider col = ScanBuffer[i];
                 if (col == null || col.gameObject == gameObject) continue;
 
+                // Khủng long công thành tập trung 100% vào phá thành và nhà chính, tuyệt đối KHÔNG đánh lính phòng thủ (Defender)!
+                if (col.GetComponentInParent<Enemy.Defender>() != null) continue;
+
+                // Cầu sông (Bridge), dốc gỗ (Ramp_Tribal), mặt sàn (Floor) là đường đi, tuyệt đối không coi là vật cản!
+                string colName = col.gameObject.name.ToLower();
+                if (colName.Contains("bridge") || colName.Contains("ramp") || colName.Contains("floor") || colName.Contains("ground")) continue;
+
                 // Kiểm tra Wall
                 Wall wall = col.GetComponentInParent<Wall>();
                 if (wall == null) wall = EnsureDynamicWall(col);
@@ -2656,6 +2639,8 @@ namespace LlamAcademy.Dinos.Unit
                 IDamageable candidate = null;
                 if (wall != null && wall.Health > 0)
                 {
+                    string wallName = wall.gameObject.name.ToLower();
+                    if (wallName.Contains("bridge") || wallName.Contains("ramp") || wallName.Contains("floor")) continue;
                     candidate = wall;
                 }
                 else
@@ -2663,12 +2648,7 @@ namespace LlamAcademy.Dinos.Unit
                     Unit unit = col.GetComponentInParent<Unit>();
                     if (unit != null && !(unit is PrehistoricDinoBase) && unit.Health > 0)
                     {
-                        // THEO YÊU CẦU NGƯỜI DÙNG: Khủng long đi công thành tuyệt đối KHÔNG đi săn đuổi NPC!
-                        // Đường đi đến nhà chính đã mở thì phải phi thẳng vào nhà chính, không rẽ ngang đánh NPC.
-                        if (unit is Enemy.Defender)
-                        {
-                            continue;
-                        }
+                        if (unit is Enemy.Defender) continue;
                         candidate = unit;
                     }
                 }
@@ -3188,45 +3168,31 @@ namespace LlamAcademy.Dinos.Unit
         }
 
         private static Wall EnsureDynamicWall(Collider col)
-
         {
-
             if (col == null) return null;
 
+            // Tuyệt đối không biến quân lính phòng thủ (Defender), khủng long (Dino), hoặc các thành phần của lính thành Wall!
+            if (col.GetComponentInParent<Enemy.Defender>() != null) return null;
+            if (col.GetComponentInParent<PrehistoricDinoBase>() != null) return null;
+
             // 1. Nếu col hoặc bất kỳ cha nào đã có sẵn component Wall thì dùng luôn, tuyệt đối không tạo thêm!
-
             Wall existingWall = col.GetComponentInParent<Wall>();
-
             if (existingWall != null) return existingWall;
 
             // 2. Chỉ leo lên các đối tượng cấp prefab đơn lẻ, KHÔNG leo lên các container nhóm cha
-
             Transform targetT = col.transform;
-
             while (targetT.parent != null && targetT.parent != col.transform.root &&
-
                    !targetT.parent.name.ToLower().Contains("world") &&
-
                    !targetT.parent.name.ToLower().Contains("props"))
-
             {
-
                 string pn = targetT.parent.name.ToLower();
-
                 if (pn.Contains("fortress") || pn.Contains("wing") || pn.Contains("flank") ||
-
                     pn.Contains("gate_complex") || pn.Contains("gate_entryway") ||
-
                     pn.Contains("container") || pn.Contains("group"))
-
                 {
-
                     break; // Dừng lại ở đối tượng con, không leo lên container nhóm!
-
                 }
-
                 targetT = targetT.parent;
-
             }
 
             string n = targetT.gameObject.name.ToLower();
@@ -3235,7 +3201,7 @@ namespace LlamAcademy.Dinos.Unit
             if (n.Contains("bridge") || n.Contains("ramp") || n.Contains("smooth floor") ||
                 n == "world" || n == "props" ||
                 n.Contains("road") || n.Contains("path") || n.Contains("floor") || n.Contains("ground") || n.Contains("terrain") ||
-                n.Contains("base") || n.Contains("egg") ||
+                n.Contains("base") || n.Contains("egg") || n.Contains("defender") || n.Contains("archer") || n.Contains("spear") ||
                 n.Contains("mountain") || n.Contains("rock") || n.Contains("cliff") || n.Contains("stone") || n.Contains("boulder"))
             {
                 return null;
@@ -3675,9 +3641,10 @@ namespace LlamAcademy.Dinos.Unit
             float actualDist = flatDiff.magnitude;
 
             float agentRad = (Agent != null && Agent.enabled) ? Agent.radius : 0.8f;
+            bool isBossDino = (this is BossDino) || (AISpeciesType == LlamAcademy.Dinos.AI.DinoAISpeciesType.TRexApexBoss);
             float maxReach = (target is PrehistoricVillageBase)
-                ? Mathf.Max(AttackRange + agentRad + 2.5f, 5.5f)
-                : Mathf.Max(AttackRange + agentRad + 0.8f, 3.5f);
+                ? (isBossDino ? 8.5f : Mathf.Max(AttackRange + agentRad + 2.5f, 6.0f))
+                : (isBossDino ? 7.5f : Mathf.Max(AttackRange + agentRad + 1.2f, 4.5f));
             if (actualDist > maxReach)
             {
                 _IsEngagedInMelee = false;

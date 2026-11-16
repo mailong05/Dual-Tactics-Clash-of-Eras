@@ -1180,12 +1180,6 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Hotkey F11 hoặc Alt+Enter để chuyển đổi Fullscreen / Toàn màn hình
             if (Keyboard.current != null)
             {
-                if (Keyboard.current.hKey.wasPressedThisFrame)
-                {
-                    AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();
-                    Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
-                }
-
                 bool isF11Pressed = Keyboard.current.f11Key.wasPressedThisFrame;
                 bool isAltEnter = (Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed) && Keyboard.current.enterKey.wasPressedThisFrame;
 

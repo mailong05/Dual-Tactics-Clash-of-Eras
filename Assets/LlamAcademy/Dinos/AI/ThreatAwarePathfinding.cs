@@ -342,10 +342,10 @@ namespace LlamAcademy.Dinos.AI
             switch (species)
             {
                 case DinoAISpeciesType.VelociraptorFlanker:
-                    // Trọng số né tháp 6.5f và chi phí tường cực cao:
+                    // Trọng số né tháp 6.5f và chi phí tường cân bằng:
                     // Buộc Velociraptor thực hiện bọc sườn rộng ở hai bên cánh, tuyệt đối không đâm thẳng vào cửa chính hay cụm hỏa lực
                     wThreat = 6.5f;
-                    wWall = 250f;
+                    wWall = 25f;
                     break;
                 case DinoAISpeciesType.AnkylosaurusTanker:
                     wThreat = 0.25f;
@@ -438,30 +438,37 @@ namespace LlamAcademy.Dinos.AI
                         // Cost calculation with threat and wall penalty
                         float threatFactor = 1.0f + wThreat * (neighbor.ThreatScore * 0.05f);
                         float wallPenalty = wWall * neighbor.WallPenalty;
+                        float flankBonusPenalty = 0f;
 
-                        // Với Velociraptor Flanker: Nếu ô có tường/rào chắn -> Phạt cực nặng (+50000)
-                        // để A* luôn luôn dẫn đường qua hành lang cánh hở
-                        if (species == DinoAISpeciesType.VelociraptorFlanker && neighbor.HasWall)
+                        // CHIẾN THUẬT BỌC SƯỜN NÉ THÁP CHO VELOCIRAPTOR (Hình 3):
+                        // Khủng long nhỏ khi nhận lệnh bọc sườn phải giữ vững lộ trình hai cánh (|X| > 10m).
+                        // Tuyệt đối không rẽ bẻ cua đâm thẳng vào cửa giữa hay lỗ thủng của T-Rex!
+                        if (species == DinoAISpeciesType.VelociraptorFlanker)
                         {
-                            wallPenalty += 50000f;
+                            bool isLeftFlank = startPos.x < 0f;
+
+                            // Cấm tuyệt đối cắt ngang vào trục chính giữa (|X| < 8.0m) khi chưa thâm nhập sâu vào hậu phương làng (Z > -25.0m)
+                            if (neighbor.WorldPos.z > -25.0f && Mathf.Abs(neighbor.WorldPos.x) < 8.0f)
+                            {
+                                flankBonusPenalty += 100000f; // Phạt tối thượng để không bao giờ rẽ vào cửa giữa
+                            }
+
+                            // Khuyến khích mạnh hành lang bọc sườn cánh tương ứng (|X| >= 10.0m)
+                            if (isLeftFlank && neighbor.WorldPos.x < -10.0f)
+                            {
+                                threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh trái
+                            }
+                            else if (!isLeftFlank && neighbor.WorldPos.x > 10.0f)
+                            {
+                                threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh phải
+                            }
+                            else if ((isLeftFlank && neighbor.WorldPos.x > 0f) || (!isLeftFlank && neighbor.WorldPos.x < 0f))
+                            {
+                                flankBonusPenalty += 50000f; // Cấm chạy nhầm sang cánh đối diện
+                            }
                         }
 
-                        // Ưu tiên tuyệt đối hành lang bọc sườn hai bên cánh (|X| > 10m) cho Velociraptor Flanker
-                        // trên toàn bộ lộ trình tiến quân (từ bãi thả Z < 38m tới tận căn cứ làng),
-                        // triệt để phạt nặng trục chính diện (|X| < 6.5m) để không bao giờ đâm thẳng vào rào cản giữa!
-                        if (species == DinoAISpeciesType.VelociraptorFlanker && neighbor.WorldPos.z < 38.0f && neighbor.WorldPos.z > -36.0f)
-                        {
-                            if (Mathf.Abs(neighbor.WorldPos.x) > 10.5f)
-                            {
-                                threatFactor *= 0.25f; // Chiết khấu 75% chi phí để ưu tiên tuyệt đối hành lang bọc sườn cánh!
-                            }
-                            else if (Mathf.Abs(neighbor.WorldPos.x) < 6.5f)
-                            {
-                                threatFactor += 28.0f; // Phạt cực nặng hành động đâm thẳng trục chính diện
-                            }
-                        }
-
-                        float tentativeGCost = currentNode.GCost + stepDist * threatFactor + wallPenalty;
+                        float tentativeGCost = currentNode.GCost + stepDist * threatFactor + wallPenalty + flankBonusPenalty;
 
                         if (tentativeGCost < neighbor.GCost)
                         {

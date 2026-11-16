@@ -154,14 +154,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
 
-            // Phím tắt tiện ích chiến thuật: Heatmap [H], AI Monitor [F1], Toàn màn hình [F11]
+            // Phím tắt tiện ích chiến thuật: AI Monitor [F1], Toàn màn hình [F11] (Heatmap [H] do ThreatHeatmapVisualizer xử lý duy nhất)
             if (Keyboard.current != null)
             {
-                if (Keyboard.current.hKey.wasPressedThisFrame)
-                {
-                    AI.ThreatHeatmapVisualizer.Instance?.ToggleHeatmap();
-                    Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
-                }
                 if (Keyboard.current.f1Key.wasPressedThisFrame)
                 {
                     UI.PrehistoricNeuralMonitorUI.Instance?.ToggleWindow();
@@ -405,6 +400,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 return;
             }
+            GUI.depth = -50;
             Mobile.MobileUIHelper.BeginScaling();
             try
             {

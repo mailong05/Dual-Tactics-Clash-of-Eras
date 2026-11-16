@@ -536,12 +536,21 @@ namespace LlamAcademy.Dinos.AR
             CleanupARFoundation();
             StopWebCamFeed();
 
-            if (ARDioramaFrame.HasInstance)
+            try
             {
-                ARDioramaFrame.Instance.SetARMode(false);
+                if (ARDioramaFrame.HasInstance)
+                {
+                    ARDioramaFrame.Instance.SetARMode(false);
+                }
             }
-
-            RestoreCameraFromAR();
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[AR System] Error during SetARMode(false): {ex.Message}");
+            }
+            finally
+            {
+                RestoreCameraFromAR();
+            }
 
             if (ARPlaneGrid != null) ARPlaneGrid.SetActive(false);
 
@@ -816,20 +825,12 @@ namespace LlamAcademy.Dinos.AR
             if (Camera.main == null) return;
             if (_isCameraSetupForAR) return;
 
-            if (_OriginalSkybox == null && RenderSettings.skybox != null)
+            if (RenderSettings.skybox != null)
             {
                 _OriginalSkybox = RenderSettings.skybox;
             }
-
-            if (_OriginalCameraClearFlags == CameraClearFlags.SolidColor && Camera.main.clearFlags != CameraClearFlags.SolidColor)
-            {
-                _OriginalCameraClearFlags = Camera.main.clearFlags;
-            }
-
-            if (Camera.main.backgroundColor != Color.black && Camera.main.backgroundColor != Color.clear)
-            {
-                _OriginalCameraBackgroundColor = Camera.main.backgroundColor;
-            }
+            _OriginalCameraClearFlags = Camera.main.clearFlags;
+            _OriginalCameraBackgroundColor = Camera.main.backgroundColor;
 
             RenderSettings.skybox = null;
             Camera.main.clearFlags = CameraClearFlags.SolidColor;
@@ -855,18 +856,10 @@ namespace LlamAcademy.Dinos.AR
 
             if (Camera.main != null)
             {
-                if (RenderSettings.skybox != null)
-                {
-                    Camera.main.clearFlags = (_OriginalCameraClearFlags != CameraClearFlags.SolidColor) ? _OriginalCameraClearFlags : CameraClearFlags.Skybox;
-                    Camera.main.backgroundColor = (_OriginalCameraBackgroundColor != Color.black && _OriginalCameraBackgroundColor != Color.clear)
-                        ? _OriginalCameraBackgroundColor
-                        : new Color(0.70f, 0.82f, 0.95f, 1f);
-                }
-                else
-                {
-                    Camera.main.clearFlags = CameraClearFlags.SolidColor;
-                    Camera.main.backgroundColor = new Color(0.70f, 0.82f, 0.95f, 1f); // Bầu trời xanh ban ngày tiền sử, không bao giờ để đen!
-                }
+                Camera.main.clearFlags = CameraClearFlags.Skybox;
+                Camera.main.backgroundColor = (_OriginalCameraBackgroundColor != Color.black && _OriginalCameraBackgroundColor != Color.clear)
+                    ? _OriginalCameraBackgroundColor
+                    : new Color(0.70f, 0.82f, 0.95f, 1f);
             }
 
             if (_BackgroundQuad != null)

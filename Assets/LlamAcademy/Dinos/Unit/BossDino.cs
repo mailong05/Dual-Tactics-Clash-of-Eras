@@ -24,12 +24,12 @@ namespace LlamAcademy.Dinos.Unit
             base.Awake();
             ConfigureNavMeshAgent();
 
-            // Cự ly tấn công 3.4m chuẩn xác cho T-Rex (đầu dài ~3m):
+            // Cự ly tấn công 5.0m và stoppingDistance 4.2m chuẩn xác cho T-Rex (cổ và đầu vươn dài ~3.5m):
             // Triệt tiêu 100% hiện tượng mõm và đầu khủng long đâm xuyên qua tường rào / công trình khi cắn!
-            AttackRange = 3.4f;
+            AttackRange = 5.0f;
             if (Agent != null)
             {
-                Agent.stoppingDistance = 3.0f;
+                Agent.stoppingDistance = 4.2f;
             }
 
             MaxHealth = (UnitType != null && UnitType.Health > 0) ? UnitType.Health : 8500;
@@ -72,8 +72,11 @@ namespace LlamAcademy.Dinos.Unit
             // Tuyệt đối KHÔNG gầm khi phá hủy hàng rào gỗ cọc cản đường thông thường.
             if (hpBefore > 0 && target.Health <= 0 && !_isRoaring)
             {
+                // Tường rào (Wall) tuyệt đối không phải là Nhà chính hay Tháp lớn!
+                if (target is Wall) return;
+
                 bool isVillageBase = (target is PrehistoricVillageBase) ||
-                                     (target.Transform != null && target.Transform.name.ToLower().Contains("village"));
+                                     (target.Transform != null && (target.Transform.name.Equals("Village_Base", System.StringComparison.OrdinalIgnoreCase) || target.Transform.GetComponent<PrehistoricVillageBase>() != null));
 
                 bool isBigTower = (target is ArcherTower) ||
                                   (target is BallistaTower) ||
@@ -84,7 +87,7 @@ namespace LlamAcademy.Dinos.Unit
                 if (!isBigTower && target.Transform != null)
                 {
                     string targetName = target.Transform.name.ToLower();
-                    if (targetName.Contains("tower") || targetName.Contains("watchtower") || targetName.Contains("chòi") || targetName.Contains("bastion"))
+                    if ((targetName.Contains("tower") || targetName.Contains("watchtower") || targetName.Contains("chòi") || targetName.Contains("bastion")) && !targetName.Contains("wall") && !targetName.Contains("fence"))
                     {
                         isBigTower = true;
                     }

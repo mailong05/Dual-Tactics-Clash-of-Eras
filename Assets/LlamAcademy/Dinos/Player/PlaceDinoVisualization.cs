@@ -234,9 +234,20 @@ namespace LlamAcademy.Dinos.Player
                 // Căn chuẩn góc quay của Model trong ghost luôn hướng thẳng về căn cứ
                 ghostGo.transform.localRotation = Quaternion.identity;
 
-                // Triệt tiêu 100% toàn bộ component logic, AI, NavMeshAgent, Collider để không bao giờ can thiệp vào game
+                // Triệt tiêu 100% toàn bộ MonoBehaviour trước (Dino, AgentLinkMover, AttackRadius, Unit, v.v.)
+                // để tránh lỗi "Can't remove NavMeshAgent/SphereCollider because ... depends on it" do RequireComponent
+                for (int pass = 0; pass < 3; pass++)
+                {
+                    var scripts = ghostGo.GetComponentsInChildren<MonoBehaviour>(true);
+                    if (scripts.Length == 0) break;
+                    foreach (var s in scripts)
+                    {
+                        if (s != null) DestroyImmediate(s);
+                    }
+                }
+
+                // Giờ đã giải phóng hết dependency, an toàn hủy NavMeshAgent, Collider, Rigidbody, AudioSource
                 foreach (var nav in ghostGo.GetComponentsInChildren<NavMeshAgent>(true)) DestroyImmediate(nav);
-                foreach (var u in ghostGo.GetComponentsInChildren<Unit.Unit>(true)) DestroyImmediate(u);
                 foreach (var collider in ghostGo.GetComponentsInChildren<Collider>(true)) DestroyImmediate(collider);
                 foreach (var rb in ghostGo.GetComponentsInChildren<Rigidbody>(true)) DestroyImmediate(rb);
                 foreach (var a in ghostGo.GetComponentsInChildren<AudioSource>(true)) DestroyImmediate(a);

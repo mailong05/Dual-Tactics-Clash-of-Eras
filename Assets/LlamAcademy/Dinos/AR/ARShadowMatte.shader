@@ -37,12 +37,14 @@ Shader "Prehistoric/ARShadowMatte"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
+                float3 normalWS   : TEXCOORD1;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -55,19 +57,22 @@ Shader "Prehistoric/ARShadowMatte"
             {
                 Varyings output;
                 VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+                VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS);
                 output.positionCS = vertexInput.positionCS;
                 output.positionWS = vertexInput.positionWS;
+                output.normalWS = normalInput.normalWS;
                 return output;
             }
 
             half4 frag(Varyings input) : SV_Target
             {
                 // Soft edge distance falloff to ensure zero hard square borders on real camera view
-                float distFromCenter = length(input.positionWS.xz);
+                float2 relPos = input.positionWS.xz - float2(0.0, -15.0);
+                float distFromCenter = length(relPos);
                 float fade = saturate((_MaxRadius - distFromCenter) / max(0.001, _FadeDistance));
 
                 float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-                Light mainLight = GetMainLight(shadowCoord);
+                Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1, 1, 1, 1));
                 half shadow = mainLight.shadowAttenuation;
                 
                 // When fully lit or outside fade: shadowFactor = 1.0 -> col = (1,1,1) -> 100% transparent via DstColor Zero blend

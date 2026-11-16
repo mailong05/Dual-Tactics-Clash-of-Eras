@@ -100,6 +100,7 @@ namespace LlamAcademy.Dinos.AI
             if (Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame)
             {
                 ToggleHeatmap();
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
             }
 
             // Periodically refresh paths if visible
@@ -116,6 +117,13 @@ namespace LlamAcademy.Dinos.AI
 
         public void SetVisibility(bool visible)
         {
+            // Khi bật AR, không hiển thị tấm lưới 3D sa bàn che kín camera thực tế
+            bool isARActive = AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
+            if (isARActive && visible)
+            {
+                visible = false;
+            }
+
             IsHeatmapVisible = visible;
             if (visible)
             {
@@ -143,25 +151,47 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public static float GetGroundElevation(float worldX, float worldZ)
         {
-            // 1. Raycast downwards from sky towards ground
-            if (Physics.Raycast(new Vector3(worldX, 60f, worldZ), Vector3.down, out RaycastHit hit, 120f, ~0, QueryTriggerInteraction.Ignore))
+            // 1. Ưu tiên lấy trực tiếp từ NavMesh đã nướng phẳng theo mặt đất
+            if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(worldX, 0.2f, worldZ), out UnityEngine.AI.NavMeshHit navHit, 6.0f, UnityEngine.AI.NavMesh.AllAreas))
             {
-                if (!hit.collider.isTrigger &&
-                    !hit.collider.name.Contains("Threat_Heatmap") &&
-                    !hit.collider.name.Contains("Dino") &&
-                    !hit.collider.name.Contains("Defender"))
+                return Mathf.Clamp(navHit.position.y, -1.0f, 0.40f);
+            }
+
+            // 2. Quét tìm mặt đất/sàn làng, loại bỏ tuyệt đối tất cả tháp, chòi, tường rào, mái nhà và giới hạn độ cao tối đa <= 0.45m
+            RaycastHit[] hits = Physics.RaycastAll(new Vector3(worldX, 20f, worldZ), Vector3.down, 40f, ~0, QueryTriggerInteraction.Ignore);
+            float bestGroundY = -0.1f;
+            bool foundGround = false;
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var h = hits[i];
+                if (h.collider.isTrigger) continue;
+                if (h.collider.GetComponentInParent<Unit.Unit>() != null) continue;
+
+                string colName = h.collider.gameObject.name.ToLower();
+                if (colName.Contains("threat") || colName.Contains("dino") || colName.Contains("defender")
+                    || colName.Contains("tower") || colName.Contains("hut") || colName.Contains("roof")
+                    || colName.Contains("wall") || colName.Contains("arch") || colName.Contains("fence")
+                    || colName.Contains("prop") || colName.Contains("gate") || colName.Contains("bridge")
+                    || colName.Contains("pedestal") || colName.Contains("diorama"))
                 {
-                    return hit.point.y;
+                    continue;
+                }
+
+                // Mặt sàn làng và mặt đất luôn có độ cao dưới 0.45m
+                if (h.point.y <= 0.45f && h.point.y > bestGroundY)
+                {
+                    bestGroundY = h.point.y;
+                    foundGround = true;
                 }
             }
 
-            // 2. NavMesh elevation sampling fallback
-            if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(worldX, 0f, worldZ), out UnityEngine.AI.NavMeshHit navHit, 15f, UnityEngine.AI.NavMesh.AllAreas))
+            if (foundGround)
             {
-                return navHit.position.y;
+                return Mathf.Clamp(bestGroundY, -1.0f, 0.40f);
             }
 
-            return 0f;
+            return 0.05f;
         }
 
         /// <summary>
@@ -382,15 +412,15 @@ namespace LlamAcademy.Dinos.AI
             if (RoundManagement.PrehistoricGameModeManager.Instance != null && 
                 RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault)
             {
-                // Chế độ Công thành: Khủng long xuất trận từ phía Nam (-34f) tiến về phía Bắc (+15f) vào Căn cứ Làng
-                spawnPos = new Vector3(0f, 0f, -34f);
+                // Chế độ Công thành: Khủng long xuất trận từ Rừng phía Bắc (+25f) tiến về phía Nam (-38.26f) vào Căn cứ Làng
+                spawnPos = new Vector3(0f, 0f, 25f);
                 basePos = (RoundManagement.PrehistoricGameModeManager.Instance.VillageBase != null)
                     ? RoundManagement.PrehistoricGameModeManager.Instance.VillageBase.transform.position
-                    : new Vector3(0f, 0f, 15f);
+                    : new Vector3(-2.23f, 0f, -38.26f);
             }
             else
             {
-                // Chế độ Thủ thành: Quái xuất hiện từ phía Bắc (+32f) tiến về Căn cứ phía Nam (-38f)
+                // Chế độ Thủ thành: Quái xuất hiện từ phía Bắc (+32f) tiến về Căn cứ phía Nam (-38.26f)
                 spawnPos = new Vector3(-2.2f, 0f, 32f);
                 basePos = (RoundManagement.PrehistoricGameplayManager.Instance != null)
                     ? RoundManagement.PrehistoricGameplayManager.Instance.GetValidBaseTargetPosition()
@@ -436,9 +466,9 @@ namespace LlamAcademy.Dinos.AI
             Mobile.MobileUIHelper.BeginScaling();
             try
             {
-                // Bảng Chú giải thuật toán Threat Heatmap A* nổi ở góc trên bên trái
+                // Bảng Chú giải thuật toán Threat Heatmap A* nổi ở góc trên bên trái (bố trí dưới nút Cài Đặt/Menu)
                 float posX = 20f;
-                float posY = 155f;
+                float posY = 212f;
                 float w = 330f;
                 float h = 152f;
                 Rect legendRect = new Rect(posX, posY, w, h);

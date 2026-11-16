@@ -307,7 +307,13 @@ namespace LlamAcademy.Dinos.Unit
                         dist = Mathf.Min(dist, closestDist);
                     }
 
-                    if (dist <= 12.0f) // Bán kính bao quát trọn vẹn toàn bộ bản dốc Ramp_Tribal liên kết với rào chắn
+                    // Kiểm tra cự ly: Khoảng cách tâm hoặc khoảng cách đến mép collider sàn
+                    // Phạm vi bao quát 26.0m theo chiều tiến công (Z) và 8.5m theo chiều ngang (X)
+                    // để dọn sạch hoàn toàn dốc gỗ Ramp_Tribal và sàn gỗ đi kèm khi rào chắn bị phá hủy (Hình 1 & 2)
+                    float dx = Mathf.Abs(t.position.x - wallPos.x);
+                    bool inBreachCorridor = (dist <= 26.0f && dx <= 8.5f) || (dist <= 14.0f);
+
+                    if (inBreachCorridor)
                     {
                         Renderer[] rList = t.GetComponentsInChildren<Renderer>(true);
                         foreach (var r in rList) if (r != null) r.enabled = false;

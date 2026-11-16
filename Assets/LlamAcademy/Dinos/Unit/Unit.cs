@@ -17,6 +17,7 @@ namespace LlamAcademy.Dinos.Unit
         [field: SerializeField] public UnitSO UnitType { get; set; }
         [SerializeField] protected AttackRadius AttackRadius;
         [SerializeField] protected HealthBar HealthBar;
+        public HealthBar ActiveHealthBar => HealthBar;
         public event IDamageable.TakeDamageEvent OnTakeDamage;
         public event IDamageable.DeathEvent OnDeath;
 

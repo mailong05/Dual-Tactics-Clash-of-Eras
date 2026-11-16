@@ -74,24 +74,23 @@ namespace LlamAcademy.Dinos.UI
                 DinoToButtonDictionary.Add(dino, dinoElement);
             }
 
-            // Check initial game mode visibility
-            if (PrehistoricGameModeManager.Instance != null)
-            {
-                SetVisible(PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault);
-            }
+            // Luôn ẩn RuntimeUI vì PrehistoricGameModeManager và PrehistoricGameplayManager tự vẽ toàn bộ HUD
+            SetVisible(false);
         }
 
         public void SetVisible(bool visible)
         {
             if (Document != null && Document.rootVisualElement != null)
             {
-                Document.rootVisualElement.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+                // PrehistoricGameModeManager và PrehistoricGameplayManager quản lý toàn bộ HUD chuyên nghiệp.
+                // Luôn để DisplayStyle.None để loại bỏ hoàn toàn nút Wave 0, Start và các card cũ đè lên giao diện
+                Document.rootVisualElement.style.display = DisplayStyle.None;
             }
         }
 
         private void HandleGameModeChanged(PrehistoricGameMode newMode)
         {
-            SetVisible(newMode == PrehistoricGameMode.DinoAssault);
+            SetVisible(false);
         }
 
         private IEnumerator Start()
@@ -99,7 +98,7 @@ namespace LlamAcademy.Dinos.UI
             if (PrehistoricGameModeManager.Instance != null)
             {
                 PrehistoricGameModeManager.Instance.OnGameModeChanged += HandleGameModeChanged;
-                SetVisible(PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault);
+                SetVisible(false);
             }
 
             RoundManager.Instance.OnGameStateChange += OnGameStateChange;
@@ -111,6 +110,11 @@ namespace LlamAcademy.Dinos.UI
 
         private void Update()
         {
+            if (Document != null && Document.rootVisualElement != null && Document.rootVisualElement.style.display == DisplayStyle.None)
+            {
+                return;
+            }
+            if (PrehistoricGameModeManager.Instance != null) return;
             if (Keyboard.current == null || Dinos == null) return;
 
             foreach (DinoSO dino in Dinos)
