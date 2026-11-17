@@ -15,7 +15,7 @@ namespace LlamAcademy.Dinos.Save
     {
         public int CurrentWave = 1;
         public int HighestWaveReached = 1;
-        public int Gold = 500;
+        public int Gold = 950;
         public int BaseHealth = 1000;
         public int MaxBaseHealth = 1000;
         public int TotalMonstersKilled = 0;
@@ -93,7 +93,7 @@ namespace LlamAcademy.Dinos.Save
         }
         public int Gold
         {
-            get => DefenseProfile != null ? DefenseProfile.Gold : 500;
+            get => DefenseProfile != null ? DefenseProfile.Gold : 950;
             set { if (DefenseProfile != null) DefenseProfile.Gold = value; }
         }
         public int BaseHealth
@@ -233,12 +233,14 @@ namespace LlamAcademy.Dinos.Save
 
         public bool HasActiveDefenseSave()
         {
-            return CurrentData != null && CurrentData.DefenseProfile != null && CurrentData.DefenseProfile.HasActiveRun;
+            if (CurrentData == null || CurrentData.DefenseProfile == null) return false;
+            return CurrentData.DefenseProfile.HasActiveRun || CurrentData.DefenseProfile.CurrentWave > 1 || CurrentData.DefenseProfile.HighestWaveReached > 1;
         }
 
         public bool HasActiveAssaultSave()
         {
-            return CurrentData != null && CurrentData.AssaultProfile != null && CurrentData.AssaultProfile.HasActiveRun;
+            if (CurrentData == null || CurrentData.AssaultProfile == null) return false;
+            return CurrentData.AssaultProfile.HasActiveRun || CurrentData.AssaultProfile.AssaultLevel > 1 || CurrentData.AssaultProfile.HighestLevelReached > 1;
         }
 
         public PrehistoricSaveData LoadSaveData()
@@ -472,7 +474,10 @@ namespace LlamAcademy.Dinos.Save
                 int baseHp = (isGameplayActive && PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase) 
                     ? PrehistoricGameplayManager.Instance.CurrentBaseHealth 
                     : maxHp;
-                int gold = (isGameplayActive && TowerPlacer.Instance != null) ? TowerPlacer.Instance.Gold : CurrentData.DefenseProfile.Gold;
+                int startGold = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.StartingGoldAmount : 950;
+                int minWaveBudget = (wave == 1) ? startGold : (startGold + (wave - 1) * 300);
+                int currentGold = (isGameplayActive && TowerPlacer.Instance != null) ? TowerPlacer.Instance.Gold : CurrentData.DefenseProfile.Gold;
+                int gold = Mathf.Max(currentGold, minWaveBudget);
                 int killed = CurrentData.DefenseProfile.TotalMonstersKilled;
                 int score = (wave * 1000) + (killed * 25) + gold;
 
@@ -594,8 +599,11 @@ namespace LlamAcademy.Dinos.Save
             {
                 if (slot.Mode == PrehistoricGameMode.TowerDefense)
                 {
+                    int minWaveBudget = (slot.WaveOrLevel == 1) ? 950 : (950 + (slot.WaveOrLevel - 1) * 300);
+                    int finalGold = Mathf.Max(slot.Resources, minWaveBudget);
+
                     CurrentData.DefenseProfile.CurrentWave = slot.WaveOrLevel;
-                    CurrentData.DefenseProfile.Gold = slot.Resources;
+                    CurrentData.DefenseProfile.Gold = finalGold;
                     CurrentData.DefenseProfile.BaseHealth = slot.BaseHealth;
                     CurrentData.DefenseProfile.MaxBaseHealth = slot.MaxBaseHealth;
                     CurrentData.DefenseProfile.TotalMonstersKilled = slot.TotalMonstersKilled;
@@ -609,7 +617,7 @@ namespace LlamAcademy.Dinos.Save
                     var mgr = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance : UnityEngine.Object.FindFirstObjectByType<PrehistoricGameplayManager>();
                     if (mgr != null)
                     {
-                        mgr.LoadDefenseWave(slot.WaveOrLevel, slot.Resources, slot.BaseHealth);
+                        mgr.LoadDefenseWave(slot.WaveOrLevel, finalGold, slot.BaseHealth);
                     }
                 }
                 else
@@ -675,7 +683,14 @@ namespace LlamAcademy.Dinos.Save
                 int baseHp = (PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase) 
                     ? PrehistoricGameplayManager.Instance.CurrentBaseHealth 
                     : maxHp;
-                int gold = TowerPlacer.Instance != null ? TowerPlacer.Instance.Gold : 500;
+                int startGold = PrehistoricGameplayManager.Instance.StartingGoldAmount;
+                int waveBudget = (wave == 1) ? startGold : (startGold + (wave - 1) * 300);
+                int currentGold = TowerPlacer.Instance != null ? TowerPlacer.Instance.Gold : waveBudget;
+
+                // Nếu thua trận (GameOver) hoặc không có ván đấu active (chuẩn bị đợt mới), vàng lưu luôn là ngân sách đầy đủ của đợt để khi chơi lại không bị kẹt vàng
+                int gold = (PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.GameOver || !hasActiveRun)
+                    ? waveBudget
+                    : Mathf.Max(currentGold, waveBudget);
 
                 CurrentData.DefenseProfile.CurrentWave = wave;
                 CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, wave);
@@ -740,7 +755,7 @@ namespace LlamAcademy.Dinos.Save
             Debug.Log($"<color=green>[SaveSystem]</color> Auto-Saved Assault Run: Level {CurrentData.AssaultProfile.AssaultLevel}, Meat {CurrentData.AssaultProfile.Meat}, Active: {hasActiveRun}");
         }
 
-        private void SaveDataToDisk()
+        public void SaveDataToDisk()
         {
             if (PrehistoricAudioManager.Instance != null)
             {
@@ -899,11 +914,21 @@ namespace LlamAcademy.Dinos.Save
             }
         }
 
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus)
+            {
+                AutoSaveCurrentRun(true);
+                SaveDataToDisk();
+            }
+        }
+
         private void OnApplicationPause(bool pauseStatus)
         {
             if (pauseStatus)
             {
                 AutoSaveCurrentRun(true);
+                SaveDataToDisk();
             }
         }
 
@@ -911,6 +936,7 @@ namespace LlamAcademy.Dinos.Save
         {
             s_isApplicationQuitting = true;
             AutoSaveCurrentRun(true);
+            SaveDataToDisk();
         }
     }
 }

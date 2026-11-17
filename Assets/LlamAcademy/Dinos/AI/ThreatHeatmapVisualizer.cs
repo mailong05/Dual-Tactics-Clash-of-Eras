@@ -136,6 +136,7 @@ namespace LlamAcademy.Dinos.AI
                 {
                     CreatePathLineRenderers();
                 }
+                ThreatAwarePathfinding.Instance?.RecalculateThreatField();
                 UpdateHeatmapTexture();
                 RefreshVisualPaths();
             }
@@ -296,9 +297,9 @@ namespace LlamAcademy.Dinos.AI
             _overlayRenderer.receiveShadows = false;
 
             // Transparent additive/alpha blend unlit shader
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
             if (shader == null) shader = Shader.Find("Unlit/Transparent");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
 
             _overlayMaterial = new Material(shader);
             _overlayMaterial.SetFloat("_Surface", 1); // Transparent
@@ -313,6 +314,10 @@ namespace LlamAcademy.Dinos.AI
                 _overlayMaterial.SetTexture("_BaseMap", _heatmapTexture);
             if (_overlayMaterial.HasProperty("_MainTex"))
                 _overlayMaterial.SetTexture("_MainTex", _heatmapTexture);
+            if (_overlayMaterial.HasProperty("_BaseColor"))
+                _overlayMaterial.SetColor("_BaseColor", Color.white);
+            if (_overlayMaterial.HasProperty("_Color"))
+                _overlayMaterial.SetColor("_Color", Color.white);
             _overlayMaterial.color = Color.white;
 
             _overlayRenderer.material = _overlayMaterial;
@@ -341,10 +346,12 @@ namespace LlamAcademy.Dinos.AI
             line.startColor = startColor;
             line.endColor = endColor;
 
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
             Material mat = new Material(shader);
-            mat.color = startColor;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
+            mat.color = Color.white;
             line.material = mat;
             line.positionCount = 0;
             line.enabled = false;
@@ -429,7 +436,15 @@ namespace LlamAcademy.Dinos.AI
 
             try
             {
-                // 1. Calculate Flanker Path (Velociraptor avoids towers through blind spots)
+                bool isCenterHeavy = ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                if (_flankerLine != null)
+                {
+                    Color flankColor = isCenterHeavy ? new Color(0.12f, 0.95f, 0.82f, 0.95f) : new Color(1.0f, 0.85f, 0.2f, 0.95f);
+                    _flankerLine.startColor = flankColor;
+                    _flankerLine.endColor = flankColor;
+                }
+
+                // 1. Calculate Flanker Path (Velociraptor adapts: Flanker if heavy threat, Swarm Rush down center if weak threat)
                 List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
                 DrawLinePath(_flankerLine, flankerPath, 0.40f);
 
@@ -482,7 +497,11 @@ namespace LlamAcademy.Dinos.AI
                 GUILayout.Label("🟩 <b>Xanh lá</b>: Vùng mù hỏa lực / Hành lang an toàn", GetItemStyle());
                 GUILayout.Label("🟨 <b>Vàng</b>: Vùng sát thương trung bình", GetItemStyle());
                 GUILayout.Label("🟥 <b>Đỏ</b>: Tử địa tập trung hỏa lực tháp", GetItemStyle());
-                GUILayout.Label("<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)", GetItemStyle());
+                bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                string flankerLabel = isCenterHeavy
+                    ? "<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)"
+                    : "<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Xung Phong Bầy Đàn (Trung lộ hở)";
+                GUILayout.Label(flankerLabel, GetItemStyle());
                 GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker A*)", GetItemStyle());
                 GUILayout.EndArea();
             }

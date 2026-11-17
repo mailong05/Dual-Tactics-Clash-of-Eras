@@ -15,7 +15,7 @@ namespace LlamAcademy.Dinos.Player
         public static TowerPlacer Instance { get; private set; }
 
         [Header("Economy")]
-        [SerializeField] private int _Gold = 700;
+        [SerializeField] private int _Gold = 950;
         public int Gold
         {
             get => _Gold;
@@ -122,7 +122,7 @@ namespace LlamAcademy.Dinos.Player
             return container.transform;
         }
 
-        public void ResetGoldToDefault(int startingAmount = 500)
+        public void ResetGoldToDefault(int startingAmount = 950)
         {
             Gold = startingAmount;
         }
@@ -170,6 +170,27 @@ namespace LlamAcademy.Dinos.Player
             OnGoldChanged?.Invoke(Gold);
         }
 
+        /// <summary>
+        /// THEO YÊU CẦU: Khóa không cho đặt vật thể sau khi bấm chiến đấu ở chế độ thủ thành.
+        /// Giống hệt logic của chế độ công thành để đảm bảo tính công bằng chiến thuật sau khi AI đã tính toán.
+        /// </summary>
+        public bool AllowPlacement
+        {
+            get
+            {
+                if (RoundManagement.PrehistoricGameplayManager.Instance != null && 
+                    RoundManagement.PrehistoricGameplayManager.Instance.CurrentPhase != RoundManagement.PrehistoricWavePhase.BuildingPhase)
+                {
+                    return false;
+                }
+                if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running)
+                {
+                    return false;
+                }
+                return true;
+            }
+        }
+
         private void Update()
         {
             if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
@@ -180,12 +201,22 @@ namespace LlamAcademy.Dinos.Player
             {
                 return;
             }
+            if (!AllowPlacement)
+            {
+                if (SelectedTower != null) DeselectTower();
+                return;
+            }
             HandleHotkeys();
             HandlePlacementInteraction();
         }
 
         public void SelectTower(TowerSO tower)
         {
+            if (!AllowPlacement)
+            {
+                DeselectTower();
+                return;
+            }
             SelectedTower = tower;
             _CurrentRotationY = 0f;
             if (Visualization != null)
@@ -397,6 +428,7 @@ namespace LlamAcademy.Dinos.Player
 
         public void ConfirmPlacementFromUI()
         {
+            if (!AllowPlacement) return;
             if (SelectedTower == null || SelectedTower.Prefab == null) return;
             if (Visualization == null || !Visualization.IsValidPlacementLocation) return;
             if (Gold < SelectedTower.Cost) return;
@@ -408,6 +440,11 @@ namespace LlamAcademy.Dinos.Player
 
         private void PlaceTowerAt(Vector3 position)
         {
+            if (!AllowPlacement)
+            {
+                DeselectTower();
+                return;
+            }
             if (SelectedTower == null) return;
 
             // Truy xuất Prefab với cơ chế tự phục hồi từ thư mục Resources nếu asset bị mất liên kết

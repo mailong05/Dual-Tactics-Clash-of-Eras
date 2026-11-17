@@ -850,8 +850,15 @@ namespace LlamAcademy.Dinos.AR
             }
             else
             {
-                Material defaultSky = Resources.GetBuiltinResource<Material>("Default-Skybox.mat");
-                if (defaultSky != null) RenderSettings.skybox = defaultSky;
+#if UNITY_EDITOR
+                _OriginalSkybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>("Assets/LlamAcademy/Dinos/Vendor/polyperfect/Low Poly Animated Dinos/- Materials/skybox-LPAD.mat");
+                if (_OriginalSkybox != null) RenderSettings.skybox = _OriginalSkybox;
+#endif
+                if (RenderSettings.skybox == null)
+                {
+                    Material defaultSky = Resources.GetBuiltinResource<Material>("Default-Skybox.mat");
+                    if (defaultSky != null) RenderSettings.skybox = defaultSky;
+                }
             }
 
             if (Camera.main != null)
@@ -859,7 +866,7 @@ namespace LlamAcademy.Dinos.AR
                 Camera.main.clearFlags = CameraClearFlags.Skybox;
                 Camera.main.backgroundColor = (_OriginalCameraBackgroundColor != Color.black && _OriginalCameraBackgroundColor != Color.clear)
                     ? _OriginalCameraBackgroundColor
-                    : new Color(0.70f, 0.82f, 0.95f, 1f);
+                    : new Color(0.192f, 0.302f, 0.475f, 1f);
             }
 
             if (_BackgroundQuad != null)

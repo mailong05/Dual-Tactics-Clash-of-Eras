@@ -80,102 +80,17 @@ namespace LlamAcademy.Dinos.AR
         }
 
         /// <summary>
-        /// Builds the physical 3D Prehistoric Stone Pedestal Base enclosing the village and tactical forest.
+        /// Quản lý nền sa bàn AR: Triệt tiêu hoàn toàn viền xám và cột đá xung quanh (Hình 4 fix).
+        /// Không tạo bất kỳ slab, rim, hay pillar xám nào để giữ không gian AR và 3D hoàn toàn tự nhiên.
         /// </summary>
         public void BuildStonePedestal()
         {
-            if (_isDioramaBuilt && _pedestalRoot != null) return;
-            if (_pedestalRoot != null) Destroy(_pedestalRoot);
-
-            _pedestalRoot = new GameObject("AR_Stone_Diorama_Pedestal");
-            _pedestalRoot.transform.position = DioramaCenter;
-
-            // Stone Material (Dark Prehistoric Granite / Basalt with subtle moss tone)
-            Shader litShader = PrehistoricShaderUtility.GetLitShader();
-            _stoneMaterial = new Material(litShader);
-            Color stoneCol = new Color(0.18f, 0.20f, 0.24f, 1f);
-            if (_stoneMaterial.HasProperty("_BaseColor")) _stoneMaterial.SetColor("_BaseColor", stoneCol);
-            if (_stoneMaterial.HasProperty("_Color")) _stoneMaterial.SetColor("_Color", stoneCol);
-            if (_stoneMaterial.HasProperty("_Smoothness")) _stoneMaterial.SetFloat("_Smoothness", 0.25f);
-            if (_stoneMaterial.HasProperty("_Metallic")) _stoneMaterial.SetFloat("_Metallic", 0.15f);
-
-            // 1. Main Pedestal Slab underneath the terrain (Invisible safety foundation)
-            GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            slab.name = "Diorama_Main_Slab";
-            slab.transform.SetParent(_pedestalRoot.transform, false);
-            slab.transform.localPosition = new Vector3(0f, -PedestalHeight * 0.5f - 0.05f, 0f);
-            slab.transform.localScale = new Vector3(DioramaSize.x + 2f, PedestalHeight, DioramaSize.y + 2f);
-            Renderer rSlab = slab.GetComponent<Renderer>();
-            if (rSlab != null) rSlab.enabled = false;
-
-            // 1b. Safety Arena Sub-Floor: solid ground plane right underneath the sand at Y = -0.10m
-            // with a solid BoxCollider on Layer 6 (Grass/Ground) so physics raycast can never fall through!
-            // Mesh ẩn hoàn toàn để không che tấm sa bàn AR Hologram màu cyan (Hình 2 chuẩn xác)
-            GameObject arenaTop = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            arenaTop.name = "Diorama_Arena_Floor";
-            arenaTop.layer = 6; // Layer 6: Grass / Ground surface
-            arenaTop.transform.SetParent(_pedestalRoot.transform, false);
-            arenaTop.transform.localPosition = new Vector3(0f, -0.10f, 0f);
-            arenaTop.transform.localScale = new Vector3(DioramaSize.x, 0.12f, DioramaSize.y);
-            Renderer rArena = arenaTop.GetComponent<Renderer>();
-            if (rArena != null) rArena.enabled = false;
-            BoxCollider topColComp = arenaTop.GetComponent<BoxCollider>();
-            if (topColComp != null)
+            if (_pedestalRoot != null)
             {
-                topColComp.enabled = true;
-                topColComp.isTrigger = false;
+                Destroy(_pedestalRoot);
+                _pedestalRoot = null;
             }
-
-            // 2. 4 Beveled Stone Border Rims (Ẩn mesh để giữ mặt phẳng AR trong suốt chuẩn Hình 2)
-            float halfW = DioramaSize.x * 0.5f;
-            float halfL = DioramaSize.y * 0.5f;
-            float rimThickness = 1.4f;
-            float rimHeight = 0.5f;
-
-            CreateRimBorder("Rim_North", new Vector3(0f, rimHeight * 0.5f, halfL), new Vector3(DioramaSize.x + 2f, rimHeight, rimThickness));
-            CreateRimBorder("Rim_South", new Vector3(0f, rimHeight * 0.5f, -halfL), new Vector3(DioramaSize.x + 2f, rimHeight, rimThickness));
-            CreateRimBorder("Rim_East", new Vector3(halfW, rimHeight * 0.5f, 0f), new Vector3(rimThickness, rimHeight, DioramaSize.y));
-            CreateRimBorder("Rim_West", new Vector3(-halfW, rimHeight * 0.5f, 0f), new Vector3(rimThickness, rimHeight, DioramaSize.y));
-
-            // 3. 4 Corner Stone Totem Pillars (Ẩn mesh)
-            float pillarH = 1.8f;
-            float pillarW = 2.4f;
-            CreatePillar("Corner_Pillar_NE", new Vector3(halfW, pillarH * 0.5f - 0.2f, halfL), new Vector3(pillarW, pillarH, pillarW));
-            CreatePillar("Corner_Pillar_NW", new Vector3(-halfW, pillarH * 0.5f - 0.2f, halfL), new Vector3(pillarW, pillarH, pillarW));
-            CreatePillar("Corner_Pillar_SE", new Vector3(halfW, pillarH * 0.5f - 0.2f, -halfL), new Vector3(pillarW, pillarH, pillarW));
-            CreatePillar("Corner_Pillar_SW", new Vector3(-halfW, pillarH * 0.5f - 0.2f, -halfL), new Vector3(pillarW, pillarH, pillarW));
-
             _isDioramaBuilt = true;
-        }
-
-        private void CreateRimBorder(string rimName, Vector3 localPos, Vector3 localScale)
-        {
-            GameObject rim = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            rim.name = rimName;
-            rim.layer = 2; // Ignore Raycast so clicks pass through to ground
-            rim.transform.SetParent(_pedestalRoot.transform, false);
-            rim.transform.localPosition = localPos;
-            rim.transform.localScale = localScale;
-            // Ẩn hoàn toàn Renderer để giữ mặt bàn AR phẳng, không có viền đá che khuất
-            Renderer r = rim.GetComponent<Renderer>();
-            if (r != null) r.enabled = false;
-            Collider c = rim.GetComponent<Collider>();
-            if (c != null) c.isTrigger = true;
-        }
-
-        private void CreatePillar(string pillarName, Vector3 localPos, Vector3 localScale)
-        {
-            GameObject pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            pillar.name = pillarName;
-            pillar.layer = 2; // Ignore Raycast
-            pillar.transform.SetParent(_pedestalRoot.transform, false);
-            pillar.transform.localPosition = localPos;
-            pillar.transform.localScale = new Vector3(localScale.x, localScale.y * 0.5f, localScale.z);
-            // Ẩn hoàn toàn Renderer cột đá
-            Renderer r = pillar.GetComponent<Renderer>();
-            if (r != null) r.enabled = false;
-            Collider c = pillar.GetComponent<Collider>();
-            if (c != null) c.isTrigger = true;
         }
 
         private void BuildShadowMatteReceiver()
@@ -187,12 +102,12 @@ namespace LlamAcademy.Dinos.AR
             _shadowMattePlane = GameObject.CreatePrimitive(PrimitiveType.Plane);
             _shadowMattePlane.name = "AR_Shadow_Matte_Receiver";
 
-            // Đặt hơi thấp hơn chân công trình một chút (Y = -0.02m) để triệt tiêu Z-fighting,
-            // tâm tại Z = -15m bao trọn toàn bộ cụm làng và hướng khủng long tiến công
-            _shadowMattePlane.transform.position = new Vector3(0f, -0.02f, -15f);
+            // Đặt tại Y = -0.01m (ngay dưới chân công trình) và tâm tại Z = -5m (tâm sa bàn làng),
+            // bao trọn toàn bộ cụm làng và hướng khủng long tiến công
+            _shadowMattePlane.transform.position = new Vector3(0f, -0.01f, -5f);
             _shadowMattePlane.transform.rotation = Quaternion.identity;
-            // Plane kích thước gốc là 10m x 10m -> Scale (16, 1, 16) = 160m x 160m bao trọn toàn bộ chiến trường
-            _shadowMattePlane.transform.localScale = new Vector3(16f, 1f, 16f);
+            // Plane kích thước gốc là 10m x 10m -> Scale (20, 1, 20) = 200m x 200m bao trọn toàn bộ chiến trường
+            _shadowMattePlane.transform.localScale = new Vector3(20f, 1f, 20f);
 
             Collider col = _shadowMattePlane.GetComponent<Collider>();
             if (col != null) Destroy(col);
@@ -290,55 +205,61 @@ namespace LlamAcademy.Dinos.AR
         /// </summary>
         private void ApplyBoundaryClipping()
         {
-            _culledSceneryRenderers.Clear();
-
-            // Quét toàn bộ Renderer trong Scene:
-            // Bảo vệ toàn bộ công trình làng, tường thành và quân khủng long để đổ bóng xuống bàn;
-            // Ẩn toàn bộ mặt sàn, cát nứt, cây cối rừng, thảm cỏ, tảng đá sa mạc xung quanh
-            Renderer[] allRenderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-
-            foreach (Renderer r in allRenderers)
+            // Chỉ thu thập renderers mới nếu chưa có danh sách lưu trữ
+            // Nếu đã lưu danh sách thì giữ nguyên để bảo tồn 100% dữ liệu phục hồi khi thoát AR
+            if (_culledSceneryRenderers.Count == 0)
             {
-                if (r == null || !r.gameObject.activeInHierarchy) continue;
+                Renderer[] allRenderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
 
-                // Bỏ qua AR camera feed, UI, Heatmap, và khung shadow matte
-                string rName = r.gameObject.name;
-                if (rName.StartsWith("AR_") || rName.StartsWith("Threat_") || rName.StartsWith("HealthBar_")) continue;
-                if (_pedestalRoot != null && r.transform.IsChildOf(_pedestalRoot.transform)) continue;
-
-                // Bảo vệ toàn bộ công trình làng, tường thành, tháp bắn và quân khủng long
-                bool isUnitOrWall = r.GetComponentInParent<Unit.Unit>() != null || r.GetComponentInParent<Unit.Wall>() != null;
-                string objName = rName.ToLowerInvariant();
-                bool isVillageStructure = objName.Contains("village")
-                    || objName.Contains("wall")
-                    || objName.Contains("tower")
-                    || objName.Contains("hut")
-                    || objName.Contains("bridge")
-                    || objName.Contains("gate")
-                    || objName.Contains("fence")
-                    || objName.Contains("palisade")
-                    || objName.Contains("base")
-                    || objName.Contains("totem")
-                    || objName.Contains("look target")
-                    || objName.Contains("dino")
-                    || objName.Contains("trex")
-                    || objName.Contains("raptor")
-                    || objName.Contains("ankylosaur")
-                    || objName.Contains("pterodactyl");
-
-                if (isUnitOrWall || isVillageStructure)
+                foreach (Renderer r in allRenderers)
                 {
-                    // Luôn bật đổ bóng để các công trình và khủng long đổ bóng rõ nét lên mặt bàn thực tế!
-                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-                    r.receiveShadows = true;
-                    continue;
+                    if (r == null || !r.gameObject.activeInHierarchy) continue;
+
+                    string rName = r.gameObject.name;
+                    if (rName.StartsWith("AR_") || rName.StartsWith("Threat_") || rName.StartsWith("HealthBar_")) continue;
+                    if (_pedestalRoot != null && r.transform.IsChildOf(_pedestalRoot.transform)) continue;
+
+                    bool isUnitOrWall = r.GetComponentInParent<Unit.Unit>() != null || r.GetComponentInParent<Unit.Wall>() != null;
+                    string objName = rName.ToLowerInvariant();
+                    bool isVillageStructure = objName.Contains("village")
+                        || objName.Contains("wall")
+                        || objName.Contains("tower")
+                        || objName.Contains("hut")
+                        || objName.Contains("bridge")
+                        || objName.Contains("gate")
+                        || objName.Contains("fence")
+                        || objName.Contains("palisade")
+                        || objName.Contains("base")
+                        || objName.Contains("totem")
+                        || objName.Contains("look target")
+                        || objName.Contains("dino")
+                        || objName.Contains("trex")
+                        || objName.Contains("raptor")
+                        || objName.Contains("ankylosaur")
+                        || objName.Contains("pterodactyl");
+
+                    if (isUnitOrWall || isVillageStructure)
+                    {
+                        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                        r.receiveShadows = true;
+                        continue;
+                    }
+
+                    if (r.enabled)
+                    {
+                        r.enabled = false;
+                        _culledSceneryRenderers.Add(r);
+                    }
                 }
-
-                // Toàn bộ cảnh quan tự nhiên (cây cối rừng, cây cọ, tảng đá sa mạc, thảm cỏ, núi, mặt sàn đất, cracked sand) đều ẩn Renderer
-                if (r.enabled)
+            }
+            else
+            {
+                for (int i = 0; i < _culledSceneryRenderers.Count; i++)
                 {
-                    r.enabled = false;
-                    _culledSceneryRenderers.Add(r);
+                    if (_culledSceneryRenderers[i] != null && _culledSceneryRenderers[i].enabled)
+                    {
+                        _culledSceneryRenderers[i].enabled = false;
+                    }
                 }
             }
 
@@ -360,24 +281,49 @@ namespace LlamAcademy.Dinos.AR
             }
             _culledSceneryRenderers.Clear();
 
-            // 2. Tắt tấm hứng bóng AR
+            // 2. Tắt tấm hứng bóng AR và tiêu hủy hoàn toàn các khối sa bàn phụ
             if (_shadowMattePlane != null) _shadowMattePlane.SetActive(false);
-            if (_pedestalRoot != null) _pedestalRoot.SetActive(false);
+            if (_pedestalRoot != null)
+            {
+                Destroy(_pedestalRoot);
+                _pedestalRoot = null;
+            }
 
-            // 3. BẢO CHỨNG TUYỆT ĐỐI 100%: Quét và bật lại toàn bộ Renderer trong Scene
-            // (World, Ground, Núi Đá pb_Mesh, Cracked Sand, Rừng cây, Smooth Floor, v.v.)
-            // để đảm bảo khi thoát AR về góc nhìn 3D không bao giờ bị biến thành khoảng xám vô cực (Hình 10)!
+            // 3. Phục hồi toàn bộ Root GameObjects trong Scene (World, Ground, Level00, Núi Đá, Cracked Sand, Rừng cây, Smooth Floor)
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (scene.isLoaded)
+            {
+                var roots = scene.GetRootGameObjects();
+                foreach (var root in roots)
+                {
+                    if (root == null) continue;
+                    string rootName = root.name;
+                    if (rootName.StartsWith("AR_") || rootName.StartsWith("Diorama_") || rootName.StartsWith("Rim_") || rootName.StartsWith("Corner_Pillar")) continue;
+
+                    if (!root.activeSelf) root.SetActive(true);
+
+                    Transform[] allTransforms = root.GetComponentsInChildren<Transform>(true);
+                    foreach (var t in allTransforms)
+                    {
+                        if (t == null) continue;
+                        if (t.name.StartsWith("AR_") || t.name.StartsWith("Diorama_") || t.name.StartsWith("Rim_") || t.name.StartsWith("Corner_Pillar")) continue;
+
+                        if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                        Renderer rend = t.GetComponent<Renderer>();
+                        if (rend != null && !rend.enabled) rend.enabled = true;
+                    }
+                }
+            }
+
+            // 4. Phục hồi toàn bộ renderers cảnh quan, chặn tuyệt đối việc bật nhầm các khối viền xám
             Renderer[] allSceneRenderers = FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var r in allSceneRenderers)
             {
                 if (r == null) continue;
                 string n = r.gameObject.name;
-                if (n.StartsWith("AR_") || n.StartsWith("Threat_")) continue;
+                if (n.StartsWith("AR_") || n.StartsWith("Threat_") || n.StartsWith("Diorama_") || n.StartsWith("Rim_") || n.StartsWith("Corner_Pillar")) continue;
                 if (!r.enabled) r.enabled = true;
-                if (!r.gameObject.activeSelf && !n.StartsWith("Diorama_"))
-                {
-                    r.gameObject.SetActive(true);
-                }
+                if (!r.gameObject.activeSelf) r.gameObject.SetActive(true);
             }
         }
 

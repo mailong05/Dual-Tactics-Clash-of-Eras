@@ -66,6 +66,7 @@ namespace LlamAcademy.Dinos.Unit
 
         [Header("Tactical Threat-Aware AI Pathfinding")]
         public virtual LlamAcademy.Dinos.AI.DinoAISpeciesType AISpeciesType { get; set; } = LlamAcademy.Dinos.AI.DinoAISpeciesType.VelociraptorFlanker;
+        public virtual LlamAcademy.Dinos.AI.DinoTacticalBehavior TacticalBehavior { get; set; } = LlamAcademy.Dinos.AI.DinoTacticalBehavior.SwarmRush;
         protected List<Vector3> _TacticalWaypoints = new List<Vector3>();
         protected int _CurrentWaypointIndex = 0;
         protected float _LastPathCalcTime = -99f;
@@ -2272,27 +2273,13 @@ namespace LlamAcademy.Dinos.Unit
                     {
                         Agent.isStopped = false;
                         Agent.ResetPath();
-                        _TacticalWaypoints = null;
-                        _LastPathCalcTime = 0f;
-                        if (ThreatAwarePathfinding.Instance != null)
+                        _TacticalWaypoints = ThreatAwarePathfinding.Instance != null 
+                            ? ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType) 
+                            : null;
+                        _CurrentWaypointIndex = 0;
+                        if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
                         {
-                            try
-                            {
-                                _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
-                                _CurrentWaypointIndex = 0;
-                                if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
-                                {
-                                    Agent.SetDestination(_TacticalWaypoints[0]);
-                                }
-                                else
-                                {
-                                    Agent.SetDestination(TargetBase.position);
-                                }
-                            }
-                            catch
-                            {
-                                Agent.SetDestination(TargetBase.position);
-                            }
+                            Agent.SetDestination(_TacticalWaypoints[0]);
                         }
                         else
                         {
@@ -2331,25 +2318,13 @@ namespace LlamAcademy.Dinos.Unit
                     Agent.isStopped = false;
                     Agent.updateRotation = true;
                     // Lập tức tiếp tục bám theo lộ trình lane/heatmap đã khai thông hướng về căn cứ
-                    if (ThreatAwarePathfinding.Instance != null && TargetBase != null)
+                    _TacticalWaypoints = ThreatAwarePathfinding.Instance != null 
+                        ? ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType) 
+                        : null;
+                    _CurrentWaypointIndex = 0;
+                    if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
                     {
-                        try
-                        {
-                            _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
-                            _CurrentWaypointIndex = 0;
-                            if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
-                            {
-                                Agent.SetDestination(_TacticalWaypoints[0]);
-                            }
-                            else
-                            {
-                                Agent.SetDestination(TargetBase.position);
-                            }
-                        }
-                        catch
-                        {
-                            Agent.SetDestination(TargetBase.position);
-                        }
+                        Agent.SetDestination(_TacticalWaypoints[0]);
                     }
                     else if (TargetBase != null)
                     {
@@ -2359,31 +2334,20 @@ namespace LlamAcademy.Dinos.Unit
             }
 
             // 2. Tìm vật cản trực tiếp trước mặt trên đường tiến nếu chưa có target
-
             if (CurrentTarget == null)
-
             {
-
-                CurrentTarget = FindImmediatePathBlocker(Mathf.Min(WallScanRadius, 3.0f));
-
+                float blockerScanRange = isBoss ? Mathf.Max(WallScanRadius, 7.5f) : Mathf.Min(WallScanRadius, 3.8f);
+                CurrentTarget = FindImmediatePathBlocker(blockerScanRange);
             }
 
             // 3. Nếu đang có vật cản trước mặt: Tiến đến cự ly cận chiến và phá hủy
-
             if (CurrentTarget != null && CurrentTarget.Health > 0)
-
             {
-
                 Collider targetCol = CurrentTarget.Transform.GetComponentInChildren<Collider>();
-
                 Vector3 targetCenter = targetCol != null ? targetCol.bounds.center : CurrentTarget.Transform.position;
-
                 Vector3 closestPoint = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : targetCenter;
-
                 Vector3 flatDiff = transform.position - closestPoint;
-
                 flatDiff.y = 0;
-
                 float distToClosest = flatDiff.magnitude;
 
                 // Nếu mục tiêu phụ không phải Nhà chính và cự ly quá xa: Bỏ mục tiêu phụ, xông thẳng về Nhà chính
@@ -2451,7 +2415,7 @@ namespace LlamAcademy.Dinos.Unit
                         Vector3 standoffDir = (transform.position - closestPoint);
                         standoffDir.y = 0;
                         if (standoffDir.sqrMagnitude < 0.01f) standoffDir = -transform.forward;
-                        float safeMargin = isBoss ? 6.2f : Mathf.Max(agentRadius + 1.6f, AttackRange * 0.92f);
+                        float safeMargin = isBoss ? 5.2f : Mathf.Max(agentRadius + 1.6f, AttackRange * 0.92f);
                         Vector3 standoffPoint = closestPoint + standoffDir.normalized * safeMargin;
                         if (NavMesh.SamplePosition(standoffPoint, out NavMeshHit standHit, 2.0f, NavMesh.AllAreas))
                         {
@@ -2484,72 +2448,64 @@ namespace LlamAcademy.Dinos.Unit
                 ? (IDamageable)PrehistoricVillageBase.Instance
                 : TargetBase.GetComponent<IDamageable>();
 
-            if (baseDamageable != null && baseDamageable.Health > 0)
+            if (baseDamageable != null && baseDamageable.Health > 0 && distToBase <= baseAttackThreshold)
             {
-                if (distToBase <= baseAttackThreshold)
-                {
-                    CurrentTarget = baseDamageable;
-                    _IsEngagedInMelee = true;
+                CurrentTarget = baseDamageable;
+                _IsEngagedInMelee = true;
 
-                    if (Agent != null && Agent.isOnNavMesh)
-                    {
-                        Agent.isStopped = true;
-                        Agent.updateRotation = false;
-                        Agent.velocity = Vector3.zero;
-                    }
-
-                    Vector3 baseDir = (baseClosest - transform.position);
-                    baseDir.y = 0;
-                    if (baseDir.sqrMagnitude < 0.1f)
-                    {
-                        baseDir = (TargetBase.position - transform.position);
-                        baseDir.y = 0;
-                    }
-
-                    // Tuyệt đối không xoay body khi đang vung đòn cắn (_IsAttackingAnim) để triệt tiêu hiện tượng giật lắc đầu
-                    if (!_IsAttackingAnim && baseDir.sqrMagnitude > 0.01f)
-                    {
-                        Quaternion baseRot = Quaternion.LookRotation(baseDir.normalized);
-                        if (Quaternion.Angle(transform.rotation, baseRot) > 5.0f)
-                        {
-                            transform.rotation = Quaternion.RotateTowards(transform.rotation, baseRot, 120f * Time.deltaTime);
-                        }
-                    }
-
-                    if (Time.time >= LastAttackTime + AttackInterval)
-                    {
-                        LastAttackTime = Time.time;
-                        PerformAttack(baseDamageable);
-                    }
-                    return;
-                }
-            }
-
-            else
-            {
-                // Hành quân chiến thuật né vùng hỏa lực tháp (Threat-Aware Pathfinding)
                 if (Agent != null && Agent.isOnNavMesh)
                 {
-                    Agent.isStopped = false;
-                    Agent.updateRotation = true;
+                    Agent.isStopped = true;
+                    Agent.updateRotation = false;
+                    Agent.velocity = Vector3.zero;
+                }
 
-                    // Tính toán lại lộ trình chiến thuật mỗi 2.0s hoặc khi chưa có lộ trình
-                    if (_TacticalWaypoints == null || _TacticalWaypoints.Count == 0 || Time.time - _LastPathCalcTime > 2.0f)
+                Vector3 baseDir = (baseClosest - transform.position);
+                baseDir.y = 0;
+                if (baseDir.sqrMagnitude < 0.1f)
+                {
+                    baseDir = (TargetBase.position - transform.position);
+                    baseDir.y = 0;
+                }
+
+                // Tuyệt đối không xoay body khi đang vung đòn cắn (_IsAttackingAnim) để triệt tiêu hiện tượng giật lắc đầu
+                if (!_IsAttackingAnim && baseDir.sqrMagnitude > 0.01f)
+                {
+                    Quaternion baseRot = Quaternion.LookRotation(baseDir.normalized);
+                    if (Quaternion.Angle(transform.rotation, baseRot) > 5.0f)
                     {
-                        _LastPathCalcTime = Time.time;
+                        transform.rotation = Quaternion.RotateTowards(transform.rotation, baseRot, 120f * Time.deltaTime);
+                    }
+                }
+
+                if (Time.time >= LastAttackTime + AttackInterval)
+                {
+                    LastAttackTime = Time.time;
+                    PerformAttack(baseDamageable);
+                }
+                return;
+            }
+
+            // 5. Hành quân chiến thuật né vùng hỏa lực tháp (Threat-Aware Pathfinding)
+            if (Agent != null && Agent.isOnNavMesh)
+            {
+                Agent.isStopped = false;
+                Agent.updateRotation = true;
+
+                    // Sử dụng lộ trình và biến hành vi chiến thuật đã được AI Director phân tích sẵn trong 5s đếm ngược:
+                    // TRIỆT TIÊU 100% việc chạy A* và FindObjectsByType mỗi 2s làm lag game!
+                    if (_TacticalWaypoints == null || _TacticalWaypoints.Count == 0)
+                    {
                         if (ThreatAwarePathfinding.Instance != null && TargetBase != null)
                         {
-                            try
-                            {
-                                _TacticalWaypoints = ThreatAwarePathfinding.Instance.FindThreatAwarePath(transform.position, TargetBase.position, AISpeciesType);
-                                _CurrentWaypointIndex = 0;
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Debug.LogWarning($"[Dino Pathfinding] An toan: {ex.Message}");
-                                _TacticalWaypoints = new List<Vector3> { TargetBase.position };
-                                _CurrentWaypointIndex = 0;
-                            }
+                            TacticalBehavior = ThreatAwarePathfinding.Instance.GetAssignedTacticalBehavior(AISpeciesType);
+                            _TacticalWaypoints = ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType);
+                            _CurrentWaypointIndex = 0;
+                        }
+                        else
+                        {
+                            _TacticalWaypoints = new List<Vector3> { TargetBase != null ? TargetBase.position : transform.position };
+                            _CurrentWaypointIndex = 0;
                         }
                     }
 
@@ -2575,8 +2531,11 @@ namespace LlamAcademy.Dinos.Unit
                         }
                     }
 
-                    // Giữ moveTarget nằm an toàn trong hành lang chiến đấu, cho phép mở rộng bọc sườn hai cánh (-26.0f đến 24.0f)
-                    if (AISpeciesType == DinoAISpeciesType.VelociraptorFlanker && transform.position.z > -24.0f)
+                    // CHIẾN THUẬT THÍCH ỨNG: Chỉ ép hành lang 2 cánh khi biến hành vi là FlankerEvasion (Bọc sườn né tháp)
+                    // Nếu là SwarmRush / FrontalAssault / MassSwarmOverwhelm -> Xông thẳng trung lộ!
+                    bool isFlankingActive = (TacticalBehavior == LlamAcademy.Dinos.AI.DinoTacticalBehavior.FlankerEvasion);
+
+                    if (isFlankingActive && transform.position.z > -24.0f)
                     {
                         // Giữ vững hành lang cánh cho đến khi vượt qua cụm tháp chính diện vào sâu trong làng
                         if (transform.position.x < 0f)
@@ -2599,8 +2558,6 @@ namespace LlamAcademy.Dinos.Unit
                     }
                 }
             }
-
-        }
 
         protected virtual IDamageable FindImmediatePathBlocker(float maxDist)
         {
@@ -2698,10 +2655,13 @@ namespace LlamAcademy.Dinos.Unit
 
                 // THEO YÊU CẦU NGƯỜI DÙNG: Khủng long CHỈ phá hủy vật cản khi vật cản đó THỰC SỰ CHẶN TRỰC DIỆN đường tiến tới Nhà chính!
                 // Nếu rào cản nằm lệch sang hai bên (bên cạnh lỗ hổng đã thông) -> TUYỆT ĐỐI BỎ QUA, TIẾN THẲNG VỀ NHÀ CHÍNH!
+                // Riêng với T-Rex (BossDino): thân hình và cú cắn khổng lồ (bán kính 3.5m) cho phép phát hiện và phá hủy tường ở góc rộng hơn, không bị kẹt mặt vào rào
                 if (!(candidate is PrehistoricVillageBase))
                 {
-                    float maxAllowedLateral = (this is BossDino) ? 1.4f : 0.85f;
-                    if (dotToBase < 0.65f || dotFwd < 0.60f || lateralOffset > maxAllowedLateral)
+                    float maxAllowedLateral = (this is BossDino) ? 3.5f : 0.85f;
+                    float minDotFwd = (this is BossDino) ? 0.35f : 0.60f;
+                    float minDotToBase = (this is BossDino) ? 0.35f : 0.65f;
+                    if (dotToBase < minDotToBase || dotFwd < minDotFwd || lateralOffset > maxAllowedLateral)
                     {
                         continue;
                     }
@@ -2709,7 +2669,8 @@ namespace LlamAcademy.Dinos.Unit
 
                 // 1. Kiểm tra cự ly áp sát cận chiến
                 bool isSiegeDino = this is SiegeDino;
-                float maxScanRange = isSiegeDino ? 4.2f : (AttackRange + 0.8f);
+                bool isBossDino = (this is BossDino) || (AISpeciesType == LlamAcademy.Dinos.AI.DinoAISpeciesType.TRexApexBoss);
+                float maxScanRange = isBossDino ? 7.2f : (isSiegeDino ? 4.2f : (AttackRange + 0.8f));
                 if (d > maxScanRange) continue;
                 bool isTouching = true;
 
@@ -4068,6 +4029,5 @@ namespace LlamAcademy.Dinos.Unit
             }
             return Vector3.zero;
         }
-}
-
+    }
 }

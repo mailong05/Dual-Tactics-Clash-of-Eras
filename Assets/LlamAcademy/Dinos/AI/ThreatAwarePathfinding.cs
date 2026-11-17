@@ -14,6 +14,23 @@ namespace LlamAcademy.Dinos.AI
     }
 
     /// <summary>
+    /// Biến trạng thái hành vi chiến thuật của khủng long do AI Director tính toán một lần trước đợt đánh:
+    /// - FrontalAssault: Tấn công trực diện / Đột kích thẳng trung lộ (khi trung lộ không có hỏa lực tháp)
+    /// - FlankerEvasion: Bọc sườn né tháp qua các góc mù hỏa lực (khi hỏa lực đầu làng quá mạnh)
+    /// - SwarmRush: Tấn công dồn bầy đàn vào điểm yếu (lấy tốc độ làm chủ đạo)
+    /// - MassSwarmOverwhelm: Dùng số lượng áp đảo toàn diện (biển quái tràn qua cổng)
+    /// - SiegeBreaker: Đột phá tường thành / Phá hủy chướng ngại vật (dành cho Ankylosaurus Tanker)
+    /// </summary>
+    public enum DinoTacticalBehavior
+    {
+        FrontalAssault,       // Tấn công trực diện / Đột kích thẳng trung lộ
+        FlankerEvasion,       // Bọc sườn né tháp qua các góc mù hỏa lực
+        SwarmRush,           // Tấn công dồn bầy đàn vào điểm yếu
+        MassSwarmOverwhelm,  // Dùng số lượng áp đảo (biển quái)
+        SiegeBreaker         // Đột phá tường thành / Phá hủy chướng ngại vật
+    }
+
+    /// <summary>
     /// Node in the 2D Tactical Threat Grid
     /// </summary>
     public class ThreatGridNode
@@ -109,6 +126,18 @@ namespace LlamAcademy.Dinos.AI
         private bool _isGridInitialized = false;
 
         public event Action OnThreatFieldUpdated;
+
+        [Header("=== AI Director Pre-Calculated Tactics ===")]
+        public DinoTacticalBehavior CurrentWaveTacticalStrategy = DinoTacticalBehavior.SwarmRush;
+        public string StrategyDescription = "Sẵn sàng phân tích ma trận phòng thủ";
+        public bool HasAnalyzedThisWave { get; private set; } = false;
+
+        private bool _cachedIsCenterHeavy = false;
+        private float _cachedCenterThreat = 0f;
+        private int _cachedTowersCoveringCenter = 0;
+        private List<Vector3> _cachedFlankerPath = new();
+        private List<Vector3> _cachedTankerPath = new();
+        private List<Vector3> _cachedDirectRushPath = new();
 
         private void Awake()
         {
@@ -304,6 +333,149 @@ namespace LlamAcademy.Dinos.AI
             OnThreatFieldUpdated?.Invoke();
         }
 
+        /// <summary>
+        /// THEO YÊU CẦU NGƯỜI DÙNG: Kiểm tra xem khu vực Đầu Làng / Trung Lộ (X: [-14, 14], Z: [-22, 8])
+        /// có bố trí hỏa lực tháp mạnh hay không.
+        /// Sử dụng giá trị đã phân tích và lưu cache trong 5s đếm ngược chiến thuật,
+        /// TRIỆT TIÊU 100% FindObjectsByType trong vòng lặp Update frame-by-frame!
+        /// </summary>
+        public bool IsCenterEntranceHeavyThreat()
+        {
+            return _cachedIsCenterHeavy;
+        }
+
+        /// <summary>
+        /// PHÂN TÍCH MA TRẬN PHÒNG THỦ CỦA NGƯỜI CHƠI DUY NHẤT 1 LẦN TRONG 5S ĐẾM NGƯỢC (Theo yêu cầu người dùng).
+        /// - Tính toán hỏa lực tháp, điểm mù, mật độ tháp ở đầu làng.
+        /// - Thiết lập biến hành vi cho các loài khủng long: FrontalAssault, FlankerEvasion, SwarmRush, MassSwarmOverwhelm, SiegeBreaker.
+        /// - Tính toán trước các lộ trình di chuyển (Pre-computed waypoints) để khủng long vào trận không chạy A* tốn tài nguyên.
+        /// </summary>
+        public void AnalyzeDefenseLayoutOnce(Vector3 spawnPos, Vector3 basePos)
+        {
+            // 1. Tái tính toán ma trận Threat Field một lần duy nhất
+            RecalculateThreatField();
+
+            // 2. Quét đánh giá cụm hỏa lực ở khu vực đầu làng / cửa ngõ trung lộ
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            _cachedCenterThreat = 0f;
+            _cachedTowersCoveringCenter = 0;
+            Vector3 centerEntrance = new Vector3(0f, 0f, -8f);
+
+            foreach (var unit in allUnits)
+            {
+                if (unit == null || !unit.gameObject.activeInHierarchy || unit.Health <= 0) continue;
+                if (unit is PrehistoricDinoBase || unit is Dino || unit is FlyingUnit || unit is PrehistoricVillageBase) continue;
+
+                Vector3 pos = unit.transform.position;
+                float distToCenter = Vector2.Distance(new Vector2(pos.x, pos.z), new Vector2(centerEntrance.x, centerEntrance.z));
+
+                if (distToCenter <= 18.0f)
+                {
+                    _cachedTowersCoveringCenter++;
+                    if (unit is CatapultTower || unit is BallistaTower) _cachedCenterThreat += 35f;
+                    else if (unit is ArcherTower || unit is TeslaTower) _cachedCenterThreat += 25f;
+                    else _cachedCenterThreat += 12f;
+                }
+            }
+
+            _cachedIsCenterHeavy = (_cachedTowersCoveringCenter >= 2 || _cachedCenterThreat >= 38.0f);
+
+            int currentWave = (RoundManagement.PrehistoricGameplayManager.Instance != null) 
+                ? RoundManagement.PrehistoricGameplayManager.Instance.CurrentWave 
+                : 1;
+
+            // 3. Thiết lập biến hành vi thích ứng với thế trận của người chơi:
+            // - Nếu hỏa lực đầu làng quá mạnh -> Bọc sườn né tháp (FlankerEvasion)
+            // - Nếu hỏa lực đầu làng yếu / không đặt tháp -> Tấn công trực diện (FrontalAssault) hoặc Xung phong bầy đàn (SwarmRush)
+            // - Nếu từ đợt 5 trở lên -> Dùng số lượng áp đảo toàn diện (MassSwarmOverwhelm)
+            if (_cachedIsCenterHeavy)
+            {
+                CurrentWaveTacticalStrategy = DinoTacticalBehavior.FlankerEvasion;
+                StrategyDescription = $"🐆 BỌC SƯỜN NÉ THÁP (Hỏa lực đầu làng: {_cachedCenterThreat:F0} DPS -> Né sang 2 cánh)";
+            }
+            else if (currentWave >= 5)
+            {
+                CurrentWaveTacticalStrategy = DinoTacticalBehavior.MassSwarmOverwhelm;
+                StrategyDescription = "🌊 BIỂN QUÁI ÁP ĐẢO (Lấy số lượng quân áp đảo toàn bộ trung lộ)";
+            }
+            else if (_cachedTowersCoveringCenter > 0)
+            {
+                CurrentWaveTacticalStrategy = DinoTacticalBehavior.SwarmRush;
+                StrategyDescription = "⚡ XUNG PHONG BẦY ĐÀN (Hỏa lực mỏng -> Dồn tốc lực đục xuyên cửa ngõ)";
+            }
+            else
+            {
+                CurrentWaveTacticalStrategy = DinoTacticalBehavior.FrontalAssault;
+                StrategyDescription = "⚔️ TẤN CÔNG TRỰC DIỆN (Trung lộ trống -> Đột kích thẳng vào nhà chính)";
+            }
+
+            // 4. Lập trước toàn bộ lộ trình Waypoints MỘT LẦN DUY NHẤT:
+            _cachedFlankerPath = FindThreatAwarePathInternal(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
+            _cachedTankerPath = FindThreatAwarePathInternal(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
+
+            _cachedDirectRushPath = new List<Vector3>
+            {
+                spawnPos,
+                new Vector3(spawnPos.x * 0.4f, 0f, 10f),
+                new Vector3(0f, 0f, -2.5f),
+                new Vector3(0f, 0f, -18f),
+                basePos
+            };
+
+            HasAnalyzedThisWave = true;
+            Debug.Log($"<color=cyan>[ThreatAwarePathfinding]</color> Hoàn tất AI 5s: {StrategyDescription} | Hỏa lực: {_cachedCenterThreat:F1} | Tháp đầu làng: {_cachedTowersCoveringCenter}");
+            OnThreatFieldUpdated?.Invoke();
+        }
+
+        public DinoTacticalBehavior GetAssignedTacticalBehavior(DinoAISpeciesType species)
+        {
+            switch (species)
+            {
+                case DinoAISpeciesType.VelociraptorFlanker:
+                    return CurrentWaveTacticalStrategy;
+                case DinoAISpeciesType.AnkylosaurusTanker:
+                    return DinoTacticalBehavior.SiegeBreaker;
+                case DinoAISpeciesType.TRexApexBoss:
+                    return (_cachedIsCenterHeavy && UnityEngine.Random.value < 0.35f) 
+                        ? DinoTacticalBehavior.FlankerEvasion 
+                        : DinoTacticalBehavior.FrontalAssault;
+                case DinoAISpeciesType.PterodactylFlyer:
+                    return DinoTacticalBehavior.FrontalAssault;
+                default:
+                    return CurrentWaveTacticalStrategy;
+            }
+        }
+
+        public List<Vector3> GetPrecomputedWaypoints(DinoAISpeciesType species)
+        {
+            if (species == DinoAISpeciesType.VelociraptorFlanker)
+            {
+                if (CurrentWaveTacticalStrategy == DinoTacticalBehavior.FlankerEvasion && _cachedFlankerPath != null && _cachedFlankerPath.Count > 0)
+                {
+                    return new List<Vector3>(_cachedFlankerPath);
+                }
+                if (_cachedDirectRushPath != null && _cachedDirectRushPath.Count > 0)
+                {
+                    return new List<Vector3>(_cachedDirectRushPath);
+                }
+            }
+            else if (species == DinoAISpeciesType.AnkylosaurusTanker)
+            {
+                if (_cachedTankerPath != null && _cachedTankerPath.Count > 0)
+                {
+                    return new List<Vector3>(_cachedTankerPath);
+                }
+            }
+
+            if (_cachedDirectRushPath != null && _cachedDirectRushPath.Count > 0)
+            {
+                return new List<Vector3>(_cachedDirectRushPath);
+            }
+
+            Vector3 defaultBase = new Vector3(-2.23f, 0f, -38.26f);
+            return new List<Vector3> { defaultBase };
+        }
+
         public ThreatGridNode GetNodeFromWorldPos(Vector3 worldPos)
         {
             if (_grid == null || !_isGridInitialized) InitializeGrid();
@@ -328,6 +500,11 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public List<Vector3> FindThreatAwarePath(Vector3 startPos, Vector3 targetPos, DinoAISpeciesType species)
         {
+            return FindThreatAwarePathInternal(startPos, targetPos, species);
+        }
+
+        private List<Vector3> FindThreatAwarePathInternal(Vector3 startPos, Vector3 targetPos, DinoAISpeciesType species)
+        {
             if (_grid == null || !_isGridInitialized) InitializeGrid();
             if (_grid == null) return new List<Vector3> { targetPos };
 
@@ -342,10 +519,19 @@ namespace LlamAcademy.Dinos.AI
             switch (species)
             {
                 case DinoAISpeciesType.VelociraptorFlanker:
-                    // Trọng số né tháp 6.5f và chi phí tường cân bằng:
-                    // Buộc Velociraptor thực hiện bọc sườn rộng ở hai bên cánh, tuyệt đối không đâm thẳng vào cửa chính hay cụm hỏa lực
-                    wThreat = 6.5f;
-                    wWall = 25f;
+                    bool isCenterHeavy = IsCenterEntranceHeavyThreat();
+                    if (isCenterHeavy)
+                    {
+                        // HỎA LỰC MẠNH Ở ĐẦU LÀNG: Velociraptor dùng chiến thuật BỌC SƯỜN NÉ THÁP (Flanker Evasion)
+                        wThreat = 6.5f;
+                        wWall = 25f;
+                    }
+                    else
+                    {
+                        // HỎA LỰC YẾU HOẶC KHÔNG CÓ THÁP: Đổi thành XUNG PHONG BẦY ĐÀN (Swarm Rush), xông thẳng trung lộ!
+                        wThreat = 0.5f;
+                        wWall = 1.2f;
+                    }
                     break;
                 case DinoAISpeciesType.AnkylosaurusTanker:
                     wThreat = 0.25f;
@@ -440,31 +626,43 @@ namespace LlamAcademy.Dinos.AI
                         float wallPenalty = wWall * neighbor.WallPenalty;
                         float flankBonusPenalty = 0f;
 
-                        // CHIẾN THUẬT BỌC SƯỜN NÉ THÁP CHO VELOCIRAPTOR (Hình 3):
-                        // Khủng long nhỏ khi nhận lệnh bọc sườn phải giữ vững lộ trình hai cánh (|X| > 10m).
-                        // Tuyệt đối không rẽ bẻ cua đâm thẳng vào cửa giữa hay lỗ thủng của T-Rex!
+                        // CHIẾN THUẬT THÍCH ỨNG CHO VELOCIRAPTOR:
+                        // - Hỏa lực đầu làng mạnh: Bọc sườn né tháp qua 2 cánh (|X| >= 10m), cấm cắt ngang cửa giữa
+                        // - Hỏa lực đầu làng yếu / không có tháp: Xung phong bầy đàn (Swarm Rush) lao thẳng trung lộ (|X| <= 8m)
                         if (species == DinoAISpeciesType.VelociraptorFlanker)
                         {
-                            bool isLeftFlank = startPos.x < 0f;
+                            bool isCenterHeavy = IsCenterEntranceHeavyThreat();
+                            if (isCenterHeavy)
+                            {
+                                bool isLeftFlank = startPos.x < 0f;
 
-                            // Cấm tuyệt đối cắt ngang vào trục chính giữa (|X| < 8.0m) khi chưa thâm nhập sâu vào hậu phương làng (Z > -25.0m)
-                            if (neighbor.WorldPos.z > -25.0f && Mathf.Abs(neighbor.WorldPos.x) < 8.0f)
-                            {
-                                flankBonusPenalty += 100000f; // Phạt tối thượng để không bao giờ rẽ vào cửa giữa
-                            }
+                                // Cấm tuyệt đối cắt ngang vào trục chính giữa (|X| < 8.0m) khi chưa thâm nhập sâu vào hậu phương làng (Z > -25.0m)
+                                if (neighbor.WorldPos.z > -25.0f && Mathf.Abs(neighbor.WorldPos.x) < 8.0f)
+                                {
+                                    flankBonusPenalty += 100000f; // Phạt tối thượng để không bao giờ rẽ vào cửa giữa
+                                }
 
-                            // Khuyến khích mạnh hành lang bọc sườn cánh tương ứng (|X| >= 10.0m)
-                            if (isLeftFlank && neighbor.WorldPos.x < -10.0f)
-                            {
-                                threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh trái
+                                // Khuyến khích mạnh hành lang bọc sườn cánh tương ứng (|X| >= 10.0m)
+                                if (isLeftFlank && neighbor.WorldPos.x < -10.0f)
+                                {
+                                    threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh trái
+                                }
+                                else if (!isLeftFlank && neighbor.WorldPos.x > 10.0f)
+                                {
+                                    threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh phải
+                                }
+                                else if ((isLeftFlank && neighbor.WorldPos.x > 0f) || (!isLeftFlank && neighbor.WorldPos.x < 0f))
+                                {
+                                    flankBonusPenalty += 50000f; // Cấm chạy nhầm sang cánh đối diện
+                                }
                             }
-                            else if (!isLeftFlank && neighbor.WorldPos.x > 10.0f)
+                            else
                             {
-                                threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh phải
-                            }
-                            else if ((isLeftFlank && neighbor.WorldPos.x > 0f) || (!isLeftFlank && neighbor.WorldPos.x < 0f))
-                            {
-                                flankBonusPenalty += 50000f; // Cấm chạy nhầm sang cánh đối diện
+                                // XUNG PHONG BẦY ĐÀN (Swarm Rush): Khuyến khích chạy thẳng trung lộ (|X| <= 8.0m) hướng về nhà chính
+                                if (Mathf.Abs(neighbor.WorldPos.x) <= 8.0f)
+                                {
+                                    threatFactor *= 0.4f; // Giảm 60% chi phí chạy thẳng trung lộ
+                                }
                             }
                         }
 
