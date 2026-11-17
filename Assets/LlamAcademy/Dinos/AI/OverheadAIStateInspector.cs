@@ -57,6 +57,9 @@ namespace LlamAcademy.Dinos.AI
                 case DinoTacticalBehavior.FlankerEvasion:
                     SetStateLabel("🐆 [Bọc Sườn Né Tháp]", new Color(0.2f, 0.95f, 0.85f));
                     break;
+                case DinoTacticalBehavior.SiegeBreaker:
+                    SetStateLabel("🛡️ [Phá Tường Mở Đường]", new Color(1.0f, 0.65f, 0.2f));
+                    break;
                 case DinoTacticalBehavior.MassSwarmOverwhelm:
                     SetStateLabel("🌊 [Biển Quái Áp Đảo]", new Color(1.0f, 0.4f, 0.3f));
                     break;

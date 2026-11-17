@@ -149,7 +149,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void Update()
         {
-            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen() || UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }
@@ -326,7 +326,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 else
                 {
-                    PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
+                    PrehistoricGameplayManager.Instance.RemoveAllVillageFrontBarricades();
                 }
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
             }
@@ -370,6 +370,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void HandleDinoHotkeys()
         {
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen()) return;
             EnsureAvailableDinos();
             if (Keyboard.current == null || AvailableDinos == null || AvailableDinos.Count == 0) return;
 

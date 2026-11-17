@@ -2531,23 +2531,11 @@ namespace LlamAcademy.Dinos.Unit
                         }
                     }
 
-                    // CHIẾN THUẬT THÍCH ỨNG: Chỉ ép hành lang 2 cánh khi biến hành vi là FlankerEvasion (Bọc sườn né tháp)
-                    // Nếu là SwarmRush / FrontalAssault / MassSwarmOverwhelm -> Xông thẳng trung lộ!
-                    bool isFlankingActive = (TacticalBehavior == LlamAcademy.Dinos.AI.DinoTacticalBehavior.FlankerEvasion);
+                    // Đảm bảo tọa độ mục tiêu luôn nằm gọn trong lòng sàn bản đồ (không trèo lên vách núi hoặc đi lạc vào rừng sâu)
+                    moveTarget.x = Mathf.Clamp(moveTarget.x, -24.0f, 24.0f);
+                    moveTarget.z = Mathf.Clamp(moveTarget.z, -40.0f, 35.0f);
 
-                    if (isFlankingActive && transform.position.z > -24.0f)
-                    {
-                        // Giữ vững hành lang cánh cho đến khi vượt qua cụm tháp chính diện vào sâu trong làng
-                        if (transform.position.x < 0f)
-                            moveTarget.x = Mathf.Clamp(moveTarget.x, -25.0f, -10.0f);
-                        else
-                            moveTarget.x = Mathf.Clamp(moveTarget.x, 10.0f, 25.0f);
-                    }
-                    else
-                    {
-                        moveTarget.x = Mathf.Clamp(moveTarget.x, -26.0f, 24.0f);
-                    }
-                    if (NavMesh.SamplePosition(moveTarget, out NavMeshHit mHit, 2.5f, NavMesh.AllAreas))
+                    if (NavMesh.SamplePosition(moveTarget, out NavMeshHit mHit, 3.0f, NavMesh.AllAreas))
                     {
                         moveTarget = mHit.position;
                     }
@@ -2596,6 +2584,13 @@ namespace LlamAcademy.Dinos.Unit
                 IDamageable candidate = null;
                 if (wall != null && wall.Health > 0)
                 {
+                    // Đảm bảo lấy Wall ở Root nếu wall đang ở một node con để cả đoạn tường chịu sát thương thống nhất!
+                    if (wall.Root != null && wall.Root != wall.gameObject)
+                    {
+                        Wall rootWall = wall.Root.GetComponent<Wall>();
+                        if (rootWall != null && rootWall.Health > 0) wall = rootWall;
+                    }
+
                     string wallName = wall.gameObject.name.ToLower();
                     if (wallName.Contains("bridge") || wallName.Contains("ramp") || wallName.Contains("floor")) continue;
                     candidate = wall;
@@ -3140,18 +3135,18 @@ namespace LlamAcademy.Dinos.Unit
             Wall existingWall = col.GetComponentInParent<Wall>();
             if (existingWall != null) return existingWall;
 
-            // 2. Chỉ leo lên các đối tượng cấp prefab đơn lẻ, KHÔNG leo lên các container nhóm cha
+            // 2. Chỉ leo lên các đối tượng cấp đoạn tường / prefab hoàn chỉnh, KHÔNG dừng ở các mesh con (như group1, Plank_Defenses...)
             Transform targetT = col.transform;
             while (targetT.parent != null && targetT.parent != col.transform.root &&
                    !targetT.parent.name.ToLower().Contains("world") &&
                    !targetT.parent.name.ToLower().Contains("props"))
             {
                 string pn = targetT.parent.name.ToLower();
-                if (pn.Contains("fortress") || pn.Contains("wing") || pn.Contains("flank") ||
-                    pn.Contains("gate_complex") || pn.Contains("gate_entryway") ||
-                    pn.Contains("container") || pn.Contains("group"))
+                // Chỉ dừng khi cha là container nhóm phòng tuyến lớn
+                if (pn == "left_wing_wall" || pn == "right_wing_wall" || pn == "village_fortress_wall" ||
+                    pn == "gate_complex" || pn == "right_flank_wall" || pn.Contains("fortress_root"))
                 {
-                    break; // Dừng lại ở đối tượng con, không leo lên container nhóm!
+                    break;
                 }
                 targetT = targetT.parent;
             }

@@ -184,8 +184,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                 // 2.1. Xóa triệt để các thanh máu tĩnh mồ côi được lưu sẵn trong Scene của các tường đã bị vô hiệu hóa
                 if (n.StartsWith("HealthBar_Left_Wall_") || n.StartsWith("HealthBar_Right_Wall_") ||
-                    n.StartsWith("HealthBar_Right_Flank_") || n.StartsWith("HealthBar_Gate_") ||
+                    n.StartsWith("HealthBar_Right_Flank_") || n.StartsWith("HealthBar_Flank_") || n.StartsWith("HealthBar_Gate_") ||
                     n.StartsWith("HealthBar_Village_Left_Gap_") || n.StartsWith("HealthBar_Village_Watchtower_"))
+                {
+                    Destroy(t.gameObject);
+                    continue;
+                }
+
+                // 2.2. Xóa triệt để mọi cọc gỗ mồ côi nằm trôi nổi ở root scene ngoài hàng rào chính thống
+                if (n.StartsWith("Plank_Defenses_low_standardSurface1_0") && t.parent == null)
                 {
                     Destroy(t.gameObject);
                     continue;
@@ -234,14 +241,15 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 6. Xóa triệt để các thanh máu lơ lửng của 2 chòi canh gỗ tàng hình dưới HealthBarCanvas
+            // 6. Xóa triệt để các thanh máu lơ lửng của 2 chòi canh gỗ tàng hình và Flank Barricade dưới HealthBarCanvas
             if (HealthBarCanvas.HasInstance)
             {
                 var canvas = HealthBarCanvas.Instance;
                 for (int i = canvas.transform.childCount - 1; i >= 0; i--)
                 {
                     Transform c = canvas.transform.GetChild(i);
-                    if (c != null && (c.name.Contains("Village_Watchtower_Left") || c.name.Contains("Village_Watchtower_Right")))
+                    if (c != null && (c.name.Contains("Village_Watchtower_Left") || c.name.Contains("Village_Watchtower_Right") ||
+                                      c.name.Contains("Flank_Barricade") || c.name.Contains("Right_Flank") || c.name.Contains("Flank_Blocker")))
                     {
                         Destroy(c.gameObject);
                     }
@@ -287,6 +295,38 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void RemoveAllVillageFrontBarricades()
         {
+            // 1. Vô hiệu hóa triệt để các nhóm container tường cánh mặc định trong cảnh
+            string[] rootGroupNames = new string[] { "Left_Wing_Wall", "Right_Wing_Wall", "Right_Flank_Wall", "Gate_Portcullis_Barricade" };
+            foreach (string grpName in rootGroupNames)
+            {
+                GameObject grp = GameObject.Find(grpName);
+                if (grp != null)
+                {
+                    var rends = grp.GetComponentsInChildren<Renderer>(true);
+                    foreach (var r in rends) if (r != null) r.enabled = false;
+                    var cols = grp.GetComponentsInChildren<Collider>(true);
+                    foreach (var c in cols) if (c != null) c.enabled = false;
+                    var obs = grp.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
+                    foreach (var o in obs) if (o != null) { o.enabled = false; o.carving = false; Destroy(o); }
+                    var walls = grp.GetComponentsInChildren<Unit.Wall>(true);
+                    foreach (var w in walls)
+                    {
+                        if (w != null)
+                        {
+                            if (Utility.HealthBarCanvas.HasInstance) Utility.HealthBarCanvas.Instance.Unregister(w);
+                            Destroy(w);
+                        }
+                    }
+                    var units = grp.GetComponentsInChildren<Unit.Unit>(true);
+                    foreach (var u in units)
+                    {
+                        if (u != null && Utility.HealthBarCanvas.HasInstance) Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    grp.SetActive(false);
+                }
+            }
+
+            // 2. Quét toàn bộ transform và vô hiệu hóa tất cả các đoạn hàng rào gỗ mặc định
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (Transform t in allTransforms)
             {
@@ -398,6 +438,12 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void RestoreAllVillageBarricades()
         {
+            if (!IsAssaultMode)
+            {
+                RemoveAllVillageFrontBarricades();
+                return;
+            }
+
             bool isAssault = IsAssaultMode;
             var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
@@ -584,6 +630,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Unit.Wall parentWall = t.parent != null ? t.parent.GetComponentInParent<Unit.Wall>(true) : null;
                 if (parentWall != null && parentWall.gameObject != t.gameObject)
                 {
+                    // Hủy triệt để Wall và HealthBar trên node con để chỉ giữ Wall duy nhất ở Root!
+                    if (t.TryGetComponent(out Unit.Wall childWall)) Destroy(childWall);
+                    if (t.TryGetComponent(out Unit.Unit childUnit) && Utility.HealthBarCanvas.HasInstance) Utility.HealthBarCanvas.Instance.Unregister(childUnit);
+
                     t.gameObject.SetActive(true);
                     Renderer[] childRends = t.GetComponentsInChildren<Renderer>(true);
                     foreach (var r in childRends) if (r != null) r.enabled = true;
@@ -1013,10 +1063,24 @@ namespace LlamAcademy.Dinos.RoundManagement
                 obs.carving = true;
                 obs.enabled = true;
 
-                var wall = go.GetComponent<Unit.Wall>();
-                if (wall == null) wall = go.AddComponent<Unit.Wall>();
-                wall.MaxHealth = 1500;
-                wall.Health = 1500;
+                // Flank_Blocker là rào chắn tàng hình giới hạn biên map:
+                // TUYỆT ĐỐI KHÔNG gắn Wall/Unit để triệt tiêu 100% thanh máu ma lơ lửng trên không trung!
+                if (go.TryGetComponent(out Unit.Wall oldWall)) Destroy(oldWall);
+                if (go.TryGetComponent(out Unit.Unit oldUnit)) Destroy(oldUnit);
+            }
+
+            // Dọn dẹp triệt để mọi thanh máu rác của Flank Barricade / Flank Blocker
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                var canvas = Utility.HealthBarCanvas.Instance;
+                for (int c = canvas.transform.childCount - 1; c >= 0; c--)
+                {
+                    Transform child = canvas.transform.GetChild(c);
+                    if (child != null && (child.name.Contains("Flank_Barricade") || child.name.Contains("Right_Flank") || child.name.Contains("Flank_Blocker")))
+                    {
+                        Destroy(child.gameObject);
+                    }
+                }
             }
         }
 
@@ -1235,9 +1299,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (AnnouncementTimer <= 0f) ScreenAnnouncement = "";
             }
 
-            bool isSpacePressed = Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
-            bool isRPressed = Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
-            bool isEnterPressed = Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame);
+            bool modalOpen = UI.PrehistoricUIModalManager.IsAnyModalOpen();
+            bool isSpacePressed = !modalOpen && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
+            bool isRPressed = !modalOpen && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
+            bool isEnterPressed = !modalOpen && Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame);
 
             // Phase-specific input handling
             if (_CurrentPhase == PrehistoricWavePhase.BuildingPhase)
@@ -1281,7 +1346,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             // Hotkey F11 hoặc Alt+Enter để chuyển đổi Fullscreen / Toàn màn hình
-            if (Keyboard.current != null)
+            if (!modalOpen && Keyboard.current != null)
             {
                 bool isF11Pressed = Keyboard.current.f11Key.wasPressedThisFrame;
                 bool isAltEnter = (Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed) && Keyboard.current.enterKey.wasPressedThisFrame;
@@ -2816,8 +2881,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageWatchtowers();
             EnsureScenicBridgeWatchtowers();
 
-            // Phục hồi và làm mới 100% toàn bộ hàng rào gỗ trước làng như mới
-            RestoreAllVillageBarricades();
+            // Phục hồi và làm mới rào gỗ: chế độ Thủ Thành luôn xóa sạch hàng rào gỗ mặc định, chế độ Công Thành kích hoạt đầy đủ
+            if (isTowerDefense)
+            {
+                RemoveAllVillageFrontBarricades();
+            }
+            else
+            {
+                RestoreAllVillageBarricades();
+            }
 
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)

@@ -197,6 +197,10 @@ namespace LlamAcademy.Dinos.Player
             {
                 return;
             }
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen())
+            {
+                return;
+            }
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense)
             {
                 return;
@@ -666,6 +670,10 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
             if (SelectedTower == null) return;
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen())
+            {
+                return;
+            }
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense) return;
 
             Mobile.MobileUIHelper.BeginScaling();

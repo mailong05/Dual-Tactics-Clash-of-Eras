@@ -347,8 +347,13 @@ namespace LlamAcademy.Dinos.AI
         /// <summary>
         /// PHÂN TÍCH MA TRẬN PHÒNG THỦ CỦA NGƯỜI CHƠI DUY NHẤT 1 LẦN TRONG 5S ĐẾM NGƯỢC (Theo yêu cầu người dùng).
         /// - Tính toán hỏa lực tháp, điểm mù, mật độ tháp ở đầu làng.
-        /// - Thiết lập biến hành vi cho các loài khủng long: FrontalAssault, FlankerEvasion, SwarmRush, MassSwarmOverwhelm, SiegeBreaker.
-        /// - Tính toán trước các lộ trình di chuyển (Pre-computed waypoints) để khủng long vào trận không chạy A* tốn tài nguyên.
+        /// - Thiết lập biến hành vi thích ứng chuẩn xác cho từng cách bố trí của người chơi:
+        ///   + 0 tháp: Tấn Công Trực Diện (FrontalAssault)
+        ///   + 1 tháp: Xung Phong Bầy Đàn (SwarmRush)
+        ///   + >= 2 tháp hỏa lực mạnh đầu làng: Bọc Sườn Né Tháp (FlankerEvasion)
+        ///   + >= 3 rào chắn chặn đường: Phá Tường Mở Đường (SiegeBreaker)
+        ///   + Đợt >= 5: Biển Quái Áp Đảo (MassSwarmOverwhelm)
+        /// - Tính toán trước các lộ trình di chuyển (Pre-computed waypoints) an toàn, tuyệt đối không đi lạc vào rừng sâu.
         /// </summary>
         public void AnalyzeDefenseLayoutOnce(Vector3 spawnPos, Vector3 basePos)
         {
@@ -359,54 +364,83 @@ namespace LlamAcademy.Dinos.AI
             var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             _cachedCenterThreat = 0f;
             _cachedTowersCoveringCenter = 0;
+            int frontBarricades = 0;
             Vector3 centerEntrance = new Vector3(0f, 0f, -8f);
 
             foreach (var unit in allUnits)
             {
                 if (unit == null || !unit.gameObject.activeInHierarchy || unit.Health <= 0) continue;
                 if (unit is PrehistoricDinoBase || unit is Dino || unit is FlyingUnit || unit is PrehistoricVillageBase) continue;
+                if (unit.gameObject.name.Contains("HealthBar") || unit.gameObject.name.Contains("Canvas")) continue;
 
                 Vector3 pos = unit.transform.position;
                 float distToCenter = Vector2.Distance(new Vector2(pos.x, pos.z), new Vector2(centerEntrance.x, centerEntrance.z));
 
+                // Phân loại tháp tấn công tầm xa thực sự và rào chắn/tường
+                bool isOffensiveTower = (unit is ArcherTower || unit is BallistaTower || unit is CatapultTower || unit is TeslaTower || unit is FrostTower);
+                if (!isOffensiveTower)
+                {
+                    string un = unit.gameObject.name.ToLower();
+                    isOffensiveTower = (un.Contains("tower") || un.Contains("ballista") || un.Contains("catapult") || un.Contains("totem"))
+                                    && !un.Contains("barricade") && !un.Contains("wall") && !un.Contains("trap");
+                }
+
+                bool isBarricade = (unit is Wall) || unit.gameObject.name.Contains("Barricade") || unit.gameObject.name.Contains("Wall");
+
                 if (distToCenter <= 18.0f)
                 {
-                    _cachedTowersCoveringCenter++;
-                    if (unit is CatapultTower || unit is BallistaTower) _cachedCenterThreat += 35f;
-                    else if (unit is ArcherTower || unit is TeslaTower) _cachedCenterThreat += 25f;
-                    else _cachedCenterThreat += 12f;
+                    if (isOffensiveTower)
+                    {
+                        _cachedTowersCoveringCenter++;
+                        if (unit is CatapultTower || unit.gameObject.name.Contains("Catapult")) _cachedCenterThreat += 35f;
+                        else if (unit is BallistaTower || unit.gameObject.name.Contains("Ballista")) _cachedCenterThreat += 30f;
+                        else if (unit is ArcherTower || unit.gameObject.name.Contains("Archer")) _cachedCenterThreat += 25f;
+                        else if (unit is TeslaTower || unit.gameObject.name.Contains("Totem")) _cachedCenterThreat += 25f;
+                        else _cachedCenterThreat += 20f;
+                    }
+                    else if (isBarricade)
+                    {
+                        frontBarricades++;
+                    }
                 }
             }
 
-            _cachedIsCenterHeavy = (_cachedTowersCoveringCenter >= 2 || _cachedCenterThreat >= 38.0f);
+            _cachedIsCenterHeavy = (_cachedTowersCoveringCenter >= 2 && _cachedCenterThreat >= 45.0f);
 
             int currentWave = (RoundManagement.PrehistoricGameplayManager.Instance != null) 
                 ? RoundManagement.PrehistoricGameplayManager.Instance.CurrentWave 
                 : 1;
 
-            // 3. Thiết lập biến hành vi thích ứng với thế trận của người chơi:
-            // - Nếu hỏa lực đầu làng quá mạnh -> Bọc sườn né tháp (FlankerEvasion)
-            // - Nếu hỏa lực đầu làng yếu / không đặt tháp -> Tấn công trực diện (FrontalAssault) hoặc Xung phong bầy đàn (SwarmRush)
-            // - Nếu từ đợt 5 trở lên -> Dùng số lượng áp đảo toàn diện (MassSwarmOverwhelm)
+            // 3. Thiết lập biến hành vi thích ứng chính xác cho từng trường hợp bố trí:
             if (_cachedIsCenterHeavy)
             {
+                // TRƯỜNG HỢP 1: Cửa ngõ tập trung cụm hỏa lực mạnh (từ 2 tháp trở lên, DPS >= 45) -> Bọc sườn 2 cánh né hỏa lực
                 CurrentWaveTacticalStrategy = DinoTacticalBehavior.FlankerEvasion;
-                StrategyDescription = $"🐆 BỌC SƯỜN NÉ THÁP (Hỏa lực đầu làng: {_cachedCenterThreat:F0} DPS -> Né sang 2 cánh)";
+                StrategyDescription = $"🐆 BỌC SƯỜN NÉ THÁP (Cửa ngõ {_cachedTowersCoveringCenter} tháp, {_cachedCenterThreat:F0} DPS -> Bọc sườn 2 cánh né hỏa lực)";
+            }
+            else if (frontBarricades >= 3)
+            {
+                // TRƯỜNG HỢP 2: Người chơi xây nhiều rào chắn / mê cung chặn lối đi (từ 3 rào trở lên)
+                CurrentWaveTacticalStrategy = DinoTacticalBehavior.SiegeBreaker;
+                StrategyDescription = $"🛡️ PHÁ TƯỜNG MỞ ĐƯỜNG (Phát hiện {frontBarricades} rào chắn chặn lối -> Tanker phá rào dọn đường)";
             }
             else if (currentWave >= 5)
             {
+                // TRƯỜNG HỢP 3: Các đợt cao (Đợt 5 trở đi) -> Tổng lực bầy đàn đa chủng loại áp đảo
                 CurrentWaveTacticalStrategy = DinoTacticalBehavior.MassSwarmOverwhelm;
-                StrategyDescription = "🌊 BIỂN QUÁI ÁP ĐẢO (Lấy số lượng quân áp đảo toàn bộ trung lộ)";
+                StrategyDescription = $"🌊 BIỂN QUÁI ÁP ĐẢO (Đợt {currentWave}: Lấy số lượng quân áp đảo toàn bộ trung lộ)";
             }
-            else if (_cachedTowersCoveringCenter > 0)
+            else if (_cachedTowersCoveringCenter == 1)
             {
+                // TRƯỜNG HỢP 4: Hỏa lực mỏng (chỉ có đúng 1 tháp ở cửa ngõ)
                 CurrentWaveTacticalStrategy = DinoTacticalBehavior.SwarmRush;
-                StrategyDescription = "⚡ XUNG PHONG BẦY ĐÀN (Hỏa lực mỏng -> Dồn tốc lực đục xuyên cửa ngõ)";
+                StrategyDescription = "⚡ XUNG PHONG BẦY ĐÀN (Hỏa lực mỏng 1 tháp -> Bầy đàn tăng tốc đột phá xuyên cửa ngõ)";
             }
             else
             {
+                // TRƯỜNG HỢP 5: Trung lộ hoàn toàn trống (không có bất kỳ tháp nào ở cửa ngõ)
                 CurrentWaveTacticalStrategy = DinoTacticalBehavior.FrontalAssault;
-                StrategyDescription = "⚔️ TẤN CÔNG TRỰC DIỆN (Trung lộ trống -> Đột kích thẳng vào nhà chính)";
+                StrategyDescription = "⚔️ TẤN CÔNG TRỰC DIỆN (Trung lộ trống -> Đột kích thần tốc thẳng vào nhà chính)";
             }
 
             // 4. Lập trước toàn bộ lộ trình Waypoints MỘT LẦN DUY NHẤT:
@@ -416,14 +450,15 @@ namespace LlamAcademy.Dinos.AI
             _cachedDirectRushPath = new List<Vector3>
             {
                 spawnPos,
-                new Vector3(spawnPos.x * 0.4f, 0f, 10f),
-                new Vector3(0f, 0f, -2.5f),
-                new Vector3(0f, 0f, -18f),
+                new Vector3(spawnPos.x * 0.4f, 0f, 12f),
+                new Vector3(-2.2f, 0f, 0f),
+                new Vector3(-2.2f, 0f, -14f),
+                new Vector3(-2.23f, 0f, -28f),
                 basePos
             };
 
             HasAnalyzedThisWave = true;
-            Debug.Log($"<color=cyan>[ThreatAwarePathfinding]</color> Hoàn tất AI 5s: {StrategyDescription} | Hỏa lực: {_cachedCenterThreat:F1} | Tháp đầu làng: {_cachedTowersCoveringCenter}");
+            Debug.Log($"<color=cyan>[ThreatAwarePathfinding]</color> Hoàn tất AI 5s: {StrategyDescription} | Hỏa lực: {_cachedCenterThreat:F1} | Tháp đầu làng: {_cachedTowersCoveringCenter} | Rào: {frontBarricades}");
             OnThreatFieldUpdated?.Invoke();
         }
 
@@ -615,6 +650,8 @@ namespace LlamAcademy.Dinos.AI
 
                         ThreatGridNode neighbor = GetNode(nx, nz);
                         if (neighbor == null || closedSet.Contains(neighbor)) continue;
+                        // TUYỆT ĐỐI không bao giờ bước lùi ngược lên rừng sâu phía Bắc
+                        if (neighbor.WorldPos.z > startPos.z + 1.5f) continue;
                         // Vách đá, núi cao ngoài rìa NavMesh và không phải tường phòng thủ -> Không đi xuyên qua
                         if (!neighbor.IsWalkable && !neighbor.HasWall) continue;
 
@@ -627,8 +664,6 @@ namespace LlamAcademy.Dinos.AI
                         float flankBonusPenalty = 0f;
 
                         // CHIẾN THUẬT THÍCH ỨNG CHO VELOCIRAPTOR:
-                        // - Hỏa lực đầu làng mạnh: Bọc sườn né tháp qua 2 cánh (|X| >= 10m), cấm cắt ngang cửa giữa
-                        // - Hỏa lực đầu làng yếu / không có tháp: Xung phong bầy đàn (Swarm Rush) lao thẳng trung lộ (|X| <= 8m)
                         if (species == DinoAISpeciesType.VelociraptorFlanker)
                         {
                             bool isCenterHeavy = IsCenterEntranceHeavyThreat();
@@ -636,32 +671,28 @@ namespace LlamAcademy.Dinos.AI
                             {
                                 bool isLeftFlank = startPos.x < 0f;
 
-                                // Cấm tuyệt đối cắt ngang vào trục chính giữa (|X| < 8.0m) khi chưa thâm nhập sâu vào hậu phương làng (Z > -25.0m)
-                                if (neighbor.WorldPos.z > -25.0f && Mathf.Abs(neighbor.WorldPos.x) < 8.0f)
+                                // Khi còn ở ngoài sông (Z > 2.0f), ưu tiên né tim đường (X: -4.5..4.5) để tránh hỏa lực tập trung
+                                if (neighbor.WorldPos.z > 2.0f && Mathf.Abs(neighbor.WorldPos.x) < 4.5f)
                                 {
-                                    flankBonusPenalty += 100000f; // Phạt tối thượng để không bao giờ rẽ vào cửa giữa
+                                    flankBonusPenalty += 25f; // Nudge nhẹ để né tim đường, tuyệt đối không làm đứt đường A*
                                 }
 
-                                // Khuyến khích mạnh hành lang bọc sườn cánh tương ứng (|X| >= 10.0m)
-                                if (isLeftFlank && neighbor.WorldPos.x < -10.0f)
+                                // Khuyến khích di chuyển men theo hành lang sườn tương ứng (X: -12..-5 hoặc X: 5..12)
+                                if (isLeftFlank && neighbor.WorldPos.x >= -12.0f && neighbor.WorldPos.x <= -5.0f)
                                 {
-                                    threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh trái
+                                    threatFactor *= 0.3f;
                                 }
-                                else if (!isLeftFlank && neighbor.WorldPos.x > 10.0f)
+                                else if (!isLeftFlank && neighbor.WorldPos.x >= 5.0f && neighbor.WorldPos.x <= 12.0f)
                                 {
-                                    threatFactor *= 0.2f; // Giảm 80% chi phí cho cánh phải
-                                }
-                                else if ((isLeftFlank && neighbor.WorldPos.x > 0f) || (!isLeftFlank && neighbor.WorldPos.x < 0f))
-                                {
-                                    flankBonusPenalty += 50000f; // Cấm chạy nhầm sang cánh đối diện
+                                    threatFactor *= 0.3f;
                                 }
                             }
                             else
                             {
-                                // XUNG PHONG BẦY ĐÀN (Swarm Rush): Khuyến khích chạy thẳng trung lộ (|X| <= 8.0m) hướng về nhà chính
-                                if (Mathf.Abs(neighbor.WorldPos.x) <= 8.0f)
+                                // Hỏa lực mỏng hoặc trung lộ trống: Khuyến khích chạy thẳng trục trung lộ
+                                if (Mathf.Abs(neighbor.WorldPos.x) <= 6.0f)
                                 {
-                                    threatFactor *= 0.4f; // Giảm 60% chi phí chạy thẳng trung lộ
+                                    threatFactor *= 0.4f;
                                 }
                             }
                         }
@@ -683,8 +714,40 @@ namespace LlamAcademy.Dinos.AI
                 }
             }
 
-            // Fallback to closest reached node if complete path not found
+            // Fallback an toàn: Nếu A* không chạm được mục tiêu (ví dụ bị vật cản bịt kín), lập tức dùng hành lang an toàn tiến về làng
+            if (closestDist > CellSize * 3.5f)
+            {
+                return GetGuaranteedCorridorPath(startPos, targetPos, species);
+            }
+
             return RetracePath(startNode, closestReachedNode);
+        }
+
+        public List<Vector3> GetGuaranteedCorridorPath(Vector3 startPos, Vector3 targetPos, DinoAISpeciesType species)
+        {
+            bool isCenterHeavy = IsCenterEntranceHeavyThreat();
+            if (species == DinoAISpeciesType.VelociraptorFlanker && isCenterHeavy)
+            {
+                float flankX = (startPos.x < 0f) ? -8.0f : 8.0f;
+                return new List<Vector3>
+                {
+                    startPos,
+                    new Vector3(flankX, 0f, 15f),
+                    new Vector3(flankX * 0.7f, 0f, 2f),
+                    new Vector3(-2.2f, 0f, -8f),
+                    new Vector3(-2.2f, 0f, -22f),
+                    targetPos
+                };
+            }
+            return new List<Vector3>
+            {
+                startPos,
+                new Vector3(startPos.x * 0.5f, 0f, 12f),
+                new Vector3(-2.2f, 0f, 0f),
+                new Vector3(-2.2f, 0f, -14f),
+                new Vector3(-2.23f, 0f, -28f),
+                targetPos
+            };
         }
 
         private List<Vector3> RetracePath(ThreatGridNode startNode, ThreatGridNode endNode)
@@ -694,14 +757,25 @@ namespace LlamAcademy.Dinos.AI
 
             while (curr != null && curr != startNode)
             {
-                path.Add(curr.WorldPos);
+                // Chỉ lấy các điểm không vượt quá độ cao phía Bắc của điểm xuất phát
+                if (curr.WorldPos.z <= startNode.WorldPos.z + 1.0f)
+                {
+                    Vector3 pt = curr.WorldPos;
+                    pt.x = Mathf.Clamp(pt.x, -22f, 22f);
+                    path.Add(pt);
+                }
                 curr = curr.Parent;
             }
 
             path.Reverse();
 
             // Smooth path by skipping collinear or intermediate points
-            return SimplifyPath(path);
+            List<Vector3> simplified = SimplifyPath(path);
+            if (simplified.Count == 0 || Vector3.Distance(simplified[simplified.Count - 1], endNode.WorldPos) > 2.0f)
+            {
+                simplified.Add(endNode.WorldPos);
+            }
+            return simplified;
         }
 
         private List<Vector3> SimplifyPath(List<Vector3> rawPath)

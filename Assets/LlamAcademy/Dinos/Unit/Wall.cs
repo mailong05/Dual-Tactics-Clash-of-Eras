@@ -193,13 +193,14 @@ namespace LlamAcademy.Dinos.Unit
             // 0. Xử lý các chiến binh NPC đang đứng trên công trình này sụp đổ và hy sinh
             EliminateDefendersOnCollapsingStructure();
 
-            // 1. Lập tức vô hiệu hóa Collider, NavMeshObstacle và Renderer ngay trong frame này
-            // để Unity NavMesh lập tức un-carve giải phóng lối đi và vật lý không chặn quái
-            Collider[] cols = GetComponentsInChildren<Collider>(true);
+            // 1. Lập tức vô hiệu hóa Collider, NavMeshObstacle và Renderer của TOÀN BỘ đoạn tường (bao gồm cả khung ngoài, cọc gỗ bên trong, chân đế, khiên)
+            // đảm bảo cả đoạn tường biến mất đồng bộ 100%, không để sót khung tường ngoài hay cọc gỗ bên trong!
+            GameObject targetRoot = Root != null ? Root : gameObject;
+            Collider[] cols = targetRoot.GetComponentsInChildren<Collider>(true);
             foreach (var c in cols) if (c != null) c.enabled = false;
-            NavMeshObstacle[] obstacles = GetComponentsInChildren<NavMeshObstacle>(true);
-            foreach (var obs in obstacles) if (obs != null) obs.enabled = false;
-            Renderer[] rends = GetComponentsInChildren<Renderer>(true);
+            NavMeshObstacle[] obstacles = targetRoot.GetComponentsInChildren<NavMeshObstacle>(true);
+            foreach (var obs in obstacles) if (obs != null) { obs.enabled = false; obs.carving = false; }
+            Renderer[] rends = targetRoot.GetComponentsInChildren<Renderer>(true);
             foreach (var r in rends) if (r != null) r.enabled = false;
 
             // 1b. Nếu công trình bị phá hủy là cầu gỗ/dốc/cổng, lập tức làm biến mất toàn bộ mặt sàn cầu
@@ -286,6 +287,13 @@ namespace LlamAcademy.Dinos.Unit
                 if (t == null || t == transform || (Root != null && t == Root.transform)) continue;
                 string tn = t.gameObject.name.ToLowerInvariant();
 
+                // TUYỆT ĐỐI không can thiệp hoặc tắt nhầm bất kỳ hàng rào cọc gỗ, ván chắn, khiên hay công trình phòng thủ nào!
+                if (tn.Contains("defenses") || tn.Contains("barricade") || tn.Contains("wall") ||
+                    tn.Contains("segment") || tn.Contains("shield") || tn.Contains("palisade") || tn.Contains("fortress"))
+                {
+                    continue;
+                }
+
                 // Nhận diện sàn cầu, bản mặt cầu, dốc hoặc sàn gỗ đi bộ
                 bool isFloor = tn.Contains("bridge") ||
                                tn.Contains("ramp") ||
@@ -307,11 +315,8 @@ namespace LlamAcademy.Dinos.Unit
                         dist = Mathf.Min(dist, closestDist);
                     }
 
-                    // Kiểm tra cự ly: Khoảng cách tâm hoặc khoảng cách đến mép collider sàn
-                    // Phạm vi bao quát 26.0m theo chiều tiến công (Z) và 8.5m theo chiều ngang (X)
-                    // để dọn sạch hoàn toàn dốc gỗ Ramp_Tribal và sàn gỗ đi kèm khi rào chắn bị phá hủy (Hình 1 & 2)
-                    float dx = Mathf.Abs(t.position.x - wallPos.x);
-                    bool inBreachCorridor = (dist <= 26.0f && dx <= 8.5f) || (dist <= 14.0f);
+                    // Chỉ thu hẹp trong phạm vi cực gần (bán kính <= 6.0m) của đoạn tường bị phá hủy
+                    bool inBreachCorridor = (dist <= 6.0f);
 
                     if (inBreachCorridor)
                     {

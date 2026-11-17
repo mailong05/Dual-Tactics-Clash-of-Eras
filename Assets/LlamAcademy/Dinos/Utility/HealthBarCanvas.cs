@@ -184,21 +184,13 @@ namespace LlamAcademy.Dinos.Utility
 
 
             // Dọn dẹp triệt để mọi thanh máu mồ côi (orphaned) bị lưu tĩnh trong file Scene
-
             for (int i = transform.childCount - 1; i >= 0; i--)
-
             {
-
                 Transform child = transform.GetChild(i);
-
-                if (child != null && child.name.StartsWith("HealthBar_"))
-
+                if (child != null && (child.name.StartsWith("HealthBar_") || child.name.Contains("Flank") || child.name.Contains("Blocker")))
                 {
-
                     Destroy(child.gameObject);
-
                 }
-
             }
 
 
@@ -429,10 +421,15 @@ namespace LlamAcademy.Dinos.Utility
 
 
         public HealthBar CreateHealthBarForUnit(Unit.Unit unit)
-
         {
-
             if (unit == null) return null;
+
+            // Tuyệt đối không tạo thanh máu cho các rào cản tàng hình mép bản đồ (Flank Blocker / Flank Barricade)
+            string uNameLower = unit.gameObject.name.ToLower();
+            if (uNameLower.Contains("flank") || uNameLower.Contains("blocker"))
+            {
+                return null;
+            }
 
 
 

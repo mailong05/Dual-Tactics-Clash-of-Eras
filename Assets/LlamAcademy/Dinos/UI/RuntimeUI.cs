@@ -132,6 +132,7 @@ namespace LlamAcademy.Dinos.UI
 
         private void Update()
         {
+            if (PrehistoricUIModalManager.IsAnyModalOpen()) return;
             if (Document != null && Document.rootVisualElement != null && Document.rootVisualElement.style.display == DisplayStyle.None)
             {
                 return;

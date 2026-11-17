@@ -112,6 +112,15 @@ namespace LlamAcademy.Dinos.Player
 
         public void Update()
         {
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen())
+            {
+                if (Visualization != null && Visualization.gameObject.activeSelf)
+                {
+                    Visualization.ChangeDino(null);
+                }
+                return;
+            }
+
             // Chỉ hoạt động trong Chế độ Công Thành (DinoAssault)
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.DinoAssault)
             {

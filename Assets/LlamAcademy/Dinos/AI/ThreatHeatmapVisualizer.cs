@@ -96,6 +96,9 @@ namespace LlamAcademy.Dinos.AI
 
         private void Update()
         {
+            // Bỏ qua phím tắt khi người chơi đang mở Menu, Cài đặt, hoặc gõ văn bản
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen()) return;
+
             // Hotkey 'H' toggles Threat Heatmap Overlay
             if (Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame)
             {
@@ -322,19 +325,19 @@ namespace LlamAcademy.Dinos.AI
 
         private void CreatePathLineRenderers()
         {
-            // Flanker Path (Cyan / Emerald)
+            // Flanker Path (Vàng Sáng / Xanh Lam)
             GameObject flankerGO = new GameObject("Flanker_Path_Line");
             flankerGO.transform.SetParent(transform);
             flankerGO.layer = 0;
             _flankerLine = flankerGO.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(_flankerLine, new Color(0.1f, 0.95f, 0.85f, 0.95f), new Color(0.1f, 0.95f, 0.4f, 0.95f), 0.5f);
+            ConfigureLineRenderer(_flankerLine, new Color(1.0f, 0.88f, 0.15f, 0.95f), new Color(1.0f, 0.70f, 0.10f, 0.95f), 0.55f);
 
-            // Tanker Path (Orange / Crimson)
+            // Tanker Path (Cam Đỏ / Crimson)
             GameObject tankerGO = new GameObject("Tanker_Path_Line");
             tankerGO.transform.SetParent(transform);
             tankerGO.layer = 0;
             _tankerLine = tankerGO.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(_tankerLine, new Color(1.0f, 0.55f, 0.1f, 0.95f), new Color(0.95f, 0.15f, 0.15f, 0.95f), 0.65f);
+            ConfigureLineRenderer(_tankerLine, new Color(1.0f, 0.45f, 0.10f, 0.95f), new Color(0.95f, 0.15f, 0.15f, 0.95f), 0.65f);
         }
 
         private void ConfigureLineRenderer(LineRenderer line, Color startColor, Color endColor, float width)
@@ -345,20 +348,24 @@ namespace LlamAcademy.Dinos.AI
             line.startColor = startColor;
             line.endColor = endColor;
 
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
+            // Sprites/Default hỗ trợ chuẩn Vertex Color của LineRenderer trong cả URP và Built-in không bị tẩy trắng
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("GUI/Text Shader");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
             Material mat = new Material(shader);
-            mat.SetFloat("_Surface", 1);
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+            mat.color = startColor;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", startColor);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", startColor);
             mat.renderQueue = 3250;
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
-            if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
-            mat.color = Color.white;
             line.material = mat;
+
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new GradientColorKey[] { new GradientColorKey(startColor, 0.0f), new GradientColorKey(endColor, 1.0f) },
+                new GradientAlphaKey[] { new GradientAlphaKey(startColor.a, 0.0f), new GradientAlphaKey(endColor.a, 1.0f) }
+            );
+            line.colorGradient = gradient;
+
             line.positionCount = 0;
             line.enabled = false;
         }
@@ -442,12 +449,32 @@ namespace LlamAcademy.Dinos.AI
 
             try
             {
-                bool isCenterHeavy = ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
                 if (_flankerLine != null)
                 {
-                    Color flankColor = isCenterHeavy ? new Color(0.12f, 0.95f, 0.82f, 0.95f) : new Color(1.0f, 0.85f, 0.2f, 0.95f);
-                    _flankerLine.startColor = flankColor;
-                    _flankerLine.endColor = flankColor;
+                    Color flankStart = isCenterHeavy ? new Color(0.12f, 0.95f, 0.82f, 0.95f) : new Color(1.0f, 0.88f, 0.15f, 0.95f);
+                    Color flankEnd = isCenterHeavy ? new Color(0.10f, 0.85f, 0.40f, 0.95f) : new Color(1.0f, 0.70f, 0.10f, 0.95f);
+                    _flankerLine.startColor = flankStart;
+                    _flankerLine.endColor = flankEnd;
+                    if (_flankerLine.material != null)
+                    {
+                        _flankerLine.material.color = flankStart;
+                        if (_flankerLine.material.HasProperty("_BaseColor")) _flankerLine.material.SetColor("_BaseColor", flankStart);
+                        if (_flankerLine.material.HasProperty("_Color")) _flankerLine.material.SetColor("_Color", flankStart);
+                    }
+                }
+                if (_tankerLine != null)
+                {
+                    Color tankerStart = new Color(1.0f, 0.45f, 0.10f, 0.95f);
+                    Color tankerEnd = new Color(0.95f, 0.15f, 0.15f, 0.95f);
+                    _tankerLine.startColor = tankerStart;
+                    _tankerLine.endColor = tankerEnd;
+                    if (_tankerLine.material != null)
+                    {
+                        _tankerLine.material.color = tankerStart;
+                        if (_tankerLine.material.HasProperty("_BaseColor")) _tankerLine.material.SetColor("_BaseColor", tankerStart);
+                        if (_tankerLine.material.HasProperty("_Color")) _tankerLine.material.SetColor("_Color", tankerStart);
+                    }
                 }
 
                 // 1. Calculate Flanker Path (Velociraptor adapts: Flanker if heavy threat, Swarm Rush down center if weak threat)

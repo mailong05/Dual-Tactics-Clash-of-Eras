@@ -489,4 +489,70 @@ namespace LlamAcademy.Dinos.UI
 #endif
         }
     }
+
+    /// <summary>
+    /// Central manager to detect if any modal UI, settings menu, dialog, or text input field is currently active.
+    /// When active, all gameplay shortcuts (Heatmap [H], Camera [K]/WASD, Dino [1-4], Tower [1-9], Wave [Space], etc.)
+    /// are strictly disabled to prevent conflicting keypresses while typing or interacting with UI.
+    /// </summary>
+    public static class PrehistoricUIModalManager
+    {
+        public static bool IsAnyModalOpen()
+        {
+            // 1. Kiểm tra nếu người dùng đang nhập văn bản trong bất kỳ TextField IMGUI nào
+            if (GUIUtility.keyboardControl != 0)
+            {
+                return true;
+            }
+
+            // 2. Kiểm tra nếu một ô input field uGUI / UIElements đang được chọn (focus)
+            if (UnityEngine.EventSystems.EventSystem.current != null && 
+                UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject != null)
+            {
+                var inputField = UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject.GetComponent<UnityEngine.UI.InputField>();
+                if (inputField != null && inputField.isFocused) return true;
+
+                var comp = UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject.GetComponent("TMP_InputField");
+                if (comp != null) return true;
+            }
+
+            // 3. Kiểm tra Menu Cài đặt & Tùy chọn (Settings Menu)
+            if (PrehistoricSettingsMenu.Instance != null && PrehistoricSettingsMenu.Instance.IsOpen)
+            {
+                return true;
+            }
+
+            // 4. Kiểm tra AI Director / Neural Monitor Dashboard
+            if (PrehistoricNeuralMonitorUI.Instance != null && PrehistoricNeuralMonitorUI.Instance.IsOpen)
+            {
+                return true;
+            }
+
+            // 5. Kiểm tra Hộp thoại Lưu / Tải game
+            if (PrehistoricSaveLoadDialog.Instance != null && PrehistoricSaveLoadDialog.Instance.IsOpen)
+            {
+                return true;
+            }
+
+            // 6. Kiểm tra Hộp thoại Tài khoản Cloud & Bảng xếp hạng
+            if (PrehistoricCloudAccountDialog.Instance != null && PrehistoricCloudAccountDialog.Instance.IsOpen)
+            {
+                return true;
+            }
+
+            // 7. Kiểm tra Hộp thoại Đăng nhập / Xác thực Cloud
+            if (PrehistoricAuthDialog.Instance != null && PrehistoricAuthDialog.Instance.IsOpen)
+            {
+                return true;
+            }
+
+            // 8. Kiểm tra Main Menu nếu đang mở
+            if (PrehistoricMainMenu.Instance != null && PrehistoricMainMenu.Instance.IsOpen)
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
 }
