@@ -117,13 +117,6 @@ namespace LlamAcademy.Dinos.AI
 
         public void SetVisibility(bool visible)
         {
-            // Khi bật AR, không hiển thị tấm lưới 3D sa bàn che kín camera thực tế
-            bool isARActive = AR.ARTabletopController.Instance != null && AR.ARTabletopController.Instance.IsARModeActive;
-            if (isARActive && visible)
-            {
-                visible = false;
-            }
-
             IsHeatmapVisible = visible;
             if (visible)
             {
@@ -153,13 +146,13 @@ namespace LlamAcademy.Dinos.AI
         public static float GetGroundElevation(float worldX, float worldZ)
         {
             // 1. Ưu tiên lấy trực tiếp từ NavMesh đã nướng phẳng theo mặt đất
-            if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(worldX, 0.2f, worldZ), out UnityEngine.AI.NavMeshHit navHit, 6.0f, UnityEngine.AI.NavMesh.AllAreas))
+            if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(worldX, 1.0f, worldZ), out UnityEngine.AI.NavMeshHit navHit, 8.0f, UnityEngine.AI.NavMesh.AllAreas))
             {
-                return Mathf.Clamp(navHit.position.y, -1.0f, 0.40f);
+                return Mathf.Clamp(navHit.position.y, -3.0f, 15.0f);
             }
 
-            // 2. Quét tìm mặt đất/sàn làng, loại bỏ tuyệt đối tất cả tháp, chòi, tường rào, mái nhà và giới hạn độ cao tối đa <= 0.45m
-            RaycastHit[] hits = Physics.RaycastAll(new Vector3(worldX, 20f, worldZ), Vector3.down, 40f, ~0, QueryTriggerInteraction.Ignore);
+            // 2. Quét tìm mặt đất/sàn làng, loại bỏ tuyệt đối tất cả tháp, chòi, tường rào, mái nhà
+            RaycastHit[] hits = Physics.RaycastAll(new Vector3(worldX, 30f, worldZ), Vector3.down, 60f, ~0, QueryTriggerInteraction.Ignore);
             float bestGroundY = -0.1f;
             bool foundGround = false;
 
@@ -173,14 +166,14 @@ namespace LlamAcademy.Dinos.AI
                 if (colName.Contains("threat") || colName.Contains("dino") || colName.Contains("defender")
                     || colName.Contains("tower") || colName.Contains("hut") || colName.Contains("roof")
                     || colName.Contains("wall") || colName.Contains("arch") || colName.Contains("fence")
-                    || colName.Contains("prop") || colName.Contains("gate") || colName.Contains("bridge")
+                    || colName.Contains("prop") || colName.Contains("gate")
                     || colName.Contains("pedestal") || colName.Contains("diorama"))
                 {
                     continue;
                 }
 
-                // Mặt sàn làng và mặt đất luôn có độ cao dưới 0.45m
-                if (h.point.y <= 0.45f && h.point.y > bestGroundY)
+                // Chấp nhận cao độ sàn làng hoặc địa hình thực tế
+                if (h.point.y <= 4.0f && h.point.y > bestGroundY)
                 {
                     bestGroundY = h.point.y;
                     foundGround = true;
@@ -189,10 +182,10 @@ namespace LlamAcademy.Dinos.AI
 
             if (foundGround)
             {
-                return Mathf.Clamp(bestGroundY, -1.0f, 0.40f);
+                return Mathf.Clamp(bestGroundY, -3.0f, 15.0f);
             }
 
-            return 0.05f;
+            return 0.15f;
         }
 
         /// <summary>
@@ -210,6 +203,7 @@ namespace LlamAcademy.Dinos.AI
             Vector3[] vertices = new Vector3[numVertices];
             Vector2[] uvs = new Vector2[numVertices];
             Vector3[] normals = new Vector3[numVertices];
+            Color32[] colors = new Color32[numVertices];
 
             for (int z = 0; z <= h; z++)
             {
@@ -220,10 +214,11 @@ namespace LlamAcademy.Dinos.AI
                     float worldZ = origin.z + z * cellSize;
                     float groundY = GetGroundElevation(worldX, worldZ);
 
-                    // Float slightly above terrain surface (+0.20m) to guarantee clear visibility without z-fighting
-                    vertices[index] = new Vector3(worldX, groundY + 0.20f, worldZ);
+                    // Float slightly above terrain surface (+0.32m) to guarantee clear visibility without z-fighting
+                    vertices[index] = new Vector3(worldX, groundY + 0.32f, worldZ);
                     uvs[index] = new Vector2((float)x / w, (float)z / h);
                     normals[index] = Vector3.up;
+                    colors[index] = new Color32(255, 255, 255, 255);
                 }
             }
 
@@ -255,6 +250,7 @@ namespace LlamAcademy.Dinos.AI
             mesh.vertices = vertices;
             mesh.uv = uvs;
             mesh.normals = normals;
+            mesh.colors32 = colors;
             mesh.triangles = triangles;
             mesh.RecalculateBounds();
 
@@ -287,6 +283,7 @@ namespace LlamAcademy.Dinos.AI
             _overlayPlane.transform.position = Vector3.zero;
             _overlayPlane.transform.rotation = Quaternion.identity;
             _overlayPlane.transform.localScale = Vector3.one;
+            _overlayPlane.layer = 0; // Default layer
 
             _meshFilter = _overlayPlane.AddComponent<MeshFilter>();
             _heatmapMesh = GenerateTerrainConformingMesh(w, h, origin, cellSize);
@@ -297,8 +294,8 @@ namespace LlamAcademy.Dinos.AI
             _overlayRenderer.receiveShadows = false;
 
             // Transparent additive/alpha blend unlit shader
-            Shader shader = Shader.Find("Sprites/Default");
-            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
             if (shader == null) shader = Shader.Find("Unlit/Transparent");
 
             _overlayMaterial = new Material(shader);
@@ -308,7 +305,7 @@ namespace LlamAcademy.Dinos.AI
             _overlayMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             _overlayMaterial.SetInt("_ZWrite", 0);
             _overlayMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            _overlayMaterial.renderQueue = 3100; // Transparent overlay pass
+            _overlayMaterial.renderQueue = 3200; // Transparent overlay pass
 
             if (_overlayMaterial.HasProperty("_BaseMap"))
                 _overlayMaterial.SetTexture("_BaseMap", _heatmapTexture);
@@ -328,12 +325,14 @@ namespace LlamAcademy.Dinos.AI
             // Flanker Path (Cyan / Emerald)
             GameObject flankerGO = new GameObject("Flanker_Path_Line");
             flankerGO.transform.SetParent(transform);
+            flankerGO.layer = 0;
             _flankerLine = flankerGO.AddComponent<LineRenderer>();
             ConfigureLineRenderer(_flankerLine, new Color(0.1f, 0.95f, 0.85f, 0.95f), new Color(0.1f, 0.95f, 0.4f, 0.95f), 0.5f);
 
             // Tanker Path (Orange / Crimson)
             GameObject tankerGO = new GameObject("Tanker_Path_Line");
             tankerGO.transform.SetParent(transform);
+            tankerGO.layer = 0;
             _tankerLine = tankerGO.AddComponent<LineRenderer>();
             ConfigureLineRenderer(_tankerLine, new Color(1.0f, 0.55f, 0.1f, 0.95f), new Color(0.95f, 0.15f, 0.15f, 0.95f), 0.65f);
         }
@@ -346,9 +345,16 @@ namespace LlamAcademy.Dinos.AI
             line.startColor = startColor;
             line.endColor = endColor;
 
-            Shader shader = Shader.Find("Sprites/Default");
-            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
             Material mat = new Material(shader);
+            mat.SetFloat("_Surface", 1);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+            mat.renderQueue = 3250;
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
             if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
             mat.color = Color.white;

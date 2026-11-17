@@ -591,22 +591,19 @@ namespace LlamAcademy.Dinos.Enemy
             }
 
             // 2. TÁC CHIẾN BÌNH THƯỜNG / PHÒNG THỦ PHÁO ĐÀI VÀ CĂN CỨ
-            float searchRange = 14.5f; // Giảm bán kính quét tránh aggro toàn bản đồ
+            // Mở rộng bán kính tìm kiếm (36m) để phát hiện và cơ động đánh chặn toàn bộ khủng long xâm nhập làng
+            float searchRange = 36.0f;
             Collider targetCol = FindNearestHostileMonster(searchRange);
 
             // Nếu không có quái trong bán kính quét cá nhân, nhưng tường/pháo đài làng đang bị tấn công
             if (targetCol == null && Time.time - _LastThreatTime < 8.0f && _ThreatenedWallPos != Vector3.zero)
             {
-                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 12.0f);
+                targetCol = FindHostileMonsterNearPoint(_ThreatenedWallPos, 16.0f);
             }
 
             if (targetCol != null)
             {
                 _PatrolPauseTimer = 0f;
-                if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
-                {
-                    Agent.speed = 3.5f;
-                }
                 Vector3 targetPos = targetCol.bounds.center;
                 float distToTarget = Vector3.Distance(transform.position, targetPos);
 
@@ -618,10 +615,10 @@ namespace LlamAcademy.Dinos.Enemy
                     transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(faceDir), 720f * Time.deltaTime);
                 }
 
-                // Nhận diện trạng thái quái trong tầm tấn công hợp lý của NPC
-                float combatReach = (Role == DefenderRole.Archer) ? 14.0f : 9.5f;
+                // Cự ly tấn công hiệu dụng: Cung thủ 16m, Chiến binh phóng giáo 12m
+                float combatReach = (Role == DefenderRole.Archer) ? 16.0f : 12.0f;
 
-                // Tấn công khi quái trong cự ly tầm bắn của NPC
+                // Tấn công khi quái trong cự ly tầm đánh của NPC
                 if (distToTarget <= combatReach)
                 {
                     if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
@@ -653,25 +650,38 @@ namespace LlamAcademy.Dinos.Enemy
                 }
                 else
                 {
-                    // Quái ở xa hơn tầm hiệu dụng: tiếp cận nếu đường thông thoáng, hoặc bắn chặn nếu bị cản bởi tường
-                    bool isBlockedByObstacle = false;
+                    // Quái ở xa hơn tầm hiệu dụng: NPC CHỦ ĐỘNG TIẾP CẬN KHỦNG LONG ĐỂ ĐÁNH (Pursuit AI)
                     if (Agent != null && Agent.enabled && Agent.isOnNavMesh)
                     {
                         Agent.isStopped = false;
-                        if (!_IsStandingOnBridge && transform.position.y <= 1.2f)
+                        Agent.speed = (Role == DefenderRole.Spearman) ? 4.2f : 3.8f;
+
+                        Vector3 approachPos = targetPos;
+                        Vector3 dirFromTarget = (transform.position - targetPos).normalized;
+                        dirFromTarget.y = 0;
+
+                        if (Role == DefenderRole.Archer)
+                        {
+                            approachPos = targetPos + dirFromTarget * 10.0f;
+                        }
+                        else
+                        {
+                            approachPos = targetPos + dirFromTarget * 2.2f;
+                        }
+
+                        if (NavMesh.SamplePosition(approachPos, out NavMeshHit hit, 6.0f, NavMesh.AllAreas))
+                        {
+                            Agent.SetDestination(hit.position);
+                        }
+                        else
                         {
                             Agent.SetDestination(targetPos);
-                            if (Agent.pathStatus == NavMeshPathStatus.PathPartial || Agent.velocity.sqrMagnitude < 0.05f)
-                            {
-                                isBlockedByObstacle = true;
-                            }
                         }
                     }
 
-                    // Nếu bị chặn lại bởi vật cản hoặc đang trên sàn gỗ/trên cao: chỉ được xạ kích khi quái thực sự trong tầm combatReach
-                    if ((isBlockedByObstacle || _IsStandingOnBridge || transform.position.y > 1.2f) &&
-                        distToTarget <= combatReach &&
-                        Time.time >= _LastAttackTime + AttackInterval)
+                    // Nếu NPC đang trên cao/chòi gác hoặc bị kẹt không đi tới được, cho phép phóng giáo/bắn tên tầm xa
+                    float elevatedReach = (Role == DefenderRole.Archer) ? 18.0f : 14.0f;
+                    if (distToTarget <= elevatedReach && Time.time >= _LastAttackTime + AttackInterval)
                     {
                         _LastAttackTime = Time.time;
                         PerformAttack(targetCol, targetPos, distToTarget);
@@ -821,7 +831,7 @@ namespace LlamAcademy.Dinos.Enemy
 
         private void PerformAttack(Collider targetCol, Vector3 targetPos, float distance)
         {
-            float maxAllowedRange = (Role == DefenderRole.Archer) ? 14.5f : 9.5f;
+            float maxAllowedRange = (Role == DefenderRole.Archer) ? 18.0f : 14.0f;
             if (distance > maxAllowedRange) return;
 
             if (Animator != null)

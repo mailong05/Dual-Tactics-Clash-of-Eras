@@ -173,12 +173,6 @@ namespace LlamAcademy.Dinos.AR
             {
                 if (!_isDioramaBuilt || _pedestalRoot == null) BuildStonePedestal();
                 if (_shadowMattePlane == null) BuildShadowMatteReceiver();
-
-                // Tắt Heatmap mesh khi bật AR để tránh vẽ đè hình nón tím/lưới xanh lên phòng thực tế
-                if (AI.ThreatHeatmapVisualizer.Instance != null)
-                {
-                    AI.ThreatHeatmapVisualizer.Instance.SetVisibility(false);
-                }
             }
 
             SetDioramaActive(isARActive);

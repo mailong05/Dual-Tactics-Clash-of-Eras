@@ -935,8 +935,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         }
 
         /// <summary>
-        /// Bịt kín tuyệt đối toàn bộ khe hở sườn phải (Right Flank Hole - Video 2 fix)
-        /// Ngăn không cho Velociraptor nhỏ lách qua vách núi vào làng mà không phá hủy tường thành.
+        /// Bịt kín tuyệt đối toàn bộ khe hở sườn phải (Right Flank Hole) bằng Collider tàng hình + NavMeshObstacle.
+        /// TUYỆT ĐỐI KHÔNG TẠO các khối lập phương rác (Cube Primitive), xóa bỏ toàn bộ MeshRenderer/MeshFilter thừa.
         /// </summary>
         public void EnsureRightFlankBarricades()
         {
@@ -947,6 +947,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                 flankParent.transform.position = Vector3.zero;
             }
             flankParent.SetActive(true);
+
+            // Dọn dẹp triệt để tất cả các MeshRenderer / MeshFilter hình hộp rác (Cube primitives)
+            var allRenderers = flankParent.GetComponentsInChildren<MeshRenderer>(true);
+            for (int r = 0; r < allRenderers.Length; r++)
+            {
+                if (allRenderers[r] != null) Destroy(allRenderers[r]);
+            }
+            var allFilters = flankParent.GetComponentsInChildren<MeshFilter>(true);
+            for (int f = 0; f < allFilters.Length; f++)
+            {
+                if (allFilters[f] != null) Destroy(allFilters[f]);
+            }
 
             Vector3[] flankPos = new Vector3[]
             {
@@ -959,53 +971,52 @@ namespace LlamAcademy.Dinos.RoundManagement
                 new Vector3(41.0f, 0f, -2.5f)
             };
 
-            var barricadeSO = Resources.Load<Config.TowerSO>("Config/Prehistoric/Tower_Barricade");
-            if (barricadeSO == null) barricadeSO = Resources.Load<Config.TowerSO>("Tower_Barricade");
-            GameObject barPrefab = (barricadeSO != null && barricadeSO.Prefab != null) ? barricadeSO.Prefab.gameObject : null;
-
             for (int i = 0; i < flankPos.Length; i++)
             {
-                string segName = $"Flank_Barricade_{i}";
+                string segName = $"Flank_Blocker_{i}";
                 Transform existing = flankParent.transform.Find(segName);
                 if (existing == null)
                 {
-                    GameObject go;
-                    if (barPrefab != null)
-                    {
-                        go = Instantiate(barPrefab, flankParent.transform);
-                    }
-                    else
-                    {
-                        go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                        go.transform.SetParent(flankParent.transform, false);
-                    }
-                    go.name = segName;
-                    go.transform.position = flankPos[i];
-                    go.transform.rotation = Quaternion.identity;
-                    go.SetActive(true);
+                    existing = flankParent.transform.Find($"Flank_Barricade_{i}");
+                }
 
-                    var col = go.GetComponent<BoxCollider>();
-                    if (col == null) col = go.AddComponent<BoxCollider>();
-                    col.size = new Vector3(3.2f, 2.5f, 1.5f);
-                    col.center = new Vector3(0f, 1.25f, 0f);
-                    col.enabled = true;
-
-                    var obs = go.GetComponent<UnityEngine.AI.NavMeshObstacle>();
-                    if (obs == null) obs = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
-                    obs.size = new Vector3(3.2f, 2.5f, 1.5f);
-                    obs.carving = true;
-                    obs.enabled = true;
-
-                    var wall = go.GetComponent<Unit.Wall>();
-                    if (wall == null) wall = go.AddComponent<Unit.Wall>();
-                    wall.MaxHealth = 1500;
-                    wall.Health = 1500;
+                GameObject go;
+                if (existing == null)
+                {
+                    // Tạo GameObject tàng hình (KHÔNG CÓ MeshFilter hay MeshRenderer)
+                    go = new GameObject(segName);
+                    go.transform.SetParent(flankParent.transform, false);
                 }
                 else
                 {
-                    existing.position = flankPos[i];
-                    existing.gameObject.SetActive(true);
+                    go = existing.gameObject;
+                    go.name = segName;
+                    var mr = go.GetComponent<MeshRenderer>();
+                    if (mr != null) Destroy(mr);
+                    var mf = go.GetComponent<MeshFilter>();
+                    if (mf != null) Destroy(mf);
                 }
+
+                go.transform.position = flankPos[i];
+                go.transform.rotation = Quaternion.identity;
+                go.SetActive(true);
+
+                var col = go.GetComponent<BoxCollider>();
+                if (col == null) col = go.AddComponent<BoxCollider>();
+                col.size = new Vector3(3.2f, 2.5f, 1.5f);
+                col.center = new Vector3(0f, 1.25f, 0f);
+                col.enabled = true;
+
+                var obs = go.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+                if (obs == null) obs = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                obs.size = new Vector3(3.2f, 2.5f, 1.5f);
+                obs.carving = true;
+                obs.enabled = true;
+
+                var wall = go.GetComponent<Unit.Wall>();
+                if (wall == null) wall = go.AddComponent<Unit.Wall>();
+                wall.MaxHealth = 1500;
+                wall.Health = 1500;
             }
         }
 

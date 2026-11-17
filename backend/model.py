@@ -174,25 +174,28 @@ class TacticalAIDirector:
         if barricades >= 2 or spiketraps >= 2:
             flyer_w += 0.25
             runner_w -= 0.15
-            rationale.append("High ground-trap/barricade density detected: Deployed aerial Pterodactyl squadron to bypass choke point.")
+            rationale.append("Phát hiện mật độ bẫy hố chông và rào chắn dày đặc: Xuất kích phi đội Thằn Lằn Bay Pterodactyl vượt qua điểm nghẽn.")
 
         if catapults >= 1:
             # Catapults deal high AoE -> deploy fast spread runners or armored tanks
             runner_w += 0.15
             tank_w += 0.10
-            rationale.append("Long-range Catapult detected: Spreading fast Velociraptors and armored Ankylosaurus.")
+            rationale.append("Phát hiện Máy bắn đá tầm xa: Phân tán bầy Velociraptor tốc độ cao cùng Khủng long giáp Ankylosaurus che chắn.")
 
         if watchtowers >= 3:
             # High arrow DPS -> Ankylosaurus armored tanks absorb single-target hits
             tank_w += 0.20
-            rationale.append("High archer saturation: Frontlining heavy-plated Ankylosaurus to soak arrow volleys.")
+            rationale.append("Phát hiện cụm Chòi cung dày đặc: Đưa Khủng long giáp Ankylosaurus đi đầu hút trọn làn mưa tên.")
 
         # Boss deployment condition
         if round_num >= 5 and (round_num % 3 == 0 or round_num >= 8):
             boss_w = max(boss_w, 0.25 + 0.05 * (round_num - 5))
-            rationale.append(f"Apex T-Rex awakened for Round {round_num} decisive assault.")
+            rationale.append(f"Bạo Chúa T-Rex thức tỉnh cho đợt {round_num} tổng lực quyết định.")
         else:
             boss_w = 0.0
+
+        if not rationale:
+            rationale.append("Phân phối đội hình cân bằng: Thăm dò cấu trúc và cự ly phòng thủ của làng.")
 
         # Renormalize weights
         total_w = runner_w + flyer_w + tank_w + boss_w

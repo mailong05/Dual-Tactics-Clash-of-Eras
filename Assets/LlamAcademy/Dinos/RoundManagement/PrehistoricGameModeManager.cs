@@ -692,10 +692,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                         {
                             RoundManager.Instance.StartRound();
                         }
-                        else
-                        {
-                            LaunchAssault();
-                        }
+                        LaunchAssault();
                         Mobile.MobileTouchController.Instance?.TriggerHapticFeedback();
                     }
                 }

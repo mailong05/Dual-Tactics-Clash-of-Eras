@@ -848,11 +848,23 @@ def get_dashboard_html() -> str:
 
                 document.getElementById('sbRationale').innerHTML = `<b>Lý lẽ chiến thuật của AI:</b> "${pred.tactical_rationale}" (Quy mô đợt đề xuất: <b>${pred.recommended_wave_size} quái</b>, Điểm sơ hở: <b>${(pred.vulnerability_score * 100).toFixed(0)}%</b>)`;
 
-                const w = pred.archetype_weights || [0.25, 0.25, 0.25, 0.25];
-                const p0 = Math.round(w[0] * 100);
-                const p1 = Math.round(w[1] * 100);
-                const p2 = Math.round(w[2] * 100);
-                const p3 = Math.round(w[3] * 100);
+                const aw = pred.archetype_weights || {};
+                let p0, p1, p2, p3;
+                if (Array.isArray(aw)) {
+                    p0 = Math.round((Number(aw[0]) || 0.25) * 100);
+                    p1 = Math.round((Number(aw[1]) || 0.25) * 100);
+                    p2 = Math.round((Number(aw[2]) || 0.25) * 100);
+                    p3 = Math.round((Number(aw[3]) || 0.25) * 100);
+                } else {
+                    p0 = Math.round((Number(aw.Velociraptor_Runner ?? aw.runner ?? aw[0]) || 0.25) * 100);
+                    p1 = Math.round((Number(aw.Pterodactyl_Flyer ?? aw.flyer ?? aw[1]) || 0.25) * 100);
+                    p2 = Math.round((Number(aw.Ankylosaurus_Tank ?? aw.tank ?? aw[2]) || 0.25) * 100);
+                    p3 = Math.round((Number(aw.TRex_Boss ?? aw.boss ?? aw[3]) || 0) * 100);
+                }
+                if (isNaN(p0)) p0 = 25;
+                if (isNaN(p1)) p1 = 25;
+                if (isNaN(p2)) p2 = 25;
+                if (isNaN(p3)) p3 = 0;
 
                 document.getElementById('sbProb0').innerText = p0 + '%';
                 document.getElementById('sbFill0').style.width = p0 + '%';

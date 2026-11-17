@@ -159,7 +159,8 @@ namespace LlamAcademy.Dinos.Unit
             if (PrehistoricGameModeManager.Instance != null &&
                 PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                return PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat;
+                return PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat ||
+                       (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running);
             }
 
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled &&
