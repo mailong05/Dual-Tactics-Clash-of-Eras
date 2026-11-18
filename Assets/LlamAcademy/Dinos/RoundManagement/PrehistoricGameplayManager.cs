@@ -2815,6 +2815,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void QuitGame()
         {
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun();
+            Save.PrehistoricSaveManager.Instance?.SaveToCloudSyncNow();
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -2844,11 +2846,113 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        /// <summary>
+        /// Dọn dẹp triệt để 100% mọi công trình, tháp bắn, bẫy, rào gỗ do người chơi đặt và toàn bộ NPC lính chiến binh
+        /// để đảm bảo khi chơi lại, tải màn, chọn đợt hoặc thử lại thì bản đồ hoàn toàn sạch tinh khôi.
+        /// </summary>
+        public void ClearAllPlayerPlacedObjectsAndDefenders()
+        {
+            // 1. Dọn dẹp triệt để các tháp và bẫy trong danh sách quản lý của TowerPlacer
+            if (Player.TowerPlacer.Instance != null)
+            {
+                Player.TowerPlacer.Instance.ClearAllPlacedTowers();
+            }
+
+            // 2. Dọn sạch container [Player_Placed_Towers] nếu còn sót
+            GameObject container = GameObject.Find("[Player_Placed_Towers]");
+            if (container != null)
+            {
+                for (int i = container.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = container.transform.GetChild(i);
+                    if (child != null)
+                    {
+                        if (child.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                        {
+                            Utility.HealthBarCanvas.Instance.Unregister(u);
+                        }
+                        DestroyImmediate(child.gameObject);
+                    }
+                }
+            }
+
+            // 3. Quét dọn toàn bộ các object có gắn PlayerPlacedTowerMarker nếu còn sót
+            var markers = FindObjectsByType<Player.PlayerPlacedTowerMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var marker in markers)
+            {
+                if (marker != null && marker.gameObject != null)
+                {
+                    if (marker.transform.parent != null && marker.transform.parent.name.Contains("Fortress")) continue;
+                    if (marker.name.Contains("Village_")) continue;
+                    if (marker.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    DestroyImmediate(marker.gameObject);
+                }
+            }
+
+            // 4. Quét dọn mọi Unit do người chơi đặt (Clone / Defender) - bảo tồn các cấu trúc làng mặc định
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var u in allUnits)
+            {
+                if (u == null || u.gameObject == null) continue;
+                if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
+                if (u is Unit.PrehistoricVillageBase) continue;
+                string goName = u.gameObject.name;
+                if (goName.Contains("Village_Watchtower") || goName.Contains("Village_Left") || goName.Contains("Village_Right")) continue;
+
+                bool isClone = goName.Contains("(Clone)");
+                bool isPlayerPlaced = u.GetComponent<Player.PlayerPlacedTowerMarker>() != null;
+                bool isUnderContainer = container != null && u.transform.IsChildOf(container.transform);
+                bool isDefender = (u is Enemy.Defender);
+
+                if (isClone || isPlayerPlaced || isUnderContainer || isDefender)
+                {
+                    if (Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    DestroyImmediate(u.gameObject);
+                }
+            }
+
+            // 5. Dọn sạch toàn bộ NPC Defender bằng EnemyAIController
+            var enemyAI = Enemy.EnemyAIController.Instance != null 
+                ? Enemy.EnemyAIController.Instance 
+                : FindFirstObjectByType<Enemy.EnemyAIController>();
+            if (enemyAI != null)
+            {
+                enemyAI.ClearAllDefenders(includePlayerPlaced: true);
+            }
+
+            // 6. Reset vàng và giải phóng lựa chọn tháp
+            if (Player.TowerPlacer.Instance != null)
+            {
+                int waveGold = StartingGold + (_CurrentWave - 1) * 300;
+                Player.TowerPlacer.Instance.ResetGoldToDefault(waveGold);
+                Player.TowerPlacer.Instance.DeselectTower();
+            }
+
+            // 7. Cập nhật trường đe dọa và xóa sạch thanh máu mồ côi
+            AI.ThreatAwarePathfinding.Instance?.RecalculateThreatField();
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+        }
+
         public void ResetEntireVillage(bool keepPlayerTowers = true)
         {
             LocateBaseTarget();
             EnsureSpawnPoints();
             LoadDinoPrefabsIfNull();
+
+            // Nếu không giữ lại tháp người chơi (chơi lại, tải màn mới, thử lại), dọn sạch 100% tháp & NPC TRƯỚC TIÊN
+            if (!keepPlayerTowers)
+            {
+                ClearAllPlayerPlacedObjectsAndDefenders();
+            }
 
             CleanupInvisibleAndStrayObjects();
             DeactivateDefaultSceneBarricades();
@@ -2953,7 +3057,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 // Người chơi tự mua lính phòng thủ (Tribal Warrior 45g) từ Toolbar nếu muốn!
                 if (enemyAI != null)
                 {
-                    enemyAI.ClearAllDefenders(includePlayerPlaced: keepPlayerTowers);
+                    enemyAI.ClearAllDefenders(includePlayerPlaced: !keepPlayerTowers);
                 }
             }
             else

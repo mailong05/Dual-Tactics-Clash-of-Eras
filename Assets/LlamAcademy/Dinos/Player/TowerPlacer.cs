@@ -47,6 +47,7 @@ namespace LlamAcademy.Dinos.Player
         private TowerSO SelectedTower;
         public TowerSO ActiveTower => SelectedTower;
         private NavMeshPath PathCheckBuffer;
+        public List<GameObject> PlacedTowerObjects => _PlacedTowerObjects;
         private List<GameObject> _PlacedTowerObjects = new();
 
         private void Awake()
@@ -75,7 +76,11 @@ namespace LlamAcademy.Dinos.Player
             {
                 if (_PlacedTowerObjects[i] != null)
                 {
-                    Destroy(_PlacedTowerObjects[i]);
+                    if (_PlacedTowerObjects[i].TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    DestroyImmediate(_PlacedTowerObjects[i]);
                 }
             }
             _PlacedTowerObjects.Clear();
@@ -90,7 +95,11 @@ namespace LlamAcademy.Dinos.Player
                     // Tuyệt đối không xóa bất kỳ công trình hoặc chòi canh nào của làng
                     if (marker.transform.parent != null && marker.transform.parent.name.Contains("Fortress")) continue;
                     if (marker.name.Contains("Village_")) continue;
-                    Destroy(marker.gameObject);
+                    if (marker.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    DestroyImmediate(marker.gameObject);
                 }
             }
 
@@ -103,7 +112,11 @@ namespace LlamAcademy.Dinos.Player
                     Transform child = container.transform.GetChild(i);
                     if (child != null)
                     {
-                        Destroy(child.gameObject);
+                        if (child.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                        {
+                            Utility.HealthBarCanvas.Instance.Unregister(u);
+                        }
+                        DestroyImmediate(child.gameObject);
                     }
                 }
             }

@@ -195,6 +195,21 @@ class CloudSavePayload(BaseModel):
     highest_wave: int = 1
     selected_mode: str = "TowerDefense"
 
+    # Chế độ Thủ Thành (Tower Defense) độc lập:
+    defense_wave: int = 1
+    defense_highest_wave: int = 1
+    defense_gold: int = 950
+    defense_has_run: bool = True
+
+    # Chế độ Công Thành (Dino Assault) độc lập:
+    assault_level: int = 1
+    assault_highest_level: int = 1
+    assault_meat: int = 500
+    assault_has_run: bool = True
+
+    # Dữ liệu các khe lưu (Auto-Save + Khe 1..5)
+    slots_json: str = ""
+
 
 class ScoreSubmission(BaseModel):
     player_id: str
@@ -297,9 +312,18 @@ def register_account(req: AccountAuthRequest):
                 "player_name": display_name,
                 "unlocked_towers": ["Watchtower", "Barricade", "SpikeTrap", "Ballista"],
                 "unlocked_dinos": ["Velociraptor", "Pterodactyl", "Ankylosaurus", "TRex"],
-                "coins": 500,
+                "coins": 950,
                 "highest_wave": 1,
                 "selected_mode": "TowerDefense",
+                "defense_wave": 1,
+                "defense_highest_wave": 1,
+                "defense_gold": 950,
+                "defense_has_run": True,
+                "assault_level": 1,
+                "assault_highest_level": 1,
+                "assault_meat": 500,
+                "assault_has_run": True,
+                "slots_json": "",
                 "last_saved": now
             }
             conn.execute(

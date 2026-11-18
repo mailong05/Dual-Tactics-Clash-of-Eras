@@ -696,6 +696,7 @@ namespace LlamAcademy.Dinos.UI
         private void OnQuitClicked()
         {
             PrehistoricSaveManager.Instance?.AutoSaveCurrentRun();
+            PrehistoricSaveManager.Instance?.SaveToCloudSyncNow();
             Debug.Log("<color=red>[Prehistoric TD]</color> Người chơi đã chọn Thoát Game từ Menu Chính.");
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

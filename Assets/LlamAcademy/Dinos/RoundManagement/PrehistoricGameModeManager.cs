@@ -940,6 +940,8 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void QuitGame()
         {
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun();
+            Save.PrehistoricSaveManager.Instance?.SaveToCloudSyncNow();
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -1378,6 +1380,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             SetGameMode(PrehistoricGameMode.DinoAssault);
             AssaultLevel = 1;
             ClearAllDinos();
+            CleanAllAssaultDefenses();
             SetupVillageDefensesForLevel(1);
 
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
@@ -1415,6 +1418,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             AssaultLevel = Mathf.Max(1, targetLevel);
             ClearAllDinos();
+            CleanAllAssaultDefenses();
             SetupVillageDefensesForLevel(AssaultLevel);
 
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindAnyObjectByType<DinoSpawner>();

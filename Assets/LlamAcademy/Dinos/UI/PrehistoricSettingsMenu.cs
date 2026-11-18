@@ -75,6 +75,7 @@ namespace LlamAcademy.Dinos.UI
             if (IsOpen && PrehistoricSaveManager.Instance != null)
             {
                 _chiefNameInput = PrehistoricSaveManager.Instance.CurrentData.PlayerChiefName;
+                PrehistoricSaveManager.Instance.AutoSaveCurrentRun();
             }
             PrehistoricAudioManager.Instance?.PlayButtonClick();
             MobileTouchController.Instance?.TriggerHapticFeedback();
@@ -481,6 +482,7 @@ namespace LlamAcademy.Dinos.UI
         {
             PrehistoricAudioManager.Instance?.PlayButtonClick();
             PrehistoricSaveManager.Instance?.AutoSaveCurrentRun();
+            PrehistoricSaveManager.Instance?.SaveToCloudSyncNow();
             Debug.Log("<color=red>[Game]</color> Quitting application...");
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
