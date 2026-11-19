@@ -882,13 +882,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (dino == null || dino.Health <= 0) continue;
                 dino.EnsureOnNavMesh(15f);
                 dino.ConfigureNavMeshAgent();
-                if (dino.Agent != null && dino.Agent.isOnNavMesh)
-                {
-                    dino.Agent.isStopped = false;
-                    dino.Agent.updateRotation = true;
-                    dino.Agent.SetDestination(targetPos);
-                }
-                dino.SetDestination(targetPos);
+                dino.ResetTacticalWaypointsForAssault(targetPos);
             }
 
             var flyingUnits = FindObjectsByType<Unit.FlyingUnit>(FindObjectsSortMode.None);
@@ -1148,6 +1142,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageBase();
             if (PrehistoricGameplayManager.Instance != null)
             {
+                PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
                 PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(level);
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
             }

@@ -72,6 +72,73 @@ namespace LlamAcademy.Dinos.Unit
         protected float _LastPathCalcTime = -99f;
         protected float _IgnoreSideObstaclesTimer = 0f;
 
+        /// <summary>
+        /// Khởi tạo hoặc đặt lại lộ trình tiến công cho khủng long trong chế độ Công Thành (Assault Mode).
+        /// Khủng long lập tức tiến thẳng về phía căn cứ làng / phòng tuyến mà tuyệt đối không quay đầu chạy ngược vào rừng.
+        /// </summary>
+        public void ResetTacticalWaypointsForAssault(Vector3 targetPos)
+        {
+            CurrentTarget = null;
+            _IsEngagedInMelee = false;
+            _TacticalWaypoints = new List<Vector3> { targetPos };
+            _CurrentWaypointIndex = 0;
+            if (Agent != null && Agent.isOnNavMesh)
+            {
+                Agent.isStopped = false;
+                Agent.updateRotation = true;
+                Agent.ResetPath();
+                Agent.SetDestination(targetPos);
+            }
+        }
+
+        /// <summary>
+        /// Khởi tạo hoặc cập nhật waypoint chiến thuật:
+        /// - Chế độ Công Thành: Tiến thẳng vào căn cứ làng, TUYỆT ĐỐI không nạp waypoint xuất phát từ rừng sâu của chế độ Thủ Thành.
+        /// - Chế độ Thủ Thành: Bỏ qua mọi waypoint nằm phía sau lưng khủng long (xa căn cứ hơn vị trí hiện tại), chỉ bám theo waypoint phía trước.
+        /// </summary>
+        public void InitializeOrAdvanceTacticalWaypoints()
+        {
+            Vector3 basePos = TargetBase != null ? TargetBase.position : new Vector3(-2.23f, 0f, -38.26f);
+            bool isAssaultMode = RoundManagement.PrehistoricGameModeManager.Instance != null && 
+                                 RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault;
+
+            if (isAssaultMode)
+            {
+                _TacticalWaypoints = new List<Vector3> { basePos };
+                _CurrentWaypointIndex = 0;
+                return;
+            }
+
+            if (LlamAcademy.Dinos.AI.ThreatAwarePathfinding.Instance != null)
+            {
+                TacticalBehavior = LlamAcademy.Dinos.AI.ThreatAwarePathfinding.Instance.GetAssignedTacticalBehavior(AISpeciesType);
+                var precomputed = LlamAcademy.Dinos.AI.ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType);
+                if (precomputed != null && precomputed.Count > 0)
+                {
+                    _TacticalWaypoints = new List<Vector3>(precomputed);
+                    // Lọc bỏ mọi waypoint nằm sau lưng khủng long (xa căn cứ làng hơn vị trí hiện tại)
+                    float myDistToBase = Vector3.Distance(transform.position, basePos);
+                    int bestIdx = 0;
+                    float closestDist = float.MaxValue;
+                    for (int i = 0; i < _TacticalWaypoints.Count; i++)
+                    {
+                        float d = Vector3.Distance(transform.position, _TacticalWaypoints[i]);
+                        float wpDistToBase = Vector3.Distance(_TacticalWaypoints[i], basePos);
+                        if (wpDistToBase <= myDistToBase + 3.0f && d < closestDist)
+                        {
+                            closestDist = d;
+                            bestIdx = i;
+                        }
+                    }
+                    _CurrentWaypointIndex = bestIdx;
+                    return;
+                }
+            }
+
+            _TacticalWaypoints = new List<Vector3> { basePos };
+            _CurrentWaypointIndex = 0;
+        }
+
         // GLB Animation Cache & Clips
 
         private static readonly Dictionary<string, AnimationClip[]> s_ClipsCache = new();
@@ -2273,13 +2340,10 @@ namespace LlamAcademy.Dinos.Unit
                     {
                         Agent.isStopped = false;
                         Agent.ResetPath();
-                        _TacticalWaypoints = ThreatAwarePathfinding.Instance != null 
-                            ? ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType) 
-                            : null;
-                        _CurrentWaypointIndex = 0;
-                        if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
+                        InitializeOrAdvanceTacticalWaypoints();
+                        if (_TacticalWaypoints != null && _TacticalWaypoints.Count > _CurrentWaypointIndex)
                         {
-                            Agent.SetDestination(_TacticalWaypoints[0]);
+                            Agent.SetDestination(_TacticalWaypoints[_CurrentWaypointIndex]);
                         }
                         else
                         {
@@ -2318,13 +2382,10 @@ namespace LlamAcademy.Dinos.Unit
                     Agent.isStopped = false;
                     Agent.updateRotation = true;
                     // Lập tức tiếp tục bám theo lộ trình lane/heatmap đã khai thông hướng về căn cứ
-                    _TacticalWaypoints = ThreatAwarePathfinding.Instance != null 
-                        ? ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType) 
-                        : null;
-                    _CurrentWaypointIndex = 0;
-                    if (_TacticalWaypoints != null && _TacticalWaypoints.Count > 0)
+                    InitializeOrAdvanceTacticalWaypoints();
+                    if (_TacticalWaypoints != null && _TacticalWaypoints.Count > _CurrentWaypointIndex)
                     {
-                        Agent.SetDestination(_TacticalWaypoints[0]);
+                        Agent.SetDestination(_TacticalWaypoints[_CurrentWaypointIndex]);
                     }
                     else if (TargetBase != null)
                     {
@@ -2496,17 +2557,7 @@ namespace LlamAcademy.Dinos.Unit
                     // TRIỆT TIÊU 100% việc chạy A* và FindObjectsByType mỗi 2s làm lag game!
                     if (_TacticalWaypoints == null || _TacticalWaypoints.Count == 0)
                     {
-                        if (ThreatAwarePathfinding.Instance != null && TargetBase != null)
-                        {
-                            TacticalBehavior = ThreatAwarePathfinding.Instance.GetAssignedTacticalBehavior(AISpeciesType);
-                            _TacticalWaypoints = ThreatAwarePathfinding.Instance.GetPrecomputedWaypoints(AISpeciesType);
-                            _CurrentWaypointIndex = 0;
-                        }
-                        else
-                        {
-                            _TacticalWaypoints = new List<Vector3> { TargetBase != null ? TargetBase.position : transform.position };
-                            _CurrentWaypointIndex = 0;
-                        }
+                        InitializeOrAdvanceTacticalWaypoints();
                     }
 
                     Vector3 moveTarget = TargetBase != null ? TargetBase.position : transform.position;
