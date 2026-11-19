@@ -715,6 +715,7 @@ namespace LlamAcademy.Dinos.Utility
             if (lower.Contains("big tower") || lower.Contains("watchtower")) return "🛖 Chòi Canh Bộ Lạc";
             if (lower.Contains("arch entry") || lower.Contains("overhead_arch") || lower.Contains("arch")) return "🪵 Cầu Vòm Gỗ Làng";
             if (lower.Contains("hut") || lower.Contains("tent")) return "⛺ Lều Dân Làng";
+            if (lower.Contains("perimeter_barricade") || (unit.transform.parent != null && unit.transform.parent.name == "Village_Custom_Perimeter_Wall")) return "🪵 Hàng Rào Gỗ";
             if (lower.Contains("plank_defenses") || lower.Contains("barricade") || lower.Contains("palisade") || lower.Contains("segment") || lower.Contains("wall") || unit is Wall) return "";
 
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";

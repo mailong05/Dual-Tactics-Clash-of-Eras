@@ -61,7 +61,7 @@ namespace LlamAcademy.Dinos.Editor
 
             // Nút Tạo / Khôi phục mốc
             GUI.backgroundColor = new Color(0.4f, 0.8f, 1f);
-            if (GUILayout.Button("📍 Tạo / Khôi Phục 3 Mốc Mẫu (Start & End)", GUILayout.Height(32)))
+            if (GUILayout.Button("📍 Tạo / Khôi Phục 5 Mốc Chuẩn (Start & End)", GUILayout.Height(32)))
             {
                 guide.CreateDefaultMarkers();
                 SceneView.RepaintAll();
@@ -100,7 +100,7 @@ namespace LlamAcademy.Dinos.Editor
             GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
             if (GUILayout.Button("❌ Xóa Hàng Rào Đã Dựng (Clear Wall)", GUILayout.Height(26)))
             {
-                if (EditorUtility.DisplayDialog("Xác nhận xóa hàng rào", "Bạn có chắc chắn muốn xóa hàng rào đã dựng dưới Right_Flank_Wall không?", "Xóa", "Hủy"))
+                if (EditorUtility.DisplayDialog("Xác nhận xóa hàng rào", "Bạn có chắc chắn muốn xóa hàng rào đã dựng dưới Village_Custom_Perimeter_Wall không?", "Xóa", "Hủy"))
                 {
                     guide.ClearBuiltWall();
                     SceneView.RepaintAll();

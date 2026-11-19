@@ -289,6 +289,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
         }
 
+        public static GameObject FindCustomPerimeterWall()
+        {
+            var roots = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+            foreach (var r in roots)
+            {
+                if (r != null && r.name == PrehistoricWallPathGuide.CustomWallContainerName)
+                {
+                    return r;
+                }
+            }
+            return GameObject.Find(PrehistoricWallPathGuide.CustomWallContainerName);
+        }
+
         /// <summary>
         /// Xóa bỏ và vô hiệu hóa triệt để toàn bộ hàng rào gỗ mặc định phía trước làng ở chế độ Thủ Thành (Tower Defense)
         /// để người chơi tự do xây dựng phòng tuyến bằng Toolbar hoặc để lối đi mở.
@@ -324,6 +337,18 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     grp.SetActive(false);
                 }
+            }
+
+            // Vô hiệu hóa an toàn hàng rào thiết kế của người chơi ở chế độ Thủ thành (không phá hủy component)
+            GameObject customWall = FindCustomPerimeterWall();
+            if (customWall != null)
+            {
+                if (Utility.HealthBarCanvas.HasInstance)
+                {
+                    var cUnits = customWall.GetComponentsInChildren<Unit.Unit>(true);
+                    foreach (var u in cUnits) if (u != null) Utility.HealthBarCanvas.Instance.Unregister(u);
+                }
+                customWall.SetActive(false);
             }
 
             // 2. Quét toàn bộ transform và vô hiệu hóa tất cả các đoạn hàng rào gỗ mặc định
@@ -470,96 +495,77 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // BƯỚC 1.5: Chuẩn hóa tuyệt đối tọa độ các đoạn tường thành cánh trái và cánh phải ở chế độ Công thành
-            // Đảm bảo tuyến phòng thủ khép kín 100%, không bị thủng lỗ khiến khủng long luồn lách qua góc núi phải (Video 2 fix)
+            // BƯỚC 1.5: KÍCH HOẠT VÀ BẢO TỒN TOÀN DIỆN HÀNG RÀO THEO MỐC CỦA NGƯỜI CHƠI (Village_Custom_Perimeter_Wall)
+            // Triệt tiêu 100% việc tạo ra các hàng rào cũ xung đột hoặc đè lên hàng rào người chơi đã thiết kế
             if (isAssault)
             {
-                float[] leftPositionsX = new float[] {
-                    -5.0f, -7.6f, -10.2f, -12.8f, -15.4f, -18.0f, -20.6f, -23.2f, -25.8f, -28.4f, -31.0f,
-                    -33.6f, -36.2f, -38.8f, -41.4f
-                };
-                float[] rightPositionsX = new float[] {
-                    0.6f, 3.2f, 5.8f, 8.4f, 11.0f, 13.6f, 16.2f, 18.8f, 21.4f, 24.0f,
-                    26.6f, 29.2f, 31.8f, 34.4f, 37.0f, 39.6f, 42.2f
-                };
-
-                GameObject leftGroup = GameObject.Find("Left_Wing_Wall");
-                if (leftGroup != null)
+                // 1. Ẩn hoàn toàn các nhóm tường cũ (Left_Wing_Wall, Right_Wing_Wall, Right_Flank_Wall, Gate_Portcullis_Barricade)
+                string[] obsoleteGroups = new string[] { "Left_Wing_Wall", "Right_Wing_Wall", "Right_Flank_Wall", "Gate_Portcullis_Barricade" };
+                foreach (var gName in obsoleteGroups)
                 {
-                    leftGroup.SetActive(true);
-                    int segIdx = 0;
-                    Transform templateSegment = null;
-                    for (int c = 0; c < leftGroup.transform.childCount; c++)
+                    GameObject g = GameObject.Find(gName);
+                    if (g != null) g.SetActive(false);
+                }
+
+                // 2. Tìm hoặc tạo nhóm hàng rào chính thức do người chơi thiết kế
+                GameObject customWall = FindCustomPerimeterWall();
+                if (customWall == null)
+                {
+                    customWall = PrehistoricWallPathGuide.BuildOfficialPerimeterWall();
+                }
+                else
+                {
+                    customWall.SetActive(true);
+                    if (customWall.transform.childCount == 0)
                     {
-                        Transform child = leftGroup.transform.GetChild(c);
-                        if (child != null && (child.name.Contains("Wall_Segment") || child.name.Contains("Barricade")))
+                        PrehistoricWallPathGuide.BuildOfficialPerimeterWall(customWall.transform);
+                    }
+                    else
+                    {
+                        // Giữ nguyên 100% vị trí các đoạn rào người chơi đã dựng trong Scene View
+                        // Kích hoạt lại toàn bộ renderers, colliders, NavMeshObstacle có carving, và gắn máu chuẩn
+                        for (int i = 0; i < customWall.transform.childCount; i++)
                         {
-                            templateSegment = child;
-                            if (segIdx < leftPositionsX.Length)
+                            Transform child = customWall.transform.GetChild(i);
+                            if (child == null) continue;
+                            child.gameObject.SetActive(true);
+
+                            foreach (var r in child.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+
+                            var col = child.GetComponent<BoxCollider>();
+                            if (col == null) col = child.gameObject.AddComponent<BoxCollider>();
+                            col.size = new Vector3(3.2f, 2.5f, 1.5f);
+                            col.center = new Vector3(0f, 1.25f, 0f);
+                            col.enabled = true;
+
+                            var obs = child.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+                            if (obs == null) obs = child.gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                            obs.size = new Vector3(3.2f, 2.5f, 1.5f);
+                            obs.center = new Vector3(0f, 1.25f, 0f);
+                            obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                            obs.carving = true;
+                            obs.carveOnlyStationary = false;
+                            obs.enabled = true;
+
+                            if (!child.TryGetComponent(out Unit.Wall w)) w = child.gameObject.AddComponent<Unit.Wall>();
+                            w.MaxHealth = 1200;
+                            w.Health = 1200;
+                            w.Root = child.gameObject;
+                            w.EnsureHealthBarAttached();
+                            child.tag = "Wall";
+
+                            if (Utility.HealthBarCanvas.Instance != null)
                             {
-                                child.position = new Vector3(leftPositionsX[segIdx++], 0f, -2.5f);
-                                child.rotation = Quaternion.identity;
-                                child.gameObject.SetActive(true);
-                                foreach (var r in child.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
-                                foreach (var col in child.GetComponentsInChildren<Collider>(true)) if (col != null) col.enabled = true;
+                                var hb = Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(w);
+                                if (hb != null)
+                                {
+                                    hb.gameObject.SetActive(true);
+                                    hb.SetProgress(1.0f);
+                                    hb.SetUnitName("🪵 Hàng Rào Gỗ", new Color(0.9f, 0.75f, 0.4f));
+                                }
                             }
                         }
                     }
-                    while (segIdx < leftPositionsX.Length && templateSegment != null)
-                    {
-                        GameObject newSeg = Instantiate(templateSegment.gameObject, leftGroup.transform);
-                        newSeg.name = $"Left_Wall_Segment_{segIdx + 1}";
-                        newSeg.transform.position = new Vector3(leftPositionsX[segIdx++], 0f, -2.5f);
-                        newSeg.transform.rotation = Quaternion.identity;
-                        newSeg.SetActive(true);
-                        foreach (var r in newSeg.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
-                        foreach (var col in newSeg.GetComponentsInChildren<Collider>(true)) if (col != null) col.enabled = true;
-                    }
-                }
-
-                GameObject rightGroup = GameObject.Find("Right_Wing_Wall");
-                if (rightGroup != null)
-                {
-                    rightGroup.SetActive(true);
-                    int segIdx = 0;
-                    Transform templateSegment = null;
-                    for (int c = 0; c < rightGroup.transform.childCount; c++)
-                    {
-                        Transform child = rightGroup.transform.GetChild(c);
-                        if (child != null && (child.name.Contains("Wall_Segment") || child.name.Contains("Barricade")))
-                        {
-                            templateSegment = child;
-                            if (segIdx < rightPositionsX.Length)
-                            {
-                                child.position = new Vector3(rightPositionsX[segIdx++], 0f, -2.5f);
-                                child.rotation = Quaternion.identity;
-                                child.gameObject.SetActive(true);
-                                foreach (var r in child.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
-                                foreach (var col in child.GetComponentsInChildren<Collider>(true)) if (col != null) col.enabled = true;
-                            }
-                        }
-                    }
-
-                    // Tự động nhân bản các đoạn tường còn thiếu để bịt kín 100% vách núi bên phải
-                    while (segIdx < rightPositionsX.Length && templateSegment != null)
-                    {
-                        GameObject newSeg = Instantiate(templateSegment.gameObject, rightGroup.transform);
-                        newSeg.name = $"Right_Wall_Segment_{segIdx + 1}";
-                        newSeg.transform.position = new Vector3(rightPositionsX[segIdx++], 0f, -2.5f);
-                        newSeg.transform.rotation = Quaternion.identity;
-                        newSeg.SetActive(true);
-                        foreach (var r in newSeg.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
-                        foreach (var col in newSeg.GetComponentsInChildren<Collider>(true)) if (col != null) col.enabled = true;
-                    }
-                }
-
-                EnsureRightFlankBarricades();
-
-                GameObject gateBar = GameObject.Find("Gate_Portcullis_Barricade");
-                if (gateBar != null)
-                {
-                    gateBar.transform.position = new Vector3(-2.2f, 0f, -2.5f);
-                    gateBar.transform.rotation = Quaternion.identity;
                 }
             }
 
@@ -818,6 +824,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                                         n == "Right_Flank_Wall" ||
                                         n == "Gate_Complex" ||
                                         n == "Fortress_Root" ||
+                                        n == "Village_Custom_Perimeter_Wall" ||
                                         n == "Village Props";
 
                 if (isContainerGroup)
@@ -857,7 +864,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
                 // 4. Bỏ qua các container cha
                 if (n == "Village_Fortress_Wall" || n == "Left_Wing_Wall" || n == "Right_Wing_Wall" || 
-                    n == "Right_Flank_Wall" || n == "Gate_Complex" || n == "Fortress_Root" || n == "Village Props")
+                    n == "Right_Flank_Wall" || n == "Gate_Complex" || n == "Fortress_Root" || n == "Village_Custom_Perimeter_Wall" || n == "Village Props")
                 {
                     continue;
                 }
@@ -870,6 +877,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
                 bool isFence = n.Contains("Plank_Defenses") ||
                                n.Contains("Wall_Segment") || n.Contains("Flank_Barricade") ||
+                               n.Contains("Perimeter_Barricade") || n.Contains("Custom_Perimeter") ||
                                n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
                                n.Contains("Barricade") || n.Contains("Palisade") ||
                                n.Contains("Gate_Portcullis_Barricade") ||
@@ -879,24 +887,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 // Nếu ở chế độ Thủ Thành: TUYỆT ĐỐI không bật hàng rào gỗ mặc định!
                 if (isFence && !isAssault)
                 {
-                    if (t.TryGetComponent(out Unit.Wall fw))
-                    {
-                        if (Utility.HealthBarCanvas.HasInstance) Utility.HealthBarCanvas.Instance.Unregister(fw);
-                        Destroy(fw);
-                    }
                     if (t.TryGetComponent(out Unit.Unit fu) && Utility.HealthBarCanvas.HasInstance)
                     {
                         Utility.HealthBarCanvas.Instance.Unregister(fu);
                     }
-                    var fObs = t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
-                    foreach (var obs in fObs)
-                    {
-                        if (obs != null) { obs.enabled = false; obs.carving = false; Destroy(obs); }
-                    }
-                    var fCols = t.GetComponentsInChildren<Collider>(true);
-                    foreach (var c in fCols) if (c != null) c.enabled = false;
-                    var fRends = t.GetComponentsInChildren<Renderer>(true);
-                    foreach (var r in fRends) if (r != null) r.enabled = false;
                     t.gameObject.SetActive(false);
                     continue;
                 }
@@ -1035,6 +1029,16 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// </summary>
         public void EnsureRightFlankBarricades()
         {
+            // Nếu đã có hàng rào vòng ngoài chính thức do người chơi thiết kế (Village_Custom_Perimeter_Wall),
+            // bỏ qua hoàn toàn hàm này và ẩn Right_Flank_Wall cũ để không bao giờ sinh ra các cọc rào xung đột hay đè lên hàng rào mới!
+            GameObject customWall = GameObject.Find(PrehistoricWallPathGuide.CustomWallContainerName);
+            if (customWall != null && customWall.activeInHierarchy && customWall.transform.childCount > 0)
+            {
+                GameObject oldFlank = GameObject.Find("Right_Flank_Wall");
+                if (oldFlank != null) oldFlank.SetActive(false);
+                return;
+            }
+
             GameObject flankParent = GameObject.Find("Right_Flank_Wall");
             if (flankParent == null)
             {

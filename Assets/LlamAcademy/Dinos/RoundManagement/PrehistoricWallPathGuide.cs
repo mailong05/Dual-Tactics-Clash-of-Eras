@@ -16,8 +16,22 @@ namespace LlamAcademy.Dinos.RoundManagement
     {
         public static PrehistoricWallPathGuide Instance { get; private set; }
 
+        public const string CustomWallContainerName = "Village_Custom_Perimeter_Wall";
+
+        /// <summary>
+        /// 5 tọa độ mốc chính thức do người chơi xác định trên Scene View
+        /// </summary>
+        public static readonly Vector3[] OfficialWaypoints = new Vector3[]
+        {
+            new Vector3(-36.00f, 1.00f, -13.00f),
+            new Vector3(-20.00f, 0.00f, -3.50f),
+            new Vector3(-1.00f, 0.00f, -4.00f),
+            new Vector3(0.00f, 0.00f, -4.00f),
+            new Vector3(40.00f, 0.00f, -7.00f)
+        };
+
         [Header("Danh Sách Điểm Mốc Tọa Độ (Kéo thả từ Hierarchy)")]
-        [Tooltip("Thứ tự: Điểm bắt đầu (nối từ hàng rào cũ) -> Các điểm giữa -> Điểm kết thúc (cắm vào vách núi)")]
+        [Tooltip("Thứ tự: Điểm bắt đầu -> Các điểm giữa uốn cong -> Điểm kết thúc")]
         public List<Transform> Markers = new List<Transform>();
 
         [Header("Cấu Hình Hàng Rào")]
@@ -46,6 +60,18 @@ namespace LlamAcademy.Dinos.RoundManagement
         private void OnEnable()
         {
             Instance = this;
+            EnsurePrefabLoaded();
+
+            if (TargetParent == null)
+            {
+                GameObject wallRoot = PrehistoricGameplayManager.FindCustomPerimeterWall();
+                if (wallRoot == null) wallRoot = new GameObject(CustomWallContainerName);
+                TargetParent = wallRoot.transform;
+            }
+        }
+
+        private void EnsurePrefabLoaded()
+        {
             if (BarricadePrefab == null)
             {
                 BarricadePrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Barricade");
@@ -56,16 +82,10 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
 #endif
             }
-
-            if (TargetParent == null)
-            {
-                GameObject flank = GameObject.Find("Right_Flank_Wall");
-                if (flank != null) TargetParent = flank.transform;
-            }
         }
 
         /// <summary>
-        /// Tự động khởi tạo 2 điểm mốc mặc định (Điểm bắt đầu và Điểm kết thúc) nếu danh sách rỗng
+        /// Tự động khởi tạo 5 điểm mốc mặc định theo đúng tọa độ người chơi cung cấp
         /// </summary>
         [ContextMenu("Tạo Mốc Mặc Định (Start & End)")]
         public void CreateDefaultMarkers()
@@ -87,25 +107,24 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
             Markers.Clear();
 
-            // Điểm 1: Nối tiếp từ mép hàng rào mặt tiền (Segment 7 ở X = 16.2f, Z = -2.5f)
-            GameObject pStart = new GameObject("Moc_1_Bat_Dau");
-            pStart.transform.SetParent(transform, false);
-            pStart.transform.position = new Vector3(16.5f, 0f, -2.5f);
-            Markers.Add(pStart.transform);
+            string[] markerNames = new string[]
+            {
+                "Moc_1_Bat_Dau",
+                "Moc_2_Uon_Cong",
+                "Moc_3_Uon_Cong",
+                "Moc_4_Uon_Cong",
+                "Moc_5_Ket_Thuc"
+            };
 
-            // Điểm 2: Điểm giữa bo quanh gờ đá
-            GameObject pMid = new GameObject("Moc_2_Uon_Cong");
-            pMid.transform.SetParent(transform, false);
-            pMid.transform.position = new Vector3(20.0f, 0f, -3.5f);
-            Markers.Add(pMid.transform);
+            for (int i = 0; i < OfficialWaypoints.Length; i++)
+            {
+                GameObject mObj = new GameObject(markerNames[i]);
+                mObj.transform.SetParent(transform, false);
+                mObj.transform.position = OfficialWaypoints[i];
+                Markers.Add(mObj.transform);
+            }
 
-            // Điểm 3: Điểm kết thúc cắm sâu vào vách núi đá bên phải
-            GameObject pEnd = new GameObject("Moc_3_Ket_Thuc");
-            pEnd.transform.SetParent(transform, false);
-            pEnd.transform.position = new Vector3(24.0f, 0f, -2.5f);
-            Markers.Add(pEnd.transform);
-
-            Debug.Log("<color=green>[Wall Guide]</color> Đã tạo 3 mốc mẫu. Bạn có thể di chuyển chúng trong Scene View bằng phím W.");
+            Debug.Log("<color=green>[Wall Guide]</color> Đã tạo 5 mốc chuẩn theo thiết kế của bạn. Bạn có thể kéo thả di chuyển các mốc bằng phím W.");
         }
 
         /// <summary>
@@ -120,56 +139,108 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
 
+            List<Vector3> pts = new List<Vector3>();
+            for (int i = 0; i < Markers.Count; i++)
+            {
+                if (Markers[i] != null) pts.Add(Markers[i].position);
+            }
+
+            if (pts.Count < 2) return;
+
             if (TargetParent == null)
             {
-                GameObject flank = GameObject.Find("Right_Flank_Wall");
-                if (flank == null) flank = new GameObject("Right_Flank_Wall");
-                TargetParent = flank.transform;
+                GameObject wallRoot = PrehistoricGameplayManager.FindCustomPerimeterWall();
+                if (wallRoot == null) wallRoot = new GameObject(CustomWallContainerName);
+                TargetParent = wallRoot.transform;
             }
 
-            if (BarricadePrefab == null)
+            // Vô hiệu hóa triệt để các nhóm tường cũ trong Scene để không gây xung đột hoặc đè lên
+            string[] obsoleteGroups = new string[] { "Left_Wing_Wall", "Right_Wing_Wall", "Right_Flank_Wall", "Gate_Portcullis_Barricade" };
+            foreach (var gName in obsoleteGroups)
             {
-                BarricadePrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Barricade");
-#if UNITY_EDITOR
-                if (BarricadePrefab == null)
-                {
-                    BarricadePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Prehistoric/Prefab_Barricade.prefab");
-                }
-#endif
+                GameObject g = GameObject.Find(gName);
+                if (g != null) g.SetActive(false);
             }
 
-            // Dọn sạch các đoạn rào cũ dưới TargetParent
+            EnsurePrefabLoaded();
             ClearBuiltWall();
 
-            // Tính toán tổng các điểm đặt rào dọc theo các đoạn mốc
+            BuildWallInternal(pts.ToArray(), TargetParent, BarricadePrefab, Spacing, BarricadeHealth);
+        }
+
+        /// <summary>
+        /// Phương thức tĩnh để PrehistoricGameplayManager có thể tự động xây hàng rào chuẩn khi game chạy
+        /// nếu chưa được người chơi dựng trước trong Scene View
+        /// </summary>
+        public static GameObject BuildOfficialPerimeterWall(Transform targetParent = null)
+        {
+            GameObject wallRoot;
+            if (targetParent != null)
+            {
+                wallRoot = targetParent.gameObject;
+            }
+            else
+            {
+                wallRoot = PrehistoricGameplayManager.FindCustomPerimeterWall();
+                if (wallRoot == null) wallRoot = new GameObject(CustomWallContainerName);
+            }
+            wallRoot.SetActive(true);
+
+            // Vô hiệu hóa các tường cũ
+            string[] obsoleteGroups = new string[] { "Left_Wing_Wall", "Right_Wing_Wall", "Right_Flank_Wall", "Gate_Portcullis_Barricade" };
+            foreach (var gName in obsoleteGroups)
+            {
+                GameObject g = GameObject.Find(gName);
+                if (g != null) g.SetActive(false);
+            }
+
+            GameObject prefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Barricade");
+#if UNITY_EDITOR
+            if (prefab == null)
+            {
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Prehistoric/Prefab_Barricade.prefab");
+            }
+#endif
+
+            // Dọn sạch con cũ
+            for (int i = wallRoot.transform.childCount - 1; i >= 0; i--)
+            {
+                DestroyImmediate(wallRoot.transform.GetChild(i).gameObject);
+            }
+
+            BuildWallInternal(OfficialWaypoints, wallRoot.transform, prefab, 2.6f, 1200);
+            return wallRoot;
+        }
+
+        private static void BuildWallInternal(Vector3[] waypoints, Transform parent, GameObject prefab, float spacing, int health)
+        {
+            if (waypoints == null || waypoints.Length < 2) return;
+
             List<Vector3> placedPositions = new List<Vector3>();
             List<Quaternion> placedRotations = new List<Quaternion>();
 
-            for (int m = 0; m < Markers.Count - 1; m++)
+            for (int m = 0; m < waypoints.Length - 1; m++)
             {
-                if (Markers[m] == null || Markers[m + 1] == null) continue;
-
-                Vector3 startPos = Markers[m].position;
-                Vector3 endPos = Markers[m + 1].position;
+                Vector3 startPos = waypoints[m];
+                Vector3 endPos = waypoints[m + 1];
                 Vector3 segVec = endPos - startPos;
-                segVec.y = 0; // Giữ trên mặt phẳng nằm ngang
+                segVec.y = 0;
                 float segLen = segVec.magnitude;
                 if (segLen < 0.1f) continue;
 
                 Vector3 segDir = segVec.normalized;
-                int count = Mathf.Max(1, Mathf.RoundToInt(segLen / Mathf.Max(0.5f, Spacing)));
+                int count = Mathf.Max(1, Mathf.RoundToInt(segLen / Mathf.Max(0.5f, spacing)));
                 float actualStep = segLen / count;
 
-                // Tính góc xoay để mặt khiên/gai hướng ra phía ngoài rừng (phía trước)
+                // Góc xoay hướng ra phía trước (về hướng rừng rậm, đón đầu khủng long)
                 Vector3 normal = Vector3.Cross(Vector3.up, segDir);
                 if (Vector3.Dot(normal, Vector3.forward) < 0) normal = -normal;
                 Quaternion targetRot = Quaternion.LookRotation(normal, Vector3.up);
 
-                int endIndex = (m == Markers.Count - 2) ? count : count - 1;
+                int endIndex = (m == waypoints.Length - 2) ? count : count - 1;
                 for (int i = 0; i <= endIndex; i++)
                 {
                     Vector3 samplePos = startPos + segDir * (i * actualStep);
-                    // Dò tìm độ cao mặt đất chính xác
                     if (UnityEngine.AI.NavMesh.SamplePosition(samplePos, out UnityEngine.AI.NavMeshHit navHit, 3.0f, UnityEngine.AI.NavMesh.AllAreas))
                     {
                         samplePos.y = navHit.position.y;
@@ -184,52 +255,48 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // Tiến hành khởi tạo các GameObject rào chắn thật
             for (int i = 0; i < placedPositions.Count; i++)
             {
                 GameObject seg;
 #if UNITY_EDITOR
-                if (BarricadePrefab != null)
+                if (prefab != null)
                 {
-                    seg = (GameObject)PrefabUtility.InstantiatePrefab(BarricadePrefab, TargetParent);
+                    seg = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
                 }
                 else
                 {
-                    seg = new GameObject($"Flank_Barricade_{i}");
-                    seg.transform.SetParent(TargetParent);
+                    seg = new GameObject($"Perimeter_Barricade_{i}");
+                    seg.transform.SetParent(parent);
                 }
                 Undo.RegisterCreatedObjectUndo(seg, "Build Barricade");
 #else
-                if (BarricadePrefab != null)
+                if (prefab != null)
                 {
-                    seg = Instantiate(BarricadePrefab, TargetParent);
+                    seg = Instantiate(prefab, parent);
                 }
                 else
                 {
-                    seg = new GameObject($"Flank_Barricade_{i}");
-                    seg.transform.SetParent(TargetParent);
+                    seg = new GameObject($"Perimeter_Barricade_{i}");
+                    seg.transform.SetParent(parent);
                 }
 #endif
-                seg.name = $"Flank_Barricade_{i}";
+                seg.name = $"Perimeter_Barricade_{i}";
                 seg.transform.position = placedPositions[i];
                 seg.transform.rotation = placedRotations[i];
                 seg.transform.localScale = new Vector3(1.25f, 1.25f, 1.2f);
                 seg.SetActive(true);
 
-                // Bật MeshRenderer
                 foreach (var r in seg.GetComponentsInChildren<Renderer>(true))
                 {
                     if (r != null) r.enabled = true;
                 }
 
-                // Cấu hình BoxCollider
                 var col = seg.GetComponent<BoxCollider>();
                 if (col == null) col = seg.AddComponent<BoxCollider>();
                 col.size = new Vector3(3.2f, 2.5f, 1.5f);
                 col.center = new Vector3(0f, 1.25f, 0f);
                 col.enabled = true;
 
-                // Cấu hình NavMeshObstacle có Carving
                 var obs = seg.GetComponent<UnityEngine.AI.NavMeshObstacle>();
                 if (obs == null) obs = seg.AddComponent<UnityEngine.AI.NavMeshObstacle>();
                 obs.size = new Vector3(3.2f, 2.5f, 1.5f);
@@ -239,11 +306,11 @@ namespace LlamAcademy.Dinos.RoundManagement
                 obs.carveOnlyStationary = false;
                 obs.enabled = true;
 
-                // Cấu hình Wall
                 var wall = seg.GetComponent<Unit.Wall>();
                 if (wall == null) wall = seg.AddComponent<Unit.Wall>();
-                wall.MaxHealth = BarricadeHealth;
-                wall.Health = BarricadeHealth;
+                wall.MaxHealth = health;
+                wall.Health = health;
+                wall.Root = seg;
                 wall.EnsureHealthBarAttached();
                 seg.tag = "Wall";
 
@@ -254,20 +321,12 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         hb.gameObject.SetActive(true);
                         hb.SetProgress(1.0f);
+                        hb.SetUnitName("🪵 Hàng Rào Gỗ", new Color(0.9f, 0.75f, 0.4f));
                     }
                 }
             }
 
-            Debug.Log($"<color=green><b>[Wall Guide] THÀNH CÔNG!</b></color> Đã dựng {placedPositions.Count} đoạn hàng rào kiên cố theo các điểm mốc!");
-
-            // In danh sách tọa độ ra Console để người dùng có thể gửi lại tọa độ nếu cần
-            string coordsLog = "Danh sách tọa độ các đoạn rào đã tạo:\n";
-            for (int i = 0; i < placedPositions.Count; i++)
-            {
-                var p = placedPositions[i];
-                coordsLog += $"new Vector3({p.x:F1}f, {p.y:F1}f, {p.z:F1}f),\n";
-            }
-            Debug.Log(coordsLog);
+            Debug.Log($"<color=green><b>[Wall Guide] THÀNH CÔNG!</b></color> Đã dựng {placedPositions.Count} đoạn hàng rào kiên cố theo đúng 5 mốc chính thức!");
         }
 
         /// <summary>
@@ -283,7 +342,6 @@ namespace LlamAcademy.Dinos.RoundManagement
                 return;
             }
 
-            // Tính vị trí trung bình giữa mốc áp chót và mốc cuối
             Vector3 pA = Markers[Markers.Count - 2].position;
             Vector3 pB = Markers[Markers.Count - 1].position;
             Vector3 newPos = (pA + pB) * 0.5f;
@@ -293,7 +351,6 @@ namespace LlamAcademy.Dinos.RoundManagement
             pNew.transform.SetParent(transform, false);
             pNew.transform.position = newPos;
 
-            // Chèn vào ngay trước điểm kết thúc
             Markers.Insert(Markers.Count - 1, pNew.transform);
             Debug.Log($"<color=green>[Wall Guide]</color> Đã thêm mốc mới '{pNew.name}' tại tọa độ {newPos}. Bạn có thể kéo thả nó để uốn cong hàng rào!");
         }
@@ -345,7 +402,6 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (Markers == null || Markers.Count == 0) return;
 
-            // 1. Vẽ các điểm mốc Marker
             for (int i = 0; i < Markers.Count; i++)
             {
                 if (Markers[i] == null) continue;
@@ -359,14 +415,12 @@ namespace LlamAcademy.Dinos.RoundManagement
 #endif
             }
 
-            // 2. Vẽ đường nối phát sáng giữa các mốc
             Gizmos.color = LineColor;
             for (int i = 0; i < Markers.Count - 1; i++)
             {
                 if (Markers[i] == null || Markers[i + 1] == null) continue;
                 Gizmos.DrawLine(Markers[i].position, Markers[i + 1].position);
 
-                // Vẽ các ô vuông preview vị trí từng đoạn rào sẽ mọc lên
                 Vector3 diff = Markers[i + 1].position - Markers[i].position;
                 diff.y = 0;
                 float dist = diff.magnitude;

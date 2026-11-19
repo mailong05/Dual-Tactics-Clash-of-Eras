@@ -87,7 +87,31 @@ namespace LlamAcademy.Dinos.Unit
                 Agent.isStopped = false;
                 Agent.updateRotation = true;
                 Agent.ResetPath();
-                Agent.SetDestination(targetPos);
+
+                // Quét nhanh tìm đoạn rào gỗ chắn trực diện trên lane để lập tức phi tới phá hủy
+                IDamageable laneWall = FindLaneBlockingWall(35f);
+                if (laneWall != null && laneWall.Transform != null)
+                {
+                    CurrentTarget = laneWall;
+                    Collider targetCol = laneWall.Transform.GetComponentInChildren<Collider>();
+                    Vector3 closest = targetCol != null ? GetSafeClosestPoint(targetCol, transform.position) : laneWall.Transform.position;
+                    Vector3 standoffDir = (transform.position - closest);
+                    standoffDir.y = 0;
+                    if (standoffDir.sqrMagnitude < 0.01f) standoffDir = -transform.forward;
+                    bool isBoss = (this is BossDino) || (AISpeciesType == LlamAcademy.Dinos.AI.DinoAISpeciesType.TRexApexBoss);
+                    float agentRadius = Agent.radius;
+                    float safeMargin = isBoss ? 5.2f : Mathf.Max(agentRadius + 1.6f, AttackRange * 0.92f);
+                    Vector3 standoff = closest + standoffDir.normalized * safeMargin;
+                    if (NavMesh.SamplePosition(standoff, out NavMeshHit sHit, 2.0f, NavMesh.AllAreas))
+                    {
+                        standoff = sHit.position;
+                    }
+                    Agent.SetDestination(standoff);
+                }
+                else
+                {
+                    Agent.SetDestination(targetPos);
+                }
             }
         }
 
@@ -2399,6 +2423,13 @@ namespace LlamAcademy.Dinos.Unit
             {
                 float blockerScanRange = isBoss ? Mathf.Max(WallScanRadius, 7.5f) : Mathf.Min(WallScanRadius, 3.8f);
                 CurrentTarget = FindImmediatePathBlocker(blockerScanRange);
+
+                // Nếu chưa có vật cản gần (cự ly < 3.8m), nhưng đang công thành hoặc đường đến căn cứ bị tường rào chặn:
+                // Tự động tìm đoạn tường rào chắn trực diện trên lane hành quân để tiến tới công phá
+                if (CurrentTarget == null && (isAssaultCombat || !Agent.hasPath || (Agent.isOnNavMesh && Agent.pathStatus != NavMeshPathStatus.PathComplete)))
+                {
+                    CurrentTarget = FindLaneBlockingWall(35f);
+                }
             }
 
             // 3. Nếu đang có vật cản trước mặt: Tiến đến cự ly cận chiến và phá hủy
@@ -2411,9 +2442,9 @@ namespace LlamAcademy.Dinos.Unit
                 flatDiff.y = 0;
                 float distToClosest = flatDiff.magnitude;
 
-                // Nếu mục tiêu phụ không phải Nhà chính và cự ly quá xa: Bỏ mục tiêu phụ, xông thẳng về Nhà chính
+                // Nếu mục tiêu phụ không phải Nhà chính và không phải Tường rào đang công phá: Bỏ mục tiêu phụ
                 float maxAbandonDist = Mathf.Max(AttackRange + 2.5f, 5.5f);
-                if (CurrentTarget != null && !(CurrentTarget is PrehistoricVillageBase) && distToClosest > maxAbandonDist)
+                if (CurrentTarget != null && !(CurrentTarget is PrehistoricVillageBase) && !(CurrentTarget is Wall) && distToClosest > maxAbandonDist)
                 {
                     CurrentTarget = null;
                     _IsEngagedInMelee = false;
@@ -2483,7 +2514,7 @@ namespace LlamAcademy.Dinos.Unit
                             standoffPoint = standHit.position;
                         }
 
-                        if (!Agent.hasPath || Vector3.Distance(Agent.destination, standoffPoint) > 0.8f)
+                        if (!Agent.pathPending && (!Agent.hasPath || Vector3.Distance(Agent.destination, standoffPoint) > 0.8f))
                         {
                             Agent.SetDestination(standoffPoint);
                         }
@@ -2591,12 +2622,66 @@ namespace LlamAcademy.Dinos.Unit
                         moveTarget = mHit.position;
                     }
 
-                    if (!Agent.hasPath || Vector3.Distance(Agent.destination, moveTarget) > 1.2f)
+                    if (!Agent.pathPending && (!Agent.hasPath || Vector3.Distance(Agent.destination, moveTarget) > 1.2f))
                     {
                         Agent.SetDestination(moveTarget);
                     }
                 }
             }
+
+        /// <summary>
+        /// Quét phát hiện đoạn tường rào phòng thủ trực diện chặn ngang lane tiến quân của khủng long về căn cứ làng.
+        /// Cho phép khủng long nhận diện mục tiêu từ xa (tối đa 35m) và lập tức lao tới công phá,
+        /// triệt tiêu 100% tình trạng đứng yên hoặc giật cục animation do NavMesh bị chia cắt bởi hàng rào.
+        /// </summary>
+        protected virtual IDamageable FindLaneBlockingWall(float maxScanRange = 35f)
+        {
+            if (TargetBase == null) return null;
+
+            Vector3 myPos = transform.position;
+            Vector3 toBase = TargetBase.position - myPos;
+            toBase.y = 0;
+            float distToBase = toBase.magnitude;
+            if (distToBase < 0.1f) return null;
+            Vector3 toBaseDir = toBase.normalized;
+            Vector3 lateralDir = Vector3.Cross(Vector3.up, toBaseDir).normalized;
+
+            var allWalls = FindObjectsByType<Wall>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            Wall bestWall = null;
+            float bestScore = float.MinValue;
+
+            bool isBoss = (this is BossDino) || (AISpeciesType == LlamAcademy.Dinos.AI.DinoAISpeciesType.TRexApexBoss);
+            float maxLateral = isBoss ? 6.0f : 4.0f;
+
+            for (int i = 0; i < allWalls.Length; i++)
+            {
+                Wall w = allWalls[i];
+                if (w == null || w.Health <= 0 || !w.gameObject.activeInHierarchy) continue;
+
+                string wName = w.gameObject.name.ToLower();
+                if (wName.Contains("bridge") || wName.Contains("ramp") || wName.Contains("floor")) continue;
+
+                Vector3 wPos = w.transform.position;
+                Vector3 toWall = wPos - myPos;
+                toWall.y = 0;
+
+                float forwardDist = Vector3.Dot(toWall, toBaseDir);
+                if (forwardDist < 0.5f || forwardDist > maxScanRange) continue;
+                if (forwardDist > distToBase + 1.0f) continue;
+
+                float lateralDist = Mathf.Abs(Vector3.Dot(toWall, lateralDir));
+                if (lateralDist > maxLateral) continue;
+
+                float score = -forwardDist * 1.5f - lateralDist * 4.0f;
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestWall = w;
+                }
+            }
+
+            return bestWall;
+        }
 
         protected virtual IDamageable FindImmediatePathBlocker(float maxDist)
         {
@@ -3195,7 +3280,7 @@ namespace LlamAcademy.Dinos.Unit
                 string pn = targetT.parent.name.ToLower();
                 // Chỉ dừng khi cha là container nhóm phòng tuyến lớn
                 if (pn == "left_wing_wall" || pn == "right_wing_wall" || pn == "village_fortress_wall" ||
-                    pn == "gate_complex" || pn == "right_flank_wall" || pn.Contains("fortress_root"))
+                    pn == "gate_complex" || pn == "right_flank_wall" || pn.Contains("perimeter_wall") || pn.Contains("fortress_root"))
                 {
                     break;
                 }
