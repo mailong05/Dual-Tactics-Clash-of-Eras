@@ -1099,6 +1099,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                         Utility.HealthBarCanvas.Instance.Unregister(u);
                     }
                 }
+                container.name = "[Disposed_Assault_Defenses]";
                 container.SetActive(false);
                 Destroy(container);
             }
@@ -1113,6 +1114,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         Utility.HealthBarCanvas.Instance.Unregister(u);
                     }
+                    m.gameObject.name = "[Disposed_Defense_Marker]";
                     m.gameObject.SetActive(false);
                     Destroy(m.gameObject);
                 }
@@ -1352,8 +1354,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void RetryCurrentAssaultLevel()
         {
+            Time.timeScale = 1.0f;
             ClearAllDinos();
             CleanAllAssaultDefenses();
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.CleanAllGameplayGarbage();
+                PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
+            }
+
             DinoSpawner retrySpawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (retrySpawner != null) retrySpawner.AllowPlacingDinos = true;
 
@@ -1374,6 +1383,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // 3. Tái thiết lập phòng tuyến làng cho màn hiện tại
             SetupVillageDefensesForLevel(AssaultLevel);
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.RecalculateTriangulation(false);
+            }
 
             // 4. Cấp lại đúng số lượng thịt cố định của màn và mở lại quyền đặt quân
             int targetMeat = GetFixedMeatForLevel(AssaultLevel);
