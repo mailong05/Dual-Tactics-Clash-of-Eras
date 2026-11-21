@@ -2181,6 +2181,9 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void DamageBase(int damage, Unit.Unit attackingDino = null)
         {
             if (_CurrentPhase == PrehistoricWavePhase.GameOver) return;
+            // Trong chế độ Công Thành (Dino Assault), Căn Cứ Làng là mục tiêu cần phá hủy của người chơi.
+            // Phá hủy Căn cứ là CHIẾN THẮNG (Victory), TUYỆT ĐỐI không gọi TriggerGameOver của chế độ Thủ Thành!
+            if (IsAssaultMode) return;
 
             _CurrentBaseHealth = Mathf.Max(0, _CurrentBaseHealth - damage);
             if (Unit.PrehistoricVillageBase.Instance != null && Unit.PrehistoricVillageBase.Instance.Health != _CurrentBaseHealth)
@@ -2290,6 +2293,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void TriggerGameOver()
         {
+            if (IsAssaultMode) return;
             SetPhase(PrehistoricWavePhase.GameOver);
             StopAllCoroutines();
             Audio.PrehistoricAudioManager.Instance?.PlayGameOver();
@@ -3226,6 +3230,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             ShowAnnouncement("⚔ CHƠI LẠI TỪ ĐẦU (MÀN 1)! HÃY XÂY DỰNG LẠI PHÒNG TUYẾN! ⚔", 4.0f);
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
         }
 
         public void RetryCurrentWave()
@@ -3267,6 +3272,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                     CameraControl.Instance.ResetToCenter();
                 }
             }
+
+            // Tự động lưu tiến trình chuẩn bị cho Đợt _CurrentWave (luôn giữ đúng đợt hiện tại, không lùi đợt)
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             int waveGold = StartingGold + (_CurrentWave - 1) * 300;
             ShowAnnouncement($"🔄 ĐÃ RESET HOÀN TOÀN MÀN {_CurrentWave}! BẠN CÓ {waveGold}g ĐỂ DÀN TRẬN MỚI! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
@@ -3360,6 +3368,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.TowerDefense);
             ShowAnnouncement($"⚔ ĐÃ TẢI ĐỢT {_CurrentWave}: CHUẨN BỊ CHIẾN ĐẤU! ⚔", 4.0f);
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
         }
 
         public void ContinueDefenseFromMenu()
@@ -3901,6 +3910,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         private void DrawGameOverModal()
         {
+            if (IsAssaultMode) return;
             GUI.depth = -1000;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;

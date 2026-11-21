@@ -98,7 +98,9 @@ namespace LlamAcademy.Dinos.Unit
                 HealthBar.SetProgress((float)Health / Mathf.Max(1, MaxHealth));
             }
 
-            if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled)
+            if (!RoundManagement.PrehistoricGameplayManager.IsAssaultMode && 
+                PrehistoricGameplayManager.Instance != null && 
+                PrehistoricGameplayManager.Instance.enabled)
             {
                 PrehistoricGameplayManager.Instance.DamageBase(damage);
             }

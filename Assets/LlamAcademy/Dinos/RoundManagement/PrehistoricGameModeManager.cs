@@ -1273,6 +1273,14 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void NextAssaultLevel()
         {
             AssaultLevel++;
+            // QUAN TRỌNG: Phải chuyển AssaultPhase sang Setup NGAY LẬP TỨC để tránh AutoSaveAssaultRun
+            // nhận diện nhầm là Victory rồi cộng dồn thêm +1 lần nữa làm nhảy cóc màn chơi!
+            AssaultPhase = PrehistoricAssaultPhase.Setup;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.State = GameState.Setup;
+            }
+
             if (AssaultLevel >= 10)
             {
                 Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.VolcanicGorge, PrehistoricGameMode.DinoAssault);
@@ -1293,21 +1301,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                 VillageBase.RestoreBase(fullBaseHp);
             }
 
-            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
-
             // Cung cấp đúng lượng thịt cố định của màn mới
             int nextMeat = GetFixedMeatForLevel(AssaultLevel);
             DinoSpawner spawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (spawner != null)
             {
                 spawner.ResourcesToSpend = nextMeat;
+                spawner.AllowPlacingDinos = true;
             }
 
-            AssaultPhase = PrehistoricAssaultPhase.Setup;
-            if (RoundManager.Instance != null)
-            {
-                RoundManager.Instance.State = GameState.Setup;
-            }
+            // Lưu chuẩn xác màn mới đã bước vào (Màn AssaultLevel)
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             Debug.Log($"<color=cyan>[Assault Level Up]</color> Tiến vào Màn {AssaultLevel}! Đã dọn sạch khủng long cũ, cấp thịt dồi dào cho màn mới!");
         }
@@ -1365,6 +1369,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 AR.ARTabletopController.Instance.RefreshARState();
             }
+
+            // Tự động lưu tiến trình chuẩn bị cho Màn AssaultLevel (luôn giữ đúng màn hiện tại, không lùi màn)
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
             Debug.Log($"<color=cyan>[Assault Retry]</color> Đã làm mới 100% chiến trường Màn {AssaultLevel}!");
         }
@@ -1443,6 +1450,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             Audio.PrehistoricAudioManager.Instance?.PlayBgmForMode(PrehistoricGameMode.DinoAssault);
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
             Debug.Log($"<color=cyan>[Assault]</color> Đã tải chiến dịch Công Thành: Màn {AssaultLevel} ({savedMeat} Thịt, Căn cứ {fullBaseHp} HP đầy đủ)!");
         }
 
@@ -1509,6 +1517,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             }
 
             _DefeatCheckTimer = 0f;
+            Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
             Debug.Log("<color=cyan>[Assault Reset]</color> Chơi lại chế độ Công Thành từ Màn 1!");
         }
 

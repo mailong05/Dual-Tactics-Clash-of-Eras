@@ -427,6 +427,15 @@ namespace LlamAcademy.Dinos.Save
                         CustomTitle = $"Tự động lưu - Đợt {w}"
                     });
                 }
+                else
+                {
+                    if (CurrentData.DefenseProfile.CurrentWave > defAuto.WaveOrLevel)
+                    {
+                        defAuto.WaveOrLevel = CurrentData.DefenseProfile.CurrentWave;
+                        defAuto.Resources = Mathf.Max(CurrentData.DefenseProfile.Gold, 950 + (defAuto.WaveOrLevel - 1) * 300);
+                        defAuto.CustomTitle = $"Tự động lưu - Đợt {defAuto.WaveOrLevel}";
+                    }
+                }
             }
 
             // Gieo mầm khe Auto-Save cho chế độ Công Thành nếu chưa có
@@ -453,6 +462,15 @@ namespace LlamAcademy.Dinos.Save
                         HasActiveRun = CurrentData.AssaultProfile.HasActiveRun,
                         CustomTitle = $"Tự động lưu - Màn {l}"
                     });
+                }
+                else
+                {
+                    if (CurrentData.AssaultProfile.AssaultLevel > assAuto.WaveOrLevel)
+                    {
+                        assAuto.WaveOrLevel = CurrentData.AssaultProfile.AssaultLevel;
+                        assAuto.Resources = Mathf.Max(CurrentData.AssaultProfile.Meat, 500 + (assAuto.WaveOrLevel - 1) * 200);
+                        assAuto.CustomTitle = $"Tự động lưu - Màn {assAuto.WaveOrLevel}";
+                    }
                 }
             }
         }
