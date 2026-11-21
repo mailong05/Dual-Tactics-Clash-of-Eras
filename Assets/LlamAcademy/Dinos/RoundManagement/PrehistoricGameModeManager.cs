@@ -605,13 +605,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             int food = spawner != null ? spawner.ResourcesToSpend : 0;
 
             // 1. Top-Left Food & Command Banner
-            Rect foodBannerRect = new Rect(16, 12, 315, 108);
+            Rect foodBannerRect = new Rect(16, 12, 330, 116);
             Mobile.MobileUIHelper.RegisterUIRect(foodBannerRect);
-            GUILayout.BeginArea(foodBannerRect, GUI.skin.box);
+
+            // Nền tối đặc không để các cấu trúc 3D xuyên thấu
+            GUI.color = new Color(0.08f, 0.12f, 0.18f, 0.96f);
+            GUI.Box(foodBannerRect, GUIContent.none);
+            GUI.color = Color.white;
+
+            GUILayout.BeginArea(new Rect(foodBannerRect.x + 8f, foodBannerRect.y + 6f, foodBannerRect.width - 16f, foodBannerRect.height - 12f));
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
             GUILayout.EndHorizontal();
+
+            // Hiển thị trực quan máu Căn Cứ Làng mục tiêu
+            int vHp = VillageBase != null ? VillageBase.Health : 0;
+            int vMaxHp = VillageBase != null ? VillageBase.MaxHealth : 1000;
+            float hpPct = vMaxHp > 0 ? Mathf.Clamp01((float)vHp / vMaxHp) : 0f;
+            string hpHex = hpPct > 0.5f ? "55FF55" : (hpPct > 0.25f ? "FFD700" : "FF4444");
+            GUILayout.Label($"<b><size=12>🎯 Mục tiêu: Căn Cứ Làng - <color=#{hpHex}>{vHp} / {vMaxHp} HP</color></size></b>");
 
             if (SelectedDino != null)
             {
@@ -1294,6 +1307,20 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (enemyAI != null)
             {
                 enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(level));
+            }
+
+            // 6. Phân tích trước ma trận chiến thuật và khóa cố định lộ trình Heatmap cho Màn Công Thành này
+            if (AI.ThreatAwarePathfinding.Instance != null)
+            {
+                Vector3 assaultSpawnPos = new Vector3(0f, 0f, 25f);
+                Vector3 assaultBasePos = VillageBase != null ? VillageBase.transform.position : new Vector3(-2.23f, 0f, -38.26f);
+                AI.ThreatAwarePathfinding.Instance.UnlockTacticalPaths();
+                AI.ThreatAwarePathfinding.Instance.AnalyzeDefenseLayoutOnce(assaultSpawnPos, assaultBasePos);
+                AI.ThreatAwarePathfinding.Instance.LockTacticalPathsForAssault();
+            }
+            if (AI.ThreatHeatmapVisualizer.HasInstance && AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible)
+            {
+                AI.ThreatHeatmapVisualizer.Instance.RefreshVisualPaths();
             }
         }
 

@@ -440,14 +440,32 @@ namespace LlamAcademy.Dinos.AI
             Vector3 spawnPos;
             Vector3 basePos;
 
-            if (RoundManagement.PrehistoricGameModeManager.Instance != null && 
-                RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault)
+            bool isAssaultMode = RoundManagement.PrehistoricGameModeManager.Instance != null && 
+                                 RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault;
+
+            if (isAssaultMode)
             {
                 // Chế độ Công thành: Khủng long xuất trận từ Rừng phía Bắc (+25f) tiến về phía Nam (-38.26f) vào Căn cứ Làng
                 spawnPos = new Vector3(0f, 0f, 25f);
                 basePos = (RoundManagement.PrehistoricGameModeManager.Instance.VillageBase != null)
                     ? RoundManagement.PrehistoricGameModeManager.Instance.VillageBase.transform.position
                     : new Vector3(-2.23f, 0f, -38.26f);
+
+                // Nếu lộ trình chiến thuật Công Thành đã được AI Director phân tích và khóa cố định: sử dụng luôn lộ trình đó!
+                if (ThreatAwarePathfinding.Instance.IsAssaultPathsLocked)
+                {
+                    var lockedFlanker = ThreatAwarePathfinding.Instance.CachedFlankerPath;
+                    var lockedTanker = ThreatAwarePathfinding.Instance.CachedTankerPath;
+                    if (lockedFlanker != null && lockedFlanker.Count > 0)
+                    {
+                        DrawLinePath(_flankerLine, lockedFlanker, 0.40f);
+                    }
+                    if (lockedTanker != null && lockedTanker.Count > 0)
+                    {
+                        DrawLinePath(_tankerLine, lockedTanker, 0.50f);
+                    }
+                    return;
+                }
             }
             else
             {
@@ -541,12 +559,24 @@ namespace LlamAcademy.Dinos.AI
                 GUILayout.Label("🟩 <b>Xanh lá</b>: Vùng mù hỏa lực / Hành lang an toàn", GetItemStyle());
                 GUILayout.Label("🟨 <b>Vàng</b>: Vùng sát thương trung bình", GetItemStyle());
                 GUILayout.Label("🟥 <b>Đỏ</b>: Tử địa tập trung hỏa lực tháp", GetItemStyle());
-                bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
-                string flankerLabel = isCenterHeavy
-                    ? "<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)"
-                    : "<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Xung Phong Bầy Đàn (Trung lộ hở)";
-                GUILayout.Label(flankerLabel, GetItemStyle());
-                GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker A*)", GetItemStyle());
+                
+                bool isAssault = RoundManagement.PrehistoricGameModeManager.Instance != null && 
+                                 RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault;
+
+                if (isAssault)
+                {
+                    GUILayout.Label("<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Lộ trình Velociraptor (Bọc sườn né tháp)", GetItemStyle());
+                    GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Khủng Long Giáp (Đục phá tường)", GetItemStyle());
+                }
+                else
+                {
+                    bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                    string flankerLabel = isCenterHeavy
+                        ? "<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)"
+                        : "<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Xung Phong Bầy Đàn (Trung lộ hở)";
+                    GUILayout.Label(flankerLabel, GetItemStyle());
+                    GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker A*)", GetItemStyle());
+                }
                 GUILayout.EndArea();
             }
             finally

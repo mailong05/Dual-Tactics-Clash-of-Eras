@@ -124,11 +124,16 @@ namespace LlamAcademy.Dinos.AI
             if (_mainCam == null) _mainCam = Camera.main;
             if (_mainCam == null || _unit == null || _unit.Health <= 0) return;
 
+            // CHỈ HIỂN THỊ KHI NGƯỜI CHƠI BẬT AI MONITOR HOẶC BẬT HEATMAP (Tác vụ quan sát học thuật)
+            bool isAiMonitorOpen = UI.PrehistoricNeuralMonitorUI.Instance != null && UI.PrehistoricNeuralMonitorUI.Instance.IsOpen;
+            bool isHeatmapOpen = ThreatHeatmapVisualizer.Instance != null && ThreatHeatmapVisualizer.Instance.IsHeatmapVisible;
+            if (!isAiMonitorOpen && !isHeatmapOpen) return;
+
             Vector3 worldPos = transform.position + Vector3.up * 2.8f;
             Vector3 screenPos = _mainCam.WorldToScreenPoint(worldPos);
 
-            // Behind camera check
-            if (screenPos.z <= 0.5f || screenPos.z > 85f) return;
+            // Giới hạn tầm nhìn tối đa 42m để không gây rối mắt khi zoom xa
+            if (screenPos.z <= 0.5f || screenPos.z > 42f) return;
 
             // Invert Y for GUI
             float x = screenPos.x;
@@ -138,10 +143,14 @@ namespace LlamAcademy.Dinos.AI
             GUIStyle style = GetLabelStyle(_tagColor);
             Vector2 size = style.CalcSize(content);
 
-            Rect bgRect = new Rect(x - size.x * 0.5f - 6, y - size.y * 0.5f - 2, size.x + 12, size.y + 4);
+            Rect bgRect = new Rect(x - size.x * 0.5f - 4, y - size.y * 0.5f - 2, size.x + 8, size.y + 4);
 
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, 0.88f);
+            float alpha = Mathf.Clamp01((42f - screenPos.z) / 15f);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, 0.88f * alpha);
             GUI.Box(bgRect, GUIContent.none);
+            Color textC = _tagColor;
+            textC.a = alpha;
+            style.normal.textColor = textC;
             GUI.color = Color.white;
 
             GUI.Label(bgRect, content, style);
@@ -150,7 +159,7 @@ namespace LlamAcademy.Dinos.AI
         private GUIStyle GetLabelStyle(Color textColor)
         {
             GUIStyle s = new GUIStyle(GUI.skin.label);
-            s.fontSize = 11;
+            s.fontSize = 10;
             s.fontStyle = FontStyle.Bold;
             s.alignment = TextAnchor.MiddleCenter;
             s.normal.textColor = textColor;

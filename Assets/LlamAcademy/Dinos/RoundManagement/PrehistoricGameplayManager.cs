@@ -3928,14 +3928,31 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (string.IsNullOrEmpty(ScreenAnnouncement)) return;
 
-            float w = Mathf.Min(650f, Mobile.MobileUIHelper.ScreenWidth - 40f);
-            float h = 60f;
-            float x = (Mobile.MobileUIHelper.ScreenWidth - w) / 2f;
-            float y = 75f;
+            float screenW = Mobile.MobileUIHelper.ScreenWidth;
+            float w = Mathf.Min(680f, screenW - 40f);
+            float h = 64f;
+            float x = (screenW - w) / 2f;
+            // Đặt ở Y = 168f để nằm hoàn toàn bên dưới thanh Máu Làng (Y: 20-160) và dưới thanh IO Cloud (Y: 10-72), loại bỏ 100% tình trạng che khuất
+            float y = 168f;
 
-            GUI.backgroundColor = new Color(0f, 0f, 0f, 0.85f);
-            GUI.Box(new Rect(x, y, w, h), $"<b><size=18>{ScreenAnnouncement}</size></b>");
+            Rect rect = new Rect(x, y, w, h);
+            Mobile.MobileUIHelper.RegisterUIRect(rect);
+
+            GUI.backgroundColor = new Color(0.06f, 0.10f, 0.16f, 0.94f);
+            GUI.Box(rect, "");
             GUI.backgroundColor = Color.white;
+
+            GUIStyle style = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true,
+                richText = true,
+                fontSize = 15,
+                fontStyle = FontStyle.Bold
+            };
+            style.normal.textColor = new Color(1f, 0.92f, 0.45f);
+
+            GUI.Label(new Rect(x + 12f, y + 6f, w - 24f, h - 12f), ScreenAnnouncement, style);
         }
 
         private void DrawTacticalCountdownOverlay()
@@ -3944,7 +3961,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             float bannerW = Mathf.Min(860f, Mobile.MobileUIHelper.ScreenWidth - 40f);
             float bannerH = 125f;
             float bannerX = (Mobile.MobileUIHelper.ScreenWidth - bannerW) * 0.5f;
-            float bannerY = 85f;
+            // Đặt ở Y = 168f để nằm gọn dưới thanh Trạng Thái Máu Làng
+            float bannerY = 168f;
 
             Rect rect = new Rect(bannerX, bannerY, bannerW, bannerH);
             Mobile.MobileUIHelper.RegisterUIRect(rect);

@@ -314,6 +314,22 @@ namespace LlamAcademy.Dinos.Utility
                     continue;
                 }
 
+                // Trong Chế độ Công Thành (Dino Assault) ở Pha Chuẩn Bị (Setup Phase):
+                // Ẩn thanh máu của các khủng long đang thả trong rừng để không gây rối mắt khi dàn quân.
+                // Khi bấm [XUẤT QUÂN] chuyển sang pha chiến đấu thì thanh máu khủng long sẽ tự động bật.
+                bool isAssaultSetup = RoundManagement.PrehistoricGameModeManager.Instance != null &&
+                                     RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault &&
+                                     RoundManagement.PrehistoricGameModeManager.Instance.AssaultPhase == RoundManagement.PrehistoricAssaultPhase.Setup;
+                bool isDinoUnit = keyValuePair.Key is Unit.Dino || keyValuePair.Key is Unit.PrehistoricDinoBase;
+                if (isAssaultSetup && isDinoUnit)
+                {
+                    if (keyValuePair.Value.gameObject.activeSelf)
+                    {
+                        keyValuePair.Value.gameObject.SetActive(false);
+                    }
+                    continue;
+                }
+
                 // Đảm bảo thanh máu của mọi công trình, chòi canh, cầu gỗ, rào cọc luôn hiển thị rõ ràng:
                 if (!keyValuePair.Value.gameObject.activeSelf)
                 {
@@ -777,27 +793,23 @@ namespace LlamAcademy.Dinos.Utility
 
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
 
-            if (lower.Contains("ptero")) return "🦅 Thằn Lằn Bay";
-
-            if (lower.Contains("ankyl")) return "🛡️ Khủng Long Thiết Giáp";
-
-            if (lower.Contains("raptor")) return "🦖 Velociraptor";
-
-            if (lower.Contains("mud") || lower.Contains("tar")) return "Vũng Lầy Tiền Sử";
-
-            if (lower.Contains("spike")) return "Bẫy Chông Độc";
+            // Khủng long bầy đàn thông thường và cạm bẫy: Không gắn nhãn tên văn bản để tránh rối màn hình khi số lượng đông
+            if (lower.Contains("ptero") || lower.Contains("pterodactyl")) return "";
+            if (lower.Contains("ankyl") || lower.Contains("ankylosaurus")) return "";
+            if (lower.Contains("raptor") || lower.Contains("velociraptor")) return "";
+            if (lower.Contains("mud") || lower.Contains("tar")) return "";
+            if (lower.Contains("spike")) return "";
 
             if (lower.Contains("egg") || lower.Contains("base") || lower.Contains("village")) return "🏛️ Căn Cứ Làng Bộ Lạc";
 
-
-
             if (unit.UnitType != null && !string.IsNullOrEmpty(unit.UnitType.name))
-
             {
-
+                string uName = unit.UnitType.name.ToLower();
+                if (uName.Contains("raptor") || uName.Contains("ankyl") || uName.Contains("ptero")) return "";
                 return unit.UnitType.name.Replace("Unit_", "").Replace("Dino_", "").Replace("Tower_", "");
-
             }
+
+            if (lower.Contains("dino") || lower.Contains("monster")) return "";
 
 
 
