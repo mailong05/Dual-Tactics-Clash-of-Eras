@@ -15,7 +15,7 @@ namespace LlamAcademy.Dinos.Save
     {
         public int CurrentWave = 1;
         public int HighestWaveReached = 1;
-        public int Gold = 950;
+        public int Gold = 1200;
         public int BaseHealth = 1000;
         public int MaxBaseHealth = 1000;
         public int TotalMonstersKilled = 0;
@@ -102,7 +102,7 @@ namespace LlamAcademy.Dinos.Save
         }
         public int Gold
         {
-            get => DefenseProfile != null ? DefenseProfile.Gold : 950;
+            get => DefenseProfile != null ? DefenseProfile.Gold : 1200;
             set { if (DefenseProfile != null) DefenseProfile.Gold = value; }
         }
         public int BaseHealth
@@ -410,7 +410,7 @@ namespace LlamAcademy.Dinos.Save
                 if (defAuto == null)
                 {
                     int w = CurrentData.DefenseProfile.CurrentWave;
-                    int g = Mathf.Max(CurrentData.DefenseProfile.Gold, 950 + (w - 1) * 300);
+                    int g = Mathf.Max(CurrentData.DefenseProfile.Gold, PrehistoricGameplayManager.GetDefenseStartingGoldForWave(w));
                     CurrentData.SlotsCollection.slots.Add(new SaveSlotData
                     {
                         SlotId = "defense_autosave",
@@ -429,10 +429,10 @@ namespace LlamAcademy.Dinos.Save
                 }
                 else
                 {
-                    if (CurrentData.DefenseProfile.CurrentWave > defAuto.WaveOrLevel)
+                    if (CurrentData.DefenseProfile.CurrentWave != defAuto.WaveOrLevel)
                     {
                         defAuto.WaveOrLevel = CurrentData.DefenseProfile.CurrentWave;
-                        defAuto.Resources = Mathf.Max(CurrentData.DefenseProfile.Gold, 950 + (defAuto.WaveOrLevel - 1) * 300);
+                        defAuto.Resources = Mathf.Max(CurrentData.DefenseProfile.Gold, PrehistoricGameplayManager.GetDefenseStartingGoldForWave(defAuto.WaveOrLevel));
                         defAuto.CustomTitle = $"Tự động lưu - Đợt {defAuto.WaveOrLevel}";
                     }
                 }
@@ -445,7 +445,7 @@ namespace LlamAcademy.Dinos.Save
                 if (assAuto == null)
                 {
                     int l = CurrentData.AssaultProfile.AssaultLevel;
-                    int m = Mathf.Max(CurrentData.AssaultProfile.Meat, 500 + (l - 1) * 200);
+                    int m = Mathf.Max(CurrentData.AssaultProfile.Meat, PrehistoricGameModeManager.GetFixedMeatForLevel(l));
                     int hp = 1000 + (l - 1) * 350;
                     CurrentData.SlotsCollection.slots.Add(new SaveSlotData
                     {
@@ -465,10 +465,10 @@ namespace LlamAcademy.Dinos.Save
                 }
                 else
                 {
-                    if (CurrentData.AssaultProfile.AssaultLevel > assAuto.WaveOrLevel)
+                    if (CurrentData.AssaultProfile.AssaultLevel != assAuto.WaveOrLevel)
                     {
                         assAuto.WaveOrLevel = CurrentData.AssaultProfile.AssaultLevel;
-                        assAuto.Resources = Mathf.Max(CurrentData.AssaultProfile.Meat, 500 + (assAuto.WaveOrLevel - 1) * 200);
+                        assAuto.Resources = Mathf.Max(CurrentData.AssaultProfile.Meat, PrehistoricGameModeManager.GetFixedMeatForLevel(assAuto.WaveOrLevel));
                         assAuto.CustomTitle = $"Tự động lưu - Màn {assAuto.WaveOrLevel}";
                     }
                 }
@@ -551,8 +551,7 @@ namespace LlamAcademy.Dinos.Save
 
                 int maxHp = 1000;
                 int baseHp = 1000;
-                int startGold = PrehistoricGameplayManager.Instance != null ? PrehistoricGameplayManager.Instance.StartingGoldAmount : 950;
-                int waveBudget = (wave == 1) ? startGold : (startGold + (wave - 1) * 300);
+                int waveBudget = PrehistoricGameplayManager.GetDefenseStartingGoldForWave(wave);
                 int killed = CurrentData.DefenseProfile.TotalMonstersKilled;
                 int score = (wave * 1000) + (killed * 25) + waveBudget;
 
@@ -654,7 +653,7 @@ namespace LlamAcademy.Dinos.Save
                 if (slot.Mode == PrehistoricGameMode.TowerDefense)
                 {
                     int targetWave = Mathf.Max(1, slot.WaveOrLevel);
-                    int minWaveBudget = (targetWave == 1) ? 950 : (950 + (targetWave - 1) * 300);
+                    int minWaveBudget = PrehistoricGameplayManager.GetDefenseStartingGoldForWave(targetWave);
                     int finalGold = Mathf.Max(slot.Resources, minWaveBudget);
 
                     CurrentData.DefenseProfile.CurrentWave = targetWave;
@@ -744,8 +743,7 @@ namespace LlamAcademy.Dinos.Save
                 int baseHp = (PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase) 
                     ? PrehistoricGameplayManager.Instance.CurrentBaseHealth 
                     : maxHp;
-                int startGold = PrehistoricGameplayManager.Instance.StartingGoldAmount;
-                int waveBudget = (wave == 1) ? startGold : (startGold + (wave - 1) * 300);
+                int waveBudget = PrehistoricGameplayManager.GetDefenseStartingGoldForWave(wave);
                 int currentGold = TowerPlacer.Instance != null ? TowerPlacer.Instance.Gold : waveBudget;
 
                 // Nếu thua trận (GameOver) hoặc không có ván đấu active (chuẩn bị đợt mới), vàng lưu luôn là ngân sách đầy đủ của đợt để khi chơi lại không bị kẹt vàng
@@ -931,7 +929,7 @@ namespace LlamAcademy.Dinos.Save
             // Chế độ Thủ Thành (Tower Defense) độc lập
             int defWave = loaded.defense_wave > 0 ? loaded.defense_wave : loaded.highest_wave;
             int defHighest = loaded.defense_highest_wave > 0 ? loaded.defense_highest_wave : loaded.highest_wave;
-            int defGold = loaded.defense_gold > 0 ? loaded.defense_gold : (loaded.coins > 0 ? loaded.coins : 950);
+            int defGold = loaded.defense_gold > 0 ? loaded.defense_gold : (loaded.coins > 0 ? loaded.coins : 1200);
             CurrentData.DefenseProfile.CurrentWave = Mathf.Max(1, defWave);
             CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, defHighest);
             CurrentData.DefenseProfile.Gold = Mathf.Max(CurrentData.DefenseProfile.Gold, defGold);

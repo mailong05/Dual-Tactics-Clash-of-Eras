@@ -71,10 +71,19 @@ namespace LlamAcademy.Dinos.AI
 
             if (ThreatAwarePathfinding.Instance != null)
             {
-                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated += UpdateHeatmapTexture;
+                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated += HandleThreatFieldUpdated;
             }
 
             SetVisibility(IsHeatmapVisible);
+        }
+
+        private void HandleThreatFieldUpdated()
+        {
+            UpdateHeatmapTexture();
+            if (IsHeatmapVisible)
+            {
+                RefreshVisualPaths();
+            }
         }
 
         private void OnApplicationQuit()
@@ -86,7 +95,7 @@ namespace LlamAcademy.Dinos.AI
         {
             if (ThreatAwarePathfinding.Instance != null)
             {
-                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated -= UpdateHeatmapTexture;
+                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated -= HandleThreatFieldUpdated;
             }
             if (_heatmapTexture != null) Destroy(_heatmapTexture);
             if (_heatmapMesh != null) Destroy(_heatmapMesh);
@@ -104,12 +113,6 @@ namespace LlamAcademy.Dinos.AI
             {
                 ToggleHeatmap();
                 Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
-            }
-
-            // Periodically refresh paths if visible
-            if (IsHeatmapVisible && Time.frameCount % 30 == 0)
-            {
-                RefreshVisualPaths();
             }
         }
 

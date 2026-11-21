@@ -303,12 +303,19 @@ namespace LlamAcademy.Dinos.AI
 
             // 3. Scan active Walls and Barricades
             var allWalls = FindObjectsByType<Wall>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            bool isAssaultMode = RoundManagement.PrehistoricGameplayManager.IsAssaultMode;
             foreach (var wall in allWalls)
             {
                 if (wall == null || !wall.gameObject.activeInHierarchy || wall.Health <= 0) continue;
                 string wn = wall.gameObject.name.ToLower();
-                // River bridges are walkable pathways, not blocking wall obstacles
-                if (wn.Contains("bridge") || wn.Contains("ramp")) continue;
+                // River bridges and walkways are walkable pathways, not blocking wall obstacles
+                if (wn.Contains("bridge") || wn.Contains("ramp") || wn.Contains("walkway") || wn.Contains("deck")) continue;
+
+                // In Tower Defense mode, scenic village structures should not add wall penalties unless placed by player
+                if (!isAssaultMode && !wall.gameObject.name.Contains("(Clone)"))
+                {
+                    if (wn.Contains("arch") || wn.Contains("hut") || wn.Contains("tent") || wn.Contains("tower") || wn.Contains("watchtower") || wn.Contains("platform")) continue;
+                }
 
                 Collider col = wall.GetComponentInChildren<Collider>();
                 Bounds b = col != null ? col.bounds : new Bounds(wall.transform.position, Vector3.one * 3f);
@@ -376,16 +383,39 @@ namespace LlamAcademy.Dinos.AI
                 Vector3 pos = unit.transform.position;
                 float distToCenter = Vector2.Distance(new Vector2(pos.x, pos.z), new Vector2(centerEntrance.x, centerEntrance.z));
 
-                // Phân loại tháp tấn công tầm xa thực sự và rào chắn/tường
+                string un = unit.gameObject.name.ToLower();
+
+                // Các kiến trúc cảnh quan của ngôi làng (cầu sông, đường dốc, cổng vòm, lều bộ lạc, chòi canh) 
+                // TUYỆT ĐỐI không bao giờ bị nhận diện nhầm là rào chắn cản đường
+                bool isScenicStructure = un.Contains("bridge") || un.Contains("ramp") || un.Contains("arch") || 
+                                         un.Contains("hut") || un.Contains("tent") || un.Contains("platform") || 
+                                         un.Contains("watchtower") || un.Contains("walkway") || un.Contains("deck");
+
+                // Phân loại tháp tấn công tầm xa thực sự
                 bool isOffensiveTower = (unit is ArcherTower || unit is BallistaTower || unit is CatapultTower || unit is TeslaTower || unit is FrostTower);
                 if (!isOffensiveTower)
                 {
-                    string un = unit.gameObject.name.ToLower();
                     isOffensiveTower = (un.Contains("tower") || un.Contains("ballista") || un.Contains("catapult") || un.Contains("totem"))
-                                    && !un.Contains("barricade") && !un.Contains("wall") && !un.Contains("trap");
+                                    && !un.Contains("barricade") && !un.Contains("wall") && !un.Contains("trap")
+                                    && !isScenicStructure;
                 }
 
-                bool isBarricade = (unit is Wall) || unit.gameObject.name.Contains("Barricade") || unit.gameObject.name.Contains("Wall");
+                // Phân loại rào chắn / tường cản đường:
+                bool isAssault = RoundManagement.PrehistoricGameplayManager.IsAssaultMode;
+                bool isBarricade = false;
+                if (!isScenicStructure)
+                {
+                    if (isAssault)
+                    {
+                        // Chế độ Công Thành: Hàng rào gỗ bao quanh làng của đối phương
+                        isBarricade = (unit is Wall) && (un.Contains("barricade") || un.Contains("palisade") || un.Contains("wall") || un.Contains("plank") || un.Contains("fence"));
+                    }
+                    else
+                    {
+                        // Chế độ Thủ Thành: TUYỆT ĐỐI CHỈ tính rào chắn/tường do chính người chơi đặt trong trận (các bản Clone)
+                        isBarricade = (unit is Wall || un.Contains("barricade") || un.Contains("cọc gỗ")) && unit.gameObject.name.Contains("(Clone)");
+                    }
+                }
 
                 if (distToCenter <= 18.0f)
                 {
@@ -611,14 +641,28 @@ namespace LlamAcademy.Dinos.AI
 
             while (openSet.Count > 0 && iterations++ < maxIterations)
             {
-                // Find node with lowest FCost in openSet
+                // Find node with lowest FCost in openSet (sử dụng tie-breaker nhất quán để triệt tiêu hiện tượng jitter giật lắc đường đi)
                 ThreatGridNode currentNode = openSet[0];
                 for (int i = 1; i < openSet.Count; i++)
                 {
-                    if (openSet[i].FCost < currentNode.FCost ||
-                       (Mathf.Approximately(openSet[i].FCost, currentNode.FCost) && openSet[i].HCost < currentNode.HCost))
+                    if (openSet[i].FCost < currentNode.FCost)
                     {
                         currentNode = openSet[i];
+                    }
+                    else if (Mathf.Approximately(openSet[i].FCost, currentNode.FCost))
+                    {
+                        if (openSet[i].HCost < currentNode.HCost)
+                        {
+                            currentNode = openSet[i];
+                        }
+                        else if (Mathf.Approximately(openSet[i].HCost, currentNode.HCost))
+                        {
+                            // Deterministic tie-breaker cố định theo chỉ số GridX & GridZ để không bị nhảy qua lại giữa 2 nhánh
+                            if (openSet[i].GridX < currentNode.GridX || (openSet[i].GridX == currentNode.GridX && openSet[i].GridZ < currentNode.GridZ))
+                            {
+                                currentNode = openSet[i];
+                            }
+                        }
                     }
                 }
 

@@ -198,7 +198,7 @@ class CloudSavePayload(BaseModel):
     # Chế độ Thủ Thành (Tower Defense) độc lập:
     defense_wave: int = 1
     defense_highest_wave: int = 1
-    defense_gold: int = 950
+    defense_gold: int = 1200
     defense_has_run: bool = True
 
     # Chế độ Công Thành (Dino Assault) độc lập:
@@ -312,12 +312,12 @@ def register_account(req: AccountAuthRequest):
                 "player_name": display_name,
                 "unlocked_towers": ["Watchtower", "Barricade", "SpikeTrap", "Ballista"],
                 "unlocked_dinos": ["Velociraptor", "Pterodactyl", "Ankylosaurus", "TRex"],
-                "coins": 950,
+                "coins": 1200,
                 "highest_wave": 1,
                 "selected_mode": "TowerDefense",
                 "defense_wave": 1,
                 "defense_highest_wave": 1,
-                "defense_gold": 950,
+                "defense_gold": 1200,
                 "defense_has_run": True,
                 "assault_level": 1,
                 "assault_highest_level": 1,

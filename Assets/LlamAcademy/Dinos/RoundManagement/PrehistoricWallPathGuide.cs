@@ -68,6 +68,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (wallRoot == null) wallRoot = new GameObject(CustomWallContainerName);
                 TargetParent = wallRoot.transform;
             }
+
+            // Ở chế độ Thủ Thành (Tower Defense) khi Play: TUYỆT ĐỐI ẩn hàng rào này, người chơi tự đặt rào
+            if (Application.isPlaying)
+            {
+                bool isAssault = PrehistoricGameplayManager.IsAssaultMode;
+                if (!isAssault && TargetParent != null)
+                {
+                    TargetParent.gameObject.SetActive(false);
+                }
+            }
         }
 
         private void EnsurePrefabLoaded()

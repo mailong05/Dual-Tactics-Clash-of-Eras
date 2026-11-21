@@ -55,9 +55,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         [SerializeField] private GameObject TRexBossPrefab;
 
         [Header("=== Economy & Rewards ===")]
-        [SerializeField] private int StartingGold = 950;
+        [SerializeField] private int StartingGold = 1200;
         public int StartingGoldAmount => StartingGold;
-        [SerializeField] private int WaveCompletionBaseGold = 150;
+        [SerializeField] private int WaveCompletionBaseGold = 250;
+
+        /// <summary>
+        /// Ngân sách vàng chuẩn cho từng đợt ở chế độ Thủ Thành:
+        /// Đợt 1: 1200g | Mỗi đợt tiếp theo tăng thêm 500g để người chơi thoải mái mua sắm và dàn trận
+        /// </summary>
+        public static int GetDefenseStartingGoldForWave(int wave) => 1200 + Mathf.Max(0, wave - 1) * 500;
 
         [Header("=== State & Tracking ===")]
         [SerializeField] private int MonstersAliveCount = 0;
@@ -339,7 +345,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // Vô hiệu hóa an toàn hàng rào thiết kế của người chơi ở chế độ Thủ thành (không phá hủy component)
+            // Vô hiệu hóa triệt để hàng rào bao quanh ở chế độ Thủ thành (người chơi tự do đặt rào theo ý muốn)
             GameObject customWall = FindCustomPerimeterWall();
             if (customWall != null)
             {
@@ -348,6 +354,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                     var cUnits = customWall.GetComponentsInChildren<Unit.Unit>(true);
                     foreach (var u in cUnits) if (u != null) Utility.HealthBarCanvas.Instance.Unregister(u);
                 }
+                foreach (var r in customWall.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = false;
+                foreach (var c in customWall.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = false;
+                foreach (var o in customWall.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true)) if (o != null) { o.enabled = false; o.carving = false; }
                 customWall.SetActive(false);
             }
 
@@ -1320,7 +1329,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Set Initial Gold in TowerPlacer
             if (TowerPlacer.Instance != null)
             {
-                TowerPlacer.Instance.ResetGoldToDefault(StartingGold);
+                TowerPlacer.Instance.ResetGoldToDefault(GetDefenseStartingGoldForWave(_CurrentWave));
             }
 
             // Sync with RoundManager if present
@@ -2226,7 +2235,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Dọn sạch toàn bộ rác và quái vật đợt vừa qua
             CleanAllGameplayGarbage();
 
-            int rewardGold = WaveCompletionBaseGold + (_CurrentWave * 35);
+            int rewardGold = WaveCompletionBaseGold + (_CurrentWave * 50);
             if (TowerPlacer.Instance != null)
             {
                 TowerPlacer.Instance.AddGold(rewardGold);
@@ -2261,11 +2270,15 @@ namespace LlamAcademy.Dinos.RoundManagement
             ClearAllActiveMonsters();
 
             _CurrentWave++;
+            if (RoundManager.Instance != null)
+            {
+                RoundManager.Instance.SetCurrentRound(_CurrentWave);
+            }
 
             // Phục hồi làng cho đợt mới và dọn tháp cũ nếu qua màn mới cần dàn trận mới
             ResetEntireVillage(keepPlayerTowers: false);
             TowerPlacer.Instance?.ClearAllPlacedTowers();
-            int waveGold = StartingGold + (_CurrentWave - 1) * 300;
+            int waveGold = GetDefenseStartingGoldForWave(_CurrentWave);
             TowerPlacer.Instance?.ResetGoldToDefault(waveGold);
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
@@ -3030,7 +3043,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // 6. Reset vàng và giải phóng lựa chọn tháp
             if (Player.TowerPlacer.Instance != null)
             {
-                int waveGold = StartingGold + (_CurrentWave - 1) * 300;
+                int waveGold = GetDefenseStartingGoldForWave(_CurrentWave);
                 Player.TowerPlacer.Instance.ResetGoldToDefault(waveGold);
                 Player.TowerPlacer.Instance.DeselectTower();
             }
@@ -3124,7 +3137,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (TowerPlacer.Instance != null)
                 {
                     TowerPlacer.Instance.ClearAllPlacedTowers();
-                    int waveGold = StartingGold + (_CurrentWave - 1) * 300;
+                    int waveGold = GetDefenseStartingGoldForWave(_CurrentWave);
                     TowerPlacer.Instance.ResetGoldToDefault(waveGold);
                     TowerPlacer.Instance.DeselectTower();
                 }
@@ -3276,7 +3289,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Tự động lưu tiến trình chuẩn bị cho Đợt _CurrentWave (luôn giữ đúng đợt hiện tại, không lùi đợt)
             Save.PrehistoricSaveManager.Instance?.AutoSaveCurrentRun(hasActiveRun: true);
 
-            int waveGold = StartingGold + (_CurrentWave - 1) * 300;
+            int waveGold = GetDefenseStartingGoldForWave(_CurrentWave);
             ShowAnnouncement($"🔄 ĐÃ RESET HOÀN TOÀN MÀN {_CurrentWave}! BẠN CÓ {waveGold}g ĐỂ DÀN TRẬN MỚI! BẤM SPACE ĐỂ BẮT ĐẦU! ⚔", 4.0f);
         }
 
@@ -3304,7 +3317,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 if (prof != null)
                 {
                     prof.CurrentWave = 1;
-                    prof.Gold = StartingGold;
+                    prof.Gold = GetDefenseStartingGoldForWave(1);
                     prof.BaseHealth = _MaxBaseHealth;
                     prof.HasActiveRun = true;
                 }
@@ -3354,7 +3367,7 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             if (Player.TowerPlacer.Instance != null)
             {
-                int finalGold = savedGold > 0 ? savedGold : (StartingGold + (_CurrentWave - 1) * 300);
+                int finalGold = savedGold > 0 ? savedGold : GetDefenseStartingGoldForWave(_CurrentWave);
                 Player.TowerPlacer.Instance.ResetGoldToDefault(finalGold);
             }
 
@@ -3374,7 +3387,7 @@ namespace LlamAcademy.Dinos.RoundManagement
         public void ContinueDefenseFromMenu()
         {
             int targetWave = 1;
-            int savedGold = StartingGold;
+            int savedGold = GetDefenseStartingGoldForWave(1);
 
             if (Save.PrehistoricSaveManager.Instance != null)
             {
@@ -3841,8 +3854,8 @@ namespace LlamAcademy.Dinos.RoundManagement
         private void DrawTacticalCountdownOverlay()
         {
             int sec = Mathf.Max(1, Mathf.CeilToInt(_TacticalCountdownRemaining));
-            float bannerW = 500f;
-            float bannerH = 95f;
+            float bannerW = Mathf.Min(860f, Mobile.MobileUIHelper.ScreenWidth - 40f);
+            float bannerH = 125f;
             float bannerX = (Mobile.MobileUIHelper.ScreenWidth - bannerW) * 0.5f;
             float bannerY = 85f;
 
@@ -3852,17 +3865,18 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUI.backgroundColor = new Color(0.08f, 0.12f, 0.18f, 0.95f);
             GUI.Box(rect, "");
 
-            GUILayout.BeginArea(new Rect(bannerX + 12f, bannerY + 8f, bannerW - 24f, bannerH - 16f));
+            GUILayout.BeginArea(new Rect(bannerX + 16f, bannerY + 10f, bannerW - 32f, bannerH - 20f));
             GUILayout.BeginVertical();
 
             string strat = AI.ThreatAwarePathfinding.Instance != null 
                 ? AI.ThreatAwarePathfinding.Instance.StrategyDescription 
                 : "Phân tích ma trận bố phòng";
 
-            GUILayout.Label($"<b><size=18><color=#FFD700>⏳ CHIẾN ĐẤU SAU {sec} GIÂY ĐẾM NGƯỢC</color></size></b>", GetCenterHeaderStyle());
+            GUILayout.Label($"<b><size=22><color=#FFD700>⏳ CHIẾN ĐẤU BẮT ĐẦU SAU {sec} GIÂY ĐẾM NGƯỢC ⏳</color></size></b>", GetCenterHeaderStyle());
+            GUILayout.Space(4f);
+            GUILayout.Label($"<size=16><color=#00FFFF>🧠 AI DIRECTOR: <b>{strat}</b></color></size>", GetCenterHeaderStyle());
             GUILayout.Space(2f);
-            GUILayout.Label($"<size=13><color=#00E5FF>🧠 AI DIRECTOR: <b>{strat}</b></color></size>", GetCenterHeaderStyle());
-            GUILayout.Label($"<size=11><color=#AAAAAA>🔒 Đã khóa đặt công trình - Bầy khủng long đã nhận chỉ thị chiến thuật!</color></size>", GetCenterHeaderStyle());
+            GUILayout.Label($"<size=13><color=#E2E8F0>🔒 Đã khóa đặt công trình - Mạng nơ-ron đã lập kế hoạch tác chiến cho bầy khủng long!</color></size>", GetCenterHeaderStyle());
 
             GUILayout.EndVertical();
             GUILayout.EndArea();

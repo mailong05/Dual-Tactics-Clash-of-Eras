@@ -453,11 +453,11 @@ namespace LlamAcademy.Dinos.UI
                 {
                     hasActiveSave = PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.HasActiveDefenseSave();
                     int curWave = 1;
-                    int curGold = 950;
+                    int curGold = 1200;
                     if (PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.CurrentData.DefenseProfile != null)
                     {
                         curWave = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave;
-                        int minWaveBudget = (curWave == 1) ? 950 : (950 + (curWave - 1) * 300);
+                        int minWaveBudget = RoundManagement.PrehistoricGameplayManager.GetDefenseStartingGoldForWave(curWave);
                         curGold = Mathf.Max(PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.Gold, minWaveBudget);
                     }
                     if (curWave >= 10 && !hasActiveSave)
