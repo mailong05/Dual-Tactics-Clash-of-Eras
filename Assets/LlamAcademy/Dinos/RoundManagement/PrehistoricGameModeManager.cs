@@ -1099,6 +1099,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                         Utility.HealthBarCanvas.Instance.Unregister(u);
                     }
                 }
+                container.SetActive(false);
                 Destroy(container);
             }
 
@@ -1112,6 +1113,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         Utility.HealthBarCanvas.Instance.Unregister(u);
                     }
+                    m.gameObject.SetActive(false);
                     Destroy(m.gameObject);
                 }
             }
@@ -1120,6 +1122,29 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
             {
                 LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance.ClearAll();
+            }
+
+            // 4. Dọn sạch toàn bộ NPC quân thủ thành (TribalWarriors / Defenders)
+            var enemyAI = Enemy.EnemyAIController.Instance != null ? Enemy.EnemyAIController.Instance : FindFirstObjectByType<Enemy.EnemyAIController>();
+            if (enemyAI != null)
+            {
+                enemyAI.ClearAllDefenders(includePlayerPlaced: true);
+            }
+            var allDefenders = FindObjectsByType<Enemy.Defender>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var def in allDefenders)
+            {
+                if (def != null && def.gameObject != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(def);
+                    def.gameObject.SetActive(false);
+                    Destroy(def.gameObject);
+                }
+            }
+
+            // 5. Dọn dẹp thanh máu mồ côi
+            if (Utility.HealthBarCanvas.Instance != null)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
         }
 
@@ -1290,8 +1315,9 @@ namespace LlamAcademy.Dinos.RoundManagement
                 Save.PrehistoricSaveManager.Instance?.UnlockMap(Environment.PrehistoricMapType.GlacialTundra, PrehistoricGameMode.DinoAssault);
             }
 
-            // Dọn dẹp sạch toàn bộ khủng long đợt trước khi qua màn mới
+            // Dọn dẹp sạch toàn bộ khủng long và công trình đợt trước khi qua màn mới
             ClearAllDinos();
+            CleanAllAssaultDefenses();
 
             // Khôi phục 100% Căn Cứ Làng và gia cố phòng tuyến làng (Vũ khí, máy bắn đá, tháp nỏ, tạo sét, bẫy chông)
             SetupVillageDefensesForLevel(AssaultLevel);
@@ -1308,6 +1334,14 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 spawner.ResourcesToSpend = nextMeat;
                 spawner.AllowPlacingDinos = true;
+                spawner.ChangeActiveDino(null);
+            }
+            SelectDino(null);
+            _DefeatCheckTimer = 0f;
+
+            if (Utility.HealthBarCanvas.Instance != null)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
 
             // Lưu chuẩn xác màn mới đã bước vào (Màn AssaultLevel)
@@ -1523,23 +1557,44 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void ClearAllDinos()
         {
-            // Quét dọn triệt để TOÀN BỘ khủng long/quái vật kể cả inactive hoặc đang trong animation ngã chết
+            // 1. Quét dọn triệt để TOÀN BỘ khủng long/quái vật kể cả inactive hoặc đang trong animation ngã chết
             var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var d in allUnits)
             {
-                if (d != null && (d is Unit.Dino || d is Unit.PrehistoricDinoBase || d is Unit.RunnerDino || d is Unit.FlyingUnit || d is Unit.SiegeDino || d is Unit.BossDino))
-                {
-                    // Bỏ qua các ghost unit đang preview đặt quân
-                    if (d.transform.parent != null && d.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        continue;
-                    }
+                if (d == null || d.gameObject == null) continue;
 
+                // Bỏ qua các ghost unit đang preview đặt quân
+                if (d.transform.parent != null && d.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    continue;
+                }
+
+                string n = d.gameObject.name.ToLowerInvariant();
+                bool isDino = (d is Unit.Dino || d is Unit.PrehistoricDinoBase || d is Unit.RunnerDino || d is Unit.FlyingUnit || d is Unit.SiegeDino || d is Unit.BossDino)
+                    || n.Contains("dino") || n.Contains("raptor") || n.Contains("ankyl") || n.Contains("ptero") || n.Contains("trex") || n.Contains("t-rex");
+
+                if (isDino)
+                {
                     if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(d);
-                    if (d.gameObject != null)
-                    {
-                        Destroy(d.gameObject);
-                    }
+                    d.gameObject.SetActive(false);
+                    Destroy(d.gameObject);
+                }
+            }
+
+            // 2. Dọn sạch toàn bộ NPC quân thủ thành (TribalWarriors / Defenders)
+            var enemyAI = Enemy.EnemyAIController.Instance != null ? Enemy.EnemyAIController.Instance : FindFirstObjectByType<Enemy.EnemyAIController>();
+            if (enemyAI != null)
+            {
+                enemyAI.ClearAllDefenders(includePlayerPlaced: true);
+            }
+            var allDefenders = FindObjectsByType<Enemy.Defender>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var def in allDefenders)
+            {
+                if (def != null && def.gameObject != null)
+                {
+                    if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(def);
+                    def.gameObject.SetActive(false);
+                    Destroy(def.gameObject);
                 }
             }
 
@@ -1548,10 +1603,16 @@ namespace LlamAcademy.Dinos.RoundManagement
                 RoundManager.Instance.ClearActiveDinos();
             }
 
-            // Dọn dẹp triệt để các đạn bay, rác scene, thanh máu mồ côi
+            // 3. Dọn dẹp triệt để các đạn bay, rác scene, mũi tên rơi
             if (PrehistoricGameplayManager.Instance != null)
             {
                 PrehistoricGameplayManager.Instance.CleanAllGameplayGarbage();
+            }
+
+            // 4. Xóa sạch toàn bộ thanh máu mồ côi
+            if (Utility.HealthBarCanvas.Instance != null)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
         }
 

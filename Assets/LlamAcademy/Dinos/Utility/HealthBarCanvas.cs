@@ -398,10 +398,11 @@ namespace LlamAcademy.Dinos.Utility
             for (int i = 0; i < _activePairsSnapshot.Count; i++)
             {
                 var kvp = _activePairsSnapshot[i];
-                if (kvp.Key == null || kvp.Value == null)
+                if (kvp.Key == null || kvp.Value == null || !kvp.Key.gameObject.activeInHierarchy || kvp.Key.Health <= 0)
                 {
                     if (kvp.Value != null && kvp.Value.gameObject != null)
                     {
+                        kvp.Value.gameObject.SetActive(false);
                         Destroy(kvp.Value.gameObject);
                     }
                 }
@@ -412,6 +413,42 @@ namespace LlamAcademy.Dinos.Utility
             }
 
             HealthBars = validPairs;
+
+            // Quét sạch triệt để TOÀN BỘ các thanh máu con nằm dưới HealthBarCanvas mà không thuộc validPairs
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child == null) continue;
+                HealthBar hb = child.GetComponent<HealthBar>();
+                if (hb == null || !validPairs.ContainsValue(hb))
+                {
+                    child.gameObject.SetActive(false);
+                    Destroy(child.gameObject);
+                }
+            }
+        }
+
+        public void ClearAllHealthBars()
+        {
+            foreach (var kvp in HealthBars)
+            {
+                if (kvp.Value != null && kvp.Value.gameObject != null)
+                {
+                    kvp.Value.gameObject.SetActive(false);
+                    Destroy(kvp.Value.gameObject);
+                }
+            }
+            HealthBars.Clear();
+
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child != null)
+                {
+                    child.gameObject.SetActive(false);
+                    Destroy(child.gameObject);
+                }
+            }
         }
 
 
@@ -768,21 +805,9 @@ namespace LlamAcademy.Dinos.Utility
 
                 {
 
-                    if (healthBar.OnDeathBehavior == HealthBar.DeathBehavior.Disable)
+                    healthBar.gameObject.SetActive(false);
 
-                    {
-
-                        healthBar.gameObject.SetActive(false);
-
-                    }
-
-                    else
-
-                    {
-
-                        Destroy(healthBar.gameObject);
-
-                    }
+                    Destroy(healthBar.gameObject);
 
                 }
 

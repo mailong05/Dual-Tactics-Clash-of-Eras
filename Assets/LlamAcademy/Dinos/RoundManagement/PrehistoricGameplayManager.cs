@@ -2409,6 +2409,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(ActiveMonsters[i]);
                     if (ActiveMonsters[i].gameObject != null)
                     {
+                        ActiveMonsters[i].gameObject.SetActive(false);
                         Destroy(ActiveMonsters[i].gameObject);
                     }
                 }
@@ -2419,26 +2420,35 @@ namespace LlamAcademy.Dinos.RoundManagement
             var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var unit in allUnits)
             {
-                if (unit != null && (unit is Dino || unit is PrehistoricDinoBase || unit is RunnerDino || unit is FlyingUnit || unit is SiegeDino || unit is BossDino))
-                {
-                    // Bỏ qua các ghost unit đang preview đặt quân
-                    if (unit.transform.parent != null && unit.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        continue;
-                    }
+                if (unit == null || unit.gameObject == null) continue;
 
+                // Bỏ qua các ghost unit đang preview đặt quân
+                if (unit.transform.parent != null && unit.transform.parent.name.IndexOf("Visualization", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    continue;
+                }
+
+                string n = unit.gameObject.name.ToLowerInvariant();
+                bool isMonster = (unit is Dino || unit is PrehistoricDinoBase || unit is RunnerDino || unit is FlyingUnit || unit is SiegeDino || unit is BossDino)
+                    || n.Contains("dino") || n.Contains("raptor") || n.Contains("ankyl") || n.Contains("ptero") || n.Contains("trex") || n.Contains("t-rex");
+
+                if (isMonster)
+                {
                     unit.OnDeath -= HandleMonsterDeath;
                     if (Utility.HealthBarCanvas.Instance != null) Utility.HealthBarCanvas.Instance.Unregister(unit);
-                    if (unit.gameObject != null)
-                    {
-                        Destroy(unit.gameObject);
-                    }
+                    unit.gameObject.SetActive(false);
+                    Destroy(unit.gameObject);
                 }
             }
 
             _MonstersRemainingToSpawn = 0;
             MonstersAliveCount = 0;
             TotalMonstersInWave = 0;
+
+            if (Utility.HealthBarCanvas.Instance != null)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
         }
 
         /// <summary>
@@ -2470,6 +2480,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         if (!n.Contains("Tower") && !n.Contains("Prefab") && t.GetComponent<Unit.Unit>() == null)
                         {
+                            t.gameObject.SetActive(false);
                             Destroy(t.gameObject);
                             break;
                         }

@@ -283,7 +283,8 @@ namespace LlamAcademy.Dinos.AR
                 _pedestalRoot = null;
             }
 
-            // 3. Phục hồi toàn bộ Root GameObjects trong Scene (World, Ground, Level00, Núi Đá, Cracked Sand, Rừng cây, Smooth Floor)
+            // 3. Phục hồi các Root GameObject cảnh quan môi trường thực sự (World, Ground, Level00, Núi Đá, Rừng cây)
+            // TUYỆT ĐỐI KHÔNG can thiệp vào HealthBarCanvas, ThreatHeatmapVisualizer, Unit hay Tường rào được quản lý theo chế độ chơi
             var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
             if (scene.isLoaded)
             {
@@ -291,33 +292,40 @@ namespace LlamAcademy.Dinos.AR
                 foreach (var root in roots)
                 {
                     if (root == null) continue;
-                    string rootName = root.name;
-                    if (rootName.StartsWith("AR_") || rootName.StartsWith("Diorama_") || rootName.StartsWith("Rim_") || rootName.StartsWith("Corner_Pillar")) continue;
+                    string rootName = root.name.ToLowerInvariant();
+                    if (rootName.StartsWith("ar_") || rootName.StartsWith("diorama_") || rootName.StartsWith("rim_") || rootName.StartsWith("corner_pillar")) continue;
+                    if (rootName.Contains("healthbar") || rootName.Contains("threat") || rootName.Contains("flanker") || rootName.Contains("tanker")) continue;
 
-                    if (!root.activeSelf) root.SetActive(true);
+                    // Chỉ phục hồi các khối cảnh quan môi trường gốc của scene
+                    bool isEnvironmentRoot = rootName.Contains("world") || rootName.Contains("ground") || rootName.Contains("level")
+                        || rootName.Contains("mountain") || rootName.Contains("rock") || rootName.Contains("tree")
+                        || rootName.Contains("forest") || rootName.Contains("terrain") || rootName.Contains("scenery")
+                        || rootName.Contains("smooth floor") || rootName.Contains("nature");
 
-                    Transform[] allTransforms = root.GetComponentsInChildren<Transform>(true);
-                    foreach (var t in allTransforms)
+                    if (isEnvironmentRoot && !root.activeSelf)
                     {
-                        if (t == null) continue;
-                        if (t.name.StartsWith("AR_") || t.name.StartsWith("Diorama_") || t.name.StartsWith("Rim_") || t.name.StartsWith("Corner_Pillar")) continue;
-
-                        if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
-                        Renderer rend = t.GetComponent<Renderer>();
-                        if (rend != null && !rend.enabled) rend.enabled = true;
+                        root.SetActive(true);
                     }
                 }
             }
 
-            // 4. Phục hồi toàn bộ renderers cảnh quan, chặn tuyệt đối việc bật nhầm các khối viền xám
-            Renderer[] allSceneRenderers = FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            foreach (var r in allSceneRenderers)
+            // 4. Đồng bộ chuẩn xác trạng thái Threat Heatmap theo đúng thiết lập người chơi (không tự ý bật lên khi thoát AR)
+            if (AI.ThreatHeatmapVisualizer.Instance != null)
             {
-                if (r == null) continue;
-                string n = r.gameObject.name;
-                if (n.StartsWith("AR_") || n.StartsWith("Threat_") || n.StartsWith("Diorama_") || n.StartsWith("Rim_") || n.StartsWith("Corner_Pillar")) continue;
-                if (!r.enabled) r.enabled = true;
-                if (!r.gameObject.activeSelf) r.gameObject.SetActive(true);
+                AI.ThreatHeatmapVisualizer.Instance.SetVisibility(AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible);
+            }
+
+            // 5. Dọn dẹp sạch thanh máu mồ côi nếu có
+            if (Utility.HealthBarCanvas.Instance != null)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+
+            // 6. Nếu đang ở chế độ Thủ Thành, bảo đảm hàng rào mặc định không bị bật nhầm lại
+            if (RoundManagement.PrehistoricGameModeManager.Instance != null &&
+                RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.TowerDefense)
+            {
+                RoundManagement.PrehistoricGameplayManager.Instance?.RemoveAllVillageFrontBarricades();
             }
         }
 

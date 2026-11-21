@@ -141,8 +141,16 @@ namespace LlamAcademy.Dinos.AI
             }
 
             if (_overlayPlane != null) _overlayPlane.SetActive(visible);
-            if (_flankerLine != null) _flankerLine.enabled = visible;
-            if (_tankerLine != null) _tankerLine.enabled = visible;
+            if (_flankerLine != null)
+            {
+                _flankerLine.enabled = visible;
+                _flankerLine.gameObject.SetActive(visible);
+            }
+            if (_tankerLine != null)
+            {
+                _tankerLine.enabled = visible;
+                _tankerLine.gameObject.SetActive(visible);
+            }
         }
 
         /// <summary>
@@ -329,14 +337,14 @@ namespace LlamAcademy.Dinos.AI
         private void CreatePathLineRenderers()
         {
             // Flanker Path (Vàng Sáng / Xanh Lam)
-            GameObject flankerGO = new GameObject("Flanker_Path_Line");
+            GameObject flankerGO = new GameObject("Threat_Flanker_Path_Line");
             flankerGO.transform.SetParent(transform);
             flankerGO.layer = 0;
             _flankerLine = flankerGO.AddComponent<LineRenderer>();
             ConfigureLineRenderer(_flankerLine, new Color(1.0f, 0.88f, 0.15f, 0.95f), new Color(1.0f, 0.70f, 0.10f, 0.95f), 0.55f);
 
             // Tanker Path (Cam Đỏ / Crimson)
-            GameObject tankerGO = new GameObject("Tanker_Path_Line");
+            GameObject tankerGO = new GameObject("Threat_Tanker_Path_Line");
             tankerGO.transform.SetParent(transform);
             tankerGO.layer = 0;
             _tankerLine = tankerGO.AddComponent<LineRenderer>();
