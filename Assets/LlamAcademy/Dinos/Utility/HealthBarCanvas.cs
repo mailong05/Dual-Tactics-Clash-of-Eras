@@ -193,6 +193,15 @@ namespace LlamAcademy.Dinos.Utility
                 }
             }
 
+            var allStrayBars = FindObjectsByType<HealthBar>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var hb in allStrayBars)
+            {
+                if (hb != null && (hb.name.StartsWith("HealthBar_") || hb.name.Contains("Flank") || hb.name.Contains("Blocker")))
+                {
+                    Destroy(hb.gameObject);
+                }
+            }
+
 
 
             if (HealthBarPrefab == null)
@@ -424,6 +433,17 @@ namespace LlamAcademy.Dinos.Utility
                 {
                     child.gameObject.SetActive(false);
                     Destroy(child.gameObject);
+                }
+            }
+
+            // Đồng thời quét sạch mọi thanh máu mồ côi tĩnh lưu trong Scene trên toàn map
+            var allSceneBars = FindObjectsByType<HealthBar>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var hb in allSceneBars)
+            {
+                if (hb != null && !validPairs.ContainsValue(hb))
+                {
+                    hb.gameObject.SetActive(false);
+                    Destroy(hb.gameObject);
                 }
             }
         }

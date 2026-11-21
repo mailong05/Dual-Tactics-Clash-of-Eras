@@ -3140,19 +3140,6 @@ namespace LlamAcademy.Dinos.RoundManagement
             bool isTowerDefense = (PrehistoricGameModeManager.Instance == null || 
                                    PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.TowerDefense);
 
-            // 1. Phục hồi 100% tất cả tường do người chơi đặt (Clone) nếu giữ lại
-            if (keepPlayerTowers)
-            {
-                var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-                foreach (var wall in allWalls)
-                {
-                    if (wall != null && wall.gameObject.name.Contains("(Clone)"))
-                    {
-                        wall.FullRestore();
-                    }
-                }
-            }
-
             // Đảm bảo vô hiệu hóa triệt để tường mặc định của cảnh (để quái không đi xuyên tường)
             DeactivateDefaultSceneBarricades();
 
@@ -3175,6 +3162,50 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Phục hồi và đảm bảo 2 chòi canh trên bờ tường thành (Village_Watchtower_Left & Right)
             EnsureVillageWatchtowers();
             EnsureScenicBridgeWatchtowers();
+
+            // 1. Phục hồi 100% TOÀN BỘ tường, cổng, cầu gỗ, rào chắn còn tồn tại (cả Scene lẫn Clone nếu keepPlayerTowers)
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
+            {
+                if (wall == null) continue;
+                if (!keepPlayerTowers && wall.gameObject.name.Contains("(Clone)")) continue;
+
+                wall.FullRestore();
+                if (wall.ActiveHealthBar != null)
+                {
+                    wall.ActiveHealthBar.gameObject.SetActive(true);
+                    wall.ActiveHealthBar.SetProgress(1.0f);
+                }
+            }
+
+            // 1.1. Phục hồi 100% TOÀN BỘ Units phòng thủ của làng và người chơi (chòi canh, pháo đài bastion, tháp, căn cứ)
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var u in allUnits)
+            {
+                if (u == null) continue;
+                if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
+                if (u is Unit.Wall) continue; // Đã xử lý ở allWalls
+                if (!keepPlayerTowers && u.gameObject.name.Contains("(Clone)")) continue;
+
+                if (u.MaxHealth <= 0)
+                {
+                    if (u.gameObject.name.Contains("Watchtower")) u.MaxHealth = 1200;
+                    else if (u.gameObject.name.Contains("Bastion")) u.MaxHealth = 2000;
+                    else u.MaxHealth = 1000;
+                }
+
+                u.Health = u.MaxHealth;
+                u.gameObject.SetActive(true);
+                foreach (var r in u.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+                foreach (var c in u.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+
+                u.EnsureHealthBarAttached();
+                if (u.ActiveHealthBar != null)
+                {
+                    u.ActiveHealthBar.gameObject.SetActive(true);
+                    u.ActiveHealthBar.SetProgress(1.0f);
+                }
+            }
 
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
             if (LlamAcademy.Dinos.AI.TacticalBreachMemory.Instance != null)
@@ -3207,22 +3238,6 @@ namespace LlamAcademy.Dinos.RoundManagement
                     int waveGold = GetDefenseStartingGoldForWave(_CurrentWave);
                     TowerPlacer.Instance.ResetGoldToDefault(waveGold);
                     TowerPlacer.Instance.DeselectTower();
-                }
-            }
-            else
-            {
-                // Giữa các wave (bàn mới): Hồi phục đầy đủ 100% máu cho các tháp phòng thủ của người chơi nếu bị hư hại
-                var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
-                foreach (var u in allUnits)
-                {
-                    if (u == null) continue;
-                    if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
-                    if (u is Unit.Wall || u is Unit.PrehistoricVillageBase) continue;
-                    if (u.MaxHealth > 0 && u.Health < u.MaxHealth)
-                    {
-                        u.Health = u.MaxHealth;
-                        u.EnsureHealthBarAttached();
-                    }
                 }
             }
 
