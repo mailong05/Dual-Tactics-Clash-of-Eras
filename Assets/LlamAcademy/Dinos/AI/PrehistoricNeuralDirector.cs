@@ -10,6 +10,8 @@ using LlamAcademy.Dinos.RoundManagement;
 
 using LlamAcademy.Dinos.Unit;
 
+using LlamAcademy.Dinos.UI;
+
 using UnityEngine;
 
 using Debug = UnityEngine.Debug;
@@ -169,15 +171,111 @@ namespace LlamAcademy.Dinos.AI
 
             if (Time.time < _nextLiveScanTime) return;
 
-            _nextLiveScanTime = Time.time + 3.0f; // Quét thực địa mỗi 3 giây
+            _nextLiveScanTime = Time.time + 1.5f; // Quét thực địa và cập nhật suy luận mỗi 1.5 giây
 
-            EvaluateLiveTacticalThreat();
+
+
+            int activeWave = 1;
+
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
+            if (isAssault)
+
+            {
+
+                activeWave = PrehistoricGameModeManager.Instance.AssaultLevel;
+
+            }
+
+            else if (PrehistoricGameplayManager.Instance != null)
+
+            {
+
+                activeWave = PrehistoricGameplayManager.Instance.CurrentWave;
+
+            }
+
+
+
+            // Cập nhật mạng nơ-ron và bảng thông số thời gian thực theo từng trận đấu
+
+            bool isMonitorOpen = PrehistoricNeuralMonitorUI.Instance != null && PrehistoricNeuralMonitorUI.Instance.IsOpen;
+
+            bool isGameplayActive = (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.CurrentPhase == PrehistoricWavePhase.CombatPhase)
+
+                || (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.IsAssaultActive);
+
+
+
+            if (isMonitorOpen || isGameplayActive)
+
+            {
+
+                Predict(activeWave);
+
+                EvaluateLiveTacticalThreat();
+
+            }
 
         }
 
         private void EvaluateLiveTacticalThreat()
 
         {
+
+            bool isAssault = PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault;
+
+
+
+            if (isAssault)
+
+            {
+
+                var assaultData = GetAssaultDefenseTelemetry();
+
+                string assaultAlert = "";
+
+                if (assaultData.PlayerTRexes > 0)
+
+                {
+
+                    assaultAlert = $"👑 [AI LÀNG PHẢN ỨNG]: Phát hiện Apex Boss T-Rex ({assaultData.PlayerTRexes} con)! Tập trung toàn bộ {assaultData.ActiveBallistas} Tháp Nỏ và {assaultData.ActiveCatapults} Pháo Cối dồn hỏa lực xuyên giáp!";
+
+                }
+
+                else if (assaultData.PlayerTanks > 0 && assaultData.BreachedWalls > 0)
+
+                {
+
+                    assaultAlert = $"⚠️ [AI LÀNG PHẢN ỨNG]: Khủng long Thiết Giáp đã chọc thủng phòng tuyến ({assaultData.BreachedWalls} điểm)! Điều động {assaultData.HunterCount} Chiến binh cơ động bịt kín cửa đột phá!";
+
+                }
+
+                else if (assaultData.PlayerRaptors >= 3)
+
+                {
+
+                    assaultAlert = $"⚡ [AI LÀNG PHẢN ỨNG]: Bầy Raptor ({assaultData.PlayerRaptors} con) đang luồn lách né tháp! Cột Sấm Sét Shaman phát động điện trường diện rộng cản bước!";
+
+                }
+
+
+
+                if (!string.IsNullOrEmpty(assaultAlert) && assaultAlert != ActiveLiveTacticalAlert)
+
+                {
+
+                    ActiveLiveTacticalAlert = assaultAlert;
+
+                    LiveAlertExpireTime = Time.time + 5.0f;
+
+                }
+
+                return;
+
+            }
+
+
 
             if (PrehistoricGameplayManager.Instance == null) return;
 

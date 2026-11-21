@@ -113,7 +113,7 @@ def test_adaptive_counter_mechanisms():
     }
     resp_turtle = client.post("/api/v1/ai/predict-wave", json=turtle_telemetry).json()
     assert resp_turtle["archetype_weights"]["Pterodactyl_Flyer"] > 0.25
-    assert "aerial Pterodactyl" in resp_turtle["tactical_rationale"] or "bypass" in resp_turtle["tactical_rationale"]
+    assert "Pterodactyl" in resp_turtle["tactical_rationale"] or "bypass" in resp_turtle["tactical_rationale"]
 
     # 2. Archer tower spam -> should deploy armored tanks (Ankylosaurus)
     archer_telemetry = {

@@ -71,10 +71,19 @@ namespace LlamAcademy.Dinos.AI
 
             if (ThreatAwarePathfinding.Instance != null)
             {
-                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated += UpdateHeatmapTexture;
+                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated += HandleThreatFieldUpdated;
             }
 
             SetVisibility(IsHeatmapVisible);
+        }
+
+        private void HandleThreatFieldUpdated()
+        {
+            UpdateHeatmapTexture();
+            if (IsHeatmapVisible)
+            {
+                RefreshVisualPaths();
+            }
         }
 
         private void OnApplicationQuit()
@@ -86,7 +95,7 @@ namespace LlamAcademy.Dinos.AI
         {
             if (ThreatAwarePathfinding.Instance != null)
             {
-                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated -= UpdateHeatmapTexture;
+                ThreatAwarePathfinding.Instance.OnThreatFieldUpdated -= HandleThreatFieldUpdated;
             }
             if (_heatmapTexture != null) Destroy(_heatmapTexture);
             if (_heatmapMesh != null) Destroy(_heatmapMesh);
@@ -96,16 +105,14 @@ namespace LlamAcademy.Dinos.AI
 
         private void Update()
         {
+            // Bỏ qua phím tắt khi người chơi đang mở Menu, Cài đặt, hoặc gõ văn bản
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen()) return;
+
             // Hotkey 'H' toggles Threat Heatmap Overlay
             if (Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame)
             {
                 ToggleHeatmap();
-            }
-
-            // Periodically refresh paths if visible
-            if (IsHeatmapVisible && Time.frameCount % 30 == 0)
-            {
-                RefreshVisualPaths();
+                Audio.PrehistoricAudioManager.Instance?.PlayButtonClick();
             }
         }
 
@@ -117,10 +124,6 @@ namespace LlamAcademy.Dinos.AI
         public void SetVisibility(bool visible)
         {
             IsHeatmapVisible = visible;
-            if (_overlayPlane != null) _overlayPlane.SetActive(visible);
-            if (_flankerLine != null) _flankerLine.enabled = visible;
-            if (_tankerLine != null) _tankerLine.enabled = visible;
-
             if (visible)
             {
                 // Rebuild terrain mesh if missing or scene reloaded
@@ -128,8 +131,25 @@ namespace LlamAcademy.Dinos.AI
                 {
                     CreateHeatmapPlane();
                 }
+                if (_flankerLine == null || _tankerLine == null)
+                {
+                    CreatePathLineRenderers();
+                }
+                ThreatAwarePathfinding.Instance?.RecalculateThreatField();
                 UpdateHeatmapTexture();
                 RefreshVisualPaths();
+            }
+
+            if (_overlayPlane != null) _overlayPlane.SetActive(visible);
+            if (_flankerLine != null)
+            {
+                _flankerLine.enabled = visible;
+                _flankerLine.gameObject.SetActive(visible);
+            }
+            if (_tankerLine != null)
+            {
+                _tankerLine.enabled = visible;
+                _tankerLine.gameObject.SetActive(visible);
             }
         }
 
@@ -139,25 +159,47 @@ namespace LlamAcademy.Dinos.AI
         /// </summary>
         public static float GetGroundElevation(float worldX, float worldZ)
         {
-            // 1. Raycast downwards from sky towards ground
-            if (Physics.Raycast(new Vector3(worldX, 60f, worldZ), Vector3.down, out RaycastHit hit, 120f, ~0, QueryTriggerInteraction.Ignore))
+            // 1. Ưu tiên lấy trực tiếp từ NavMesh đã nướng phẳng theo mặt đất
+            if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(worldX, 1.0f, worldZ), out UnityEngine.AI.NavMeshHit navHit, 8.0f, UnityEngine.AI.NavMesh.AllAreas))
             {
-                if (!hit.collider.isTrigger &&
-                    !hit.collider.name.Contains("Threat_Heatmap") &&
-                    !hit.collider.name.Contains("Dino") &&
-                    !hit.collider.name.Contains("Defender"))
+                return Mathf.Clamp(navHit.position.y, -3.0f, 15.0f);
+            }
+
+            // 2. Quét tìm mặt đất/sàn làng, loại bỏ tuyệt đối tất cả tháp, chòi, tường rào, mái nhà
+            RaycastHit[] hits = Physics.RaycastAll(new Vector3(worldX, 30f, worldZ), Vector3.down, 60f, ~0, QueryTriggerInteraction.Ignore);
+            float bestGroundY = -0.1f;
+            bool foundGround = false;
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var h = hits[i];
+                if (h.collider.isTrigger) continue;
+                if (h.collider.GetComponentInParent<Unit.Unit>() != null) continue;
+
+                string colName = h.collider.gameObject.name.ToLower();
+                if (colName.Contains("threat") || colName.Contains("dino") || colName.Contains("defender")
+                    || colName.Contains("tower") || colName.Contains("hut") || colName.Contains("roof")
+                    || colName.Contains("wall") || colName.Contains("arch") || colName.Contains("fence")
+                    || colName.Contains("prop") || colName.Contains("gate")
+                    || colName.Contains("pedestal") || colName.Contains("diorama"))
                 {
-                    return hit.point.y;
+                    continue;
+                }
+
+                // Chấp nhận cao độ sàn làng hoặc địa hình thực tế
+                if (h.point.y <= 4.0f && h.point.y > bestGroundY)
+                {
+                    bestGroundY = h.point.y;
+                    foundGround = true;
                 }
             }
 
-            // 2. NavMesh elevation sampling fallback
-            if (UnityEngine.AI.NavMesh.SamplePosition(new Vector3(worldX, 0f, worldZ), out UnityEngine.AI.NavMeshHit navHit, 15f, UnityEngine.AI.NavMesh.AllAreas))
+            if (foundGround)
             {
-                return navHit.position.y;
+                return Mathf.Clamp(bestGroundY, -3.0f, 15.0f);
             }
 
-            return 0f;
+            return 0.15f;
         }
 
         /// <summary>
@@ -175,6 +217,7 @@ namespace LlamAcademy.Dinos.AI
             Vector3[] vertices = new Vector3[numVertices];
             Vector2[] uvs = new Vector2[numVertices];
             Vector3[] normals = new Vector3[numVertices];
+            Color32[] colors = new Color32[numVertices];
 
             for (int z = 0; z <= h; z++)
             {
@@ -185,10 +228,11 @@ namespace LlamAcademy.Dinos.AI
                     float worldZ = origin.z + z * cellSize;
                     float groundY = GetGroundElevation(worldX, worldZ);
 
-                    // Float slightly above terrain surface (+0.20m) to guarantee clear visibility without z-fighting
-                    vertices[index] = new Vector3(worldX, groundY + 0.20f, worldZ);
+                    // Float slightly above terrain surface (+0.32m) to guarantee clear visibility without z-fighting
+                    vertices[index] = new Vector3(worldX, groundY + 0.32f, worldZ);
                     uvs[index] = new Vector2((float)x / w, (float)z / h);
                     normals[index] = Vector3.up;
+                    colors[index] = new Color32(255, 255, 255, 255);
                 }
             }
 
@@ -220,6 +264,7 @@ namespace LlamAcademy.Dinos.AI
             mesh.vertices = vertices;
             mesh.uv = uvs;
             mesh.normals = normals;
+            mesh.colors32 = colors;
             mesh.triangles = triangles;
             mesh.RecalculateBounds();
 
@@ -252,6 +297,7 @@ namespace LlamAcademy.Dinos.AI
             _overlayPlane.transform.position = Vector3.zero;
             _overlayPlane.transform.rotation = Quaternion.identity;
             _overlayPlane.transform.localScale = Vector3.one;
+            _overlayPlane.layer = 0; // Default layer
 
             _meshFilter = _overlayPlane.AddComponent<MeshFilter>();
             _heatmapMesh = GenerateTerrainConformingMesh(w, h, origin, cellSize);
@@ -263,21 +309,26 @@ namespace LlamAcademy.Dinos.AI
 
             // Transparent additive/alpha blend unlit shader
             Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null) shader = Shader.Find("Unlit/Transparent");
             if (shader == null) shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Unlit/Transparent");
 
             _overlayMaterial = new Material(shader);
             _overlayMaterial.SetFloat("_Surface", 1); // Transparent
+            _overlayMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             _overlayMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
             _overlayMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             _overlayMaterial.SetInt("_ZWrite", 0);
             _overlayMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            _overlayMaterial.renderQueue = 3100; // Transparent overlay pass
+            _overlayMaterial.renderQueue = 3200; // Transparent overlay pass
 
             if (_overlayMaterial.HasProperty("_BaseMap"))
                 _overlayMaterial.SetTexture("_BaseMap", _heatmapTexture);
             if (_overlayMaterial.HasProperty("_MainTex"))
                 _overlayMaterial.SetTexture("_MainTex", _heatmapTexture);
+            if (_overlayMaterial.HasProperty("_BaseColor"))
+                _overlayMaterial.SetColor("_BaseColor", Color.white);
+            if (_overlayMaterial.HasProperty("_Color"))
+                _overlayMaterial.SetColor("_Color", Color.white);
             _overlayMaterial.color = Color.white;
 
             _overlayRenderer.material = _overlayMaterial;
@@ -285,17 +336,19 @@ namespace LlamAcademy.Dinos.AI
 
         private void CreatePathLineRenderers()
         {
-            // Flanker Path (Cyan / Emerald)
-            GameObject flankerGO = new GameObject("Flanker_Path_Line");
+            // Flanker Path (Vàng Sáng / Xanh Lam)
+            GameObject flankerGO = new GameObject("Threat_Flanker_Path_Line");
             flankerGO.transform.SetParent(transform);
+            flankerGO.layer = 0;
             _flankerLine = flankerGO.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(_flankerLine, new Color(0.1f, 0.95f, 0.85f, 0.95f), new Color(0.1f, 0.95f, 0.4f, 0.95f), 0.5f);
+            ConfigureLineRenderer(_flankerLine, new Color(1.0f, 0.88f, 0.15f, 0.95f), new Color(1.0f, 0.70f, 0.10f, 0.95f), 0.55f);
 
-            // Tanker Path (Orange / Crimson)
-            GameObject tankerGO = new GameObject("Tanker_Path_Line");
+            // Tanker Path (Cam Đỏ / Crimson)
+            GameObject tankerGO = new GameObject("Threat_Tanker_Path_Line");
             tankerGO.transform.SetParent(transform);
+            tankerGO.layer = 0;
             _tankerLine = tankerGO.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(_tankerLine, new Color(1.0f, 0.55f, 0.1f, 0.95f), new Color(0.95f, 0.15f, 0.15f, 0.95f), 0.65f);
+            ConfigureLineRenderer(_tankerLine, new Color(1.0f, 0.45f, 0.10f, 0.95f), new Color(0.95f, 0.15f, 0.15f, 0.95f), 0.65f);
         }
 
         private void ConfigureLineRenderer(LineRenderer line, Color startColor, Color endColor, float width)
@@ -306,11 +359,24 @@ namespace LlamAcademy.Dinos.AI
             line.startColor = startColor;
             line.endColor = endColor;
 
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
+            // Sprites/Default hỗ trợ chuẩn Vertex Color của LineRenderer trong cả URP và Built-in không bị tẩy trắng
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("GUI/Text Shader");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
             Material mat = new Material(shader);
             mat.color = startColor;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", startColor);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", startColor);
+            mat.renderQueue = 3250;
             line.material = mat;
+
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new GradientColorKey[] { new GradientColorKey(startColor, 0.0f), new GradientColorKey(endColor, 1.0f) },
+                new GradientAlphaKey[] { new GradientAlphaKey(startColor.a, 0.0f), new GradientAlphaKey(endColor.a, 1.0f) }
+            );
+            line.colorGradient = gradient;
+
             line.positionCount = 0;
             line.enabled = false;
         }
@@ -371,21 +437,69 @@ namespace LlamAcademy.Dinos.AI
         {
             if (ThreatAwarePathfinding.Instance == null) return;
 
-            Vector3 spawnPos = new Vector3(-2.2f, 0f, 32f);
-            Vector3 basePos = new Vector3(-2.2f, 0f, -38f);
+            Vector3 spawnPos;
+            Vector3 basePos;
 
-            if (PrehistoricGameplayManager.Instance != null)
+            if (RoundManagement.PrehistoricGameModeManager.Instance != null && 
+                RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault)
             {
-                basePos = PrehistoricGameplayManager.Instance.GetValidBaseTargetPosition();
+                // Chế độ Công thành: Khủng long xuất trận từ Rừng phía Bắc (+25f) tiến về phía Nam (-38.26f) vào Căn cứ Làng
+                spawnPos = new Vector3(0f, 0f, 25f);
+                basePos = (RoundManagement.PrehistoricGameModeManager.Instance.VillageBase != null)
+                    ? RoundManagement.PrehistoricGameModeManager.Instance.VillageBase.transform.position
+                    : new Vector3(-2.23f, 0f, -38.26f);
+            }
+            else
+            {
+                // Chế độ Thủ thành: Quái xuất hiện từ phía Bắc (+32f) tiến về Căn cứ phía Nam (-38.26f)
+                spawnPos = new Vector3(-2.2f, 0f, 32f);
+                basePos = (RoundManagement.PrehistoricGameplayManager.Instance != null)
+                    ? RoundManagement.PrehistoricGameplayManager.Instance.GetValidBaseTargetPosition()
+                    : new Vector3(-2.23f, 0f, -38.26f);
             }
 
-            // 1. Calculate Flanker Path (Velociraptor avoids towers through blind spots)
-            List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
-            DrawLinePath(_flankerLine, flankerPath, 0.40f);
+            try
+            {
+                bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                if (_flankerLine != null)
+                {
+                    Color flankStart = isCenterHeavy ? new Color(0.12f, 0.95f, 0.82f, 0.95f) : new Color(1.0f, 0.88f, 0.15f, 0.95f);
+                    Color flankEnd = isCenterHeavy ? new Color(0.10f, 0.85f, 0.40f, 0.95f) : new Color(1.0f, 0.70f, 0.10f, 0.95f);
+                    _flankerLine.startColor = flankStart;
+                    _flankerLine.endColor = flankEnd;
+                    if (_flankerLine.material != null)
+                    {
+                        _flankerLine.material.color = flankStart;
+                        if (_flankerLine.material.HasProperty("_BaseColor")) _flankerLine.material.SetColor("_BaseColor", flankStart);
+                        if (_flankerLine.material.HasProperty("_Color")) _flankerLine.material.SetColor("_Color", flankStart);
+                    }
+                }
+                if (_tankerLine != null)
+                {
+                    Color tankerStart = new Color(1.0f, 0.45f, 0.10f, 0.95f);
+                    Color tankerEnd = new Color(0.95f, 0.15f, 0.15f, 0.95f);
+                    _tankerLine.startColor = tankerStart;
+                    _tankerLine.endColor = tankerEnd;
+                    if (_tankerLine.material != null)
+                    {
+                        _tankerLine.material.color = tankerStart;
+                        if (_tankerLine.material.HasProperty("_BaseColor")) _tankerLine.material.SetColor("_BaseColor", tankerStart);
+                        if (_tankerLine.material.HasProperty("_Color")) _tankerLine.material.SetColor("_Color", tankerStart);
+                    }
+                }
 
-            // 2. Calculate Tanker Path (Ankylosaurus charges through walls directly)
-            List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
-            DrawLinePath(_tankerLine, tankerPath, 0.50f);
+                // 1. Calculate Flanker Path (Velociraptor adapts: Flanker if heavy threat, Swarm Rush down center if weak threat)
+                List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
+                DrawLinePath(_flankerLine, flankerPath, 0.40f);
+
+                // 2. Calculate Tanker Path (Ankylosaurus charges through walls directly)
+                List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
+                DrawLinePath(_tankerLine, tankerPath, 0.50f);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[ThreatHeatmapVisualizer] RefreshVisualPaths error: {ex.Message}");
+            }
         }
 
         private void DrawLinePath(LineRenderer line, List<Vector3> path, float yOffset)
@@ -411,9 +525,9 @@ namespace LlamAcademy.Dinos.AI
             Mobile.MobileUIHelper.BeginScaling();
             try
             {
-                // Bảng Chú giải thuật toán Threat Heatmap A* nổi ở góc trên bên trái
+                // Bảng Chú giải thuật toán Threat Heatmap A* nổi ở góc trên bên trái (bố trí dưới nút Cài Đặt/Menu)
                 float posX = 20f;
-                float posY = 155f;
+                float posY = 212f;
                 float w = 330f;
                 float h = 152f;
                 Rect legendRect = new Rect(posX, posY, w, h);
@@ -427,7 +541,11 @@ namespace LlamAcademy.Dinos.AI
                 GUILayout.Label("🟩 <b>Xanh lá</b>: Vùng mù hỏa lực / Hành lang an toàn", GetItemStyle());
                 GUILayout.Label("🟨 <b>Vàng</b>: Vùng sát thương trung bình", GetItemStyle());
                 GUILayout.Label("🟥 <b>Đỏ</b>: Tử địa tập trung hỏa lực tháp", GetItemStyle());
-                GUILayout.Label("<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)", GetItemStyle());
+                bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                string flankerLabel = isCenterHeavy
+                    ? "<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Lộ trình Bọc Sườn (Flanker A*)"
+                    : "<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Xung Phong Bầy Đàn (Trung lộ hở)";
+                GUILayout.Label(flankerLabel, GetItemStyle());
                 GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Tanker A*)", GetItemStyle());
                 GUILayout.EndArea();
             }

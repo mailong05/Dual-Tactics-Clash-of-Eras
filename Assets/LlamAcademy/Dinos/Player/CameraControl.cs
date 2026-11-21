@@ -112,7 +112,7 @@ namespace LlamAcademy.Dinos.Player
 
         private void Update()
         {
-            if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen() || UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }

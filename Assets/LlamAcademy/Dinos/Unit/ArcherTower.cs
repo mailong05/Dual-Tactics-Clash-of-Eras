@@ -23,7 +23,7 @@ namespace LlamAcademy.Dinos.Unit
         protected override void Start()
         {
             base.Start();
-            AttackRange = 14.5f;
+            AttackRange = 20.0f;
             if (EnemyLayers.value == 0)
             {
                 EnemyLayers = (1 << 8) | (1 << 7) | LayerMask.GetMask("Dinos", "Default");

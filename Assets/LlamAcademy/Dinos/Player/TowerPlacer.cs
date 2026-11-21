@@ -15,7 +15,7 @@ namespace LlamAcademy.Dinos.Player
         public static TowerPlacer Instance { get; private set; }
 
         [Header("Economy")]
-        [SerializeField] private int _Gold = 700;
+        [SerializeField] private int _Gold = 950;
         public int Gold
         {
             get => _Gold;
@@ -47,6 +47,7 @@ namespace LlamAcademy.Dinos.Player
         private TowerSO SelectedTower;
         public TowerSO ActiveTower => SelectedTower;
         private NavMeshPath PathCheckBuffer;
+        public List<GameObject> PlacedTowerObjects => _PlacedTowerObjects;
         private List<GameObject> _PlacedTowerObjects = new();
 
         private void Awake()
@@ -75,7 +76,11 @@ namespace LlamAcademy.Dinos.Player
             {
                 if (_PlacedTowerObjects[i] != null)
                 {
-                    Destroy(_PlacedTowerObjects[i]);
+                    if (_PlacedTowerObjects[i].TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    DestroyImmediate(_PlacedTowerObjects[i]);
                 }
             }
             _PlacedTowerObjects.Clear();
@@ -90,7 +95,11 @@ namespace LlamAcademy.Dinos.Player
                     // Tuyệt đối không xóa bất kỳ công trình hoặc chòi canh nào của làng
                     if (marker.transform.parent != null && marker.transform.parent.name.Contains("Fortress")) continue;
                     if (marker.name.Contains("Village_")) continue;
-                    Destroy(marker.gameObject);
+                    if (marker.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                    {
+                        Utility.HealthBarCanvas.Instance.Unregister(u);
+                    }
+                    DestroyImmediate(marker.gameObject);
                 }
             }
 
@@ -103,7 +112,11 @@ namespace LlamAcademy.Dinos.Player
                     Transform child = container.transform.GetChild(i);
                     if (child != null)
                     {
-                        Destroy(child.gameObject);
+                        if (child.TryGetComponent(out Unit.Unit u) && Utility.HealthBarCanvas.HasInstance)
+                        {
+                            Utility.HealthBarCanvas.Instance.Unregister(u);
+                        }
+                        DestroyImmediate(child.gameObject);
                     }
                 }
             }
@@ -122,7 +135,7 @@ namespace LlamAcademy.Dinos.Player
             return container.transform;
         }
 
-        public void ResetGoldToDefault(int startingAmount = 500)
+        public void ResetGoldToDefault(int startingAmount = 950)
         {
             Gold = startingAmount;
         }
@@ -170,14 +183,44 @@ namespace LlamAcademy.Dinos.Player
             OnGoldChanged?.Invoke(Gold);
         }
 
+        /// <summary>
+        /// THEO YÊU CẦU: Khóa không cho đặt vật thể sau khi bấm chiến đấu ở chế độ thủ thành.
+        /// Giống hệt logic của chế độ công thành để đảm bảo tính công bằng chiến thuật sau khi AI đã tính toán.
+        /// </summary>
+        public bool AllowPlacement
+        {
+            get
+            {
+                if (RoundManagement.PrehistoricGameplayManager.Instance != null && 
+                    RoundManagement.PrehistoricGameplayManager.Instance.CurrentPhase != RoundManagement.PrehistoricWavePhase.BuildingPhase)
+                {
+                    return false;
+                }
+                if (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running)
+                {
+                    return false;
+                }
+                return true;
+            }
+        }
+
         private void Update()
         {
             if (UI.PrehistoricMainMenu.IsAnyMenuOrAuthOpen)
             {
                 return;
             }
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen())
+            {
+                return;
+            }
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense)
             {
+                return;
+            }
+            if (!AllowPlacement)
+            {
+                if (SelectedTower != null) DeselectTower();
                 return;
             }
             HandleHotkeys();
@@ -186,6 +229,11 @@ namespace LlamAcademy.Dinos.Player
 
         public void SelectTower(TowerSO tower)
         {
+            if (!AllowPlacement)
+            {
+                DeselectTower();
+                return;
+            }
             SelectedTower = tower;
             _CurrentRotationY = 0f;
             if (Visualization != null)
@@ -397,6 +445,7 @@ namespace LlamAcademy.Dinos.Player
 
         public void ConfirmPlacementFromUI()
         {
+            if (!AllowPlacement) return;
             if (SelectedTower == null || SelectedTower.Prefab == null) return;
             if (Visualization == null || !Visualization.IsValidPlacementLocation) return;
             if (Gold < SelectedTower.Cost) return;
@@ -408,6 +457,11 @@ namespace LlamAcademy.Dinos.Player
 
         private void PlaceTowerAt(Vector3 position)
         {
+            if (!AllowPlacement)
+            {
+                DeselectTower();
+                return;
+            }
             if (SelectedTower == null) return;
 
             // Truy xuất Prefab với cơ chế tự phục hồi từ thư mục Resources nếu asset bị mất liên kết
@@ -629,6 +683,10 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
             if (SelectedTower == null) return;
+            if (UI.PrehistoricUIModalManager.IsAnyModalOpen())
+            {
+                return;
+            }
             if (PrehistoricGameModeManager.Instance != null && PrehistoricGameModeManager.Instance.CurrentMode != PrehistoricGameMode.TowerDefense) return;
 
             Mobile.MobileUIHelper.BeginScaling();

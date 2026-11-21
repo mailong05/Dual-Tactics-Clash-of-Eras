@@ -243,6 +243,12 @@ namespace LlamAcademy.Dinos.Cloud
                     Debug.Log($"<color=green>[IO Cloud]</color> Successfully connected to IO Cloud Backend at {ActiveCloudBaseUrl}!");
                     StartCoroutine(FetchRemoteConfigRoutine());
                     StartCoroutine(FetchLeaderboardRoutine(5));
+
+                    // Tự động đồng bộ và tải bản lưu mới nhất từ Cloud nếu người chơi đã đăng nhập tài khoản
+                    if (IsLoggedIn)
+                    {
+                        LoadProgressFromCloud();
+                    }
                 }
                 else
                 {
@@ -553,9 +559,8 @@ namespace LlamAcademy.Dinos.Cloud
             StartCoroutine(SaveProgressRoutine(playerName, coins, highestWave, selectedMode, onComplete));
         }
 
-        private IEnumerator SaveProgressRoutine(string playerName, int coins, int highestWave, string selectedMode, Action<bool, string> onComplete)
+        private CloudSaveRequest BuildCloudSaveRequest(string playerName, int coins, int highestWave, string selectedMode)
         {
-            string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/save";
             string effectiveName = !string.IsNullOrEmpty(playerName) ? playerName : ActivePlayerDisplayName;
 
             CloudSaveRequest payload = new CloudSaveRequest
@@ -568,6 +573,76 @@ namespace LlamAcademy.Dinos.Cloud
                 highest_wave = Mathf.Max(1, highestWave),
                 selected_mode = string.IsNullOrEmpty(selectedMode) ? "TowerDefense" : selectedMode
             };
+
+            if (Save.PrehistoricSaveManager.Instance != null && Save.PrehistoricSaveManager.Instance.CurrentData != null)
+            {
+                var data = Save.PrehistoricSaveManager.Instance.CurrentData;
+                if (data.DefenseProfile != null)
+                {
+                    payload.defense_wave = data.DefenseProfile.CurrentWave;
+                    payload.defense_highest_wave = data.DefenseProfile.HighestWaveReached;
+                    payload.defense_gold = data.DefenseProfile.Gold;
+                    payload.defense_has_run = data.DefenseProfile.HasActiveRun;
+                }
+                if (data.AssaultProfile != null)
+                {
+                    payload.assault_level = data.AssaultProfile.AssaultLevel;
+                    payload.assault_highest_level = data.AssaultProfile.HighestLevelReached;
+                    payload.assault_meat = data.AssaultProfile.Meat;
+                    payload.assault_has_run = data.AssaultProfile.HasActiveRun;
+                }
+                if (data.SlotsCollection != null)
+                {
+                    payload.slots_json = JsonUtility.ToJson(data.SlotsCollection);
+                }
+            }
+
+            return payload;
+        }
+
+        /// <summary>
+        /// Synchronous HTTP POST to IO Cloud backend used exclusively when quitting or closing application (Alt+F4 / Window 'X' / Menu Quit).
+        /// Ensures data finishes pushing before the game process or PlayMode terminates.
+        /// </summary>
+        public bool SaveProgressToCloudSync(string playerName, int coins, int highestWave, string selectedMode)
+        {
+            try
+            {
+                string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/save";
+                CloudSaveRequest payload = BuildCloudSaveRequest(playerName, coins, highestWave, selectedMode);
+                byte[] body = Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload));
+
+                var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
+                req.Method = "POST";
+                req.ContentType = "application/json";
+                req.Timeout = 2500;
+                req.ReadWriteTimeout = 2500;
+                req.ContentLength = body.Length;
+
+                using (var stream = req.GetRequestStream())
+                {
+                    stream.Write(body, 0, body.Length);
+                }
+
+                using (var resp = (System.Net.HttpWebResponse)req.GetResponse())
+                {
+                    bool ok = resp.StatusCode == System.Net.HttpStatusCode.OK;
+                    Debug.Log($"<color=cyan>[IO Cloud]</color> Synchronous Cloud Save completed successfully: {ok}");
+                    return ok;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"<color=yellow>[IO Cloud]</color> Synchronous Cloud Save exception on quit: {ex.Message}");
+                return false;
+            }
+        }
+
+        private IEnumerator SaveProgressRoutine(string playerName, int coins, int highestWave, string selectedMode, Action<bool, string> onComplete)
+        {
+            string url = $"{ActiveCloudBaseUrl}/api/v1/cloud/save";
+            CloudSaveRequest payload = BuildCloudSaveRequest(playerName, coins, highestWave, selectedMode);
+            string effectiveName = payload.player_name;
 
             using (UnityWebRequest req = CreateJsonPost(url, JsonUtility.ToJson(payload), ActiveRequestTimeoutSeconds))
             {
@@ -979,6 +1054,21 @@ namespace LlamAcademy.Dinos.Cloud
         public int coins;
         public int highest_wave;
         public string selected_mode;
+
+        // Chế độ Thủ Thành (Tower Defense) độc lập
+        public int defense_wave;
+        public int defense_highest_wave;
+        public int defense_gold;
+        public bool defense_has_run;
+
+        // Chế độ Công Thành (Dino Assault) độc lập
+        public int assault_level;
+        public int assault_highest_level;
+        public int assault_meat;
+        public bool assault_has_run;
+
+        // Toàn bộ danh sách khe lưu (Auto-Save + Khe 1..5) dạng JSON
+        public string slots_json;
     }
 
     [Serializable]
@@ -992,6 +1082,21 @@ namespace LlamAcademy.Dinos.Cloud
         public int highest_wave;
         public string selected_mode;
         public double last_saved;
+
+        // Chế độ Thủ Thành (Tower Defense) độc lập
+        public int defense_wave;
+        public int defense_highest_wave;
+        public int defense_gold;
+        public bool defense_has_run;
+
+        // Chế độ Công Thành (Dino Assault) độc lập
+        public int assault_level;
+        public int assault_highest_level;
+        public int assault_meat;
+        public bool assault_has_run;
+
+        // Toàn bộ danh sách khe lưu dạng JSON
+        public string slots_json;
     }
 
     [Serializable]

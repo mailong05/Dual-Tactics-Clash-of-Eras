@@ -24,6 +24,9 @@ namespace LlamAcademy.Dinos.AI
             return inspector;
         }
 
+        private DinoAISpeciesType _species = DinoAISpeciesType.VelociraptorFlanker;
+        private float _lastTacticCheck = 0f;
+
         private void Start()
         {
             _unit = GetComponent<Unit.Unit>();
@@ -34,12 +37,48 @@ namespace LlamAcademy.Dinos.AI
             }
         }
 
+        private void Update()
+        {
+            if (_species == DinoAISpeciesType.VelociraptorFlanker && Time.time - _lastTacticCheck > 1.0f)
+            {
+                _lastTacticCheck = Time.time;
+                UpdateVelociraptorTactic();
+            }
+        }
+
+        private void UpdateVelociraptorTactic()
+        {
+            var behavior = ThreatAwarePathfinding.Instance != null
+                ? ThreatAwarePathfinding.Instance.GetAssignedTacticalBehavior(DinoAISpeciesType.VelociraptorFlanker)
+                : DinoTacticalBehavior.SwarmRush;
+
+            switch (behavior)
+            {
+                case DinoTacticalBehavior.FlankerEvasion:
+                    SetStateLabel("🐆 [Bọc Sườn Né Tháp]", new Color(0.2f, 0.95f, 0.85f));
+                    break;
+                case DinoTacticalBehavior.SiegeBreaker:
+                    SetStateLabel("🛡️ [Phá Tường Mở Đường]", new Color(1.0f, 0.65f, 0.2f));
+                    break;
+                case DinoTacticalBehavior.MassSwarmOverwhelm:
+                    SetStateLabel("🌊 [Biển Quái Áp Đảo]", new Color(1.0f, 0.4f, 0.3f));
+                    break;
+                case DinoTacticalBehavior.FrontalAssault:
+                    SetStateLabel("⚔️ [Tấn Công Trực Diện]", new Color(0.95f, 0.3f, 0.3f));
+                    break;
+                default:
+                    SetStateLabel("⚡ [Xung Phong Bầy Đàn]", new Color(1.0f, 0.85f, 0.2f));
+                    break;
+            }
+        }
+
         public void SetSpecies(DinoAISpeciesType species)
         {
+            _species = species;
             switch (species)
             {
                 case DinoAISpeciesType.VelociraptorFlanker:
-                    SetStateLabel("🐆 [Bọc Sườn Né Tháp]", new Color(0.2f, 0.95f, 0.85f));
+                    UpdateVelociraptorTactic();
                     break;
                 case DinoAISpeciesType.AnkylosaurusTanker:
                     SetStateLabel("🛡️ [Phá Tường Mở Đường]", new Color(1.0f, 0.65f, 0.2f));

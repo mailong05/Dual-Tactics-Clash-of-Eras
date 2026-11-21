@@ -21,27 +21,30 @@ namespace LlamAcademy.Dinos.UI
         private UIDocument Document;
         private Dictionary<DinoSO, VisualElement> DinoToButtonDictionary = new();
 
-        private Button StartButton => Document.rootVisualElement.Q<Button>("start-button");
-        private Label WaveText => Document.rootVisualElement.Q<Label>("wave-text");
-        private VisualElement DinoButtonContainer => Document.rootVisualElement.Q("dino-button-container");
-        private VisualElement ResourcesContainer => Document.rootVisualElement.Q("resources-container");
-        private Label RoundEndText => Document.rootVisualElement.Q<Label>("win-lose-text");
+        private Button StartButton => Document?.rootVisualElement?.Q<Button>("start-button");
+        private Label WaveText => Document?.rootVisualElement?.Q<Label>("wave-text");
+        private VisualElement DinoButtonContainer => Document?.rootVisualElement?.Q("dino-button-container");
+        private VisualElement ResourcesContainer => Document?.rootVisualElement?.Q("resources-container");
+        private Label RoundEndText => Document?.rootVisualElement?.Q<Label>("win-lose-text");
 
-        private VisualElement Logo => Document.rootVisualElement.Q("logo-container");
+        private VisualElement Logo => Document?.rootVisualElement?.Q("logo-container");
 
         private void Awake()
         {
             Document = GetComponent<UIDocument>();
 
-            StartButton.RegisterCallback<ClickEvent>(HandleStartClick);
+            StartButton?.RegisterCallback<ClickEvent>(HandleStartClick);
 
-            foreach (ResourceSO resourceSO in ResourceSOs)
+            if (ResourcesContainer != null && ResourceSOs != null && ResourceTemplate != null)
             {
-                VisualElement resourceElement = new();
-                resourceElement.style.width = 225;
-                ResourceTemplate.CloneTree(resourceElement);
-                resourceElement.dataSource = resourceSO;
-                ResourcesContainer.Add(resourceElement);
+                foreach (ResourceSO resourceSO in ResourceSOs)
+                {
+                    VisualElement resourceElement = new();
+                    resourceElement.style.width = 225;
+                    ResourceTemplate.CloneTree(resourceElement);
+                    resourceElement.dataSource = resourceSO;
+                    ResourcesContainer.Add(resourceElement);
+                }
             }
 
             // Ensure T-Rex is included in Dinos list if missing
@@ -59,39 +62,57 @@ namespace LlamAcademy.Dinos.UI
                 }
             }
 
-            foreach (DinoSO dino in Dinos)
+            if (DinoButtonContainer != null && Dinos != null && DinoTemplate != null)
             {
-                if (dino == null) continue;
-                VisualElement dinoElement = new();
-                dinoElement.AddToClassList("dino-button-container");
-                DinoTemplate.CloneTree(dinoElement);
-                dinoElement.dataSource = dino;
+                foreach (DinoSO dino in Dinos)
+                {
+                    if (dino == null) continue;
+                    VisualElement dinoElement = new();
+                    dinoElement.AddToClassList("dino-button-container");
+                    DinoTemplate.CloneTree(dinoElement);
+                    dinoElement.dataSource = dino;
 
-                dinoElement.RegisterCallback<ClickEvent, DinoSO>(HandleClickDino, dino);
+                    dinoElement.RegisterCallback<ClickEvent, DinoSO>(HandleClickDino, dino);
 
-                DinoButtonContainer.Add(dinoElement);
+                    DinoButtonContainer.Add(dinoElement);
 
-                DinoToButtonDictionary.Add(dino, dinoElement);
+                    DinoToButtonDictionary.Add(dino, dinoElement);
+                }
             }
 
-            // Check initial game mode visibility
-            if (PrehistoricGameModeManager.Instance != null)
+            // Luôn ẩn và vô hiệu hóa UIDocument để loại bỏ hoàn toàn nút Wave 0, Start và các card cũ đè lên HUD
+            SetVisible(false);
+        }
+
+        private void OnEnable()
+        {
+            SetVisible(false);
+        }
+
+        private void LateUpdate()
+        {
+            if (Document != null && Document.enabled)
             {
-                SetVisible(PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault);
+                Document.enabled = false;
             }
         }
 
         public void SetVisible(bool visible)
         {
-            if (Document != null && Document.rootVisualElement != null)
+            if (Document != null)
             {
-                Document.rootVisualElement.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+                Document.enabled = false;
+                if (Document.rootVisualElement != null)
+                {
+                    Document.rootVisualElement.style.display = DisplayStyle.None;
+                    Document.rootVisualElement.visible = false;
+                }
             }
         }
 
         private void HandleGameModeChanged(PrehistoricGameMode newMode)
         {
-            SetVisible(newMode == PrehistoricGameMode.DinoAssault);
+            SetVisible(false);
         }
 
         private IEnumerator Start()
@@ -99,7 +120,7 @@ namespace LlamAcademy.Dinos.UI
             if (PrehistoricGameModeManager.Instance != null)
             {
                 PrehistoricGameModeManager.Instance.OnGameModeChanged += HandleGameModeChanged;
-                SetVisible(PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault);
+                SetVisible(false);
             }
 
             RoundManager.Instance.OnGameStateChange += OnGameStateChange;
@@ -111,6 +132,12 @@ namespace LlamAcademy.Dinos.UI
 
         private void Update()
         {
+            if (PrehistoricUIModalManager.IsAnyModalOpen()) return;
+            if (Document != null && Document.rootVisualElement != null && Document.rootVisualElement.style.display == DisplayStyle.None)
+            {
+                return;
+            }
+            if (PrehistoricGameModeManager.Instance != null) return;
             if (Keyboard.current == null || Dinos == null) return;
 
             foreach (DinoSO dino in Dinos)
@@ -160,28 +187,37 @@ namespace LlamAcademy.Dinos.UI
 
             if (newState == GameState.Ending)
             {
-                RoundEndText.RemoveFromClassList("hidden");
-                RoundEndText.AddToClassList("visible");
-                if (RoundManager.Instance.AliveDinos > 0)
+                if (RoundEndText != null)
                 {
-                    RoundEndText.text = "Round <color=#229922>Won</color>";
-                }
-                else
-                {
-                    RoundEndText.text = "Round <color=#ac0000>Lost</color>";
+                    RoundEndText.RemoveFromClassList("hidden");
+                    RoundEndText.AddToClassList("visible");
+                    if (RoundManager.Instance.AliveDinos > 0)
+                    {
+                        RoundEndText.text = "Round <color=#229922>Won</color>";
+                    }
+                    else
+                    {
+                        RoundEndText.text = "Round <color=#ac0000>Lost</color>";
+                    }
                 }
             }
             else if (newState == GameState.Ended)
             {
-                RoundEndText.RemoveFromClassList("visible");
-                RoundEndText.AddToClassList("hidden");
+                if (RoundEndText != null)
+                {
+                    RoundEndText.RemoveFromClassList("visible");
+                    RoundEndText.AddToClassList("hidden");
+                }
             }
             else if (newState == GameState.Setup)
             {
-                WaveText.text = $"Wave {RoundManager.Instance.Round}";
+                if (WaveText != null)
+                {
+                    WaveText.text = $"Wave {RoundManager.Instance.Round}";
+                }
             }
         }
-        private void SetStartButtonInteractable(GameState state) => StartButton.SetEnabled(state == GameState.Setup && RoundManager.Instance.AliveDinos > 0);
+        private void SetStartButtonInteractable(GameState state) => StartButton?.SetEnabled(state == GameState.Setup && RoundManager.Instance.AliveDinos > 0);
 
         private void HandleStartClick(ClickEvent evt)
         {

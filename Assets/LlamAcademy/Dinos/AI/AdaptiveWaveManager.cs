@@ -129,7 +129,9 @@ namespace LlamAcademy.Dinos.AI
             {
                 yield break;
             }
-            CurrentWave = RoundManager.Instance != null ? RoundManager.Instance.Round : CurrentWave;
+            CurrentWave = (RoundManagement.PrehistoricGameplayManager.Instance != null)
+                ? RoundManagement.PrehistoricGameplayManager.Instance.CurrentWave
+                : (RoundManager.Instance != null ? RoundManager.Instance.Round : CurrentWave);
             OnWaveStarted?.Invoke(CurrentWave);
 
             // Step 1: Audit Player Defenses & Analyze Strategy

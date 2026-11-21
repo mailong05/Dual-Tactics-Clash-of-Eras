@@ -453,11 +453,12 @@ namespace LlamAcademy.Dinos.UI
                 {
                     hasActiveSave = PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.HasActiveDefenseSave();
                     int curWave = 1;
-                    int curGold = 500;
+                    int curGold = 1200;
                     if (PrehistoricSaveManager.Instance != null && PrehistoricSaveManager.Instance.CurrentData.DefenseProfile != null)
                     {
                         curWave = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.CurrentWave;
-                        curGold = PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.Gold;
+                        int minWaveBudget = RoundManagement.PrehistoricGameplayManager.GetDefenseStartingGoldForWave(curWave);
+                        curGold = Mathf.Max(PrehistoricSaveManager.Instance.CurrentData.DefenseProfile.Gold, minWaveBudget);
                     }
                     if (curWave >= 10 && !hasActiveSave)
                     {
@@ -695,6 +696,7 @@ namespace LlamAcademy.Dinos.UI
         private void OnQuitClicked()
         {
             PrehistoricSaveManager.Instance?.AutoSaveCurrentRun();
+            PrehistoricSaveManager.Instance?.SaveToCloudSyncNow();
             Debug.Log("<color=red>[Prehistoric TD]</color> Người chơi đã chọn Thoát Game từ Menu Chính.");
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

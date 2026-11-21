@@ -235,15 +235,12 @@ namespace LlamAcademy.Dinos.UI
             var saveMgr = PrehistoricSaveManager.Instance != null ? PrehistoricSaveManager.Instance : PrehistoricSaveManager.EnsureInstance();
             if (saveMgr != null)
             {
-                if (CurrentDialogMode == SaveLoadDialogMode.Load)
+                // Luôn hiển thị khe Tự Động Lưu (Auto-Save) trên đầu ở cả 2 chế độ Lưu và Tải
+                SaveSlotData autoSave = saveMgr.GetSlotData(ActiveTabMode, 0, isAutoSave: true);
+                if (autoSave != null && autoSave.WaveOrLevel > 0)
                 {
-                    // In Load Mode: Show Auto-Save slot first (Slot 0)
-                    SaveSlotData autoSave = saveMgr.GetSlotData(ActiveTabMode, 0, isAutoSave: true);
-                    if (autoSave != null && autoSave.WaveOrLevel > 0)
-                    {
-                        DrawSlotCard(0, autoSave, isAutoSave: true);
-                        GUILayout.Space(6);
-                    }
+                    DrawSlotCard(0, autoSave, isAutoSave: true);
+                    GUILayout.Space(6);
                 }
 
                 // Show Manual Slots 1 to 5
@@ -296,7 +293,7 @@ namespace LlamAcademy.Dinos.UI
             // Left side: Slot Info (Flexible width)
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
 
-            string slotTag = isAutoSave ? "⚡ <color=#FBBF24><b>TỰ ĐỘNG LƯU (AUTOSAVE)</b></color>" : $"📁 <b>KHE LƯU SỐ {slotIndex}</b>";
+            string slotTag = isAutoSave ? "⚡ <color=#FBBF24><b>TỰ ĐỘNG LƯU CLOUD (AUTOSAVE)</b></color>" : $"📁 <b>KHE LƯU SỐ {slotIndex}</b>";
             GUILayout.Label($"<size=13>{slotTag}</size>");
 
             if (isOccupied)
@@ -335,7 +332,7 @@ namespace LlamAcademy.Dinos.UI
                 // In Save Mode: Can save to empty or overwrite occupied (Manual slots only)
                 if (isAutoSave)
                 {
-                    GUILayout.Label("<size=11><color=#FBBF24><i>(Tự động cập nhật khi qua màn)</i></color></size>");
+                    GUILayout.Label("<size=11><color=#FBBF24><i>(Tự động đồng bộ lên Cloud)</i></color></size>");
                 }
                 else if (!isOccupied)
                 {

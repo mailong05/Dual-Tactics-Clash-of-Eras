@@ -76,6 +76,8 @@ namespace LlamAcademy.Dinos.UI
 
         private void Update()
         {
+            if (GUIUtility.keyboardControl != 0) return;
+
             // Toggle window via F1 key or backquote `
             if (Keyboard.current != null)
             {

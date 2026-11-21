@@ -17,6 +17,7 @@ namespace LlamAcademy.Dinos.Unit
         [field: SerializeField] public UnitSO UnitType { get; set; }
         [SerializeField] protected AttackRadius AttackRadius;
         [SerializeField] protected HealthBar HealthBar;
+        public HealthBar ActiveHealthBar => HealthBar;
         public event IDamageable.TakeDamageEvent OnTakeDamage;
         public event IDamageable.DeathEvent OnDeath;
 
@@ -158,7 +159,8 @@ namespace LlamAcademy.Dinos.Unit
             if (PrehistoricGameModeManager.Instance != null &&
                 PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.DinoAssault)
             {
-                return PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat;
+                return PrehistoricGameModeManager.Instance.AssaultPhase == PrehistoricAssaultPhase.Combat ||
+                       (RoundManager.Instance != null && RoundManager.Instance.State == GameState.Running);
             }
 
             if (PrehistoricGameplayManager.Instance != null && PrehistoricGameplayManager.Instance.enabled &&
