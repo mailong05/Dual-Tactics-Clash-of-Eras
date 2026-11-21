@@ -345,10 +345,28 @@ namespace LlamAcademy.Dinos.UI
                 DrawProgressBar("👑 T-Rex Boss (Apex Sát Thủ)", pred.ArchetypeDistribution[3], $"{(pred.ArchetypeDistribution[3] * 100f):F1}%", new Color(1f, 0.25f, 0.35f));
 
                 GUILayout.Space(4);
-                GUILayout.Label("<b>B. HỌC TĂNG CƯỜNG CHỌN CỔNG ĐỘT KÍCH (Q-POLICY):</b>", _boldLabelStyle);
-                DrawProgressBar("Cổng Bắc (Đột Kích Trực Diện)", pred.RouteDistribution[0], $"{(pred.RouteDistribution[0] * 100f):F1}%", new Color(1f, 0.4f, 0.4f));
-                DrawProgressBar("Cổng Đông (Đánh Bọc Sườn)", pred.RouteDistribution[1], $"{(pred.RouteDistribution[1] * 100f):F1}%", new Color(0.4f, 0.7f, 1f));
-                DrawProgressBar("Cổng Tây (Tập Kích Vòng Ngoài)", pred.RouteDistribution[2], $"{(pred.RouteDistribution[2] * 100f):F1}%", new Color(0.8f, 0.5f, 1f));
+                GUILayout.Label("<b>B. CHIẾN THUẬT TIẾN CÔNG ĐA NHIỆM (TACTIC HEAD):</b>", _boldLabelStyle);
+                if (pred.TacticDistribution != null && pred.TacticDistribution.Length >= 4)
+                {
+                    DrawProgressBar("⚡ Xung Phong Bầy Đàn (Swarm Rush)", pred.TacticDistribution[0], $"{(pred.TacticDistribution[0] * 100f):F1}%", new Color(1f, 0.7f, 0.2f));
+                    DrawProgressBar("🐆 Tập Kích Bọc Sườn (Pincer Flank)", pred.TacticDistribution[1], $"{(pred.TacticDistribution[1] * 100f):F1}%", new Color(0.3f, 0.85f, 0.9f));
+                    DrawProgressBar("💥 Công Phá Điểm Nghẽn (Siege Breach)", pred.TacticDistribution[2], $"{(pred.TacticDistribution[2] * 100f):F1}%", new Color(0.9f, 0.4f, 0.4f));
+                    DrawProgressBar("🪶 Chim Mồi Không Kích (Aerial Decoy)", pred.TacticDistribution[3], $"{(pred.TacticDistribution[3] * 100f):F1}%", new Color(0.7f, 0.5f, 1f));
+                }
+                else
+                {
+                    DrawProgressBar("⚡ Xung Phong Bầy Đàn (Swarm Rush)", 0.65f, "65.0%", new Color(1f, 0.7f, 0.2f));
+                    DrawProgressBar("🐆 Tập Kích Bọc Sườn (Pincer Flank)", 0.35f, "35.0%", new Color(0.3f, 0.85f, 0.9f));
+                }
+
+                GUILayout.Space(4);
+                GUILayout.Label("<b>C. HỌC TĂNG CƯỜNG CHỌN CỔNG ĐỘT KÍCH (Q-POLICY):</b>", _boldLabelStyle);
+                DrawProgressBar($"Cổng Bắc (Đột Kích Trực Diện) [Q={pred.QValues[0]:+0.0;-0.0}]", pred.RouteDistribution[0], $"{(pred.RouteDistribution[0] * 100f):F1}% (Tử: {pred.RouteDeaths[0]} | Đạt: {pred.RouteHits[0]})", new Color(1f, 0.4f, 0.4f));
+                DrawProgressBar($"Cổng Đông (Đánh Bọc Sườn) [Q={pred.QValues[1]:+0.0;-0.0}]", pred.RouteDistribution[1], $"{(pred.RouteDistribution[1] * 100f):F1}% (Tử: {pred.RouteDeaths[1]} | Đạt: {pred.RouteHits[1]})", new Color(0.4f, 0.7f, 1f));
+                DrawProgressBar($"Cổng Tây (Tập Kích Vòng Ngoài) [Q={pred.QValues[2]:+0.0;-0.0}]", pred.RouteDistribution[2], $"{(pred.RouteDistribution[2] * 100f):F1}% (Tử: {pred.RouteDeaths[2]} | Đạt: {pred.RouteHits[2]})", new Color(0.8f, 0.5f, 1f));
+
+                GUILayout.Space(4);
+                GUILayout.Label($"<b>D. HÀM GIÁ TRỊ V(s) & DDA:</b> Ước lượng phá vỡ: <b>{(pred.VulnerabilityScore * 100f):F1}%</b> | Hệ số độ khó: <b>{pred.DifficultyMultiplier:F2}x</b> | Đợt RL: <b>{pred.RlEpisodes}</b>", _boldLabelStyle);
             }
 
             // =========================================================================

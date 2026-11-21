@@ -321,14 +321,16 @@ namespace LlamAcademy.Dinos.AI
                 dZ1[i] = dA1[i] * LeakyReLUDeriv(LastZ1[i]);
             }
 
-            // 7. Gradient Descent Updates (with Gradient Clipping [-5, 5])
+            // 7. Gradient Descent Updates (with Gradient Clipping [-5, 5] and Weight Decay)
+            float weightDecay = 0.001f;
+
             // Update W3_arch & b3_arch
             for (int i = 0; i < HIDDEN2_DIM; i++)
             {
                 for (int j = 0; j < ARCH_DIM; j++)
                 {
                     float grad = Mathf.Clamp(dZ_arch[j] * LastA2[i], -5f, 5f);
-                    W3_arch[i][j] -= lr * grad;
+                    W3_arch[i][j] -= lr * (grad + weightDecay * W3_arch[i][j]);
                 }
             }
             for (int j = 0; j < ARCH_DIM; j++) b3_arch[j] -= lr * Mathf.Clamp(dZ_arch[j], -5f, 5f);
@@ -339,7 +341,7 @@ namespace LlamAcademy.Dinos.AI
                 for (int j = 0; j < TACTIC_DIM; j++)
                 {
                     float grad = Mathf.Clamp(dZ_tact[j] * LastA2[i], -5f, 5f);
-                    W3_tact[i][j] -= lr * grad;
+                    W3_tact[i][j] -= lr * (grad + weightDecay * W3_tact[i][j]);
                 }
             }
             for (int j = 0; j < TACTIC_DIM; j++) b3_tact[j] -= lr * Mathf.Clamp(dZ_tact[j], -5f, 5f);
@@ -348,7 +350,7 @@ namespace LlamAcademy.Dinos.AI
             for (int i = 0; i < HIDDEN2_DIM; i++)
             {
                 float grad = Mathf.Clamp(dZ_val * LastA2[i], -5f, 5f);
-                W3_val[i] -= lr * grad;
+                W3_val[i] -= lr * (grad + weightDecay * W3_val[i]);
             }
             b3_val -= lr * Mathf.Clamp(dZ_val, -5f, 5f);
 
@@ -358,7 +360,7 @@ namespace LlamAcademy.Dinos.AI
                 for (int j = 0; j < HIDDEN2_DIM; j++)
                 {
                     float grad = Mathf.Clamp(dZ2[j] * LastA1[i], -5f, 5f);
-                    W2[i][j] -= lr * grad;
+                    W2[i][j] -= lr * (grad + weightDecay * W2[i][j]);
                 }
             }
             for (int j = 0; j < HIDDEN2_DIM; j++) b2[j] -= lr * Mathf.Clamp(dZ2[j], -5f, 5f);
@@ -369,7 +371,7 @@ namespace LlamAcademy.Dinos.AI
                 for (int j = 0; j < HIDDEN1_DIM; j++)
                 {
                     float grad = Mathf.Clamp(dZ1[j] * input[i], -5f, 5f);
-                    W1[i][j] -= lr * grad;
+                    W1[i][j] -= lr * (grad + weightDecay * W1[i][j]);
                 }
             }
             for (int j = 0; j < HIDDEN1_DIM; j++) b1[j] -= lr * Mathf.Clamp(dZ1[j], -5f, 5f);

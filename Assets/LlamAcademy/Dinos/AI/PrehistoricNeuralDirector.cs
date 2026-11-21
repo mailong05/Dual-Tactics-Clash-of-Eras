@@ -82,9 +82,11 @@ namespace LlamAcademy.Dinos.AI
 
         {
 
-            public float[] InputFeatures;          // 12 normalized telemetry features
+            public float[] InputFeatures;          // 16 normalized telemetry features
 
             public float[] ArchetypeDistribution;   // Softmax over 4 dino types: [Runner, Flyer, Tank, Boss]
+
+            public float[] TacticDistribution;      // Softmax over 4 tactics: [Swarm Rush, Pincer Flank, Siege Breach, Aerial Decoy]
 
             public float[] RouteDistribution;       // Softmax / Q-Policy over 3 routes: [North, East, West]
 
@@ -786,6 +788,8 @@ namespace LlamAcademy.Dinos.AI
 
                 ArchetypeDistribution = archProbs,
 
+                TacticDistribution = tactProbs,
+
                 RouteDistribution = routeProbs,
 
                 VulnerabilityScore = vulnScore,
@@ -975,133 +979,108 @@ namespace LlamAcademy.Dinos.AI
         // =========================================================================
 
         /// <summary>
-
         /// Lựa chọn cổng xuất quân thực tế cho từng con khủng long dựa trên phân phối xác suất Q-Learning.
-
         /// </summary>
-
         public Transform SelectSpawnGateByQLearning(Transform[] spawnPoints)
-
         {
+            return SelectSpawnGateByQLearning(spawnPoints, out _);
+        }
 
+        public Transform SelectSpawnGateByQLearning(Transform[] spawnPoints, out int chosenRouteIndex)
+        {
+            chosenRouteIndex = 0;
             if (spawnPoints == null || spawnPoints.Length == 0) return null;
 
             List<Transform> validPoints = new List<Transform>();
+            List<int> validIndices = new List<int>();
 
             for (int i = 0; i < spawnPoints.Length; i++)
-
             {
-
                 try
-
                 {
-
                     if (spawnPoints[i] != null && spawnPoints[i].gameObject != null)
-
                     {
-
                         validPoints.Add(spawnPoints[i]);
-
+                        validIndices.Add(i < NUM_ROUTES ? i : (i % NUM_ROUTES));
                     }
-
                 }
-
                 catch
-
                 {
-
                     // Ignore destroyed or unmarshalled transform
-
                 }
-
             }
 
             if (validPoints.Count == 0) return null;
 
-            if (validPoints.Count == 1) return validPoints[0];
+            if (validPoints.Count == 1)
+            {
+                chosenRouteIndex = validIndices[0];
+                return validPoints[0];
+            }
 
             // Epsilon-greedy exploration
-
             if (UnityEngine.Random.value < EXPLORATION_EPSILON)
-
             {
-
-                return validPoints[UnityEngine.Random.Range(0, validPoints.Count)];
-
+                int rIdx = UnityEngine.Random.Range(0, validPoints.Count);
+                chosenRouteIndex = validIndices[rIdx];
+                return validPoints[rIdx];
             }
 
             // Softmax sampling over Q-probabilities
-
             float r = UnityEngine.Random.value;
-
             float cumulative = 0f;
 
             for (int i = 0; i < validPoints.Count && i < NUM_ROUTES; i++)
-
             {
-
-                cumulative += _qRouteProbabilities[i];
-
+                int rRoute = validIndices[i];
+                cumulative += _qRouteProbabilities[rRoute];
                 if (r <= cumulative)
-
                 {
-
+                    chosenRouteIndex = rRoute;
                     return validPoints[i];
-
                 }
-
             }
 
+            chosenRouteIndex = validIndices[0];
             return validPoints[0];
-
         }
 
         /// <summary>
-
-        /// Ghi nhận cái chết của khủng long tại tọa độ cụ thể để tính phạt điểm đường đi (RL Penalty).
-
+        /// Ghi nhận cái chết của khủng long để tính phạt điểm đường đi (RL Penalty).
         /// </summary>
-
         public void RecordDinoDeath(Vector3 deathPos)
-
         {
+            RecordDinoDeath(-1, deathPos);
+        }
 
-            int route = DetermineNearestRoute(deathPos);
-
+        public void RecordDinoDeath(int routeIndex, Vector3 deathPos = default)
+        {
+            int route = (routeIndex >= 0 && routeIndex < NUM_ROUTES) ? routeIndex : DetermineNearestRoute(deathPos);
             _routeDeaths[route]++;
 
             // Cập nhật phạt điểm Q-Learning
-
             float penalty = -8f;
-
             _qValues[route] += LEARNING_RATE * (penalty - _qValues[route] * 0.1f);
-
             RecomputeQProbabilities();
-
         }
 
         /// <summary>
-
         /// Ghi nhận khi khủng long tấn công trúng căn cứ để thưởng điểm đường đi (RL Reward).
-
         /// </summary>
-
         public void RecordBaseHit(Vector3 dinoPos)
-
         {
+            RecordBaseHit(-1, dinoPos);
+        }
 
-            int route = DetermineNearestRoute(dinoPos);
-
+        public void RecordBaseHit(int routeIndex, Vector3 dinoPos = default)
+        {
+            int route = (routeIndex >= 0 && routeIndex < NUM_ROUTES) ? routeIndex : DetermineNearestRoute(dinoPos);
             _routeHits[route]++;
 
             // Cập nhật thưởng điểm Q-Learning
-
             float reward = 30f;
-
             _qValues[route] += LEARNING_RATE * (reward - _qValues[route] * 0.05f);
-
             RecomputeQProbabilities();
-
         }
 
         private int DetermineNearestRoute(Vector3 pos)
@@ -1262,9 +1241,36 @@ namespace LlamAcademy.Dinos.AI
                     }
                 }
                 int chosenTactic = 0;
+                float maxTactP = -1f;
+                if (LatestPrediction.TacticDistribution != null)
+                {
+                    for (int t = 0; t < LatestPrediction.TacticDistribution.Length; t++)
+                    {
+                        if (LatestPrediction.TacticDistribution[t] > maxTactP)
+                        {
+                            maxTactP = LatestPrediction.TacticDistribution[t];
+                            chosenTactic = t;
+                        }
+                    }
+                }
 
                 float loss = TacticsNet.TrainStep(LatestPrediction.InputFeatures, chosenArch, chosenTactic, normalizedReward, lr: 0.008f);
                 Debug.Log($"<color=cyan>[Online RL Fine-Tuning]</color> Wave End: Loss = {loss:F4}, Reward = {liveReward:F2}, WeightNorm = {TacticsNet.ComputeWeightNorm():F3}");
+
+                // Persist updated weights online to persistentDataPath and Assets folder
+                try
+                {
+                    string persistentPath = System.IO.Path.Combine(Application.persistentDataPath, "pretrained_tactics_weights.json");
+                    TacticsNet.SaveWeights(persistentPath);
+#if UNITY_EDITOR
+                    string editorPath = System.IO.Path.Combine(Application.dataPath, "LlamAcademy", "Dinos", "AI", "pretrained_tactics_weights.json");
+                    TacticsNet.SaveWeights(editorPath);
+#endif
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[Online RL] Could not auto-save weights: {ex.Message}");
+                }
             }
 
         }

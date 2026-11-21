@@ -1623,6 +1623,12 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public Vector3 GetValidSpawnPosition(int routeIndex = -1)
         {
+            return GetValidSpawnPosition(out _, routeIndex);
+        }
+
+        public Vector3 GetValidSpawnPosition(out int outRouteIndex, int routeIndex = -1)
+        {
+            outRouteIndex = 0;
             EnsureSpawnPoints();
 
             Transform chosenSpawn = null;
@@ -1630,7 +1636,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 try
                 {
-                    chosenSpawn = AI.PrehistoricNeuralDirector.Instance.SelectSpawnGateByQLearning(SpawnPoints);
+                    chosenSpawn = AI.PrehistoricNeuralDirector.Instance.SelectSpawnGateByQLearning(SpawnPoints, out outRouteIndex);
                 }
                 catch { }
             }
@@ -1646,6 +1652,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                             if (SpawnPoints[i] != null && SpawnPoints[i].gameObject != null)
                             {
                                 chosenSpawn = SpawnPoints[i];
+                                outRouteIndex = i;
                                 break;
                             }
                         }
@@ -1675,6 +1682,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     new Vector3(-30f, 0f, 15f)
                 };
                 int idx = routeIndex >= 0 ? (routeIndex % fallbackGates.Length) : UnityEngine.Random.Range(0, fallbackGates.Length);
+                outRouteIndex = idx;
                 basePos = fallbackGates[idx];
             }
 
@@ -1810,7 +1818,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject dinoPrefab = spawnQueue[i];
                 if (dinoPrefab != null)
                 {
-                    Vector3 spawnPos = GetValidSpawnPosition(i % 3);
+                    Vector3 spawnPos = GetValidSpawnPosition(out int chosenRoute, i % 3);
                     Vector3 targetPos = GetValidBaseTargetPosition();
 
                     // Đảm bảo spawnPos được định vị chuẩn xác trên NavMesh của Khủng long trước khi Instantiate
@@ -1835,6 +1843,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     if (spawned.TryGetComponent(out Unit.Unit unitComp))
                     {
+                        unitComp.SpawnRouteIndex = chosenRoute;
                         ActiveMonsters.Add(unitComp);
                         unitComp.OnDeath += HandleMonsterDeath;
 
@@ -2167,7 +2176,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Reinforcement Learning Q-Learning Route feedback (phạt điểm tử vong trên cổng di chuyển)
             if (AI.PrehistoricNeuralDirector.Instance != null && deadMonster != null)
             {
-                AI.PrehistoricNeuralDirector.Instance.RecordDinoDeath(deadMonster.transform.position);
+                AI.PrehistoricNeuralDirector.Instance.RecordDinoDeath(deadMonster.SpawnRouteIndex, deadMonster.transform.position);
             }
         }
 
@@ -2204,8 +2213,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Reinforcement Learning: Thưởng điểm cho lộ trình đột kích thành công vào căn cứ (+30 reward)
             if (AI.PrehistoricNeuralDirector.Instance != null)
             {
+                int route = attackingDino != null ? attackingDino.SpawnRouteIndex : 0;
                 Vector3 hitPos = attackingDino != null ? attackingDino.transform.position : (BaseTarget != null ? BaseTarget.position : Vector3.zero);
-                AI.PrehistoricNeuralDirector.Instance.RecordBaseHit(hitPos);
+                AI.PrehistoricNeuralDirector.Instance.RecordBaseHit(route, hitPos);
             }
 
             string attackerName = attackingDino != null ? attackingDino.GetType().Name : "Khủng long";

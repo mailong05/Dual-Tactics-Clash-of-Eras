@@ -824,6 +824,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Unit.RunnerDino
   <MaxHealth>k__BackingField: 360
   <Health>k__BackingField: 360
+  <SpawnRouteIndex>k__BackingField: 0
   <UnitType>k__BackingField: {fileID: 11400000, guid: adcd985a78164144ab3ce806a7f141e9, type: 2}
   AttackRadius: {fileID: 0}
   HealthBar: {fileID: 0}
