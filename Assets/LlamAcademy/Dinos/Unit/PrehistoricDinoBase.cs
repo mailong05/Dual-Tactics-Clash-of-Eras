@@ -3322,27 +3322,22 @@ namespace LlamAcademy.Dinos.Unit
                 n.Contains("fence") || n.Contains("palisade") || n.Contains("barrier") ||
                 n.Contains("plank_defenses") || n.Contains("tower") || n.Contains("arch") ||
                 n.Contains("gate") || n.Contains("fortress") ||
+                n.Contains("hut") || n.Contains("tent") ||
                 hasWallTag)
             {
-
                 GameObject go = targetT.gameObject;
-
                 if (!go.TryGetComponent(out Wall wall))
-
                 {
-
                     wall = go.AddComponent<Wall>();
-
-                    wall.MaxHealth = 900;
-
-                    wall.Health = 900;
-
+                    int hp = 1200;
+                    if (n.Contains("tower")) hp = 2500;
+                    else if (n.Contains("arch")) hp = 1500;
+                    else if (n.Contains("hut") || n.Contains("tent")) hp = 1200;
+                    wall.MaxHealth = hp;
+                    wall.Health = hp;
                     wall.EnsureHealthBarAttached();
-
                 }
-
                 return wall;
-
             }
 
             return null;

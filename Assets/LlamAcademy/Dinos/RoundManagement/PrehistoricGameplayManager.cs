@@ -485,7 +485,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 for (int i = canvas.transform.childCount - 1; i >= 0; i--)
                 {
                     Transform c = canvas.transform.GetChild(i);
-                    if (c != null && (c.name.Contains("Wall_Segment") || c.name.Contains("Portcullis") || c.name.Contains("Plank_Defenses") || c.name.Contains("Flank_Barricade")))
+                    if (c != null && (c.name.Contains("Wall_Segment") || c.name.Contains("Portcullis") || c.name.Contains("Plank_Defenses") || (!IsAssaultMode && c.name.Contains("Flank_Barricade"))))
                     {
                         Destroy(c.gameObject);
                     }
@@ -1040,6 +1040,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 w.MaxHealth = targetHp;
                 w.Health = targetHp;
+                w.FullRestore();
 
                 // Tạo và gắn Thanh máu hiển thị trên màn hình
                 w.EnsureHealthBarAttached();

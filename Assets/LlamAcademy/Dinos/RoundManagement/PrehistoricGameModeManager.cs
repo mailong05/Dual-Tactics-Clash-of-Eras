@@ -1182,6 +1182,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageBase();
             if (PrehistoricGameplayManager.Instance != null)
             {
+                PrehistoricGameplayManager.Instance.EnsureScenicFortressWalkways();
                 PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
                 PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(level);
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
