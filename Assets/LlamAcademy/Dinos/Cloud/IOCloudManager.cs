@@ -446,7 +446,7 @@ namespace LlamAcademy.Dinos.Cloud
 
                             if (Save.PrehistoricSaveManager.Instance != null)
                             {
-                                Save.PrehistoricSaveManager.Instance.SetPlayerChiefName(CurrentDisplayName);
+                                Save.PrehistoricSaveManager.Instance.ResetForNewAccount(CurrentDisplayName);
                             }
 
                             OnAccountStateChanged?.Invoke(true, CurrentUsername);
@@ -508,10 +508,13 @@ namespace LlamAcademy.Dinos.Cloud
 
                             if (Save.PrehistoricSaveManager.Instance != null)
                             {
-                                Save.PrehistoricSaveManager.Instance.SetPlayerChiefName(CurrentDisplayName);
                                 if (resp.save_data != null)
                                 {
-                                    OnCloudSaveLoaded?.Invoke(resp.save_data);
+                                    Save.PrehistoricSaveManager.Instance.LoadFromCloudSaveDirect(resp.save_data);
+                                }
+                                else
+                                {
+                                    Save.PrehistoricSaveManager.Instance.ResetForNewAccount(CurrentDisplayName);
                                 }
                             }
 
@@ -549,6 +552,10 @@ namespace LlamAcademy.Dinos.Cloud
             PlayerPrefs.DeleteKey(PrefAccountDisplayNameKey);
             PlayerPrefs.DeleteKey(PrefHasEverLoggedInKey);
             PlayerPrefs.Save();
+            if (Save.PrehistoricSaveManager.Instance != null)
+            {
+                Save.PrehistoricSaveManager.Instance.ResetForNewAccount("Tù Trưởng Tiền Sử");
+            }
             OnAccountStateChanged?.Invoke(false, "");
         }
 

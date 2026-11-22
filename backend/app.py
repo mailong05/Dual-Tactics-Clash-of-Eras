@@ -148,6 +148,15 @@ def init_db() -> None:
                 """
             )
 
+        # Clean up any polluted leaderboard records from previous registration bugs
+        conn.execute(
+            """
+            DELETE FROM leaderboard
+            WHERE LOWER(player_id) IN ('killer queen')
+               OR LOWER(TRIM(player_name)) IN ('nữ quái nổi loạn')
+            """
+        )
+
         # Seed default Chief account if none exists
         acc_count = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
         if acc_count == 0:
@@ -318,6 +327,15 @@ def register_account(req: AccountAuthRequest):
             VALUES (?, ?, ?, ?, ?)
             """,
             (username, pin_hash, display_name, now, now)
+        )
+
+        # Ensure newly registered account never inherits or keeps stale leaderboard entries
+        conn.execute(
+            """
+            DELETE FROM leaderboard
+            WHERE LOWER(player_id) = LOWER(?) OR LOWER(TRIM(player_name)) = LOWER(?)
+            """,
+            (username, display_name)
         )
 
         # Seed default cloud save row if none exists
@@ -665,6 +683,22 @@ def submit_score(submission: ScoreSubmission):
         conn.commit()
 
     return {"status": "recorded", "rank": rank}
+
+
+@app.delete("/api/v1/cloud/leaderboard/{player_id}")
+def delete_leaderboard_entry(player_id: str):
+    """Deletes a player's entry from leaderboard (admin/cleanup)"""
+    init_db()
+    with _get_conn() as conn:
+        conn.execute(
+            """
+            DELETE FROM leaderboard
+            WHERE LOWER(player_id) = LOWER(?) OR LOWER(TRIM(player_name)) = LOWER(?)
+            """,
+            (player_id.strip(), player_id.strip())
+        )
+        conn.commit()
+    return {"status": "success", "message": f"Đã xóa điểm leaderboard của [{player_id}]"}
 
 
 @app.get("/api/v1/cloud/config")
