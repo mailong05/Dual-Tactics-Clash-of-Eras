@@ -9863,8 +9863,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14572b214de4900439a345145f3a6311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LlamAcademy.Dinos.Cloud.IOCloudManager
-  CloudBaseUrl: http://localhost:8000
+  CloudBaseUrl: https://io-cloud-ai-backend-production.up.railway.app
+  PublicCloudFallbackUrl: https://io-cloud-ai-backend-production.up.railway.app
   TimeoutSeconds: 3.5
+  CloudHttpsWakeupTimeout: 15
   EnableCloudAiPrediction: 1
   ShowCloudBadge: 1
 --- !u!114 &380851569

@@ -30,7 +30,7 @@ namespace LlamAcademy.Dinos.Cloud
         private const string ResourceConfigName = "IOCloudConfig";
 
         [Header("IO Cloud Service Configuration")]
-        [SerializeField] private string CloudBaseUrl = "http://localhost:8000";
+        [SerializeField] private string CloudBaseUrl = "https://io-cloud-ai-backend-production.up.railway.app";
         [SerializeField] private string PublicCloudFallbackUrl = "https://io-cloud-ai-backend-production.up.railway.app";
         [SerializeField] private float TimeoutSeconds = 3.5f;
         [SerializeField] private float CloudHttpsWakeupTimeout = 15.0f;
@@ -159,6 +159,13 @@ namespace LlamAcademy.Dinos.Cloud
             }
         }
 
+        public static bool IsLocalUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return true;
+            string lower = url.ToLowerInvariant();
+            return lower.Contains("localhost") || lower.Contains("127.0.0.1") || lower.Contains("0.0.0.0");
+        }
+
         private static string NormalizeUrl(string raw)
         {
             return string.IsNullOrWhiteSpace(raw) ? "" : raw.Trim().TrimEnd('/');
@@ -216,8 +223,25 @@ namespace LlamAcademy.Dinos.Cloud
                 bool connected = false;
                 yield return ProbeHealthEndpoint(primaryUrl, ok => connected = ok);
 
-                // If public/custom URL isn't reachable on PC/Editor, fallback seamlessly to local Docker :8000
-                if (!connected && !Mobile.MobileUIHelper.IsMobile &&
+                // Auto-recovery 1: If primary URL failed and it was localhost, try PublicCloudFallbackUrl immediately!
+                if (!connected && IsLocalUrl(primaryUrl) && !string.IsNullOrWhiteSpace(PublicCloudFallbackUrl) &&
+                    !string.Equals(primaryUrl, PublicCloudFallbackUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    Debug.Log($"[IO Cloud] Local endpoint ({primaryUrl}) offline. Auto-testing Public Cloud ({PublicCloudFallbackUrl})...");
+                    bool publicOk = false;
+                    yield return ProbeHealthEndpoint(PublicCloudFallbackUrl, ok => publicOk = ok);
+                    if (publicOk)
+                    {
+                        CloudBaseUrl = PublicCloudFallbackUrl;
+                        _editableUrl = PublicCloudFallbackUrl;
+                        connected = true;
+                        PlayerPrefs.SetString(PrefCloudUrlKey, CloudBaseUrl);
+                        PlayerPrefs.Save();
+                        Debug.Log($"<color=green>[IO Cloud]</color> Auto-switched to active Public Cloud Backend: {CloudBaseUrl}");
+                    }
+                }
+                // Auto-recovery 2: If public/custom URL isn't reachable on PC/Editor, fallback seamlessly to local Docker :8000
+                else if (!connected && !Mobile.MobileUIHelper.IsMobile &&
                     !string.Equals(primaryUrl, _localDockerUrl, StringComparison.OrdinalIgnoreCase))
                 {
                     bool localOk = false;
@@ -227,6 +251,9 @@ namespace LlamAcademy.Dinos.Cloud
                         CloudBaseUrl = _localDockerUrl;
                         _editableUrl = _localDockerUrl;
                         connected = true;
+                        PlayerPrefs.SetString(PrefCloudUrlKey, CloudBaseUrl);
+                        PlayerPrefs.Save();
+                        Debug.Log($"<color=green>[IO Cloud]</color> Switched to local Docker: {CloudBaseUrl}");
                     }
                 }
 
@@ -243,7 +270,7 @@ namespace LlamAcademy.Dinos.Cloud
                     LastSyncMessage = $"Đã kết nối {ActiveCloudBaseUrl}";
                     Debug.Log($"<color=green>[IO Cloud]</color> Successfully connected to IO Cloud Backend at {ActiveCloudBaseUrl}!");
                     StartCoroutine(FetchRemoteConfigRoutine());
-                    StartCoroutine(FetchLeaderboardRoutine(5));
+                    StartCoroutine(FetchLeaderboardRoutine(10));
 
                     // Tự động đồng bộ và tải bản lưu mới nhất từ Cloud nếu người chơi đã đăng nhập tài khoản
                     if (IsLoggedIn)
@@ -432,43 +459,69 @@ namespace LlamAcademy.Dinos.Cloud
                 yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
                 {
-                    try
-                    {
-                        AuthResponsePayload resp = JsonUtility.FromJson<AuthResponsePayload>(req.downloadHandler.text);
-                        if (resp != null && resp.status == "success")
-                        {
-                            CurrentUsername = resp.username;
-                            CurrentDisplayName = string.IsNullOrEmpty(resp.display_name) ? resp.username : resp.display_name;
-                            PlayerPrefs.SetString(PrefAccountUsernameKey, CurrentUsername);
-                            PlayerPrefs.SetString(PrefAccountDisplayNameKey, CurrentDisplayName);
-                            MarkHasLoggedIn();
-                            PlayerPrefs.Save();
-
-                            if (Save.PrehistoricSaveManager.Instance != null)
-                            {
-                                Save.PrehistoricSaveManager.Instance.ResetForNewAccount(CurrentDisplayName);
-                            }
-
-                            OnAccountStateChanged?.Invoke(true, CurrentUsername);
-                            onComplete?.Invoke(true, resp.message);
-                            yield break;
-                        }
-                        else
-                        {
-                            onComplete?.Invoke(false, resp != null ? resp.message : "Đăng ký không thành công.");
-                            yield break;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        onComplete?.Invoke(false, $"Lỗi phản hồi máy chủ: {ex.Message}");
-                        yield break;
-                    }
+                    HandleRegisterSuccess(req.downloadHandler.text, onComplete);
                 }
                 else
                 {
+                    // Tự động thử lại với Public Cloud Fallback nếu kết nối localhost thất bại
+                    if (IsLocalUrl(ActiveCloudBaseUrl) && !string.IsNullOrWhiteSpace(PublicCloudFallbackUrl) &&
+                        !string.Equals(ActiveCloudBaseUrl, PublicCloudFallbackUrl, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.LogWarning($"[IO Cloud] Register failed on {ActiveCloudBaseUrl} ({req.error}). Auto-retrying with Public Cloud: {PublicCloudFallbackUrl}...");
+                        string fallbackUrl = $"{PublicCloudFallbackUrl}/api/v1/auth/register";
+                        using (UnityWebRequest retryReq = CreateJsonPost(fallbackUrl, JsonUtility.ToJson(payload), Mathf.CeilToInt(CloudHttpsWakeupTimeout)))
+                        {
+                            yield return retryReq.SendWebRequest();
+                            if (retryReq.result == UnityWebRequest.Result.Success)
+                            {
+                                CloudBaseUrl = PublicCloudFallbackUrl;
+                                _editableUrl = PublicCloudFallbackUrl;
+                                IsCloudConnected = true;
+                                PlayerPrefs.SetString(PrefCloudUrlKey, CloudBaseUrl);
+                                PlayerPrefs.Save();
+                                OnCloudStatusChanged?.Invoke(true);
+
+                                HandleRegisterSuccess(retryReq.downloadHandler.text, onComplete);
+                                yield break;
+                            }
+                        }
+                    }
+
                     onComplete?.Invoke(false, $"Lỗi kết nối máy chủ: {req.error}");
                 }
+            }
+        }
+
+        private void HandleRegisterSuccess(string jsonText, Action<bool, string> onComplete)
+        {
+            try
+            {
+                AuthResponsePayload resp = JsonUtility.FromJson<AuthResponsePayload>(jsonText);
+                if (resp != null && resp.status == "success")
+                {
+                    CurrentUsername = resp.username;
+                    CurrentDisplayName = string.IsNullOrEmpty(resp.display_name) ? resp.username : resp.display_name;
+                    PlayerPrefs.SetString(PrefAccountUsernameKey, CurrentUsername);
+                    PlayerPrefs.SetString(PrefAccountDisplayNameKey, CurrentDisplayName);
+                    MarkHasLoggedIn();
+                    PlayerPrefs.Save();
+
+                    if (Save.PrehistoricSaveManager.Instance != null)
+                    {
+                        Save.PrehistoricSaveManager.Instance.ResetForNewAccount(CurrentDisplayName);
+                    }
+
+                    OnAccountStateChanged?.Invoke(true, CurrentUsername);
+                    onComplete?.Invoke(true, resp.message);
+                }
+                else
+                {
+                    onComplete?.Invoke(false, resp != null ? resp.message : "Đăng ký không thành công.");
+                }
+            }
+            catch (Exception ex)
+            {
+                onComplete?.Invoke(false, $"Lỗi phản hồi máy chủ: {ex.Message}");
             }
         }
 
@@ -494,50 +547,76 @@ namespace LlamAcademy.Dinos.Cloud
                 yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
                 {
-                    try
-                    {
-                        AuthResponsePayload resp = JsonUtility.FromJson<AuthResponsePayload>(req.downloadHandler.text);
-                        if (resp != null && resp.status == "success")
-                        {
-                            CurrentUsername = resp.username;
-                            CurrentDisplayName = string.IsNullOrEmpty(resp.display_name) ? resp.username : resp.display_name;
-                            PlayerPrefs.SetString(PrefAccountUsernameKey, CurrentUsername);
-                            PlayerPrefs.SetString(PrefAccountDisplayNameKey, CurrentDisplayName);
-                            MarkHasLoggedIn();
-                            PlayerPrefs.Save();
-
-                            if (Save.PrehistoricSaveManager.Instance != null)
-                            {
-                                if (resp.save_data != null)
-                                {
-                                    Save.PrehistoricSaveManager.Instance.LoadFromCloudSaveDirect(resp.save_data);
-                                }
-                                else
-                                {
-                                    Save.PrehistoricSaveManager.Instance.ResetForNewAccount(CurrentDisplayName);
-                                }
-                            }
-
-                            OnAccountStateChanged?.Invoke(true, CurrentUsername);
-                            onComplete?.Invoke(true, resp.message, resp.save_data);
-                            yield break;
-                        }
-                        else
-                        {
-                            onComplete?.Invoke(false, resp != null ? resp.message : "Đăng nhập không thành công.", null);
-                            yield break;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        onComplete?.Invoke(false, $"Lỗi phản hồi máy chủ: {ex.Message}", null);
-                        yield break;
-                    }
+                    HandleLoginSuccess(req.downloadHandler.text, onComplete);
                 }
                 else
                 {
+                    // Tự động thử lại với Public Cloud Fallback nếu kết nối localhost thất bại
+                    if (IsLocalUrl(ActiveCloudBaseUrl) && !string.IsNullOrWhiteSpace(PublicCloudFallbackUrl) &&
+                        !string.Equals(ActiveCloudBaseUrl, PublicCloudFallbackUrl, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.LogWarning($"[IO Cloud] Login failed on {ActiveCloudBaseUrl} ({req.error}). Auto-retrying with Public Cloud: {PublicCloudFallbackUrl}...");
+                        string fallbackUrl = $"{PublicCloudFallbackUrl}/api/v1/auth/login";
+                        using (UnityWebRequest retryReq = CreateJsonPost(fallbackUrl, JsonUtility.ToJson(payload), Mathf.CeilToInt(CloudHttpsWakeupTimeout)))
+                        {
+                            yield return retryReq.SendWebRequest();
+                            if (retryReq.result == UnityWebRequest.Result.Success)
+                            {
+                                CloudBaseUrl = PublicCloudFallbackUrl;
+                                _editableUrl = PublicCloudFallbackUrl;
+                                IsCloudConnected = true;
+                                PlayerPrefs.SetString(PrefCloudUrlKey, CloudBaseUrl);
+                                PlayerPrefs.Save();
+                                OnCloudStatusChanged?.Invoke(true);
+
+                                HandleLoginSuccess(retryReq.downloadHandler.text, onComplete);
+                                yield break;
+                            }
+                        }
+                    }
+
                     onComplete?.Invoke(false, $"Lỗi kết nối máy chủ: {req.error}", null);
                 }
+            }
+        }
+
+        private void HandleLoginSuccess(string jsonText, Action<bool, string, CloudSaveResponse> onComplete)
+        {
+            try
+            {
+                AuthResponsePayload resp = JsonUtility.FromJson<AuthResponsePayload>(jsonText);
+                if (resp != null && resp.status == "success")
+                {
+                    CurrentUsername = resp.username;
+                    CurrentDisplayName = string.IsNullOrEmpty(resp.display_name) ? resp.username : resp.display_name;
+                    PlayerPrefs.SetString(PrefAccountUsernameKey, CurrentUsername);
+                    PlayerPrefs.SetString(PrefAccountDisplayNameKey, CurrentDisplayName);
+                    MarkHasLoggedIn();
+                    PlayerPrefs.Save();
+
+                    if (Save.PrehistoricSaveManager.Instance != null)
+                    {
+                        if (resp.save_data != null)
+                        {
+                            Save.PrehistoricSaveManager.Instance.LoadFromCloudSaveDirect(resp.save_data);
+                        }
+                        else
+                        {
+                            Save.PrehistoricSaveManager.Instance.ResetForNewAccount(CurrentDisplayName);
+                        }
+                    }
+
+                    OnAccountStateChanged?.Invoke(true, CurrentUsername);
+                    onComplete?.Invoke(true, resp.message, resp.save_data);
+                }
+                else
+                {
+                    onComplete?.Invoke(false, resp != null ? resp.message : "Đăng nhập không thành công.", null);
+                }
+            }
+            catch (Exception ex)
+            {
+                onComplete?.Invoke(false, $"Lỗi phản hồi máy chủ: {ex.Message}", null);
             }
         }
 
