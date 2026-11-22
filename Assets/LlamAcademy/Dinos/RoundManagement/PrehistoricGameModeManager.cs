@@ -605,13 +605,26 @@ namespace LlamAcademy.Dinos.RoundManagement
             int food = spawner != null ? spawner.ResourcesToSpend : 0;
 
             // 1. Top-Left Food & Command Banner
-            Rect foodBannerRect = new Rect(16, 12, 315, 108);
+            Rect foodBannerRect = new Rect(16, 12, 330, 116);
             Mobile.MobileUIHelper.RegisterUIRect(foodBannerRect);
-            GUILayout.BeginArea(foodBannerRect, GUI.skin.box);
+
+            // Nền tối đặc không để các cấu trúc 3D xuyên thấu
+            GUI.color = new Color(0.08f, 0.12f, 0.18f, 0.96f);
+            GUI.Box(foodBannerRect, GUIContent.none);
+            GUI.color = Color.white;
+
+            GUILayout.BeginArea(new Rect(foodBannerRect.x + 8f, foodBannerRect.y + 6f, foodBannerRect.width - 16f, foodBannerRect.height - 12f));
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
             GUILayout.EndHorizontal();
+
+            // Hiển thị trực quan máu Căn Cứ Làng mục tiêu
+            int vHp = VillageBase != null ? VillageBase.Health : 0;
+            int vMaxHp = VillageBase != null ? VillageBase.MaxHealth : 1000;
+            float hpPct = vMaxHp > 0 ? Mathf.Clamp01((float)vHp / vMaxHp) : 0f;
+            string hpHex = hpPct > 0.5f ? "55FF55" : (hpPct > 0.25f ? "FFD700" : "FF4444");
+            GUILayout.Label($"<b><size=12>🎯 Mục tiêu: Căn Cứ Làng - <color=#{hpHex}>{vHp} / {vMaxHp} HP</color></size></b>");
 
             if (SelectedDino != null)
             {
@@ -1099,6 +1112,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                         Utility.HealthBarCanvas.Instance.Unregister(u);
                     }
                 }
+                container.name = "[Disposed_Assault_Defenses]";
                 container.SetActive(false);
                 Destroy(container);
             }
@@ -1113,6 +1127,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     {
                         Utility.HealthBarCanvas.Instance.Unregister(u);
                     }
+                    m.gameObject.name = "[Disposed_Defense_Marker]";
                     m.gameObject.SetActive(false);
                     Destroy(m.gameObject);
                 }
@@ -1167,6 +1182,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageBase();
             if (PrehistoricGameplayManager.Instance != null)
             {
+                PrehistoricGameplayManager.Instance.EnsureScenicFortressWalkways();
                 PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
                 PrehistoricGameplayManager.Instance.ConfigureAllVillageFortifications(level);
                 PrehistoricGameplayManager.Instance.EnsureVillageBridgesDestructible();
@@ -1293,6 +1309,20 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 enemyAI.ResetDefendersToExactCount(PrehistoricGameplayManager.GetTargetDefendersForWave(level));
             }
+
+            // 6. Phân tích trước ma trận chiến thuật và khóa cố định lộ trình Heatmap cho Màn Công Thành này
+            if (AI.ThreatAwarePathfinding.Instance != null)
+            {
+                Vector3 assaultSpawnPos = new Vector3(0f, 0f, 25f);
+                Vector3 assaultBasePos = VillageBase != null ? VillageBase.transform.position : new Vector3(-2.23f, 0f, -38.26f);
+                AI.ThreatAwarePathfinding.Instance.UnlockTacticalPaths();
+                AI.ThreatAwarePathfinding.Instance.AnalyzeDefenseLayoutOnce(assaultSpawnPos, assaultBasePos);
+                AI.ThreatAwarePathfinding.Instance.LockTacticalPathsForAssault();
+            }
+            if (AI.ThreatHeatmapVisualizer.HasInstance && AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible)
+            {
+                AI.ThreatHeatmapVisualizer.Instance.RefreshVisualPaths();
+            }
         }
 
         public void NextAssaultLevel()
@@ -1352,8 +1382,15 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void RetryCurrentAssaultLevel()
         {
+            Time.timeScale = 1.0f;
             ClearAllDinos();
             CleanAllAssaultDefenses();
+            if (PrehistoricGameplayManager.Instance != null)
+            {
+                PrehistoricGameplayManager.Instance.CleanAllGameplayGarbage();
+                PrehistoricGameplayManager.Instance.RestoreAllVillageBarricades();
+            }
+
             DinoSpawner retrySpawner = DinoSpawner.Instance != null ? DinoSpawner.Instance : FindFirstObjectByType<DinoSpawner>();
             if (retrySpawner != null) retrySpawner.AllowPlacingDinos = true;
 
@@ -1374,6 +1411,16 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // 3. Tái thiết lập phòng tuyến làng cho màn hiện tại
             SetupVillageDefensesForLevel(AssaultLevel);
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
+
+            if (NavMeshManager.Instance != null)
+            {
+                NavMeshManager.Instance.RecalculateTriangulation(false);
+            }
 
             // 4. Cấp lại đúng số lượng thịt cố định của màn và mở lại quyền đặt quân
             int targetMeat = GetFixedMeatForLevel(AssaultLevel);

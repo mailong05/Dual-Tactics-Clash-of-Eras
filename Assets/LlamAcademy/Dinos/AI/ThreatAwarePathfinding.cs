@@ -132,10 +132,31 @@ namespace LlamAcademy.Dinos.AI
         public string StrategyDescription = "Sẵn sàng phân tích ma trận phòng thủ";
         public bool HasAnalyzedThisWave { get; private set; } = false;
 
+        [Header("=== Assault Mode Path Locking ===")]
+        public bool IsAssaultPathsLocked { get; private set; } = false;
+        public List<Vector3> CachedFlankerPath => _cachedFlankerPath;
+        public List<Vector3> CachedLeftFlankerPath => _cachedLeftFlankerPath;
+        public List<Vector3> CachedRightFlankerPath => _cachedRightFlankerPath;
+        public List<Vector3> CachedTankerPath => _cachedTankerPath;
+        public List<Vector3> CachedDirectRushPath => _cachedDirectRushPath;
+
+        public void LockTacticalPathsForAssault()
+        {
+            IsAssaultPathsLocked = true;
+        }
+
+        public void UnlockTacticalPaths()
+        {
+            IsAssaultPathsLocked = false;
+            HasAnalyzedThisWave = false;
+        }
+
         private bool _cachedIsCenterHeavy = false;
         private float _cachedCenterThreat = 0f;
         private int _cachedTowersCoveringCenter = 0;
         private List<Vector3> _cachedFlankerPath = new();
+        private List<Vector3> _cachedLeftFlankerPath = new();
+        private List<Vector3> _cachedRightFlankerPath = new();
         private List<Vector3> _cachedTankerPath = new();
         private List<Vector3> _cachedDirectRushPath = new();
 
@@ -337,6 +358,14 @@ namespace LlamAcademy.Dinos.AI
                 }
             }
 
+            // Nếu đang khóa lộ trình ở chế độ Công Thành (giữ cố định bản đồ tác chiến), 
+            // không thông báo vẽ lại đường khiến LineRenderer bị nhảy giật
+            if (IsAssaultPathsLocked && RoundManagement.PrehistoricGameModeManager.Instance != null &&
+                RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault)
+            {
+                return;
+            }
+
             OnThreatFieldUpdated?.Invoke();
         }
 
@@ -474,8 +503,14 @@ namespace LlamAcademy.Dinos.AI
             }
 
             // 4. Lập trước toàn bộ lộ trình Waypoints MỘT LẦN DUY NHẤT:
-            _cachedFlankerPath = FindThreatAwarePathInternal(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
-            _cachedTankerPath = FindThreatAwarePathInternal(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
+            Vector3 leftSpawn = new Vector3(-8f, 0f, spawnPos.z);
+            Vector3 rightSpawn = new Vector3(8f, 0f, spawnPos.z);
+            Vector3 centerSpawn = new Vector3(0f, 0f, spawnPos.z);
+
+            _cachedLeftFlankerPath = FindThreatAwarePathInternal(leftSpawn, basePos, DinoAISpeciesType.VelociraptorFlanker);
+            _cachedRightFlankerPath = FindThreatAwarePathInternal(rightSpawn, basePos, DinoAISpeciesType.VelociraptorFlanker);
+            _cachedFlankerPath = _cachedRightFlankerPath != null && _cachedRightFlankerPath.Count > 0 ? _cachedRightFlankerPath : _cachedLeftFlankerPath;
+            _cachedTankerPath = FindThreatAwarePathInternal(centerSpawn, basePos, DinoAISpeciesType.AnkylosaurusTanker);
 
             _cachedDirectRushPath = new List<Vector3>
             {
@@ -513,11 +548,31 @@ namespace LlamAcademy.Dinos.AI
 
         public List<Vector3> GetPrecomputedWaypoints(DinoAISpeciesType species)
         {
+            return GetPrecomputedWaypoints(species, null);
+        }
+
+        public List<Vector3> GetPrecomputedWaypoints(DinoAISpeciesType species, Vector3? startPos)
+        {
+            bool isAssault = RoundManagement.PrehistoricGameModeManager.Instance != null && 
+                             RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault;
+
             if (species == DinoAISpeciesType.VelociraptorFlanker)
             {
-                if (CurrentWaveTacticalStrategy == DinoTacticalBehavior.FlankerEvasion && _cachedFlankerPath != null && _cachedFlankerPath.Count > 0)
+                // Ở chế độ Công Thành hoặc khi chiến thuật là né tháp: luôn ưu tiên đường Flanker (đường Vàng Sáng / Xanh Lam)
+                if (isAssault || CurrentWaveTacticalStrategy == DinoTacticalBehavior.FlankerEvasion)
                 {
-                    return new List<Vector3>(_cachedFlankerPath);
+                    if (startPos.HasValue && startPos.Value.x < 0f && _cachedLeftFlankerPath != null && _cachedLeftFlankerPath.Count > 0)
+                    {
+                        return new List<Vector3>(_cachedLeftFlankerPath);
+                    }
+                    if (_cachedRightFlankerPath != null && _cachedRightFlankerPath.Count > 0)
+                    {
+                        return new List<Vector3>(_cachedRightFlankerPath);
+                    }
+                    if (_cachedFlankerPath != null && _cachedFlankerPath.Count > 0)
+                    {
+                        return new List<Vector3>(_cachedFlankerPath);
+                    }
                 }
                 if (_cachedDirectRushPath != null && _cachedDirectRushPath.Count > 0)
                 {
@@ -526,6 +581,19 @@ namespace LlamAcademy.Dinos.AI
             }
             else if (species == DinoAISpeciesType.AnkylosaurusTanker)
             {
+                // Khủng Long Giáp (Tanker): luôn nhận đường đục phá tường mỏng (đường Cam Đỏ)
+                if (_cachedTankerPath != null && _cachedTankerPath.Count > 0)
+                {
+                    return new List<Vector3>(_cachedTankerPath);
+                }
+            }
+            else if (species == DinoAISpeciesType.TRexApexBoss)
+            {
+                // T-Rex: tiến theo trục trung lộ hoặc đường công phá
+                if (_cachedDirectRushPath != null && _cachedDirectRushPath.Count > 0)
+                {
+                    return new List<Vector3>(_cachedDirectRushPath);
+                }
                 if (_cachedTankerPath != null && _cachedTankerPath.Count > 0)
                 {
                     return new List<Vector3>(_cachedTankerPath);

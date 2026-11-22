@@ -187,9 +187,18 @@ namespace LlamAcademy.Dinos.Utility
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
                 Transform child = transform.GetChild(i);
-                if (child != null && (child.name.StartsWith("HealthBar_") || child.name.Contains("Flank") || child.name.Contains("Blocker")))
+                if (child != null && (child.name.Contains("Invisible_Blocker") || child.name.Contains("Map_Boundary")))
                 {
                     Destroy(child.gameObject);
+                }
+            }
+
+            var allStrayBars = FindObjectsByType<HealthBar>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var hb in allStrayBars)
+            {
+                if (hb != null && hb.transform.parent != transform && (hb.name.Contains("Invisible_Blocker") || hb.name.Contains("Map_Boundary")))
+                {
+                    Destroy(hb.gameObject);
                 }
             }
 
@@ -305,49 +314,85 @@ namespace LlamAcademy.Dinos.Utility
                     continue;
                 }
 
+                // Trong Chế độ Công Thành (Dino Assault) ở Pha Chuẩn Bị (Setup Phase):
+                // Ẩn thanh máu của các khủng long đang thả trong rừng để không gây rối mắt khi dàn quân.
+                // Khi bấm [XUẤT QUÂN] chuyển sang pha chiến đấu thì thanh máu khủng long sẽ tự động bật.
+                bool isAssaultSetup = RoundManagement.PrehistoricGameModeManager.Instance != null &&
+                                     RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault &&
+                                     RoundManagement.PrehistoricGameModeManager.Instance.AssaultPhase == RoundManagement.PrehistoricAssaultPhase.Setup;
+                bool isDinoUnit = keyValuePair.Key is Unit.Dino || keyValuePair.Key is Unit.PrehistoricDinoBase;
+                if (isAssaultSetup && isDinoUnit)
+                {
+                    if (keyValuePair.Value.gameObject.activeSelf)
+                    {
+                        keyValuePair.Value.gameObject.SetActive(false);
+                    }
+                    continue;
+                }
+
                 // Đảm bảo thanh máu của mọi công trình, chòi canh, cầu gỗ, rào cọc luôn hiển thị rõ ràng:
                 if (!keyValuePair.Value.gameObject.activeSelf)
                 {
                     keyValuePair.Value.gameObject.SetActive(true);
                 }
 
-                Collider col = keyValuePair.Key.GetComponentInChildren<Collider>();
-                Renderer rend = keyValuePair.Key.GetComponentInChildren<Renderer>();
-                string lowerName = keyValuePair.Key.gameObject.name.ToLower();
-                bool isBridge = lowerName.Contains("bridge") || lowerName.Contains("ramp");
-                bool isFence = !isBridge && (lowerName.Contains("segment") ||
-                               lowerName.Contains("barricade") ||
-                               lowerName.Contains("palisade") ||
-                               lowerName.Contains("plank_defenses") ||
-                               (keyValuePair.Key is Unit.Wall && !lowerName.Contains("tower") && !lowerName.Contains("arch") && !lowerName.Contains("hut")));
+                Vector3 unitPos = keyValuePair.Key.Transform.position;
+                float centerX = unitPos.x;
+                float centerZ = unitPos.z;
+                float topY = unitPos.y;
+                bool hasBounds = false;
 
-                Vector3 targetPos;
-                if (isBridge)
+                Renderer[] allRends = keyValuePair.Key.GetComponentsInChildren<Renderer>();
+                if (allRends != null && allRends.Length > 0)
                 {
-                    float topY = rend != null ? rend.bounds.max.y : (col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 1.5f));
-                    float centerX = rend != null ? rend.bounds.center.x : (col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x);
-                    float centerZ = rend != null ? rend.bounds.center.z : (col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z);
-                    targetPos = new Vector3(centerX, topY + 0.8f, centerZ);
+                    Bounds b = new Bounds();
+                    bool first = true;
+                    for (int rIdx = 0; rIdx < allRends.Length; rIdx++)
+                    {
+                        Renderer r = allRends[rIdx];
+                        if (r != null && r.enabled && r.gameObject.activeInHierarchy)
+                        {
+                            if (first)
+                            {
+                                b = r.bounds;
+                                first = false;
+                            }
+                            else
+                            {
+                                b.Encapsulate(r.bounds);
+                            }
+                        }
+                    }
+                    if (!first)
+                    {
+                        centerX = b.center.x;
+                        centerZ = b.center.z;
+                        topY = b.max.y;
+                        hasBounds = true;
+                    }
                 }
-                else if (isFence)
+
+                if (!hasBounds)
                 {
-                    // Đặt thanh máu nổi rõ ràng trên đỉnh của hàng rào cọc gỗ (+0.65m trên đỉnh cọc) để không bị che khuất
-                    float topY = rend != null ? rend.bounds.max.y : (col != null ? col.bounds.max.y : (keyValuePair.Key.Transform.position.y + 3.0f));
-                    float centerX = rend != null ? rend.bounds.center.x : (col != null ? col.bounds.center.x : keyValuePair.Key.Transform.position.x);
-                    float centerZ = rend != null ? rend.bounds.center.z : (col != null ? col.bounds.center.z : keyValuePair.Key.Transform.position.z);
-                    targetPos = new Vector3(centerX, topY + 0.65f, centerZ);
+                    Collider col = keyValuePair.Key.GetComponentInChildren<Collider>();
+                    if (col != null)
+                    {
+                        centerX = col.bounds.center.x;
+                        centerZ = col.bounds.center.z;
+                        topY = col.bounds.max.y;
+                        hasBounds = true;
+                    }
                 }
-                else if (rend != null || col != null)
+
+                // Luôn đảm bảo thanh máu nằm nổi bật trên đỉnh thực tế của mô hình (topY + 0.65f)
+                // và tối thiểu bằng unitPos.y + FollowOffset.y, loại bỏ hoàn toàn hiện tượng thanh máu bị chìm bên trong model chòi/lều
+                float targetY = hasBounds ? (topY + 0.65f) : (unitPos.y + 2.0f);
+                if (keyValuePair.Value.FollowOffset != Vector3.zero)
                 {
-                    float topY = rend != null ? rend.bounds.max.y : col.bounds.max.y;
-                    float centerX = rend != null ? rend.bounds.center.x : col.bounds.center.x;
-                    float centerZ = rend != null ? rend.bounds.center.z : col.bounds.center.z;
-                    targetPos = new Vector3(centerX, topY + 0.6f, centerZ);
+                    targetY = Mathf.Max(targetY, unitPos.y + keyValuePair.Value.FollowOffset.y);
                 }
-                else
-                {
-                    targetPos = keyValuePair.Key.Transform.position + keyValuePair.Value.FollowOffset;
-                }
+
+                Vector3 targetPos = new Vector3(centerX, targetY, centerZ);
                 keyValuePair.Value.transform.position = targetPos;
 
                 if (cam != null)
@@ -426,6 +471,17 @@ namespace LlamAcademy.Dinos.Utility
                     Destroy(child.gameObject);
                 }
             }
+
+            // Đồng thời quét sạch mọi thanh máu mồ côi tĩnh lưu trong Scene trên toàn map
+            var allSceneBars = FindObjectsByType<HealthBar>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var hb in allSceneBars)
+            {
+                if (hb != null && !validPairs.ContainsValue(hb))
+                {
+                    hb.gameObject.SetActive(false);
+                    Destroy(hb.gameObject);
+                }
+            }
         }
 
         public void ClearAllHealthBars()
@@ -461,9 +517,9 @@ namespace LlamAcademy.Dinos.Utility
         {
             if (unit == null) return null;
 
-            // Tuyệt đối không tạo thanh máu cho các rào cản tàng hình mép bản đồ (Flank Blocker / Flank Barricade)
             string uNameLower = unit.gameObject.name.ToLower();
-            if (uNameLower.Contains("flank") || uNameLower.Contains("blocker"))
+            // Chỉ bỏ qua các collider vô hình chặn mép bản đồ, TUYỆT ĐỐI không bỏ qua hàng rào sườn phải (Flank Barricade) hay bất kỳ công trình phòng thủ nào!
+            if ((uNameLower.Contains("invisible") || uNameLower.Contains("map_boundary")) && !uNameLower.Contains("barricade"))
             {
                 return null;
             }
@@ -560,9 +616,13 @@ namespace LlamAcademy.Dinos.Utility
             {
                 height = 4.2f;
             }
-            else if (unitNameLower.Contains("segment") || unitNameLower.Contains("barricade") || unitNameLower.Contains("palisade") || unitNameLower.Contains("plank_defenses"))
+            else if (unitNameLower.Contains("segment") || unitNameLower.Contains("barricade") || unitNameLower.Contains("palisade") || unitNameLower.Contains("plank_defenses") || unitNameLower.Contains("flank"))
             {
                 height = 1.95f;
+            }
+            else if (unitNameLower.Contains("bridge") || unitNameLower.Contains("ramp"))
+            {
+                height = 2.2f;
             }
             else if (unitNameLower.Contains("ankyl"))
 
@@ -659,6 +719,19 @@ namespace LlamAcademy.Dinos.Utility
             healthBar.transform.localScale = Vector3.one;
 
             healthBar.transform.localRotation = Quaternion.identity;
+
+            if (healthBar.FollowOffset == Vector3.zero || healthBar.FollowOffset == new Vector3(0, 3, 0))
+            {
+                float h = 2.2f;
+                string un = unit.gameObject.name.ToLower();
+                if (un.Contains("big tower") || un.Contains("watchtower")) h = 9.2f;
+                else if (un.Contains("arch entry") || un.Contains("overhead_arch") || un.Contains("arch")) h = 6.2f;
+                else if (un.Contains("hut") || un.Contains("tent")) h = 4.2f;
+                else if (un.Contains("segment") || un.Contains("barricade") || un.Contains("palisade") || un.Contains("flank")) h = 1.95f;
+                else if (un.Contains("bridge") || un.Contains("ramp")) h = 2.2f;
+                else if (un.Contains("trex") || un.Contains("t-rex")) h = 5.8f;
+                healthBar.FollowOffset = new Vector3(0f, h, 0f);
+            }
 
 
 
@@ -757,27 +830,23 @@ namespace LlamAcademy.Dinos.Utility
 
             if (lower.Contains("trex") || lower.Contains("t-rex")) return "👑 T-Rex Bạo Chúa";
 
-            if (lower.Contains("ptero")) return "🦅 Thằn Lằn Bay";
-
-            if (lower.Contains("ankyl")) return "🛡️ Khủng Long Thiết Giáp";
-
-            if (lower.Contains("raptor")) return "🦖 Velociraptor";
-
-            if (lower.Contains("mud") || lower.Contains("tar")) return "Vũng Lầy Tiền Sử";
-
-            if (lower.Contains("spike")) return "Bẫy Chông Độc";
+            // Khủng long bầy đàn thông thường và cạm bẫy: Không gắn nhãn tên văn bản để tránh rối màn hình khi số lượng đông
+            if (lower.Contains("ptero") || lower.Contains("pterodactyl")) return "";
+            if (lower.Contains("ankyl") || lower.Contains("ankylosaurus")) return "";
+            if (lower.Contains("raptor") || lower.Contains("velociraptor")) return "";
+            if (lower.Contains("mud") || lower.Contains("tar")) return "";
+            if (lower.Contains("spike")) return "";
 
             if (lower.Contains("egg") || lower.Contains("base") || lower.Contains("village")) return "🏛️ Căn Cứ Làng Bộ Lạc";
 
-
-
             if (unit.UnitType != null && !string.IsNullOrEmpty(unit.UnitType.name))
-
             {
-
+                string uName = unit.UnitType.name.ToLower();
+                if (uName.Contains("raptor") || uName.Contains("ankyl") || uName.Contains("ptero")) return "";
                 return unit.UnitType.name.Replace("Unit_", "").Replace("Dino_", "").Replace("Tower_", "");
-
             }
+
+            if (lower.Contains("dino") || lower.Contains("monster")) return "";
 
 
 

@@ -198,11 +198,19 @@ class TacticalAIDirector:
             rationale.append("Phân phối đội hình cân bằng: Thăm dò cấu trúc và cự ly phòng thủ của làng.")
 
         # Renormalize weights
+        runner_w = max(0.01, float(runner_w))
+        flyer_w = max(0.01, float(flyer_w))
+        tank_w = max(0.01, float(tank_w))
+        boss_w = max(0.0, float(boss_w))
+
         total_w = runner_w + flyer_w + tank_w + boss_w
-        runner_w /= total_w
-        flyer_w /= total_w
-        tank_w /= total_w
-        boss_w /= total_w
+        if total_w <= 0.001 or np.isnan(total_w) or np.isinf(total_w):
+            runner_w, flyer_w, tank_w, boss_w = 0.35, 0.25, 0.30, 0.10
+        else:
+            runner_w /= total_w
+            flyer_w /= total_w
+            tank_w /= total_w
+            boss_w /= total_w
 
         # Compute wave size scaling with difficulty and vulnerability
         base_count = 6 + int(round_num * 2.2)
@@ -214,10 +222,10 @@ class TacticalAIDirector:
             "vulnerability_score": round(vulnerability, 3),
             "recommended_wave_size": max(adjusted_count, 6),
             "archetype_weights": {
-                "Velociraptor_Runner": round(runner_w, 3),
-                "Pterodactyl_Flyer": round(flyer_w, 3),
-                "Ankylosaurus_Tank": round(tank_w, 3),
-                "TRex_Boss": round(boss_w, 3)
+                "Velociraptor_Runner": round(float(runner_w), 3),
+                "Pterodactyl_Flyer": round(float(flyer_w), 3),
+                "Ankylosaurus_Tank": round(float(tank_w), 3),
+                "TRex_Boss": round(float(boss_w), 3)
             },
             "route_bias": {
                 "North_Canyon": round(float(routes[0]), 3),

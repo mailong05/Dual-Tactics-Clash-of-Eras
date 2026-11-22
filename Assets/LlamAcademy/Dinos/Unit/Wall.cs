@@ -294,6 +294,18 @@ namespace LlamAcademy.Dinos.Unit
                     continue;
                 }
 
+                // BẢO VỆ TUYỆT ĐỐI TOÀN BỘ CẦU GỖ, DỐC LÀNG, SÀN ĐI BỘ VÀ KIẾN TRÚC CỐ ĐỊNH CỦA LÀNG:
+                // Tuyệt đối không bao giờ tắt dốc gỗ chính giữa (Ramp_Tribal), cầu qua sông (Bridge_Tribal),
+                // sàn gỗ (Walkway_Deck, Smooth Floor), cổng vòm, chòi canh hay lều làng khi một hàng rào bị phá vỡ!
+                if (tn.Contains("ramp_tribal") || tn.Contains("bridge_tribal") || 
+                    tn.Contains("walkway_deck") || tn.Contains("smooth floor") ||
+                    tn.Contains("overhead_arch") || tn.Contains("arch entry") ||
+                    tn.Contains("big tower") || tn.Contains("watchtower") ||
+                    tn.Contains("hut") || tn.Contains("tent") || tn.Contains("base"))
+                {
+                    continue;
+                }
+
                 // Nhận diện sàn cầu, bản mặt cầu, dốc hoặc sàn gỗ đi bộ
                 bool isFloor = tn.Contains("bridge") ||
                                tn.Contains("ramp") ||

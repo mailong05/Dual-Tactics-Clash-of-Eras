@@ -12,6 +12,7 @@ namespace LlamAcademy.Dinos.Unit
     {
         [field: SerializeField] public int MaxHealth { get; set; }
         [field: SerializeField] public int Health { get; set; }
+        [field: SerializeField] public int SpawnRouteIndex { get; set; } = 0;
 
         public Transform Transform => transform;
         [field: SerializeField] public UnitSO UnitType { get; set; }

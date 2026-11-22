@@ -83,6 +83,7 @@ namespace LlamAcademy.Dinos.Player
                 return;
             }
             Instance = this;
+            ShowControlsHint = false;
 
             CinemachineCamera = GetComponent<CinemachineCamera>();
             _FollowComponent = GetComponent<CinemachineFollow>();
@@ -533,13 +534,16 @@ namespace LlamAcademy.Dinos.Player
             try
             {
                 float screenH = Mobile.MobileUIHelper.ScreenHeight;
+                float screenW = Mobile.MobileUIHelper.ScreenWidth;
+                float bottomToolbarClearance = 100f;
+
                 if (!ShowControlsHint)
                 {
                     // Mini toggle pill at bottom left above toolbar
                     float pillW = 140f;
                     float pillH = 24f;
                     float pillX = 20f;
-                    float pillY = screenH - pillH - 85f;
+                    float pillY = screenH - pillH - bottomToolbarClearance;
                     Rect pillRect = new Rect(pillX, pillY, pillW, pillH);
                     Mobile.MobileUIHelper.RegisterUIRect(pillRect);
 
@@ -555,13 +559,21 @@ namespace LlamAcademy.Dinos.Player
 
                 // Compact floating hint bar at bottom-left, safely placed ABOVE the toolbar
                 float panelWidth = 330f;
-                float panelHeight = 85f;
+                float panelHeight = 88f;
                 float x = 20f;
-                float y = screenH - panelHeight - 88f;
+                float y = screenH - panelHeight - bottomToolbarClearance;
+
+                // Tránh va chạm với Bảng chú giải Heatmap ở bên trái nếu chiều cao màn hình nhỏ
+                bool isHmOpen = AI.ThreatHeatmapVisualizer.Instance != null && AI.ThreatHeatmapVisualizer.Instance.IsHeatmapVisible;
+                if (isHmOpen && y < 370f)
+                {
+                    x = 360f; // Dời sang phải để không che khuất bảng Heatmap
+                }
+
                 Rect panelRect = new Rect(x, y, panelWidth, panelHeight);
                 Mobile.MobileUIHelper.RegisterUIRect(panelRect);
 
-                GUI.color = new Color(0.1f, 0.12f, 0.15f, 0.90f);
+                GUI.color = new Color(0.08f, 0.12f, 0.18f, 0.94f);
                 GUI.Box(panelRect, GUIContent.none);
                 GUI.color = Color.white;
 

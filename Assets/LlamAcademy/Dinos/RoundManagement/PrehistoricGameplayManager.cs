@@ -139,12 +139,10 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void CleanupInvisibleAndStrayObjects()
         {
-            // Danh sách các vật thể lạc ngoài map hoặc rác thực sự (bao gồm 2 chòi canh thủ gỗ tàng hình)
+            // Danh sách các vật thể lạc ngoài map hoặc rác thực sự
             string[] invisibleOrStrayNames = new string[]
             {
-                "Village_Left_Gap_Wall_128_neg152",
-                "Village_Watchtower_Left",
-                "Village_Watchtower_Right"
+                "Village_Left_Gap_Wall_128_neg152"
             };
 
             // Dọn dẹp triệt để bất kỳ component Wall nào vô tình bị gắn trên Canvas, UI hoặc HealthBar
@@ -247,15 +245,14 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
             }
 
-            // 6. Xóa triệt để các thanh máu lơ lửng của 2 chòi canh gỗ tàng hình và Flank Barricade dưới HealthBarCanvas
+            // 6. Xóa triệt để các thanh máu lơ lửng của Flank Barricade và rào chắn cũ dưới HealthBarCanvas
             if (HealthBarCanvas.HasInstance)
             {
                 var canvas = HealthBarCanvas.Instance;
                 for (int i = canvas.transform.childCount - 1; i >= 0; i--)
                 {
                     Transform c = canvas.transform.GetChild(i);
-                    if (c != null && (c.name.Contains("Village_Watchtower_Left") || c.name.Contains("Village_Watchtower_Right") ||
-                                      c.name.Contains("Flank_Barricade") || c.name.Contains("Right_Flank") || c.name.Contains("Flank_Blocker")))
+                    if (c != null && (c.name.Contains("Flank_Barricade") || c.name.Contains("Right_Flank") || c.name.Contains("Flank_Blocker")))
                     {
                         Destroy(c.gameObject);
                     }
@@ -285,13 +282,36 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public void EnsureScenicFortressWalkways()
         {
-            if (IsAssaultMode)
+            // Đảm bảo toàn bộ kiến trúc sàn gỗ, hành lang, mái vòm và chòi canh trên tường thành luôn hiển thị nguyên vẹn 100%
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var t in allTransforms)
             {
-                RestoreAllVillageBarricades();
-            }
-            else
-            {
-                RemoveAllVillageFrontBarricades();
+                if (t == null) continue;
+                string n = t.gameObject.name;
+
+                bool isScenic = n.Contains("Smooth Floor") || n.Contains("Walkway_Deck") || n.Contains("Collider_Walkway_Deck") ||
+                                n.Contains("FloorDeck") || n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                n.Contains("Gate_Overhead_Arch") || n.Contains("Overhead_Arch") || n.Contains("Arch Entry Wall") ||
+                                n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || n == "Village_Fortress_Wall" || n == "Gate_Complex" ||
+                                n.Contains("Big Tower") || n.Contains("Watchtower");
+
+                if (isScenic)
+                {
+                    t.gameObject.SetActive(true);
+                    foreach (var r in t.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+                    foreach (var c in t.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+
+                    // Xóa NavMeshObstacle trên mặt sàn/cầu nếu có để không cản trở đường đi của khủng long hoặc người chơi
+                    if (n.Contains("Floor") || n.Contains("Deck") || n.Contains("Bridge") || n.Contains("Ramp"))
+                    {
+                        foreach (var obs in t.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true))
+                        {
+                            obs.enabled = false;
+                            Destroy(obs);
+                        }
+                    }
+                }
             }
         }
 
@@ -377,38 +397,47 @@ namespace LlamAcademy.Dinos.RoundManagement
                     continue;
                 }
 
-                // Nhận diện đối tượng thuộc cổng thành hoặc rào chắn tiền tuyến (Z từ -6m đến +2.5m)
-                bool isChildOfFortress = false;
+                // BẢO VỆ TUYỆT ĐỐI TOÀN BỘ CÔNG TRÌNH KIẾN TRÚC LÀNG:
+                // Sàn đi bộ, cầu sông, cổng vòm, chòi canh, lều trại, tường thành Village_Fortress_Wall
+                bool isScenicVillageStructure = n == "Village_Fortress_Wall" ||
+                                                n == "Gate_Complex" ||
+                                                n.Contains("Watchtower") ||
+                                                n.Contains("Tower") ||
+                                                n.Contains("Overhead_Arch") ||
+                                                n.Contains("Arch Entry Wall") ||
+                                                n.Contains("Smooth Floor") ||
+                                                n.Contains("Walkway_Deck") ||
+                                                n.Contains("Collider_Walkway_Deck") ||
+                                                n.Contains("FloorDeck") ||
+                                                n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                                n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase) ||
+                                                n.Contains("Hut") ||
+                                                n.Contains("Tent") ||
+                                                n.Contains("Base");
+
+                if (isScenicVillageStructure)
+                {
+                    continue; // Tuyệt đối không bao giờ tắt hoặc xóa công trình kiến trúc của làng!
+                }
+
+                // Nhận diện đối tượng thuộc nhóm hàng rào phòng thủ cánh trước (Left/Right Wing Wall, Right Flank Wall)
+                bool isChildOfDefensiveWallGroup = false;
                 if (t.parent != null)
                 {
                     string pn = t.parent.name;
-                    if (pn == "Left_Wing_Wall" || pn == "Right_Wing_Wall" || pn == "Right_Flank_Wall" || pn == "Gate_Complex" || pn == "Village_Fortress_Wall")
+                    if (pn == "Left_Wing_Wall" || pn == "Right_Wing_Wall" || pn == "Right_Flank_Wall" || pn == "Gate_Portcullis_Barricade")
                     {
-                        isChildOfFortress = true;
+                        isChildOfDefensiveWallGroup = true;
                     }
                 }
 
-                bool isFrontGateOrBarricade = isChildOfFortress ||
-                                              n == "Gate_Complex" ||
-                                              n.StartsWith("Gate_") ||
-                                              n.Contains("Overhead_Arch") ||
-                                              (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) && t.position.z >= -6f && t.position.z <= 2.5f);
-
-                // Giữ lại chòi canh, cổng vòm sâu bên trong làng (Z < -10), cầu sông bắc qua nước (Z > 5 hoặc Z < -20)
-                bool isTower = n.Contains("Big Tower") || n.Contains("Watchtower") || n.Contains("Bastion_Tower") || n.Contains("Tower_Tribal");
-                bool isInteriorArch = n.StartsWith("Arch Entry Wall", StringComparison.OrdinalIgnoreCase) && t.position.z < -10f;
-                bool isRiverBridge = (n.StartsWith("Bridge_Tribal", StringComparison.OrdinalIgnoreCase) || n.StartsWith("Ramp_Tribal", StringComparison.OrdinalIgnoreCase)) && (t.position.z > 5f || t.position.z < -20f);
-                bool isFloor = n.Contains("Smooth Floor") || n.Contains("Walkway_Deck") || n.Contains("Collider_Walkway_Deck") || n.Contains("FloorDeck");
-                bool isHut = n.Contains("Hut_Tribal") || n.Contains("Tribal_Tent") || (n.Contains("Hut") && !n.Contains("HealthBar"));
-
-                if (!isFrontGateOrBarricade && (isTower || isInteriorArch || isRiverBridge || isFloor || isHut)) continue;
-
-                bool isFence = isFrontGateOrBarricade ||
+                bool isFence = isChildOfDefensiveWallGroup ||
                                n.Contains("Wall_Segment") || n.Contains("Plank_Defenses") ||
                                n.Contains("wooden_barricade") || n.Contains("wooden__barricade") ||
-                               n.Contains("Barricade") || n.Contains("Palisade") ||
                                n.Contains("Gate_Portcullis_Barricade") ||
-                               n.Contains("Flank_Barricade") || n.Contains("Village_Left_Gap_Wall");
+                               n.Contains("Flank_Barricade") || n.Contains("Village_Left_Gap_Wall") ||
+                               (n.Contains("Barricade") && !n.Contains("Tower") && !n.Contains("Arch")) ||
+                               (n.Contains("Palisade") && !n.Contains("Tower") && !n.Contains("Arch"));
 
                 if (isFence)
                 {
@@ -456,11 +485,19 @@ namespace LlamAcademy.Dinos.RoundManagement
                 for (int i = canvas.transform.childCount - 1; i >= 0; i--)
                 {
                     Transform c = canvas.transform.GetChild(i);
-                    if (c != null && (c.name.Contains("Wall_Segment") || c.name.Contains("Portcullis") || c.name.Contains("Plank_Defenses") || c.name.Contains("Flank_Barricade")))
+                    if (c != null && (c.name.Contains("Wall_Segment") || c.name.Contains("Portcullis") || c.name.Contains("Plank_Defenses") || (!IsAssaultMode && c.name.Contains("Flank_Barricade"))))
                     {
                         Destroy(c.gameObject);
                     }
                 }
+            }
+
+            // Đảm bảo sau khi dọn rào cọc, toàn bộ công trình làng (chòi canh, sàn đi bộ, cổng vòm) luôn hiển thị 100%
+            EnsureScenicFortressWalkways();
+            EnsureVillageWatchtowers();
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
             }
         }
 
@@ -1003,6 +1040,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 }
                 w.MaxHealth = targetHp;
                 w.Health = targetHp;
+                w.FullRestore();
 
                 // Tạo và gắn Thanh máu hiển thị trên màn hình
                 w.EnsureHealthBarAttached();
@@ -1623,6 +1661,12 @@ namespace LlamAcademy.Dinos.RoundManagement
 
         public Vector3 GetValidSpawnPosition(int routeIndex = -1)
         {
+            return GetValidSpawnPosition(out _, routeIndex);
+        }
+
+        public Vector3 GetValidSpawnPosition(out int outRouteIndex, int routeIndex = -1)
+        {
+            outRouteIndex = 0;
             EnsureSpawnPoints();
 
             Transform chosenSpawn = null;
@@ -1630,7 +1674,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             {
                 try
                 {
-                    chosenSpawn = AI.PrehistoricNeuralDirector.Instance.SelectSpawnGateByQLearning(SpawnPoints);
+                    chosenSpawn = AI.PrehistoricNeuralDirector.Instance.SelectSpawnGateByQLearning(SpawnPoints, out outRouteIndex);
                 }
                 catch { }
             }
@@ -1646,6 +1690,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                             if (SpawnPoints[i] != null && SpawnPoints[i].gameObject != null)
                             {
                                 chosenSpawn = SpawnPoints[i];
+                                outRouteIndex = i;
                                 break;
                             }
                         }
@@ -1675,6 +1720,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     new Vector3(-30f, 0f, 15f)
                 };
                 int idx = routeIndex >= 0 ? (routeIndex % fallbackGates.Length) : UnityEngine.Random.Range(0, fallbackGates.Length);
+                outRouteIndex = idx;
                 basePos = fallbackGates[idx];
             }
 
@@ -1810,7 +1856,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                 GameObject dinoPrefab = spawnQueue[i];
                 if (dinoPrefab != null)
                 {
-                    Vector3 spawnPos = GetValidSpawnPosition(i % 3);
+                    Vector3 spawnPos = GetValidSpawnPosition(out int chosenRoute, i % 3);
                     Vector3 targetPos = GetValidBaseTargetPosition();
 
                     // Đảm bảo spawnPos được định vị chuẩn xác trên NavMesh của Khủng long trước khi Instantiate
@@ -1835,6 +1881,7 @@ namespace LlamAcademy.Dinos.RoundManagement
                     }
                     if (spawned.TryGetComponent(out Unit.Unit unitComp))
                     {
+                        unitComp.SpawnRouteIndex = chosenRoute;
                         ActiveMonsters.Add(unitComp);
                         unitComp.OnDeath += HandleMonsterDeath;
 
@@ -2167,7 +2214,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Reinforcement Learning Q-Learning Route feedback (phạt điểm tử vong trên cổng di chuyển)
             if (AI.PrehistoricNeuralDirector.Instance != null && deadMonster != null)
             {
-                AI.PrehistoricNeuralDirector.Instance.RecordDinoDeath(deadMonster.transform.position);
+                AI.PrehistoricNeuralDirector.Instance.RecordDinoDeath(deadMonster.SpawnRouteIndex, deadMonster.transform.position);
             }
         }
 
@@ -2204,8 +2251,9 @@ namespace LlamAcademy.Dinos.RoundManagement
             // Reinforcement Learning: Thưởng điểm cho lộ trình đột kích thành công vào căn cứ (+30 reward)
             if (AI.PrehistoricNeuralDirector.Instance != null)
             {
+                int route = attackingDino != null ? attackingDino.SpawnRouteIndex : 0;
                 Vector3 hitPos = attackingDino != null ? attackingDino.transform.position : (BaseTarget != null ? BaseTarget.position : Vector3.zero);
-                AI.PrehistoricNeuralDirector.Instance.RecordBaseHit(hitPos);
+                AI.PrehistoricNeuralDirector.Instance.RecordBaseHit(route, hitPos);
             }
 
             string attackerName = attackingDino != null ? attackingDino.GetType().Name : "Khủng long";
@@ -2573,77 +2621,85 @@ namespace LlamAcademy.Dinos.RoundManagement
         }
 
         /// <summary>
-        /// Người dùng yêu cầu xóa bỏ 2 chòi canh thủ gỗ bị tàng hình.
-        /// Hàm này dọn sạch mọi instance còn sót lại và thanh máu lơ lửng của chúng.
+        /// Phục hồi và đảm bảo 2 chòi canh trên bờ tường thành (Village_Watchtower_Left & Right)
+        /// luôn hiện diện nguyên vẹn 100%, renderers bật đầy đủ, máu tối đa (1200 HP) và gắn thanh máu chuẩn.
         /// </summary>
         public void EnsureVillageWatchtowers()
         {
-            CleanupVillageWatchtowers();
+            GameObject fortressRoot = GameObject.Find("Village_Fortress_Wall");
+            Transform parentTransform = fortressRoot != null ? fortressRoot.transform : null;
+
+            // 1. Chòi Cung Thủ Bên Trái (Front Left Flank: X = -6.0f, Y = 0f, Z = -5.5f)
+            EnsureSingleWatchtower("Village_Watchtower_Left", new Vector3(-6.0f, 0f, -5.5f), Quaternion.Euler(0f, 15f, 0f), parentTransform);
+
+            // 2. Chòi Cung Thủ Bên Phải (Front Right Flank: X = 1.6f, Y = 0f, Z = -5.5f)
+            EnsureSingleWatchtower("Village_Watchtower_Right", new Vector3(1.6f, 0f, -5.5f), Quaternion.Euler(0f, -15f, 0f), parentTransform);
+        }
+
+        private void EnsureSingleWatchtower(string wtName, Vector3 defaultPos, Quaternion defaultRot, Transform parent)
+        {
+            GameObject wtObj = GameObject.Find(wtName);
+            if (wtObj == null && parent != null)
+            {
+                Transform foundChild = parent.Find(wtName);
+                if (foundChild != null) wtObj = foundChild.gameObject;
+            }
+
+            if (wtObj == null)
+            {
+                var allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                foreach (var t in allTransforms)
+                {
+                    if (t != null && t.gameObject.name == wtName)
+                    {
+                        wtObj = t.gameObject;
+                        break;
+                    }
+                }
+            }
+
+            if (wtObj == null)
+            {
+                GameObject wtPrefab = Resources.Load<GameObject>("Prefabs/Prehistoric/Prefab_Watchtower");
+                if (wtPrefab == null) wtPrefab = Resources.Load<GameObject>("Prefab_Watchtower");
+                if (wtPrefab != null)
+                {
+                    wtObj = Instantiate(wtPrefab, defaultPos, defaultRot, parent);
+                    wtObj.name = wtName;
+                }
+            }
+
+            if (wtObj != null)
+            {
+                wtObj.SetActive(true);
+                foreach (var r in wtObj.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+                foreach (var c in wtObj.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+
+                if (wtObj.TryGetComponent(out Unit.Unit u))
+                {
+                    if (u.MaxHealth <= 0) u.MaxHealth = 1200;
+                    u.Health = u.MaxHealth;
+                    u.EnsureHealthBarAttached();
+                }
+
+                var obs = wtObj.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+                if (obs == null) obs = wtObj.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                obs.size = new Vector3(2.6f, 5.8f, 2.6f);
+                obs.center = new Vector3(0f, 2.9f, 0f);
+                obs.carving = true;
+                obs.enabled = true;
+            }
         }
 
         public void CleanupVillageWatchtowers()
         {
-            GameObject fortressRoot = GameObject.Find("Village_Fortress_Wall");
-            if (fortressRoot != null)
-            {
-                Transform leftWt = fortressRoot.transform.Find("Village_Watchtower_Left");
-                if (leftWt != null)
-                {
-                    if (leftWt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
-                    {
-                        HealthBarCanvas.Instance.Unregister(u);
-                    }
-                    Destroy(leftWt.gameObject);
-                }
-
-                Transform rightWt = fortressRoot.transform.Find("Village_Watchtower_Right");
-                if (rightWt != null)
-                {
-                    if (rightWt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
-                    {
-                        HealthBarCanvas.Instance.Unregister(u);
-                    }
-                    Destroy(rightWt.gameObject);
-                }
-            }
-
-            GameObject strayLt = GameObject.Find("Village_Watchtower_Left");
-            if (strayLt != null)
-            {
-                if (strayLt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
-                {
-                    HealthBarCanvas.Instance.Unregister(u);
-                }
-                Destroy(strayLt);
-            }
-
-            GameObject strayRt = GameObject.Find("Village_Watchtower_Right");
-            if (strayRt != null)
-            {
-                if (strayRt.TryGetComponent(out Unit.Unit u) && HealthBarCanvas.HasInstance)
-                {
-                    HealthBarCanvas.Instance.Unregister(u);
-                }
-                Destroy(strayRt);
-            }
-
-            if (HealthBarCanvas.HasInstance)
-            {
-                var canvas = HealthBarCanvas.Instance;
-                for (int i = canvas.transform.childCount - 1; i >= 0; i--)
-                {
-                    Transform c = canvas.transform.GetChild(i);
-                    if (c != null && (c.name.Contains("Village_Watchtower_Left") || c.name.Contains("Village_Watchtower_Right")))
-                    {
-                        Destroy(c.gameObject);
-                    }
-                }
-            }
+            EnsureVillageWatchtowers();
         }
 
         public void EnsureVillageFortressWallActive()
         {
-            CleanupVillageWatchtowers();
+            EnsureScenicFortressWalkways();
+            EnsureVillageWatchtowers();
             DeactivateDefaultSceneBarricades();
         }
 
@@ -3085,21 +3141,19 @@ namespace LlamAcademy.Dinos.RoundManagement
             bool isTowerDefense = (PrehistoricGameModeManager.Instance == null || 
                                    PrehistoricGameModeManager.Instance.CurrentMode == PrehistoricGameMode.TowerDefense);
 
-            // 1. Phục hồi 100% tất cả tường do người chơi đặt (Clone) nếu giữ lại
-            if (keepPlayerTowers)
-            {
-                var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-                foreach (var wall in allWalls)
-                {
-                    if (wall != null && wall.gameObject.name.Contains("(Clone)"))
-                    {
-                        wall.FullRestore();
-                    }
-                }
-            }
-
             // Đảm bảo vô hiệu hóa triệt để tường mặc định của cảnh (để quái không đi xuyên tường)
             DeactivateDefaultSceneBarricades();
+
+            // Đảm bảo cấu hình va chạm và chướng ngại vật cho tường người chơi đặt
+            // Phục hồi và làm mới rào gỗ: chế độ Thủ Thành luôn xóa sạch hàng rào gỗ mặc định, chế độ Công Thành kích hoạt đầy đủ
+            if (isTowerDefense)
+            {
+                RemoveAllVillageFrontBarricades();
+            }
+            else
+            {
+                RestoreAllVillageBarricades();
+            }
 
             // Đảm bảo cấu hình va chạm và chướng ngại vật cho tường người chơi đặt
             ConfigureAllCustomBarricades();
@@ -3110,14 +3164,48 @@ namespace LlamAcademy.Dinos.RoundManagement
             EnsureVillageWatchtowers();
             EnsureScenicBridgeWatchtowers();
 
-            // Phục hồi và làm mới rào gỗ: chế độ Thủ Thành luôn xóa sạch hàng rào gỗ mặc định, chế độ Công Thành kích hoạt đầy đủ
-            if (isTowerDefense)
+            // 1. Phục hồi 100% TOÀN BỘ tường, cổng, cầu gỗ, rào chắn còn tồn tại (cả Scene lẫn Clone nếu keepPlayerTowers)
+            var allWalls = FindObjectsByType<Unit.Wall>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var wall in allWalls)
             {
-                RemoveAllVillageFrontBarricades();
+                if (wall == null) continue;
+                if (!keepPlayerTowers && wall.gameObject.name.Contains("(Clone)")) continue;
+
+                wall.FullRestore();
+                if (wall.ActiveHealthBar != null)
+                {
+                    wall.ActiveHealthBar.gameObject.SetActive(true);
+                    wall.ActiveHealthBar.SetProgress(1.0f);
+                }
             }
-            else
+
+            // 1.1. Phục hồi 100% TOÀN BỘ Units phòng thủ của làng và người chơi (chòi canh, pháo đài bastion, tháp, căn cứ)
+            var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var u in allUnits)
             {
-                RestoreAllVillageBarricades();
+                if (u == null) continue;
+                if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
+                if (u is Unit.Wall) continue; // Đã xử lý ở allWalls
+                if (!keepPlayerTowers && u.gameObject.name.Contains("(Clone)")) continue;
+
+                if (u.MaxHealth <= 0)
+                {
+                    if (u.gameObject.name.Contains("Watchtower")) u.MaxHealth = 1200;
+                    else if (u.gameObject.name.Contains("Bastion")) u.MaxHealth = 2000;
+                    else u.MaxHealth = 1000;
+                }
+
+                u.Health = u.MaxHealth;
+                u.gameObject.SetActive(true);
+                foreach (var r in u.GetComponentsInChildren<Renderer>(true)) if (r != null) r.enabled = true;
+                foreach (var c in u.GetComponentsInChildren<Collider>(true)) if (c != null) c.enabled = true;
+
+                u.EnsureHealthBarAttached();
+                if (u.ActiveHealthBar != null)
+                {
+                    u.ActiveHealthBar.gameObject.SetActive(true);
+                    u.ActiveHealthBar.SetProgress(1.0f);
+                }
             }
 
             // 2. Xóa sạch bộ nhớ đột phá (Tactical Breach Memory) của AI khủng long
@@ -3151,22 +3239,6 @@ namespace LlamAcademy.Dinos.RoundManagement
                     int waveGold = GetDefenseStartingGoldForWave(_CurrentWave);
                     TowerPlacer.Instance.ResetGoldToDefault(waveGold);
                     TowerPlacer.Instance.DeselectTower();
-                }
-            }
-            else
-            {
-                // Giữa các wave (bàn mới): Hồi phục đầy đủ 100% máu cho các tháp phòng thủ của người chơi nếu bị hư hại
-                var allUnits = FindObjectsByType<Unit.Unit>(FindObjectsSortMode.None);
-                foreach (var u in allUnits)
-                {
-                    if (u == null) continue;
-                    if (u is Unit.PrehistoricDinoBase || u is Unit.Dino || u is Unit.FlyingUnit) continue;
-                    if (u is Unit.Wall || u is Unit.PrehistoricVillageBase) continue;
-                    if (u.MaxHealth > 0 && u.Health < u.MaxHealth)
-                    {
-                        u.Health = u.MaxHealth;
-                        u.EnsureHealthBarAttached();
-                    }
                 }
             }
 
@@ -3280,6 +3352,11 @@ namespace LlamAcademy.Dinos.RoundManagement
 
             // Chơi lại màn X: Reset hoàn toàn theo màn (xóa quái, xóa tháp cũ, xóa lính rác, reset vàng chuẩn cho màn X)
             ResetEntireVillage(keepPlayerTowers: false);
+
+            if (Utility.HealthBarCanvas.HasInstance)
+            {
+                Utility.HealthBarCanvas.Instance.ClearOrphaned();
+            }
 
             SetPhase(PrehistoricWavePhase.BuildingPhase);
 
@@ -3852,14 +3929,31 @@ namespace LlamAcademy.Dinos.RoundManagement
         {
             if (string.IsNullOrEmpty(ScreenAnnouncement)) return;
 
-            float w = Mathf.Min(650f, Mobile.MobileUIHelper.ScreenWidth - 40f);
-            float h = 60f;
-            float x = (Mobile.MobileUIHelper.ScreenWidth - w) / 2f;
-            float y = 75f;
+            float screenW = Mobile.MobileUIHelper.ScreenWidth;
+            float w = Mathf.Min(680f, screenW - 40f);
+            float h = 64f;
+            float x = (screenW - w) / 2f;
+            // Đặt ở Y = 168f để nằm hoàn toàn bên dưới thanh Máu Làng (Y: 20-160) và dưới thanh IO Cloud (Y: 10-72), loại bỏ 100% tình trạng che khuất
+            float y = 168f;
 
-            GUI.backgroundColor = new Color(0f, 0f, 0f, 0.85f);
-            GUI.Box(new Rect(x, y, w, h), $"<b><size=18>{ScreenAnnouncement}</size></b>");
+            Rect rect = new Rect(x, y, w, h);
+            Mobile.MobileUIHelper.RegisterUIRect(rect);
+
+            GUI.backgroundColor = new Color(0.06f, 0.10f, 0.16f, 0.94f);
+            GUI.Box(rect, "");
             GUI.backgroundColor = Color.white;
+
+            GUIStyle style = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true,
+                richText = true,
+                fontSize = 15,
+                fontStyle = FontStyle.Bold
+            };
+            style.normal.textColor = new Color(1f, 0.92f, 0.45f);
+
+            GUI.Label(new Rect(x + 12f, y + 6f, w - 24f, h - 12f), ScreenAnnouncement, style);
         }
 
         private void DrawTacticalCountdownOverlay()
@@ -3868,7 +3962,8 @@ namespace LlamAcademy.Dinos.RoundManagement
             float bannerW = Mathf.Min(860f, Mobile.MobileUIHelper.ScreenWidth - 40f);
             float bannerH = 125f;
             float bannerX = (Mobile.MobileUIHelper.ScreenWidth - bannerW) * 0.5f;
-            float bannerY = 85f;
+            // Đặt ở Y = 168f để nằm gọn dưới thanh Trạng Thái Máu Làng
+            float bannerY = 168f;
 
             Rect rect = new Rect(bannerX, bannerY, bannerW, bannerH);
             Mobile.MobileUIHelper.RegisterUIRect(rect);

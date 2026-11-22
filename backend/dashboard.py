@@ -671,7 +671,15 @@ def get_dashboard_html() -> str:
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 10 } } }
+                        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 10 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.parsed;
+                                    return ` ${context.label}: ${isNaN(val) ? 0 : val}%`;
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -741,7 +749,7 @@ def get_dashboard_html() -> str:
 
         async function fetchLeaderboard() {
             try {
-                const res = await fetch('/api/v1/cloud/leaderboard?limit=10');
+                const res = await fetch('/api/v1/cloud/leaderboard?limit=25');
                 if (!res.ok) return;
                 const data = await res.json();
                 const tbody = document.getElementById('leaderboardTableBody');
@@ -752,8 +760,24 @@ def get_dashboard_html() -> str:
                     return;
                 }
 
+                // Client-side deduplication guard: Mỗi tù trưởng chỉ xuất hiện 1 lần với điểm số cao nhất
+                const seenPlayers = new Set();
+                const uniqueEntries = [];
+                data.leaderboard.forEach(entry => {
+                    const key = (entry.player_name || entry.player_id || '').trim().toLowerCase();
+                    if (key && !seenPlayers.has(key)) {
+                        seenPlayers.add(key);
+                        uniqueEntries.push(entry);
+                    }
+                });
+
+                if (uniqueEntries.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px; color:#64748B;">Chưa có bảng xếp hạng.</td></tr>';
+                    return;
+                }
+
                 let maxWave = 1;
-                data.leaderboard.forEach((entry, idx) => {
+                uniqueEntries.slice(0, 10).forEach((entry, idx) => {
                     const rank = idx + 1;
                     let rankBadge = rank === 1 ? '🥇 1' : (rank === 2 ? '🥈 2' : (rank === 3 ? '🥉 3' : rank));
                     if ((entry.wave_reached || 1) > maxWave) maxWave = entry.wave_reached;
@@ -855,16 +879,26 @@ def get_dashboard_html() -> str:
                     p1 = Math.round((Number(aw[1]) || 0.25) * 100);
                     p2 = Math.round((Number(aw[2]) || 0.25) * 100);
                     p3 = Math.round((Number(aw[3]) || 0.25) * 100);
+                } else if (typeof aw === 'object' && aw !== null) {
+                    p0 = Math.round((Number(aw.Velociraptor_Runner ?? aw.runner ?? aw['0']) || 0.25) * 100);
+                    p1 = Math.round((Number(aw.Pterodactyl_Flyer ?? aw.flyer ?? aw['1']) || 0.25) * 100);
+                    p2 = Math.round((Number(aw.Ankylosaurus_Tank ?? aw.tank ?? aw['2']) || 0.25) * 100);
+                    p3 = Math.round((Number(aw.TRex_Boss ?? aw.boss ?? aw['3']) || 0) * 100);
                 } else {
-                    p0 = Math.round((Number(aw.Velociraptor_Runner ?? aw.runner ?? aw[0]) || 0.25) * 100);
-                    p1 = Math.round((Number(aw.Pterodactyl_Flyer ?? aw.flyer ?? aw[1]) || 0.25) * 100);
-                    p2 = Math.round((Number(aw.Ankylosaurus_Tank ?? aw.tank ?? aw[2]) || 0.25) * 100);
-                    p3 = Math.round((Number(aw.TRex_Boss ?? aw.boss ?? aw[3]) || 0) * 100);
+                    p0 = 35; p1 = 25; p2 = 30; p3 = 10;
                 }
-                if (isNaN(p0)) p0 = 25;
-                if (isNaN(p1)) p1 = 25;
-                if (isNaN(p2)) p2 = 25;
-                if (isNaN(p3)) p3 = 0;
+                if (isNaN(p0) || p0 < 0) p0 = 25;
+                if (isNaN(p1) || p1 < 0) p1 = 25;
+                if (isNaN(p2) || p2 < 0) p2 = 25;
+                if (isNaN(p3) || p3 < 0) p3 = 0;
+
+                const totalP = p0 + p1 + p2 + p3;
+                if (totalP > 0 && totalP !== 100) {
+                    p0 = Math.round((p0 / totalP) * 100);
+                    p1 = Math.round((p1 / totalP) * 100);
+                    p2 = Math.round((p2 / totalP) * 100);
+                    p3 = Math.max(0, 100 - p0 - p1 - p2);
+                }
 
                 document.getElementById('sbProb0').innerText = p0 + '%';
                 document.getElementById('sbFill0').style.width = p0 + '%';
@@ -902,6 +936,8 @@ def get_dashboard_html() -> str:
         window.onload = function() {
             initCharts();
             refreshAllData();
+            // Tự động kích hoạt dự báo mẫu để biểu đồ Tỷ Trọng Khủng Long AI hiển thị trực quan ngay lập tức
+            runAiSandboxPrediction();
             // Auto refresh every 6 seconds
             setInterval(refreshAllData, 6000);
         };

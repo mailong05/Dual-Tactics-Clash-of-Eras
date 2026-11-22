@@ -765,7 +765,16 @@ namespace LlamAcademy.Dinos.Save
                 CurrentData.DefenseProfile.MaxBaseHealth = maxHp;
                 CurrentData.DefenseProfile.Gold = gold;
                 CurrentData.DefenseProfile.HasActiveRun = hasActiveRun;
-                CurrentData.DefenseProfile.TotalScore = (CurrentData.DefenseProfile.HighestWaveReached * 1000) + (CurrentData.DefenseProfile.TotalMonstersKilled * 25) + gold;
+                // Điểm chỉ được tính khi đã bắt đầu chơi (diệt quái hoặc vượt qua đợt 1); tài khoản mới chưa chơi thì điểm luôn = 0
+                if (CurrentData.DefenseProfile.TotalMonstersKilled > 0 || CurrentData.DefenseProfile.HighestWaveReached > 1)
+                {
+                    int clearedWaves = Mathf.Max(0, CurrentData.DefenseProfile.HighestWaveReached - 1);
+                    CurrentData.DefenseProfile.TotalScore = (clearedWaves * 1000) + (CurrentData.DefenseProfile.TotalMonstersKilled * 25) + Mathf.Max(0, gold - 1200);
+                }
+                else
+                {
+                    CurrentData.DefenseProfile.TotalScore = 0;
+                }
             }
 
             SaveDataToDisk();
@@ -855,6 +864,135 @@ namespace LlamAcademy.Dinos.Save
             AutoSaveCurrentRun(CurrentData.HasActiveRun);
         }
 
+        public void ResetForNewAccount(string newName)
+        {
+            string chiefName = string.IsNullOrWhiteSpace(newName) ? "Tù Trưởng Tiền Sử" : newName.Trim();
+
+            try
+            {
+                if (File.Exists(SaveFilePath)) File.Delete(SaveFilePath);
+                if (File.Exists(LegacySaveFilePath)) File.Delete(LegacySaveFilePath);
+                if (Directory.Exists(SaveSlotsDirectory)) Directory.Delete(SaveSlotsDirectory, true);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SaveSystem] Error cleaning previous files: {ex.Message}");
+            }
+
+            CurrentData = new PrehistoricSaveData();
+            CurrentData.PlayerChiefName = chiefName;
+            CurrentData.UnlockedMapMax = 0; // KHÓA toàn bộ map phụ (chỉ mở Thung Lũng Cổ Đại)
+            CurrentData.LastPlayedMode = PrehistoricGameMode.TowerDefense;
+
+            CurrentData.DefenseProfile = new DefenseSaveProfile
+            {
+                CurrentWave = 1,
+                HighestWaveReached = 1,
+                Gold = 1200,
+                BaseHealth = 1000,
+                MaxBaseHealth = 1000,
+                TotalMonstersKilled = 0,
+                TotalScore = 0,
+                MapIndex = 0,
+                UnlockedMapMax = 0,
+                HasActiveRun = false
+            };
+
+            CurrentData.AssaultProfile = new AssaultSaveProfile
+            {
+                AssaultLevel = 1,
+                HighestLevelReached = 1,
+                Meat = 500,
+                BaseHealth = 1000,
+                MaxBaseHealth = 1000,
+                MapIndex = 0,
+                UnlockedMapMax = 0,
+                HasActiveRun = false
+            };
+
+            CurrentData.SlotsCollection = new SaveSlotsCollection();
+
+            _lastSubmittedScore = 0;
+            _lastAutoCloudSyncTime = -99f;
+
+            SaveDataToDisk();
+            SaveToSlot(PrehistoricGameMode.TowerDefense, 0, isAutoSave: true);
+            SaveToSlot(PrehistoricGameMode.DinoAssault, 0, isAutoSave: true);
+
+            // Đồng bộ hồ sơ sạch lên Cloud (không gửi điểm leaderboard vì điểm = 0)
+            if (IOCloudManager.Instance != null && IOCloudManager.Instance.IsCloudConnected)
+            {
+                IOCloudManager.Instance.SaveProgressToCloud(chiefName, 1200, 1, "TowerDefense");
+            }
+
+            OnGameLoaded?.Invoke(CurrentData);
+            OnGameSaved?.Invoke(CurrentData);
+            Debug.Log($"<color=green>[SaveSystem]</color> Đã khởi tạo hồ sơ sạch cho Tù Trưởng [{chiefName}]. Điểm = 0, Khóa toàn bộ map ngoài Thung Lũng Cổ Đại.");
+        }
+
+        public void LoadFromCloudSaveDirect(CloudSaveResponse loaded)
+        {
+            if (loaded == null) return;
+
+            CurrentData = new PrehistoricSaveData();
+            CurrentData.PlayerChiefName = !string.IsNullOrWhiteSpace(loaded.player_name) ? loaded.player_name.Trim() : "Tù Trưởng";
+
+            int defWave = loaded.defense_wave > 0 ? loaded.defense_wave : (loaded.highest_wave > 0 ? loaded.highest_wave : 1);
+            int defHighest = loaded.defense_highest_wave > 0 ? loaded.defense_highest_wave : (loaded.highest_wave > 0 ? loaded.highest_wave : 1);
+            int defGold = loaded.defense_gold > 0 ? loaded.defense_gold : (loaded.coins > 0 ? loaded.coins : 1200);
+
+            CurrentData.DefenseProfile = new DefenseSaveProfile
+            {
+                CurrentWave = Mathf.Max(1, defWave),
+                HighestWaveReached = Mathf.Max(1, defHighest),
+                Gold = Mathf.Max(500, defGold),
+                BaseHealth = 1000,
+                MaxBaseHealth = 1000,
+                HasActiveRun = loaded.defense_has_run
+            };
+
+            int assLevel = loaded.assault_level > 0 ? loaded.assault_level : 1;
+            int assHighest = loaded.assault_highest_level > 0 ? loaded.assault_highest_level : 1;
+            int assMeat = loaded.assault_meat > 0 ? loaded.assault_meat : 500;
+
+            CurrentData.AssaultProfile = new AssaultSaveProfile
+            {
+                AssaultLevel = Mathf.Max(1, assLevel),
+                HighestLevelReached = Mathf.Max(1, assHighest),
+                Meat = Mathf.Max(500, assMeat),
+                BaseHealth = 1000,
+                MaxBaseHealth = 1000,
+                HasActiveRun = loaded.assault_has_run
+            };
+
+            // Mở khóa map chính xác theo tiến trình thực tế của tài khoản này
+            int maxHighest = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, CurrentData.AssaultProfile.HighestLevelReached);
+            CurrentData.UnlockedMapMax = maxHighest >= 20 ? 2 : (maxHighest >= 10 ? 1 : 0);
+            CurrentData.DefenseProfile.UnlockedMapMax = CurrentData.UnlockedMapMax;
+            CurrentData.AssaultProfile.UnlockedMapMax = CurrentData.UnlockedMapMax;
+
+            if (!string.IsNullOrEmpty(loaded.slots_json))
+            {
+                try
+                {
+                    SaveSlotsCollection sc = JsonUtility.FromJson<SaveSlotsCollection>(loaded.slots_json);
+                    if (sc != null && sc.slots != null)
+                    {
+                        CurrentData.SlotsCollection = sc;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[SaveSystem] Lỗi đọc slots từ Cloud: {ex.Message}");
+                }
+            }
+            EnsureAutoSaveSlotPresent();
+
+            SaveDataToDisk();
+            OnGameLoaded?.Invoke(CurrentData);
+            Debug.Log($"<color=cyan>[IO Cloud]</color> Nạp thành công Cloud Save của {CurrentData.PlayerChiefName}: Def Highest {CurrentData.DefenseProfile.HighestWaveReached}, Assault Highest {CurrentData.AssaultProfile.HighestLevelReached}, UnlockedMapMax: {CurrentData.UnlockedMapMax}");
+        }
+
         public void ResetDefenseSave()
         {
             EnsureProfilesInitialized();
@@ -919,53 +1057,7 @@ namespace LlamAcademy.Dinos.Save
         private void HandleCloudSaveLoaded(CloudSaveResponse loaded)
         {
             if (loaded == null) return;
-            EnsureProfilesInitialized();
-
-            if (!string.IsNullOrWhiteSpace(loaded.player_name))
-            {
-                CurrentData.PlayerChiefName = loaded.player_name;
-            }
-
-            // Chế độ Thủ Thành (Tower Defense) độc lập
-            int defWave = loaded.defense_wave > 0 ? loaded.defense_wave : loaded.highest_wave;
-            int defHighest = loaded.defense_highest_wave > 0 ? loaded.defense_highest_wave : loaded.highest_wave;
-            int defGold = loaded.defense_gold > 0 ? loaded.defense_gold : (loaded.coins > 0 ? loaded.coins : 1200);
-            CurrentData.DefenseProfile.CurrentWave = Mathf.Max(1, defWave);
-            CurrentData.DefenseProfile.HighestWaveReached = Mathf.Max(CurrentData.DefenseProfile.HighestWaveReached, defHighest);
-            CurrentData.DefenseProfile.Gold = Mathf.Max(CurrentData.DefenseProfile.Gold, defGold);
-            CurrentData.DefenseProfile.HasActiveRun = loaded.defense_has_run;
-
-            // Chế độ Công Thành (Dino Assault) độc lập
-            int assLevel = loaded.assault_level > 0 ? loaded.assault_level : 1;
-            int assHighest = loaded.assault_highest_level > 0 ? loaded.assault_highest_level : 1;
-            int assMeat = loaded.assault_meat > 0 ? loaded.assault_meat : 500;
-            CurrentData.AssaultProfile.AssaultLevel = Mathf.Max(1, assLevel);
-            CurrentData.AssaultProfile.HighestLevelReached = Mathf.Max(CurrentData.AssaultProfile.HighestLevelReached, assHighest);
-            CurrentData.AssaultProfile.Meat = Mathf.Max(CurrentData.AssaultProfile.Meat, assMeat);
-            CurrentData.AssaultProfile.HasActiveRun = loaded.assault_has_run;
-
-            // Tải danh sách Khe Lưu (SlotsCollection) trực tiếp từ Cloud
-            if (!string.IsNullOrEmpty(loaded.slots_json))
-            {
-                try
-                {
-                    SaveSlotsCollection sc = JsonUtility.FromJson<SaveSlotsCollection>(loaded.slots_json);
-                    if (sc != null && sc.slots != null && sc.slots.Count > 0)
-                    {
-                        CurrentData.SlotsCollection = sc;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[SaveSystem] Error deserializing slots_json from Cloud: {ex.Message}");
-                }
-            }
-
-            EnsureAutoSaveSlotPresent();
-
-            SaveDataToDisk();
-            OnGameLoaded?.Invoke(CurrentData);
-            Debug.Log($"<color=cyan>[IO Cloud]</color> Đã nạp thành công bản lưu từ Cloud cho {CurrentData.PlayerChiefName} (Thủ Thành: Đợt {CurrentData.DefenseProfile.CurrentWave}, Công Thành: Màn {CurrentData.AssaultProfile.AssaultLevel}).");
+            LoadFromCloudSaveDirect(loaded);
         }
 
         public void SaveToCloudSyncNow()
@@ -976,6 +1068,8 @@ namespace LlamAcademy.Dinos.Save
                 IOCloudManager.Instance.SaveProgressToCloudSync(snap.playerName, snap.coins, snap.highestWave, snap.mode);
             }
         }
+
+        private int _lastSubmittedScore = -1;
 
         private void AutoSyncToCloudIfOnline()
         {
@@ -988,8 +1082,11 @@ namespace LlamAcademy.Dinos.Save
                 _lastAutoCloudSyncTime = Time.unscaledTime;
                 var snap = CollectCloudSnapshot();
                 IOCloudManager.Instance.SaveProgressToCloud(snap.playerName, snap.coins, snap.highestWave, snap.mode);
-                if (CurrentData.TotalScore > 0)
+                bool hasActuallyPlayed = (CurrentData.DefenseProfile != null && (CurrentData.DefenseProfile.HighestWaveReached > 1 || CurrentData.DefenseProfile.TotalMonstersKilled > 0)) ||
+                                         (CurrentData.AssaultProfile != null && CurrentData.AssaultProfile.HighestLevelReached > 1);
+                if (CurrentData.TotalScore > 0 && hasActuallyPlayed && CurrentData.TotalScore != _lastSubmittedScore)
                 {
+                    _lastSubmittedScore = CurrentData.TotalScore;
                     IOCloudManager.Instance.SubmitScoreToCloud(snap.playerName, CurrentData.TotalScore, snap.highestWave);
                 }
             }
@@ -1000,7 +1097,12 @@ namespace LlamAcademy.Dinos.Save
             if (IOCloudManager.Instance != null && IOCloudManager.Instance.IsCloudConnected)
             {
                 IOCloudManager.Instance.SaveProgressToCloud(CurrentData.PlayerChiefName, CurrentData.Gold, CurrentData.HighestWaveReached, CurrentData.LastPlayedMode.ToString());
-                IOCloudManager.Instance.SubmitScoreToCloud(CurrentData.PlayerChiefName, CurrentData.TotalScore, CurrentData.HighestWaveReached);
+                bool hasActuallyPlayed = (CurrentData.DefenseProfile != null && (CurrentData.DefenseProfile.HighestWaveReached > 1 || CurrentData.DefenseProfile.TotalMonstersKilled > 0)) ||
+                                         (CurrentData.AssaultProfile != null && CurrentData.AssaultProfile.HighestLevelReached > 1);
+                if (CurrentData.TotalScore > 0 && hasActuallyPlayed)
+                {
+                    IOCloudManager.Instance.SubmitScoreToCloud(CurrentData.PlayerChiefName, CurrentData.TotalScore, CurrentData.HighestWaveReached);
+                }
                 onComplete?.Invoke(true, $"Đã đồng bộ thành công hồ sơ [{CurrentData.PlayerChiefName}] ({CurrentData.TotalScore} điểm) lên IO Cloud!");
             }
             else

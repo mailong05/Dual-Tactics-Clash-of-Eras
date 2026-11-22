@@ -131,6 +131,31 @@ def init_db() -> None:
                 """,
                 SEED_LEADERBOARD,
             )
+        else:
+            # Prune duplicate leaderboard rows keeping only the best score per player account
+            conn.execute(
+                """
+                DELETE FROM leaderboard
+                WHERE id NOT IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY CASE WHEN player_id IS NOT NULL AND player_id != '' THEN player_id ELSE COALESCE(NULLIF(TRIM(player_name), ''), id) END
+                            ORDER BY score DESC, wave_reached DESC, submitted_at DESC, id DESC
+                        ) as rn
+                        FROM leaderboard
+                    ) WHERE rn = 1
+                )
+                """
+            )
+
+        # Clean up any polluted leaderboard records from previous registration bugs
+        conn.execute(
+            """
+            DELETE FROM leaderboard
+            WHERE LOWER(player_id) IN ('killer queen')
+               OR LOWER(TRIM(player_name)) IN ('nữ quái nổi loạn')
+            """
+        )
 
         # Seed default Chief account if none exists
         acc_count = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
@@ -302,6 +327,15 @@ def register_account(req: AccountAuthRequest):
             VALUES (?, ?, ?, ?, ?)
             """,
             (username, pin_hash, display_name, now, now)
+        )
+
+        # Ensure newly registered account never inherits or keeps stale leaderboard entries
+        conn.execute(
+            """
+            DELETE FROM leaderboard
+            WHERE LOWER(player_id) = LOWER(?) OR LOWER(TRIM(player_name)) = LOWER(?)
+            """,
+            (username, display_name)
         )
 
         # Seed default cloud save row if none exists
@@ -531,15 +565,29 @@ def load_player_state(player_id: str):
 
 @app.get("/api/v1/cloud/leaderboard")
 def get_leaderboard(limit: int = 10):
-    """Returns top scores across all modes from persistent SQLite"""
+    """Returns top scores across all modes from persistent SQLite, deduplicated per player"""
     init_db()
     with _get_conn() as conn:
-        total = conn.execute("SELECT COUNT(*) FROM leaderboard").fetchone()[0]
+        total = conn.execute(
+            """
+            SELECT COUNT(DISTINCT CASE WHEN player_id IS NOT NULL AND player_id != '' THEN player_id ELSE COALESCE(NULLIF(TRIM(player_name), ''), id) END)
+            FROM leaderboard
+            """
+        ).fetchone()[0]
         rows = conn.execute(
             """
+            WITH ranked AS (
+                SELECT player_id, player_name, score, wave_reached, mode, submitted_at,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY CASE WHEN player_id IS NOT NULL AND player_id != '' THEN player_id ELSE COALESCE(NULLIF(TRIM(player_name), ''), id) END
+                           ORDER BY score DESC, wave_reached DESC, submitted_at DESC, id DESC
+                       ) as rn
+                FROM leaderboard
+            )
             SELECT player_id, player_name, score, wave_reached, mode, submitted_at
-            FROM leaderboard
-            ORDER BY score DESC, id DESC
+            FROM ranked
+            WHERE rn = 1
+            ORDER BY score DESC, wave_reached DESC, submitted_at DESC
             LIMIT ?
             """,
             (max(1, min(limit, 100)),),
@@ -551,36 +599,106 @@ def get_leaderboard(limit: int = 10):
 
 @app.post("/api/v1/cloud/leaderboard/submit")
 def submit_score(submission: ScoreSubmission):
-    """Submits a new highscore to persistent global cloud leaderboard"""
+    """Submits a new highscore to persistent global cloud leaderboard (deduplicated by player)"""
     init_db()
     submitted_at = time.time()
+    p_name = submission.player_name.strip() if submission.player_name else ""
+    p_id = submission.player_id.strip() if submission.player_id else ""
+    player_key = p_name if p_name else p_id
+
     with _get_conn() as conn:
-        cur = conn.execute(
+        existing = conn.execute(
             """
-            INSERT INTO leaderboard (player_id, player_name, score, wave_reached, mode, submitted_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            SELECT id, score, wave_reached FROM leaderboard
+            WHERE (player_name IS NOT NULL AND player_name != '' AND LOWER(TRIM(player_name)) = LOWER(?))
+               OR player_id = ?
+            ORDER BY score DESC, id DESC
+            LIMIT 1
             """,
-            (
-                submission.player_id,
-                submission.player_name,
-                submission.score,
-                submission.wave_reached,
-                submission.mode,
-                submitted_at,
-            ),
-        )
-        row_id = cur.lastrowid
-        # Compute 1-based rank matching ORDER BY score DESC, id DESC
+            (player_key, p_id),
+        ).fetchone()
+
+        if existing is not None:
+            existing_id = existing["id"]
+            existing_score = existing["score"]
+            existing_wave = existing["wave_reached"]
+            if submission.score > existing_score or (submission.score == existing_score and submission.wave_reached >= existing_wave):
+                conn.execute(
+                    """
+                    UPDATE leaderboard
+                    SET score = ?, wave_reached = ?, mode = ?, submitted_at = ?, player_name = ?, player_id = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        submission.score,
+                        submission.wave_reached,
+                        submission.mode,
+                        submitted_at,
+                        submission.player_name,
+                        submission.player_id,
+                        existing_id,
+                    ),
+                )
+            # Remove any leftover duplicates for this player
+            conn.execute(
+                """
+                DELETE FROM leaderboard
+                WHERE id != ? AND (
+                    (player_name IS NOT NULL AND player_name != '' AND LOWER(TRIM(player_name)) = LOWER(?))
+                    OR player_id = ?
+                )
+                """,
+                (existing_id, player_key, p_id),
+            )
+            effective_score = max(submission.score, existing_score)
+        else:
+            conn.execute(
+                """
+                INSERT INTO leaderboard (player_id, player_name, score, wave_reached, mode, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    submission.player_id,
+                    submission.player_name,
+                    submission.score,
+                    submission.wave_reached,
+                    submission.mode,
+                    submitted_at,
+                ),
+            )
+            effective_score = submission.score
+
         rank = conn.execute(
             """
-            SELECT COUNT(*) + 1 FROM leaderboard
-            WHERE score > ? OR (score = ? AND id > ?)
+            WITH best_scores AS (
+                SELECT COALESCE(NULLIF(TRIM(player_name), ''), player_id) as pkey, MAX(score) as max_score
+                FROM leaderboard
+                GROUP BY pkey
+            )
+            SELECT COUNT(*) + 1 FROM best_scores
+            WHERE max_score > ?
             """,
-            (submission.score, submission.score, row_id),
+            (effective_score,),
         ).fetchone()[0]
         conn.commit()
 
     return {"status": "recorded", "rank": rank}
+
+
+@app.delete("/api/v1/cloud/leaderboard/{player_id}")
+def delete_leaderboard_entry(player_id: str):
+    """Deletes a player's entry from leaderboard (admin/cleanup)"""
+    init_db()
+    with _get_conn() as conn:
+        conn.execute(
+            """
+            DELETE FROM leaderboard
+            WHERE LOWER(player_id) = LOWER(?) OR LOWER(TRIM(player_name)) = LOWER(?)
+            """,
+            (player_id.strip(), player_id.strip())
+        )
+        conn.commit()
+    return {"status": "success", "message": f"Đã xóa điểm leaderboard của [{player_id}]"}
 
 
 @app.get("/api/v1/cloud/config")

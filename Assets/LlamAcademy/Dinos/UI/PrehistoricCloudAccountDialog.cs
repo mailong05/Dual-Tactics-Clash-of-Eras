@@ -525,30 +525,33 @@ namespace LlamAcademy.Dinos.UI
                 GUILayout.Label("<b>Chế Độ</b>");
                 GUILayout.EndHorizontal();
 
-                // Mock / Cached display
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("<color=#F59E0B><b>🥇 1</b></color>", GUILayout.Width(45));
-                GUILayout.Label("<b>T-Rex Hunter</b>", GUILayout.Width(180));
-                GUILayout.Label("<color=#00FFAA><b>14,500</b></color>", GUILayout.Width(100));
-                GUILayout.Label("Đợt 18", GUILayout.Width(110));
-                GUILayout.Label("Thủ Thành");
-                GUILayout.EndHorizontal();
+                // Hiển thị trực tiếp danh sách bảng xếp hạng thật từ IO Cloud
+                var board = cloudMgr?.CachedLeaderboard;
+                if (board == null || board.Count == 0)
+                {
+                    GUILayout.Label("<color=#94A3B8><i>Đang tải dữ liệu bảng xếp hạng từ máy chủ... (Bấm '⟳ Làm Mới' nếu cần)</i></color>");
+                }
+                else
+                {
+                    for (int i = 0; i < board.Count; i++)
+                    {
+                        var entry = board[i];
+                        int rank = i + 1;
+                        string medal = rank == 1 ? "<color=#F59E0B><b>🥇 1</b></color>" :
+                                       (rank == 2 ? "<color=#94A3B8><b>🥈 2</b></color>" :
+                                       (rank == 3 ? "<color=#FB923C><b>🥉 3</b></color>" : $"<b>{rank}</b>"));
+                        string modeDisplay = (entry.mode == "DinoAssault" || entry.mode == "Công Thành") ? "Công Thành" : "Thủ Thành";
+                        string scoreColor = rank <= 3 ? "#00FFAA" : "#FFFFFF";
 
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("<color=#94A3B8><b>🥈 2</b></color>", GUILayout.Width(45));
-                GUILayout.Label("<b>Caveman Prime</b>", GUILayout.Width(180));
-                GUILayout.Label("<color=#00FFAA><b>12,800</b></color>", GUILayout.Width(100));
-                GUILayout.Label("Đợt 15", GUILayout.Width(110));
-                GUILayout.Label("Thủ Thành");
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("<color=#FB923C><b>🥉 3</b></color>", GUILayout.Width(45));
-                GUILayout.Label("<b>Raptor Queen</b>", GUILayout.Width(180));
-                GUILayout.Label("<color=#00FFAA><b>11,200</b></color>", GUILayout.Width(100));
-                GUILayout.Label("Màn 14", GUILayout.Width(110));
-                GUILayout.Label("Công Thành");
-                GUILayout.EndHorizontal();
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label(medal, GUILayout.Width(45));
+                        GUILayout.Label($"<b>{entry.player_name}</b>", GUILayout.Width(180));
+                        GUILayout.Label($"<color={scoreColor}><b>{entry.score:N0}</b></color>", GUILayout.Width(100));
+                        GUILayout.Label($"Đợt {entry.wave_reached}", GUILayout.Width(110));
+                        GUILayout.Label(modeDisplay);
+                        GUILayout.EndHorizontal();
+                    }
+                }
 
                 if (cloudMgr != null && cloudMgr.IsLoggedIn)
                 {

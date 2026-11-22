@@ -183,7 +183,30 @@ namespace LlamAcademy.Dinos.UI
             GUILayout.EndHorizontal();
 
             GUILayout.Label("<size=12><color=#94A3B8>Hệ thống Tài Khoản Tù Trưởng & Đồng Bộ Đám Mây</color></size>");
-            GUILayout.Space(10);
+            
+            var cloudMgr = IOCloudManager.Instance;
+            bool isOnline = cloudMgr != null && cloudMgr.IsCloudConnected;
+            string srvColor = isOnline ? "#22C55E" : (cloudMgr != null && cloudMgr.IsUsingPublicHttpsCloud ? "#38BDF8" : "#F59E0B");
+            string srvName = cloudMgr != null
+                ? (cloudMgr.IsUsingPublicHttpsCloud ? "Railway Cloud HTTPS" : "Localhost :8000")
+                : "Chờ kết nối";
+            string srvStatus = isOnline ? "ONLINE" : "STANDBY";
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"<size=10><color={srvColor}>● Máy chủ: <b>{srvName}</b> ({srvStatus})</color></size>");
+            if (cloudMgr != null && !cloudMgr.IsUsingPublicHttpsCloud)
+            {
+                GUI.backgroundColor = new Color(0.2f, 0.6f, 0.95f, 1f);
+                if (GUILayout.Button("<size=10><b>⚡ Đổi sang Cloud Railway</b></size>", GUILayout.Width(140), GUILayout.Height(20)))
+                {
+                    cloudMgr.SetCloudBaseUrl("https://io-cloud-ai-backend-production.up.railway.app", true);
+                    SetFeedback("Đã chuyển sang Cloud Railway HTTPS!", true);
+                }
+                GUI.backgroundColor = Color.white;
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(8);
 
             // 2. Mode Selector: [ĐĂNG NHẬP] | [ĐĂNG KÝ]
             GUILayout.BeginHorizontal();
@@ -237,6 +260,19 @@ namespace LlamAcademy.Dinos.UI
                 GUI.color = _feedbackColor;
                 GUILayout.Label($"<b><size=11>{_feedbackMessage}</size></b>");
                 GUI.color = Color.white;
+
+                if (_feedbackMessage.Contains("Lỗi kết nối") && cloudMgr != null && !cloudMgr.IsUsingPublicHttpsCloud)
+                {
+                    GUI.backgroundColor = new Color(0.16f, 0.75f, 0.45f, 1f);
+                    if (GUILayout.Button("<b>⚡ TỰ ĐỘNG CHUYỂN SANG CLOUD RAILWAY & THỬ LẠI</b>", GUILayout.Height(28)))
+                    {
+                        cloudMgr.SetCloudBaseUrl("https://io-cloud-ai-backend-production.up.railway.app", true);
+                        if (_currentMode == AuthMode.Login) ExecuteLogin();
+                        else ExecuteRegister();
+                    }
+                    GUI.backgroundColor = Color.white;
+                    GUILayout.Space(4);
+                }
             }
             else
             {
@@ -246,8 +282,6 @@ namespace LlamAcademy.Dinos.UI
             GUILayout.Space(6);
 
             // 4. Primary Action Button (Login or Register)
-            var cloudMgr = IOCloudManager.Instance;
-            bool isOnline = cloudMgr != null && cloudMgr.IsCloudConnected;
 
             if (_currentMode == AuthMode.Login)
             {
