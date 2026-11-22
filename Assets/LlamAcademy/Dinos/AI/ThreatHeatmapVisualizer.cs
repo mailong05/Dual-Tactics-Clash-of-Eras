@@ -52,6 +52,7 @@ namespace LlamAcademy.Dinos.AI
         private Color32[] _colorBuffer;
 
         private LineRenderer _flankerLine;
+        private LineRenderer _flankerLineLeft;
         private LineRenderer _tankerLine;
 
         private void Awake()
@@ -131,7 +132,7 @@ namespace LlamAcademy.Dinos.AI
                 {
                     CreateHeatmapPlane();
                 }
-                if (_flankerLine == null || _tankerLine == null)
+                if (_flankerLine == null || _flankerLineLeft == null || _tankerLine == null)
                 {
                     CreatePathLineRenderers();
                 }
@@ -145,6 +146,11 @@ namespace LlamAcademy.Dinos.AI
             {
                 _flankerLine.enabled = visible;
                 _flankerLine.gameObject.SetActive(visible);
+            }
+            if (_flankerLineLeft != null)
+            {
+                _flankerLineLeft.enabled = visible;
+                _flankerLineLeft.gameObject.SetActive(visible);
             }
             if (_tankerLine != null)
             {
@@ -336,12 +342,19 @@ namespace LlamAcademy.Dinos.AI
 
         private void CreatePathLineRenderers()
         {
-            // Flanker Path (Vàng Sáng / Xanh Lam)
+            // Flanker Path Right (Vàng Sáng / Yellow)
             GameObject flankerGO = new GameObject("Threat_Flanker_Path_Line");
             flankerGO.transform.SetParent(transform);
             flankerGO.layer = 0;
             _flankerLine = flankerGO.AddComponent<LineRenderer>();
             ConfigureLineRenderer(_flankerLine, new Color(1.0f, 0.88f, 0.15f, 0.95f), new Color(1.0f, 0.70f, 0.10f, 0.95f), 0.55f);
+
+            // Flanker Path Left (Xanh Lam / Cyan)
+            GameObject flankerLeftGO = new GameObject("Threat_Flanker_Left_Path_Line");
+            flankerLeftGO.transform.SetParent(transform);
+            flankerLeftGO.layer = 0;
+            _flankerLineLeft = flankerLeftGO.AddComponent<LineRenderer>();
+            ConfigureLineRenderer(_flankerLineLeft, new Color(0.12f, 0.95f, 0.82f, 0.95f), new Color(0.10f, 0.85f, 0.40f, 0.95f), 0.55f);
 
             // Tanker Path (Cam Đỏ / Crimson)
             GameObject tankerGO = new GameObject("Threat_Tanker_Path_Line");
@@ -454,11 +467,16 @@ namespace LlamAcademy.Dinos.AI
                 // Nếu lộ trình chiến thuật Công Thành đã được AI Director phân tích và khóa cố định: sử dụng luôn lộ trình đó!
                 if (ThreatAwarePathfinding.Instance.IsAssaultPathsLocked)
                 {
-                    var lockedFlanker = ThreatAwarePathfinding.Instance.CachedFlankerPath;
+                    var lockedFlankerRight = ThreatAwarePathfinding.Instance.CachedRightFlankerPath;
+                    var lockedFlankerLeft = ThreatAwarePathfinding.Instance.CachedLeftFlankerPath;
                     var lockedTanker = ThreatAwarePathfinding.Instance.CachedTankerPath;
-                    if (lockedFlanker != null && lockedFlanker.Count > 0)
+                    if (lockedFlankerRight != null && lockedFlankerRight.Count > 0)
                     {
-                        DrawLinePath(_flankerLine, lockedFlanker, 0.40f);
+                        DrawLinePath(_flankerLine, lockedFlankerRight, 0.40f);
+                    }
+                    if (lockedFlankerLeft != null && lockedFlankerLeft.Count > 0)
+                    {
+                        DrawLinePath(_flankerLineLeft, lockedFlankerLeft, 0.40f);
                     }
                     if (lockedTanker != null && lockedTanker.Count > 0)
                     {
@@ -478,41 +496,59 @@ namespace LlamAcademy.Dinos.AI
 
             try
             {
-                bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
-                if (_flankerLine != null)
+                if (isAssaultMode)
                 {
-                    Color flankStart = isCenterHeavy ? new Color(0.12f, 0.95f, 0.82f, 0.95f) : new Color(1.0f, 0.88f, 0.15f, 0.95f);
-                    Color flankEnd = isCenterHeavy ? new Color(0.10f, 0.85f, 0.40f, 0.95f) : new Color(1.0f, 0.70f, 0.10f, 0.95f);
-                    _flankerLine.startColor = flankStart;
-                    _flankerLine.endColor = flankEnd;
-                    if (_flankerLine.material != null)
-                    {
-                        _flankerLine.material.color = flankStart;
-                        if (_flankerLine.material.HasProperty("_BaseColor")) _flankerLine.material.SetColor("_BaseColor", flankStart);
-                        if (_flankerLine.material.HasProperty("_Color")) _flankerLine.material.SetColor("_Color", flankStart);
-                    }
+                    List<Vector3> leftFlanker = ThreatAwarePathfinding.Instance.FindThreatAwarePath(new Vector3(-8f, 0f, spawnPos.z), basePos, DinoAISpeciesType.VelociraptorFlanker);
+                    DrawLinePath(_flankerLineLeft, leftFlanker, 0.40f);
+
+                    List<Vector3> rightFlanker = ThreatAwarePathfinding.Instance.FindThreatAwarePath(new Vector3(8f, 0f, spawnPos.z), basePos, DinoAISpeciesType.VelociraptorFlanker);
+                    DrawLinePath(_flankerLine, rightFlanker, 0.40f);
+
+                    List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(new Vector3(0f, 0f, spawnPos.z), basePos, DinoAISpeciesType.AnkylosaurusTanker);
+                    DrawLinePath(_tankerLine, tankerPath, 0.50f);
                 }
-                if (_tankerLine != null)
+                else
                 {
-                    Color tankerStart = new Color(1.0f, 0.45f, 0.10f, 0.95f);
-                    Color tankerEnd = new Color(0.95f, 0.15f, 0.15f, 0.95f);
-                    _tankerLine.startColor = tankerStart;
-                    _tankerLine.endColor = tankerEnd;
-                    if (_tankerLine.material != null)
+                    bool isCenterHeavy = ThreatAwarePathfinding.Instance != null && ThreatAwarePathfinding.Instance.IsCenterEntranceHeavyThreat();
+                    if (_flankerLine != null)
                     {
-                        _tankerLine.material.color = tankerStart;
-                        if (_tankerLine.material.HasProperty("_BaseColor")) _tankerLine.material.SetColor("_BaseColor", tankerStart);
-                        if (_tankerLine.material.HasProperty("_Color")) _tankerLine.material.SetColor("_Color", tankerStart);
+                        Color flankStart = isCenterHeavy ? new Color(0.12f, 0.95f, 0.82f, 0.95f) : new Color(1.0f, 0.88f, 0.15f, 0.95f);
+                        Color flankEnd = isCenterHeavy ? new Color(0.10f, 0.85f, 0.40f, 0.95f) : new Color(1.0f, 0.70f, 0.10f, 0.95f);
+                        _flankerLine.startColor = flankStart;
+                        _flankerLine.endColor = flankEnd;
+                        if (_flankerLine.material != null)
+                        {
+                            _flankerLine.material.color = flankStart;
+                            if (_flankerLine.material.HasProperty("_BaseColor")) _flankerLine.material.SetColor("_BaseColor", flankStart);
+                            if (_flankerLine.material.HasProperty("_Color")) _flankerLine.material.SetColor("_Color", flankStart);
+                        }
                     }
+                    if (_flankerLineLeft != null)
+                    {
+                        _flankerLineLeft.positionCount = 0;
+                    }
+                    if (_tankerLine != null)
+                    {
+                        Color tankerStart = new Color(1.0f, 0.45f, 0.10f, 0.95f);
+                        Color tankerEnd = new Color(0.95f, 0.15f, 0.15f, 0.95f);
+                        _tankerLine.startColor = tankerStart;
+                        _tankerLine.endColor = tankerEnd;
+                        if (_tankerLine.material != null)
+                        {
+                            _tankerLine.material.color = tankerStart;
+                            if (_tankerLine.material.HasProperty("_BaseColor")) _tankerLine.material.SetColor("_BaseColor", tankerStart);
+                            if (_tankerLine.material.HasProperty("_Color")) _tankerLine.material.SetColor("_Color", tankerStart);
+                        }
+                    }
+
+                    // 1. Calculate Flanker Path (Velociraptor adapts: Flanker if heavy threat, Swarm Rush down center if weak threat)
+                    List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
+                    DrawLinePath(_flankerLine, flankerPath, 0.40f);
+
+                    // 2. Calculate Tanker Path (Ankylosaurus charges through walls directly)
+                    List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
+                    DrawLinePath(_tankerLine, tankerPath, 0.50f);
                 }
-
-                // 1. Calculate Flanker Path (Velociraptor adapts: Flanker if heavy threat, Swarm Rush down center if weak threat)
-                List<Vector3> flankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.VelociraptorFlanker);
-                DrawLinePath(_flankerLine, flankerPath, 0.40f);
-
-                // 2. Calculate Tanker Path (Ankylosaurus charges through walls directly)
-                List<Vector3> tankerPath = ThreatAwarePathfinding.Instance.FindThreatAwarePath(spawnPos, basePos, DinoAISpeciesType.AnkylosaurusTanker);
-                DrawLinePath(_tankerLine, tankerPath, 0.50f);
             }
             catch (System.Exception ex)
             {
@@ -533,7 +569,7 @@ namespace LlamAcademy.Dinos.AI
             line.enabled = IsHeatmapVisible;
         }
 
-                private void OnGUI()
+        private void OnGUI()
         {
             if (!IsHeatmapVisible) return;
 
@@ -547,7 +583,7 @@ namespace LlamAcademy.Dinos.AI
                 float posX = 20f;
                 float posY = 212f;
                 float w = 330f;
-                float h = 152f;
+                float h = 175f;
                 Rect legendRect = new Rect(posX, posY, w, h);
                 Mobile.MobileUIHelper.RegisterUIRect(legendRect);
 
@@ -565,8 +601,9 @@ namespace LlamAcademy.Dinos.AI
 
                 if (isAssault)
                 {
-                    GUILayout.Label("<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Lộ trình Velociraptor (Bọc sườn né tháp)", GetItemStyle());
-                    GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Khủng Long Giáp (Đục phá tường)", GetItemStyle());
+                    GUILayout.Label("<color=#20F0D0>━</color> <b>Đường Xanh Lam</b>: Bọc sườn Cánh Trái (Velociraptor)", GetItemStyle());
+                    GUILayout.Label("<color=#FFD700>━</color> <b>Đường Vàng Sáng</b>: Bọc sườn Cánh Phải (Velociraptor)", GetItemStyle());
+                    GUILayout.Label("<color=#FF8820>━</color> <b>Đường Cam Đỏ</b>: Lộ trình Đục Phá (Khủng Long Giáp)", GetItemStyle());
                 }
                 else
                 {

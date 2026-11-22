@@ -671,7 +671,15 @@ def get_dashboard_html() -> str:
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 10 } } }
+                        legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 10 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.parsed;
+                                    return ` ${context.label}: ${isNaN(val) ? 0 : val}%`;
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -855,16 +863,26 @@ def get_dashboard_html() -> str:
                     p1 = Math.round((Number(aw[1]) || 0.25) * 100);
                     p2 = Math.round((Number(aw[2]) || 0.25) * 100);
                     p3 = Math.round((Number(aw[3]) || 0.25) * 100);
+                } else if (typeof aw === 'object' && aw !== null) {
+                    p0 = Math.round((Number(aw.Velociraptor_Runner ?? aw.runner ?? aw['0']) || 0.25) * 100);
+                    p1 = Math.round((Number(aw.Pterodactyl_Flyer ?? aw.flyer ?? aw['1']) || 0.25) * 100);
+                    p2 = Math.round((Number(aw.Ankylosaurus_Tank ?? aw.tank ?? aw['2']) || 0.25) * 100);
+                    p3 = Math.round((Number(aw.TRex_Boss ?? aw.boss ?? aw['3']) || 0) * 100);
                 } else {
-                    p0 = Math.round((Number(aw.Velociraptor_Runner ?? aw.runner ?? aw[0]) || 0.25) * 100);
-                    p1 = Math.round((Number(aw.Pterodactyl_Flyer ?? aw.flyer ?? aw[1]) || 0.25) * 100);
-                    p2 = Math.round((Number(aw.Ankylosaurus_Tank ?? aw.tank ?? aw[2]) || 0.25) * 100);
-                    p3 = Math.round((Number(aw.TRex_Boss ?? aw.boss ?? aw[3]) || 0) * 100);
+                    p0 = 35; p1 = 25; p2 = 30; p3 = 10;
                 }
-                if (isNaN(p0)) p0 = 25;
-                if (isNaN(p1)) p1 = 25;
-                if (isNaN(p2)) p2 = 25;
-                if (isNaN(p3)) p3 = 0;
+                if (isNaN(p0) || p0 < 0) p0 = 25;
+                if (isNaN(p1) || p1 < 0) p1 = 25;
+                if (isNaN(p2) || p2 < 0) p2 = 25;
+                if (isNaN(p3) || p3 < 0) p3 = 0;
+
+                const totalP = p0 + p1 + p2 + p3;
+                if (totalP > 0 && totalP !== 100) {
+                    p0 = Math.round((p0 / totalP) * 100);
+                    p1 = Math.round((p1 / totalP) * 100);
+                    p2 = Math.round((p2 / totalP) * 100);
+                    p3 = Math.max(0, 100 - p0 - p1 - p2);
+                }
 
                 document.getElementById('sbProb0').innerText = p0 + '%';
                 document.getElementById('sbFill0').style.width = p0 + '%';
@@ -902,6 +920,8 @@ def get_dashboard_html() -> str:
         window.onload = function() {
             initCharts();
             refreshAllData();
+            // Tự động kích hoạt dự báo mẫu để biểu đồ Tỷ Trọng Khủng Long AI hiển thị trực quan ngay lập tức
+            runAiSandboxPrediction();
             // Auto refresh every 6 seconds
             setInterval(refreshAllData, 6000);
         };

@@ -977,6 +977,8 @@ namespace LlamAcademy.Dinos.Save
             }
         }
 
+        private int _lastSubmittedScore = -1;
+
         private void AutoSyncToCloudIfOnline()
         {
             BindCloudHooks();
@@ -988,8 +990,9 @@ namespace LlamAcademy.Dinos.Save
                 _lastAutoCloudSyncTime = Time.unscaledTime;
                 var snap = CollectCloudSnapshot();
                 IOCloudManager.Instance.SaveProgressToCloud(snap.playerName, snap.coins, snap.highestWave, snap.mode);
-                if (CurrentData.TotalScore > 0)
+                if (CurrentData.TotalScore > 0 && CurrentData.TotalScore != _lastSubmittedScore)
                 {
+                    _lastSubmittedScore = CurrentData.TotalScore;
                     IOCloudManager.Instance.SubmitScoreToCloud(snap.playerName, CurrentData.TotalScore, snap.highestWave);
                 }
             }
