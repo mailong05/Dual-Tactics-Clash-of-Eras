@@ -132,14 +132,14 @@ def init_db() -> None:
                 SEED_LEADERBOARD,
             )
         else:
-            # Prune duplicate leaderboard rows keeping only the best score per player
+            # Prune duplicate leaderboard rows keeping only the best score per player account
             conn.execute(
                 """
                 DELETE FROM leaderboard
                 WHERE id NOT IN (
                     SELECT id FROM (
                         SELECT id, ROW_NUMBER() OVER (
-                            PARTITION BY COALESCE(NULLIF(TRIM(player_name), ''), player_id)
+                            PARTITION BY CASE WHEN player_id IS NOT NULL AND player_id != '' THEN player_id ELSE COALESCE(NULLIF(TRIM(player_name), ''), id) END
                             ORDER BY score DESC, wave_reached DESC, submitted_at DESC, id DESC
                         ) as rn
                         FROM leaderboard
@@ -552,7 +552,7 @@ def get_leaderboard(limit: int = 10):
     with _get_conn() as conn:
         total = conn.execute(
             """
-            SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(player_name), ''), player_id))
+            SELECT COUNT(DISTINCT CASE WHEN player_id IS NOT NULL AND player_id != '' THEN player_id ELSE COALESCE(NULLIF(TRIM(player_name), ''), id) END)
             FROM leaderboard
             """
         ).fetchone()[0]
@@ -561,7 +561,7 @@ def get_leaderboard(limit: int = 10):
             WITH ranked AS (
                 SELECT player_id, player_name, score, wave_reached, mode, submitted_at,
                        ROW_NUMBER() OVER (
-                           PARTITION BY COALESCE(NULLIF(TRIM(player_name), ''), player_id)
+                           PARTITION BY CASE WHEN player_id IS NOT NULL AND player_id != '' THEN player_id ELSE COALESCE(NULLIF(TRIM(player_name), ''), id) END
                            ORDER BY score DESC, wave_reached DESC, submitted_at DESC, id DESC
                        ) as rn
                 FROM leaderboard

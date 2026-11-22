@@ -90,6 +90,7 @@ namespace LlamAcademy.Dinos.Cloud
         private string _editableUrl = "";
         private string _localDockerUrl = "http://localhost:8000";
         private readonly List<LeaderboardEntry> _cachedLeaderboard = new();
+        public IReadOnlyList<LeaderboardEntry> CachedLeaderboard => _cachedLeaderboard;
 
         private GUIStyle _cloudStatusStyle;
         private GUIStyle _cloudSubStyle;
@@ -744,7 +745,16 @@ namespace LlamAcademy.Dinos.Cloud
                     _cachedLeaderboard.Clear();
                     if (resp != null && resp.leaderboard != null)
                     {
-                        _cachedLeaderboard.AddRange(resp.leaderboard);
+                        var seenPlayers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var entry in resp.leaderboard)
+                        {
+                            string key = !string.IsNullOrWhiteSpace(entry.player_name) ? entry.player_name.Trim() : (entry.player_id ?? "");
+                            if (!string.IsNullOrEmpty(key) && !seenPlayers.Contains(key))
+                            {
+                                seenPlayers.Add(key);
+                                _cachedLeaderboard.Add(entry);
+                            }
+                        }
                     }
                 }
             }

@@ -749,7 +749,7 @@ def get_dashboard_html() -> str:
 
         async function fetchLeaderboard() {
             try {
-                const res = await fetch('/api/v1/cloud/leaderboard?limit=10');
+                const res = await fetch('/api/v1/cloud/leaderboard?limit=25');
                 if (!res.ok) return;
                 const data = await res.json();
                 const tbody = document.getElementById('leaderboardTableBody');
@@ -760,8 +760,24 @@ def get_dashboard_html() -> str:
                     return;
                 }
 
+                // Client-side deduplication guard: Mỗi tù trưởng chỉ xuất hiện 1 lần với điểm số cao nhất
+                const seenPlayers = new Set();
+                const uniqueEntries = [];
+                data.leaderboard.forEach(entry => {
+                    const key = (entry.player_name || entry.player_id || '').trim().toLowerCase();
+                    if (key && !seenPlayers.has(key)) {
+                        seenPlayers.add(key);
+                        uniqueEntries.push(entry);
+                    }
+                });
+
+                if (uniqueEntries.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px; color:#64748B;">Chưa có bảng xếp hạng.</td></tr>';
+                    return;
+                }
+
                 let maxWave = 1;
-                data.leaderboard.forEach((entry, idx) => {
+                uniqueEntries.slice(0, 10).forEach((entry, idx) => {
                     const rank = idx + 1;
                     let rankBadge = rank === 1 ? '🥇 1' : (rank === 2 ? '🥈 2' : (rank === 3 ? '🥉 3' : rank));
                     if ((entry.wave_reached || 1) > maxWave) maxWave = entry.wave_reached;
