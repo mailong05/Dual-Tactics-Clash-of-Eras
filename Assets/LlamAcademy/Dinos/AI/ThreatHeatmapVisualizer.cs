@@ -583,7 +583,7 @@ namespace LlamAcademy.Dinos.AI
                 float posX = 20f;
                 float posY = 212f;
                 float w = 330f;
-                float h = 175f;
+                float h = 196f;
                 Rect legendRect = new Rect(posX, posY, w, h);
                 Mobile.MobileUIHelper.RegisterUIRect(legendRect);
 
@@ -595,6 +595,7 @@ namespace LlamAcademy.Dinos.AI
                 GUILayout.Label("🟩 <b>Xanh lá</b>: Vùng mù hỏa lực / Hành lang an toàn", GetItemStyle());
                 GUILayout.Label("🟨 <b>Vàng</b>: Vùng sát thương trung bình", GetItemStyle());
                 GUILayout.Label("🟥 <b>Đỏ</b>: Tử địa tập trung hỏa lực tháp", GetItemStyle());
+                GUILayout.Label("<color=#C855FF>🟪</color> <b>Tím</b>: Tường thành / Hàng rào (Vật cản đục phá)", GetItemStyle());
                 
                 bool isAssault = RoundManagement.PrehistoricGameModeManager.Instance != null && 
                                  RoundManagement.PrehistoricGameModeManager.Instance.CurrentMode == RoundManagement.PrehistoricGameMode.DinoAssault;

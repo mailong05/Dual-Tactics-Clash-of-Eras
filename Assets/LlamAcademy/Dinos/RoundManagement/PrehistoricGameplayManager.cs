@@ -1892,6 +1892,17 @@ namespace LlamAcademy.Dinos.RoundManagement
                         unitComp.MaxHealth = scaledMaxHp;
                         unitComp.Health = scaledMaxHp;
                         unitComp.EnsureHealthBarAttached();
+
+                        // Đảm bảo nhãn quyết định AI hiển thị rõ ràng trên đầu khủng long
+                        AI.DinoAISpeciesType species = AI.DinoAISpeciesType.VelociraptorFlanker;
+                        if (dinoPrefab.name.ToLower().Contains("ankylo") || unitComp is Unit.SiegeDino)
+                            species = AI.DinoAISpeciesType.AnkylosaurusTanker;
+                        else if (dinoPrefab.name.ToLower().Contains("trex") || unitComp is Unit.BossDino)
+                            species = AI.DinoAISpeciesType.TRexApexBoss;
+                        else if (dinoPrefab.name.ToLower().Contains("ptero") || unitComp is Unit.FlyingUnit)
+                            species = AI.DinoAISpeciesType.PterodactylFlyer;
+
+                        AI.OverheadAIStateInspector.AttachTo(spawned, species);
                     }
 
                     if (spawned.TryGetComponent(out Unit.PrehistoricDinoBase dinoBase))

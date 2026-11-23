@@ -271,8 +271,8 @@ namespace LlamAcademy.Dinos.RoundManagement
                 else
                 {
                     dinoSpawner.AllowPlacingDinos = true;
-                    // Khởi tạo lượng thịt ban đầu hợp lý (200 thịt cơ bản + 40 thịt mỗi cấp màn)
-                    int targetMeat = 200 + (AssaultLevel - 1) * 40;
+                    // Khởi tạo lượng thịt ban đầu dồi dào theo cấp màn (500 cơ bản + 200 mỗi cấp màn)
+                    int targetMeat = GetFixedMeatForLevel(AssaultLevel);
                     if (Application.isPlaying && dinoSpawner.ResourcesToSpend < targetMeat)
                     {
                         dinoSpawner.ResourcesToSpend = targetMeat;
@@ -617,6 +617,13 @@ namespace LlamAcademy.Dinos.RoundManagement
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label($"<b><size=17><color=#FF6644>🥩 THỨC ĂN (MEAT): {food}</color></size></b>");
+            GUILayout.FlexibleSpace();
+            GUI.backgroundColor = new Color(0.18f, 0.75f, 0.45f, 1f);
+            if (GUILayout.Button("<b>+200 Thịt</b>", GUILayout.Width(88), GUILayout.Height(24)))
+            {
+                if (spawner != null) spawner.ResourcesToSpend += 200;
+            }
+            GUI.backgroundColor = Color.white;
             GUILayout.EndHorizontal();
 
             // Hiển thị trực quan máu Căn Cứ Làng mục tiêu
@@ -1030,13 +1037,15 @@ namespace LlamAcademy.Dinos.RoundManagement
         /// Quy định số lượng công trình phòng thủ làng tương ứng với từng cấp màn (Level 1..10+),
         /// tương tự cơ chế thiết lập số lượng NPC phòng thủ theo màn.
         /// </summary>
-                /// <summary>
-        /// Quy định lượng thịt cố định theo cấp màn trong chế độ Công Thành (Dino Assault).
-        /// Màn 1: 150 thịt (vừa đủ chiến thuật) | Mỗi màn tiếp theo tăng 30 thịt cố định.
+        /// <summary>
+        /// Quy định lượng thịt dồi dào theo cấp màn trong chế độ Công Thành (Dino Assault).
+        /// Màn 1: 500 thịt (cho phép triệu hồi cả bầy khủng long hùng hậu, đầy đủ các chủng loài).
+        /// Mỗi màn tiếp theo tăng thêm 200 thịt (Màn 2: 700, Màn 3: 900, Màn 4: 1100, Màn 5: 1300...)
+        /// tương ứng với độ kiên cố và lượng máu tăng dần của Làng.
         /// </summary>
         public static int GetFixedMeatForLevel(int level)
         {
-            return 150 + Mathf.Max(0, level - 1) * 30;
+            return 500 + Mathf.Max(0, level - 1) * 200;
         }
 
         public static int GetTargetDefenseCountForLevel(int level)
@@ -1508,7 +1517,7 @@ namespace LlamAcademy.Dinos.RoundManagement
             if (spawner != null)
             {
                 spawner.AllowPlacingDinos = true;
-                int targetMeat = GetFixedMeatForLevel(AssaultLevel);
+                int targetMeat = Mathf.Max(savedMeat, GetFixedMeatForLevel(AssaultLevel));
                 spawner.ResourcesToSpend = targetMeat;
             }
 
