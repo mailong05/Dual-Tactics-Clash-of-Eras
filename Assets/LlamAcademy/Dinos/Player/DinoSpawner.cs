@@ -366,6 +366,17 @@ namespace LlamAcademy.Dinos.Player
                             Utility.HealthBarCanvas.Instance.CreateHealthBarForUnit(spawnedDino);
                         }
 
+                        // Đảm bảo nhãn quyết định AI hiển thị rõ ràng trên đầu khủng long
+                        AI.DinoAISpeciesType spType = AI.DinoAISpeciesType.VelociraptorFlanker;
+                        if (spawnedDino is Unit.SiegeDino || (SpawnDino != null && SpawnDino.name.ToLower().Contains("ankylo")))
+                            spType = AI.DinoAISpeciesType.AnkylosaurusTanker;
+                        else if (spawnedDino is Unit.BossDino || (SpawnDino != null && SpawnDino.name.ToLower().Contains("trex")))
+                            spType = AI.DinoAISpeciesType.TRexApexBoss;
+                        else if (spawnedDino is Unit.FlyingUnit || (SpawnDino != null && SpawnDino.name.ToLower().Contains("ptero")))
+                            spType = AI.DinoAISpeciesType.PterodactylFlyer;
+
+                        AI.OverheadAIStateInspector.AttachTo(spawnedDino.gameObject, spType);
+
                         // Ở Setup Phase: Khủng long đứng vào đội hình sẵn sàng, chưa tự ý di chuyển
                         NavMeshAgent agent = spawnedDino.GetComponent<NavMeshAgent>();
                         if (spawnedDino is Unit.PrehistoricDinoBase pDino)
