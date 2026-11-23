@@ -595,7 +595,7 @@ namespace LlamAcademy.Dinos.Save
                     level = level + 1;
                 }
 
-                int targetMeat = 500 + (level - 1) * 200;
+                int targetMeat = PrehistoricGameModeManager.GetFixedMeatForLevel(level);
                 int fullHp = 1000 + (level - 1) * 350;
 
                 slot.WaveOrLevel = level;
@@ -678,7 +678,7 @@ namespace LlamAcademy.Dinos.Save
                 else
                 {
                     int targetLevel = Mathf.Max(1, slot.WaveOrLevel);
-                    int targetMeat = Mathf.Max(slot.Resources, 500 + (targetLevel - 1) * 200);
+                    int targetMeat = Mathf.Max(slot.Resources, PrehistoricGameModeManager.GetFixedMeatForLevel(targetLevel));
                     int fullBaseHp = 1000 + (targetLevel - 1) * 350;
 
                     CurrentData.AssaultProfile.AssaultLevel = targetLevel;
